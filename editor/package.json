@@ -1,0 +1,51 @@
+{
+    "name": "atlas-engine",
+    "version": "0.0.0-alpha9",
+    "private": true,
+    "main": "dist-electron/main/main.js",
+    "scripts": {
+        "generate:build:dev": "cross-env APP_MODE=development bun run scripts/generate-build.ts",
+        "generate:build:release": "cross-env APP_MODE=release bun run scripts/generate-build.ts",
+        "dev:vite": "vite",
+        "build:renderer": "vite build",
+        "build:main": "tsc -p tsconfig.main.json",
+        "build:preload": "tsc -p tsconfig.preload.json",
+        "build:electron": "bun run build:main && bun run build:preload",
+        "watch:main": "tsc -p tsconfig.main.json --watch",
+        "watch:preload": "tsc -p tsconfig.preload.json --watch",
+        "dev:prepare": "bun run generate:build:dev && bun run build:electron",
+        "dev:electron": "wait-on http://localhost:5173 && electron .",
+        "dev": "bun run dev:prepare && concurrently \"bun run dev:vite\" \"bun run watch:main\" \"bun run watch:preload\" \"bun run dev:electron\"",
+        "release": "cross-env APP_MODE=release bun run generate:build:release && bun run build:renderer && bun run build:electron && cross-env APP_MODE=release electron-builder --config electron-builder.config.cjs",
+        "dist:debug": "cross-env APP_MODE=development bun run generate:build:dev && bun run build:renderer && bun run build:electron && cross-env APP_MODE=development electron-builder --config electron-builder.config.cjs",
+        "lint": "eslint ."
+    },
+    "dependencies": {
+        "react": "^19.2.4",
+        "react-dom": "^19.2.4",
+        "react-router-dom": "^7.14.0"
+    },
+    "devDependencies": {
+        "@eslint/js": "^10.0.1",
+        "@tailwindcss/vite": "^4.2.2",
+        "@types/node": "^25.6.0",
+        "@types/react": "^19.2.14",
+        "@types/react-dom": "^19.2.3",
+        "@vitejs/plugin-react": "^6.0.1",
+        "concurrently": "^9.2.1",
+        "cross-env": "^10.1.0",
+        "electron": "^41.2.0",
+        "electron-builder": "^26.8.1",
+        "eslint": "^10.2.0",
+        "eslint-config-prettier": "^10.1.8",
+        "eslint-plugin-react-hooks": "^7.0.1",
+        "eslint-plugin-react-refresh": "^0.5.2",
+        "globals": "^17.5.0",
+        "prettier": "^3.8.2",
+        "tailwindcss": "^4.2.2",
+        "typescript": "^6.0.2",
+        "typescript-eslint": "^8.58.1",
+        "vite": "^8.0.4",
+        "wait-on": "^9.0.5"
+    }
+}

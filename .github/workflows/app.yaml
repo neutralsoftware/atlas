@@ -1,0 +1,37 @@
+name: Build editor
+
+on:
+    push:
+        branches: [main, editor]
+    pull_request:
+        branches: [main, editor]
+
+concurrency:
+    group: ci-${{ github.workflow }}-${{ github.ref }}
+    cancel-in-progress: true
+
+jobs:
+    check:
+        runs-on: ubuntu-latest
+
+        steps:
+            - name: Check out repo
+              uses: actions/checkout@v4
+
+            - name: Set up Bun
+              uses: oven-sh/setup-bun@v2
+
+            - name: Install dependencies
+              run: bun install --frozen-lockfile
+
+            - name: Lint
+              run: bun run lint
+
+            - name: Typecheck
+              run: bunx tsc -b --pretty false
+
+            - name: Build renderer
+              run: bun run build:renderer
+
+            - name: Build Electron
+              run: bun run build:electron
