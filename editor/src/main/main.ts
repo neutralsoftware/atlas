@@ -75,14 +75,26 @@ async function createMainWindow() {
     const windowIcon = getWindowIcon();
 
     const win = new BrowserWindow({
-        width: 1280,
-        height: 800,
-        minWidth: 960,
-        minHeight: 640,
+        width: 1080,
+        height: 720,
+
+        resizable: false,
+        minimizable: false,
+        maximizable: false,
+        fullscreenable: false,
+
+        frame: false,
+        hasShadow: true,
+        transparent: true,
+
+        alwaysOnTop: true,
+
+        center: true,
+        skipTaskbar: true,
+
         show: true,
         ...(windowIcon ? { icon: windowIcon } : {}),
-        titleBarStyle:
-            process.platform === "darwin" ? "hiddenInset" : "default",
+
         webPreferences: {
             preload: getPreloadPath(),
             contextIsolation: true,
@@ -103,7 +115,7 @@ async function createMainWindow() {
         }
     });
 
-    const devServerUrl = "http://localhost:5173/#/test";
+    const devServerUrl = "http://localhost:5173/#/splash";
 
     if (!app.isPackaged && DEBUG) {
         try {
@@ -114,7 +126,7 @@ async function createMainWindow() {
         }
     }
 
-    await win.loadFile(getRendererIndexPath(), { hash: "/test" });
+    await win.loadFile(getRendererIndexPath(), { hash: "/splash" });
 
     return win;
 }

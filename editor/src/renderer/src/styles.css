@@ -1,1 +1,10 @@
+@import url('https://fonts.googleapis.com/css2?family=Manrope:wght@200..800&display=swap');
 @import "tailwindcss";
+
+@theme {
+    --color-secondary: #999999;
+    --color-accent: #0091FF;
+    --color-destroy: #FF4245;
+    --font-manrope: 'Manrope', sans-serif;
+}
+
