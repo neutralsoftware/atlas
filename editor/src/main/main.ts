@@ -75,8 +75,8 @@ async function createMainWindow() {
     const windowIcon = getWindowIcon();
 
     const win = new BrowserWindow({
-        width: 750,
-        height: 200,
+        width: 1080,
+        height: 720,
 
         resizable: false,
         minimizable: false,
