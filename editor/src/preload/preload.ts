@@ -1,5 +1,9 @@
 import { contextBridge, ipcRenderer } from "electron";
-import type { WindowApi } from "../shared/types/ipc";
+import type {
+    StartupTask,
+    StartupTaskUpdate,
+    WindowApi,
+} from "../shared/types/ipc";
 
 const api: WindowApi = {
     getAppInfo: () => ipcRenderer.invoke("app:get-info"),
@@ -15,4 +19,24 @@ const api: WindowApi = {
     },
 };
 
+const startupTask: StartupTask = {
+    start: () => ipcRenderer.invoke("startup-task:start"),
+
+    onUpdate: (callback) => {
+        const listener = (
+            _event: Electron.IpcRendererEvent,
+            payload: { runId: string; update: StartupTaskUpdate },
+        ) => {
+            callback(payload.update);
+        };
+
+        ipcRenderer.on("startup-task:update", listener);
+
+        return () => {
+            ipcRenderer.removeListener("startup-task:update", listener);
+        };
+    },
+};
+
 contextBridge.exposeInMainWorld("app", api);
+contextBridge.exposeInMainWorld("startupTask", startupTask);

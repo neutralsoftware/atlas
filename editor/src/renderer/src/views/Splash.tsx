@@ -8,8 +8,48 @@ export default function Splash() {
         platform: "",
     });
 
+    const [startupMessage, setStartupMessage] = useState<string>(
+        "Loading the engine...",
+    );
+
     useEffect(() => {
         window.app.getAppInfo().then(setAppInfo);
+        const unsubscribe = window.startupTask.onUpdate((update) => {
+            if (typeof update === "string") {
+                switch (update) {
+                    case "starting":
+                        setStartupMessage("Starting the engine...");
+                        break;
+                    case "locating-config-file":
+                        setStartupMessage("Locating configuration files...");
+                        break;
+                    case "config-file-found":
+                        setStartupMessage("Configuration files found.");
+                        break;
+                    case "needs-config":
+                        setStartupMessage(
+                            "Configuration file is missing the required fields.",
+                        );
+                        break;
+                    case "checking-executable":
+                        setStartupMessage("Checking atlas executable...");
+                        break;
+                    case "loading-runtimelib":
+                        setStartupMessage("Loading the runtime...");
+                        break;
+                    case "done":
+                        setStartupMessage("Engine is ready.");
+                        break;
+                }
+            } else if (update.type === "error") {
+                setStartupMessage(`Error: ${update.error}`);
+            }
+        });
+
+        void window.startupTask.start();
+        return () => {
+            unsubscribe();
+        };
     }, []);
 
     const debugMessage = `
@@ -36,7 +76,7 @@ export default function Splash() {
                             by neutral software
                         </p>
                         <div className="mt-2 text-[9px] text-secondary flex justify-center items-center">
-                            Loading the engine...
+                            {startupMessage}
                         </div>
                     </div>
                 </div>
@@ -59,7 +99,7 @@ export default function Splash() {
                                 by neutral software
                             </p>
                             <div className="mt-2 text-[9px] text-secondary flex justify-center items-center">
-                                Loading the engine...
+                                {startupMessage}
                             </div>
                         </div>
                     </div>

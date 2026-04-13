@@ -3,8 +3,9 @@ import { existsSync } from "node:fs";
 import path from "node:path";
 import { DEBUG } from "../shared/generated/build";
 import { registerIpcHandlers } from "./ipc";
+import { registerAllTasks } from "./tasks/register";
 
-let mainWindow: BrowserWindow | null = null;
+export let mainWindow: BrowserWindow | null = null;
 
 function getWindowIcon() {
     const packagedExt = process.platform === "win32" ? "ico" : "png";
@@ -144,6 +145,7 @@ app.whenReady().then(async () => {
     }
 
     registerIpcHandlers();
+    registerAllTasks();
 
     await createMainWindow();
 
