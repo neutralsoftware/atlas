@@ -17,6 +17,9 @@ const api: WindowApi = {
             ipcRenderer.removeListener("theme:changed", listener);
         };
     },
+    showWindow: (id) => ipcRenderer.send("window:show", id),
+    hideWindow: (id) => ipcRenderer.send("window:hide", id),
+    destroyWindow: (id) => ipcRenderer.send("window:destroy", id),
 };
 
 const startupTask: StartupTask = {

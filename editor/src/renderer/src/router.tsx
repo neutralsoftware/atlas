@@ -4,6 +4,7 @@ import Splash from "./views/Splash";
 
 const router = createHashRouter([
     { path: "/test", Component: TestPage },
+    { path: "/onboarding", Component: TestPage },
     { path: "/splash", Component: Splash },
 ]);
 

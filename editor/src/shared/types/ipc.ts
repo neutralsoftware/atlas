@@ -8,6 +8,9 @@ export interface WindowApi {
     getAppInfo(): Promise<AppInfo>;
     setTitle(title: string): Promise<void>;
     onThemeChanged(callback: (theme: "light" | "dark") => void): () => void;
+    showWindow(id: string): void;
+    hideWindow(id: string): void;
+    destroyWindow(id: string): void;
 }
 
 export type StartupTaskUpdate =
@@ -42,6 +45,13 @@ export interface StartupTask {
     onUpdate(callback: (update: StartupTaskUpdate) => void): () => void;
     start(): Promise<void>;
 }
+
+export type WindowHandle = {
+    id: string;
+    window: Electron.BrowserWindow;
+};
+
+export type WindowMaker = () => Promise<WindowHandle>;
 
 declare global {
     interface Window {

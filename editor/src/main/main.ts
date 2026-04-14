@@ -4,10 +4,16 @@ import path from "node:path";
 import { DEBUG } from "../shared/generated/build";
 import { registerIpcHandlers } from "./ipc";
 import { registerAllTasks } from "./tasks/register";
+import { WindowHandle } from "src/shared/types/ipc";
 
 export let mainWindow: BrowserWindow | null = null;
+export const allWindows: WindowHandle[] = [];
 
-function getWindowIcon() {
+export function setMainWindow(win: BrowserWindow | null) {
+    mainWindow = win;
+}
+
+export function getWindowIcon() {
     const packagedExt = process.platform === "win32" ? "ico" : "png";
 
     if (app.isPackaged) {
@@ -59,11 +65,11 @@ function getDockIconPath() {
     return existsSync(devDockIconPath) ? devDockIconPath : undefined;
 }
 
-function getRendererIndexPath() {
+export function getRendererIndexPath() {
     return path.join(app.getAppPath(), "dist", "renderer", "index.html");
 }
 
-function getPreloadPath() {
+export function getPreloadPath() {
     return path.join(
         app.getAppPath(),
         "dist-electron",
@@ -105,6 +111,10 @@ async function createMainWindow() {
     });
 
     mainWindow = win;
+    allWindows.push({
+        id: "splash",
+        window: win,
+    });
 
     win.once("ready-to-show", () => {
         win.show();

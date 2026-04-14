@@ -12,7 +12,13 @@ export default function Splash() {
         "Loading the engine...",
     );
 
+    function openOnboarding() {
+        window.app.destroyWindow("splash");
+    }
+
     useEffect(() => {
+        let transitionTimer: ReturnType<typeof setTimeout> | null = null;
+
         window.app.getAppInfo().then(setAppInfo);
         const unsubscribe = window.startupTask.onUpdate((update) => {
             if (typeof update === "string") {
@@ -23,13 +29,17 @@ export default function Splash() {
                     case "locating-config-file":
                         setStartupMessage("Locating configuration files...");
                         break;
-                    case "config-file-found":
+                    case "config-file-found": {
                         setStartupMessage("Configuration files found.");
                         break;
+                    }
                     case "needs-config":
                         setStartupMessage(
                             "Configuration file is missing the required fields.",
                         );
+                        transitionTimer = setTimeout(() => {
+                            openOnboarding();
+                        }, 600);
                         break;
                     case "checking-executable":
                         setStartupMessage("Checking atlas executable...");
@@ -48,6 +58,9 @@ export default function Splash() {
 
         void window.startupTask.start();
         return () => {
+            if (transitionTimer) {
+                clearTimeout(transitionTimer);
+            }
             unsubscribe();
         };
     }, []);
