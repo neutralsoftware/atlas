@@ -20,6 +20,7 @@ const api: WindowApi = {
     showWindow: (id) => ipcRenderer.send("window:show", id),
     hideWindow: (id) => ipcRenderer.send("window:hide", id),
     destroyWindow: (id) => ipcRenderer.send("window:destroy", id),
+    fileDialog: (options) => ipcRenderer.invoke("file-dialog", options),
 };
 
 const startupTask: StartupTask = {

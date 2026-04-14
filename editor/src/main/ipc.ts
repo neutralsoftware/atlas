@@ -53,4 +53,15 @@ export function registerIpcHandlers() {
             }
         }
     });
+
+    ipcMain.handle("file-dialog", async (event, options) => {
+        const win = BrowserWindow.fromWebContents(event.sender);
+        if (!win) {
+            throw new Error("No window found for file dialog");
+        }
+
+        const { dialog } = await import("electron");
+        const result = await dialog.showOpenDialog(win, options);
+        return result.canceled ? undefined : result.filePaths;
+    });
 }

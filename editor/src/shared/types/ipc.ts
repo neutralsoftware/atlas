@@ -11,6 +11,9 @@ export interface WindowApi {
     showWindow(id: string): void;
     hideWindow(id: string): void;
     destroyWindow(id: string): void;
+    fileDialog(
+        options: Electron.OpenDialogOptions,
+    ): Promise<string[] | undefined>;
 }
 
 export type StartupTaskUpdate =

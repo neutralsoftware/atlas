@@ -1,13 +1,61 @@
 import { useState } from "react";
 import AppLogo from "../components/AppLogo";
 import Button from "../components/Button";
+import { setOnboardingData } from "../model/app";
 
 export default function Onboarding() {
     const [step, setStep] = useState(0);
+    const [runtimePath, setRuntimePath] = useState<string | null>(null);
+    const [executablePath, setExecutablePath] = useState<string | null>(null);
 
     const nextStep = () => {
         setStep((prev) => Math.min(prev + 1, 4));
     };
+
+    function selectRuntime() {
+        window.app
+            .fileDialog({
+                title: "Select Atlas Runtime",
+                buttonLabel: "Select Runtime",
+                properties: ["openFile"],
+                filters: [
+                    { name: "Runtime", extensions: ["dylib"] },
+                    { name: "All Files", extensions: ["*"] },
+                ],
+            })
+            .then((paths) => {
+                if (paths && paths.length > 0) {
+                    setRuntimePath(paths[0] as string);
+                }
+            });
+    }
+
+    function selectExecutable() {
+        window.app
+            .fileDialog({
+                title: "Select Atlas Executable",
+                buttonLabel: "Select Executable",
+                properties: ["openFile"],
+                filters: [{ name: "All Files", extensions: ["*"] }],
+            })
+            .then((paths) => {
+                if (paths && paths.length > 0) {
+                    setExecutablePath(paths[0] as string);
+                }
+            });
+    }
+
+    function canContinue() {
+        if (step === 4) {
+            return runtimePath !== null && executablePath !== null;
+        }
+    }
+
+    function finishOnboarding() {
+        setOnboardingData(runtimePath!, executablePath!);
+        window.app.showWindow("splashOnboarding");
+        window.app.destroyWindow("onboarding");
+    }
 
     const welcomeMessage = `
     Welcome to Atlas Engine! We're excited to have you on board. This is an open-source project, and we encourage you to explore the codebase, contribute, and provide feedback. If you have any questions or need assistance, feel free to reach out to us on our GitHub repository or join our community forums. 
@@ -98,8 +146,7 @@ export default function Onboarding() {
                         <Button
                             type="secondary"
                             onClick={() => {
-                                nextStep();
-                                nextStep();
+                                setStep(4);
                             }}
                         >
                             Specify an existing runtime path
@@ -112,8 +159,48 @@ export default function Onboarding() {
                         Specify a runtime path
                     </h1>
 
+                    <p className="mt-4 text-center text-xs">
+                        If you already have a compatible runtime installed, you
+                        can specify its path here to use it with Atlas Engine.
+                    </p>
+
+                    {runtimePath && (
+                        <div className="mt-4 text-center text-xs">
+                            Selected runtime path: {runtimePath}
+                        </div>
+                    )}
+
+                    <Button
+                        type="primary"
+                        onClick={selectRuntime}
+                        className="mt-10"
+                    >
+                        {runtimePath
+                            ? "Change runtime path"
+                            : "Select runtime path"}
+                    </Button>
+
+                    {executablePath && (
+                        <div className="mt-4 text-center text-xs">
+                            Selected executable path: {executablePath}
+                        </div>
+                    )}
+
+                    <Button
+                        type="primary"
+                        onClick={selectExecutable}
+                        className="mt-4"
+                    >
+                        {executablePath
+                            ? "Change executable path"
+                            : "Select executable path"}
+                    </Button>
+
                     <div className="mt-10">
-                        <Button type="inactive" onClick={nextStep}>
+                        <Button
+                            type={canContinue() ? "primary" : "inactive"}
+                            onClick={finishOnboarding}
+                        >
                             Continue
                         </Button>
                     </div>
