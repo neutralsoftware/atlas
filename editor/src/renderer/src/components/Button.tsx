@@ -1,5 +1,5 @@
 type Props = {
-    type: "primary" | "secondary" | "destructive";
+    type: "primary" | "secondary" | "destructive" | "inactive";
     onClick: () => void;
     className?: string;
 };
@@ -16,6 +16,7 @@ export default function Button({
         primary: "bg-accent text-white hover:bg-accent-hover",
         secondary: "bg-gray-300 text-gray-800 hover:bg-gray-400",
         destructive: "bg-red-600 text-white hover:bg-red-700",
+        inactive: "bg-gray-300 text-gray-500 cursor-not-allowed",
     }[type];
 
     return (
