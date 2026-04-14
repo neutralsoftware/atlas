@@ -8,28 +8,37 @@ type RunningTask<TResult = unknown> = {
     runId: string;
 };
 
-type QueuedJob<TResult = unknown> = {
+type QueuedJob<TResult = unknown, TArgs extends unknown[] = unknown[]> = {
+    args: TArgs;
     resolve: (value: TResult | PromiseLike<TResult>) => void;
     reject: (reason?: unknown) => void;
 };
 
-type StoredTaskDefinition = TaskDefinition<unknown, unknown>;
+type StoredTaskDefinition = TaskDefinition<unknown, unknown, unknown[]>;
 type StoredRunningTask = RunningTask<unknown>;
-type StoredQueuedJob = QueuedJob<unknown>;
+type StoredQueuedJob = QueuedJob<unknown, unknown[]>;
 
 export class TaskManager {
     private definitions = new Map<string, StoredTaskDefinition>();
     private running = new Map<string, StoredRunningTask>();
     private queues = new Map<string, StoredQueuedJob[]>();
 
-    register<TUpdate, TResult>(definition: TaskDefinition<TUpdate, TResult>) {
+    register<TUpdate, TResult, TArgs extends unknown[]>(
+        definition: TaskDefinition<TUpdate, TResult, TArgs>,
+    ) {
         if (this.definitions.has(definition.name)) {
             throw new Error(`Task "${definition.name}" is already registered`);
         }
-        this.definitions.set(definition.name, definition);
+        this.definitions.set(
+            definition.name,
+            definition as StoredTaskDefinition,
+        );
     }
 
-    start<TResult = void>(name: string): Promise<TResult | undefined> {
+    start<TResult = void, TArgs extends unknown[] = []>(
+        name: string,
+        ...args: TArgs
+    ): Promise<TResult | undefined> {
         const definition = this.definitions.get(name);
         if (!definition) {
             throw new Error(`Unknown task "${name}"`);
@@ -44,7 +53,8 @@ export class TaskManager {
                 }
                 return this.startFresh(
                     name,
-                    definition as TaskDefinition<unknown, TResult>,
+                    definition as TaskDefinition<unknown, TResult, unknown[]>,
+                    args,
                 );
             }
 
@@ -54,14 +64,16 @@ export class TaskManager {
                 }
                 return this.startFresh(
                     name,
-                    definition as TaskDefinition<unknown, TResult>,
+                    definition as TaskDefinition<unknown, TResult, unknown[]>,
+                    args,
                 );
             }
 
             case "parallel": {
                 return this.startDetached(
                     name,
-                    definition as TaskDefinition<unknown, TResult>,
+                    definition as TaskDefinition<unknown, TResult, unknown[]>,
+                    args,
                 );
             }
 
@@ -69,13 +81,19 @@ export class TaskManager {
                 if (!current) {
                     return this.startFresh(
                         name,
-                        definition as TaskDefinition<unknown, TResult>,
+                        definition as TaskDefinition<
+                            unknown,
+                            TResult,
+                            unknown[]
+                        >,
+                        args,
                     );
                 }
 
                 return new Promise<TResult>((resolve, reject) => {
                     const queue = this.queues.get(name) ?? [];
                     const queuedJob: StoredQueuedJob = {
+                        args,
                         resolve: (value) => {
                             resolve(value as TResult);
                         },
@@ -101,20 +119,24 @@ export class TaskManager {
 
     private startFresh<TResult>(
         name: string,
-        definition: TaskDefinition<unknown, TResult>,
+        definition: TaskDefinition<unknown, TResult, unknown[]>,
+        args: unknown[],
     ): Promise<TResult> {
         const controller = new AbortController();
         const runId = randomUUID();
 
         const promise = (async () => {
             try {
-                return await definition.run({
-                    runId,
-                    signal: controller.signal,
-                    emit: (update) => {
-                        this.emit(name, runId, update);
+                return await definition.run(
+                    {
+                        runId,
+                        signal: controller.signal,
+                        emit: (update) => {
+                            this.emit(name, runId, update);
+                        },
                     },
-                });
+                    ...args,
+                );
             } finally {
                 const stillCurrent = this.running.get(name);
                 if (stillCurrent?.runId === runId) {
@@ -135,7 +157,7 @@ export class TaskManager {
 
     private async drainQueue<TResult>(
         name: string,
-        definition: TaskDefinition<unknown, TResult>,
+        definition: TaskDefinition<unknown, TResult, unknown[]>,
     ) {
         const queue = this.queues.get(name);
         if (!queue?.length) return;
@@ -148,7 +170,7 @@ export class TaskManager {
         }
 
         try {
-            const result = await this.startFresh(name, definition);
+            const result = await this.startFresh(name, definition, next.args);
             next.resolve(result);
         } catch (err) {
             next.reject(err);
@@ -157,18 +179,22 @@ export class TaskManager {
 
     private async startDetached<TResult>(
         name: string,
-        definition: TaskDefinition<unknown, TResult>,
+        definition: TaskDefinition<unknown, TResult, unknown[]>,
+        args: unknown[],
     ): Promise<TResult> {
         const controller = new AbortController();
         const runId = randomUUID();
 
-        return definition.run({
-            runId,
-            signal: controller.signal,
-            emit: (update) => {
-                this.emit(name, runId, update);
+        return definition.run(
+            {
+                runId,
+                signal: controller.signal,
+                emit: (update) => {
+                    this.emit(name, runId, update);
+                },
             },
-        });
+            ...args,
+        );
     }
 
     // eslint-disable-next-line @typescript-eslint/no-unused-vars

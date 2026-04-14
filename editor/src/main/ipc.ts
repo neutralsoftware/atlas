@@ -5,6 +5,11 @@ import { allWindows } from "./main";
 import { makerRegistry } from "./windows";
 import { WindowMaker } from "src/shared/types/ipc";
 
+type OnboardingDataPayload = {
+    runtimePath: string | null;
+    executablePath: string | null;
+};
+
 export function registerIpcHandlers() {
     ipcMain.handle("app:get-info", () => {
         return {
@@ -22,6 +27,17 @@ export function registerIpcHandlers() {
     ipcMain.handle("startup-task:start", () => {
         return tasks.start("startup-task");
     });
+
+    ipcMain.handle(
+        "store-onboarding-data",
+        (_event, payload: OnboardingDataPayload) => {
+            return tasks.start(
+                "store-onboarding-data",
+                payload.runtimePath,
+                payload.executablePath,
+            );
+        },
+    );
 
     ipcMain.on("window:show", (event, eventId: string) => {
         for (const { id, window } of allWindows) {

@@ -21,6 +21,8 @@ const api: WindowApi = {
     hideWindow: (id) => ipcRenderer.send("window:hide", id),
     destroyWindow: (id) => ipcRenderer.send("window:destroy", id),
     fileDialog: (options) => ipcRenderer.invoke("file-dialog", options),
+    storeOnboardingData: (onBoardingData) =>
+        ipcRenderer.invoke("store-onboarding-data", onBoardingData),
 };
 
 const startupTask: StartupTask = {

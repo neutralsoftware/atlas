@@ -9,6 +9,8 @@ import { WindowHandle } from "src/shared/types/ipc";
 export let mainWindow: BrowserWindow | null = null;
 export const allWindows: WindowHandle[] = [];
 
+export const VERSION_ID = "alpha9dev";
+
 export function setMainWindow(win: BrowserWindow | null) {
     mainWindow = win;
 }

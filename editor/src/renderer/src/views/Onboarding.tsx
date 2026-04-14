@@ -1,7 +1,7 @@
 import { useState } from "react";
 import AppLogo from "../components/AppLogo";
 import Button from "../components/Button";
-import { setOnboardingData } from "../model/app";
+import { onboardingData, setOnboardingData } from "../model/app";
 
 export default function Onboarding() {
     const [step, setStep] = useState(0);
@@ -51,8 +51,9 @@ export default function Onboarding() {
         }
     }
 
-    function finishOnboarding() {
+    async function finishOnboarding() {
         setOnboardingData(runtimePath!, executablePath!);
+        await window.app.storeOnboardingData(onboardingData);
         window.app.showWindow("splashOnboarding");
         window.app.destroyWindow("onboarding");
     }

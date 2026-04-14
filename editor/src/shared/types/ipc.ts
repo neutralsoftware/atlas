@@ -14,6 +14,10 @@ export interface WindowApi {
     fileDialog(
         options: Electron.OpenDialogOptions,
     ): Promise<string[] | undefined>;
+    storeOnboardingData(onBoardingData: {
+        runtimePath: string | null;
+        executablePath: string | null;
+    }): Promise<void>;
 }
 
 export type StartupTaskUpdate =
@@ -34,14 +38,20 @@ export interface TaskContext<TUpdate = unknown> {
     runId: string;
 }
 
-export type TaskRunner<TUpdate = unknown, TResult = void> = (
-    ctx: TaskContext<TUpdate>,
-) => Promise<TResult>;
+export type TaskRunner<
+    TUpdate = unknown,
+    TResult = void,
+    TArgs extends unknown[] = [],
+> = (ctx: TaskContext<TUpdate>, ...args: TArgs) => Promise<TResult>;
 
-export interface TaskDefinition<TUpdate = unknown, TResult = void> {
+export interface TaskDefinition<
+    TUpdate = unknown,
+    TResult = void,
+    TArgs extends unknown[] = [],
+> {
     name: string;
     concurrency: TaskConcurrency;
-    run: TaskRunner<TUpdate, TResult>;
+    run: TaskRunner<TUpdate, TResult, TArgs>;
 }
 
 export interface StartupTask {
