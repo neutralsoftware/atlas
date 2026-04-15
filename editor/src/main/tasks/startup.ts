@@ -2,6 +2,7 @@ import { app } from "electron";
 import path from "node:path";
 import { readFile, stat } from "node:fs/promises";
 import type { StartupTaskUpdate, TaskContext } from "../../shared/types/ipc";
+import { VERSION_ID } from "../main";
 
 export let runtimeLib: string | null = null;
 export let atlasExecutablePath: string | null = null;
@@ -28,7 +29,7 @@ export async function startupTask(
 
     ctx.emit("config-file-found");
 
-    const config = JSON.parse(configContent);
+    const config = JSON.parse(configContent)[VERSION_ID].onboardingData;
 
     if (!config.atlasExecutablePath) {
         ctx.emit("needs-config");
@@ -47,6 +48,8 @@ export async function startupTask(
 
     try {
         await stat(atlasExecutablePath as string);
+
+        // Check if
     } catch (err) {
         const message = err instanceof Error ? err.message : String(err);
         ctx.emit({

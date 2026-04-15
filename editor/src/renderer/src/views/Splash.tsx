@@ -18,6 +18,11 @@ export default function Splash() {
         window.app.destroyWindow("splash");
     }
 
+    function openProjects() {
+        window.app.showWindow("projects");
+        window.app.destroyWindow("splash");
+    }
+
     useEffect(() => {
         let transitionTimer: ReturnType<typeof setTimeout> | null = null;
 
@@ -51,6 +56,9 @@ export default function Splash() {
                         break;
                     case "done":
                         setStartupMessage("Engine is ready.");
+                        transitionTimer = setTimeout(() => {
+                            openProjects();
+                        }, 600);
                         break;
                 }
             } else if (update.type === "error") {

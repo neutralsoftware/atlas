@@ -73,6 +73,67 @@ export const createOnboardingWindow: WindowMaker = async () => {
     return { id: "onboarding", window: win };
 };
 
+export const createProjectsWindow: WindowMaker = async () => {
+    const windowIcon = getWindowIcon();
+
+    const win = new BrowserWindow({
+        width: 1000,
+        height: 557,
+
+        resizable: true,
+        minimizable: true,
+        maximizable: true,
+        fullscreenable: false,
+
+        frame: true,
+        hasShadow: true,
+
+        center: true,
+
+        show: true,
+        ...(windowIcon ? { icon: windowIcon } : {}),
+
+        webPreferences: {
+            preload: getPreloadPath(),
+            contextIsolation: true,
+            nodeIntegration: false,
+            sandbox: true,
+        },
+    });
+
+    setMainWindow(win);
+    allWindows.push({
+        id: "projects",
+        window: win,
+    });
+
+    win.once("ready-to-show", () => {
+        win.show();
+    });
+
+    win.on("closed", () => {
+        if (mainWindow === win) {
+            setMainWindow(null);
+        }
+    });
+
+    const devServerUrl = "http://localhost:5173/#/projects";
+
+    if (!app.isPackaged && DEBUG) {
+        try {
+            await win.loadURL(devServerUrl);
+            return { id: "projects", window: win };
+        } catch {
+            // Fallback to built renderer when the dev server is unavailable.
+        }
+    }
+
+    await win.loadFile(getRendererIndexPath(), { hash: "/projects" });
+
+    return { id: "projects", window: win };
+};
+
 export const makerRegistry: Record<string, WindowMaker> = {
     onboarding: createOnboardingWindow,
+    projects: createProjectsWindow,
 };
