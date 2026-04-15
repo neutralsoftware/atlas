@@ -48,8 +48,6 @@ export async function startupTask(
 
     try {
         await stat(atlasExecutablePath as string);
-
-        // Check if
     } catch (err) {
         const message = err instanceof Error ? err.message : String(err);
         ctx.emit({
