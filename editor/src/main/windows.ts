@@ -86,6 +86,8 @@ export const createProjectsWindow: WindowMaker<BrowserWindow> = async () => {
         fullscreenable: false,
 
         frame: true,
+        titleBarStyle: "hiddenInset",
+
         hasShadow: true,
 
         center: true,
