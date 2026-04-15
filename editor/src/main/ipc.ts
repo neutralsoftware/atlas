@@ -48,7 +48,7 @@ export function registerIpcHandlers() {
         }
 
         if (eventId in makerRegistry) {
-            (makerRegistry[eventId] as WindowMaker)();
+            (makerRegistry[eventId] as WindowMaker<BrowserWindow>)();
         }
     });
 

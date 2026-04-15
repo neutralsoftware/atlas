@@ -7,7 +7,7 @@ import { registerAllTasks } from "./tasks/register";
 import { WindowHandle } from "src/shared/types/ipc";
 
 export let mainWindow: BrowserWindow | null = null;
-export const allWindows: WindowHandle[] = [];
+export const allWindows: WindowHandle<BrowserWindow>[] = [];
 
 export const VERSION_ID = "alpha9dev";
 

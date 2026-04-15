@@ -10,7 +10,7 @@ import {
 } from "./main";
 import { DEBUG } from "../shared/generated/build";
 
-export const createOnboardingWindow: WindowMaker = async () => {
+export const createOnboardingWindow: WindowMaker<BrowserWindow> = async () => {
     const windowIcon = getWindowIcon();
 
     const win = new BrowserWindow({
@@ -73,7 +73,7 @@ export const createOnboardingWindow: WindowMaker = async () => {
     return { id: "onboarding", window: win };
 };
 
-export const createProjectsWindow: WindowMaker = async () => {
+export const createProjectsWindow: WindowMaker<BrowserWindow> = async () => {
     const windowIcon = getWindowIcon();
 
     const win = new BrowserWindow({
@@ -133,7 +133,7 @@ export const createProjectsWindow: WindowMaker = async () => {
     return { id: "projects", window: win };
 };
 
-export const makerRegistry: Record<string, WindowMaker> = {
+export const makerRegistry: Record<string, WindowMaker<BrowserWindow>> = {
     onboarding: createOnboardingWindow,
     projects: createProjectsWindow,
 };

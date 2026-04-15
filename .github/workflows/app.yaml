@@ -2,7 +2,6 @@ name: Build editor
 
 on:
     push:
-        branches: [main, editor]
     pull_request:
         branches: [main, editor]
 
@@ -12,7 +11,7 @@ concurrency:
 
 jobs:
     check:
-        runs-on: ubuntu-latest
+        runs-on: macos-latest
 
         defaults:
             run:
@@ -32,7 +31,7 @@ jobs:
               run: bun run lint
 
             - name: Typecheck
-              run: bunx tsc -b --pretty false
+              run: bunx tsc -b tsconfig.json --pretty false
 
             - name: Build renderer
               run: bun run build:renderer

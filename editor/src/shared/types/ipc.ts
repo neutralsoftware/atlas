@@ -1,7 +1,39 @@
+export type AppPlatform =
+    | "aix"
+    | "darwin"
+    | "freebsd"
+    | "linux"
+    | "openbsd"
+    | "sunos"
+    | "win32"
+    | "cygwin"
+    | "netbsd";
+
 export interface AppInfo {
     debug: boolean;
     buildId: string;
-    platform: NodeJS.Platform;
+    platform: AppPlatform;
+}
+
+export interface FileDialogOptions {
+    title?: string;
+    buttonLabel?: string;
+    defaultPath?: string;
+    filters?: Array<{
+        name: string;
+        extensions: string[];
+    }>;
+    properties?: Array<
+        | "openFile"
+        | "openDirectory"
+        | "multiSelections"
+        | "showHiddenFiles"
+        | "createDirectory"
+        | "promptToCreate"
+        | "noResolveAliases"
+        | "treatPackageAsDirectory"
+        | "dontAddToRecent"
+    >;
 }
 
 export interface WindowApi {
@@ -11,9 +43,7 @@ export interface WindowApi {
     showWindow(id: string): void;
     hideWindow(id: string): void;
     destroyWindow(id: string): void;
-    fileDialog(
-        options: Electron.OpenDialogOptions,
-    ): Promise<string[] | undefined>;
+    fileDialog(options: FileDialogOptions): Promise<string[] | undefined>;
     storeOnboardingData(onBoardingData: {
         runtimePath: string | null;
         executablePath: string | null;
@@ -59,12 +89,12 @@ export interface StartupTask {
     start(): Promise<void>;
 }
 
-export type WindowHandle = {
+export type WindowHandle<TWindow = unknown> = {
     id: string;
-    window: Electron.BrowserWindow;
+    window: TWindow;
 };
 
-export type WindowMaker = () => Promise<WindowHandle>;
+export type WindowMaker<TWindow = unknown> = () => Promise<WindowHandle<TWindow>>;
 
 declare global {
     interface Window {
