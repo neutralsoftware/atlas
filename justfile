@@ -1,5 +1,8 @@
 GENERATOR := "Ninja"
 
+build:
+    cd build && ninja -j8
+
 config backend="AUTO" bezel_native="OFF":
     mkdir -p build
     cd build && cmake -G "{{ GENERATOR }}" \
@@ -11,9 +14,6 @@ config backend="AUTO" bezel_native="OFF":
         -DBEZEL_NATIVE={{ bezel_native }} \
         -DCMAKE_EXPORT_COMPILE_COMMANDS=ON \
         ..
-
-build:
-    cd build && ninja -j8
 
 target target backend="AUTO" bezel_native="OFF":
     mkdir -p build

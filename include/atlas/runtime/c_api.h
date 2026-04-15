@@ -9,6 +9,8 @@
 extern "C" {
 #endif
 
+bool atlas_runtime_run_project(const char *projectFile);
+
 /**
  * @brief Runs an Atlas project using a host NSView as the Metal target.
  *

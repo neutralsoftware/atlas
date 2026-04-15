@@ -4,6 +4,7 @@
 @theme {
     --color-secondary: #999999;
     --color-accent: #0091FF;
+    --color-accent-hover: #48ADF9;
     --color-destroy: #FF4245;
     --font-manrope: 'Manrope', sans-serif;
 }

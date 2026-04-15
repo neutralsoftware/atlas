@@ -1,21 +1,19 @@
 pub mod create;
 pub mod pack;
+pub mod run;
 pub mod script;
 use clap::Subcommand;
 
 #[derive(Subcommand)]
 pub enum Commands {
     Create {
-        name: String,
+        name: Option<String>,
+        #[arg(long)]
+        project_name: Option<String>,
+        #[arg(long)]
         path: Option<String>,
-        #[arg(long, short)]
-        branch: Option<String>,
-        #[arg(default_value_t = String::from("latest"))]
-        version: String,
-        #[arg(long)]
-        backend: Option<String>,
-        #[arg(long)]
-        platform: Option<String>,
+        #[arg(long, alias = "runtime")]
+        version: Option<String>,
     },
     Build {
         #[arg(default_value_t = 0, long, short)]
@@ -30,10 +28,7 @@ pub enum Commands {
         backend: Option<String>,
     },
     Run {
-        #[arg(default_value_t = 0, long, short)]
-        release: u8,
-        #[arg(long)]
-        backend: Option<String>,
+        path: Option<String>,
     },
     Clangd {
         #[arg(long)]

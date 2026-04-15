@@ -1,5 +1,9 @@
 import { contextBridge, ipcRenderer } from "electron";
-import type { WindowApi } from "../shared/types/ipc";
+import type {
+    StartupTask,
+    StartupTaskUpdate,
+    WindowApi,
+} from "../shared/types/ipc";
 
 const api: WindowApi = {
     getAppInfo: () => ipcRenderer.invoke("app:get-info"),
@@ -13,6 +17,32 @@ const api: WindowApi = {
             ipcRenderer.removeListener("theme:changed", listener);
         };
     },
+    showWindow: (id) => ipcRenderer.send("window:show", id),
+    hideWindow: (id) => ipcRenderer.send("window:hide", id),
+    destroyWindow: (id) => ipcRenderer.send("window:destroy", id),
+    fileDialog: (options) => ipcRenderer.invoke("file-dialog", options),
+    storeOnboardingData: (onBoardingData) =>
+        ipcRenderer.invoke("store-onboarding-data", onBoardingData),
+};
+
+const startupTask: StartupTask = {
+    start: () => ipcRenderer.invoke("startup-task:start"),
+
+    onUpdate: (callback) => {
+        const listener = (
+            _event: Electron.IpcRendererEvent,
+            payload: { runId: string; update: StartupTaskUpdate },
+        ) => {
+            callback(payload.update);
+        };
+
+        ipcRenderer.on("startup-task:update", listener);
+
+        return () => {
+            ipcRenderer.removeListener("startup-task:update", listener);
+        };
+    },
 };
 
 contextBridge.exposeInMainWorld("app", api);
+contextBridge.exposeInMainWorld("startupTask", startupTask);

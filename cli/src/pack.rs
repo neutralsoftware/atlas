@@ -245,32 +245,6 @@ pub fn clangd(cmd: Commands) {
     }
 }
 
-pub fn run(cmd: Commands) {
-    let (release, backend_override) = match cmd {
-        Commands::Run { release, backend } => (release != 0, backend),
-        _ => (false, None),
-    };
-
-    match build_internal(release, backend_override, false) {
-        Ok((_config, backend, executable)) => {
-            println!("{} {}", "Run backend:".cyan(), backend.bold().green());
-            let status = Command::new(executable).status();
-            match status {
-                Ok(s) if s.success() => {
-                    println!("{}", "Application exited successfully".green().bold());
-                }
-                Ok(_) => {
-                    eprintln!("{}", "Application exited with an error".red().bold());
-                }
-                Err(e) => {
-                    eprintln!("{} {e}", "Failed to run executable:".red().bold());
-                }
-            }
-        }
-        Err(e) => eprintln!("{}\n{e}", "atlas run failed".red().bold()),
-    }
-}
-
 pub fn pack(cmd: Commands) {
     let (release, backend_override) = match cmd {
         Commands::Pack { release, backend } => (release != 0, backend),

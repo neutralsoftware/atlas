@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { AppInfo } from "../model/app";
+import AppLogo from "../components/AppLogo";
 
 export default function Splash() {
     const [appInfo, setAppInfo] = useState<AppInfo>({
@@ -8,8 +9,70 @@ export default function Splash() {
         platform: "",
     });
 
+    const [startupMessage, setStartupMessage] = useState<string>(
+        "Loading the engine...",
+    );
+
+    function openOnboarding() {
+        window.app.showWindow("onboarding");
+        window.app.destroyWindow("splash");
+    }
+
+    function openProjects() {
+        window.app.showWindow("projects");
+        window.app.destroyWindow("splash");
+    }
+
     useEffect(() => {
+        let transitionTimer: ReturnType<typeof setTimeout> | null = null;
+
         window.app.getAppInfo().then(setAppInfo);
+        const unsubscribe = window.startupTask.onUpdate((update) => {
+            if (typeof update === "string") {
+                switch (update) {
+                    case "starting":
+                        setStartupMessage("Starting the engine...");
+                        break;
+                    case "locating-config-file":
+                        setStartupMessage("Locating configuration files...");
+                        break;
+                    case "config-file-found": {
+                        setStartupMessage("Configuration files found.");
+                        break;
+                    }
+                    case "needs-config":
+                        setStartupMessage(
+                            "Configuration file is missing the required fields.",
+                        );
+                        transitionTimer = setTimeout(() => {
+                            openOnboarding();
+                        }, 600);
+                        break;
+                    case "checking-executable":
+                        setStartupMessage("Checking atlas executable...");
+                        break;
+                    case "loading-runtimelib":
+                        setStartupMessage("Loading the runtime...");
+                        break;
+                    case "done":
+                        setStartupMessage("Engine is ready.");
+                        transitionTimer = setTimeout(() => {
+                            openProjects();
+                        }, 600);
+                        break;
+                }
+            } else if (update.type === "error") {
+                setStartupMessage(`Error: ${update.error}`);
+            }
+        });
+
+        void window.startupTask.start();
+        return () => {
+            if (transitionTimer) {
+                clearTimeout(transitionTimer);
+            }
+            unsubscribe();
+        };
     }, []);
 
     const debugMessage = `
@@ -22,11 +85,7 @@ export default function Splash() {
         <main className="flex h-screen w-screen items-center justify-center">
             {(!appInfo.debug && (
                 <div className="bg-white h-40 w-175 rounded-[40px] flex items-center flex-row">
-                    <img
-                        src="../../assets/iconRelease.png"
-                        alt="App Icon"
-                        className="w-25 h-25 ml-5 shrink-0"
-                    ></img>
+                    <AppLogo className="w-25 h-25 ml-5 shrink-0"></AppLogo>
                     <div className="flex items-start flex-col ml-5 mt-2">
                         <h1 className="text-4xl font-bold">Atlas Engine</h1>
                         <h3 className="text-xl font-bold text-secondary mt-1.5">
@@ -36,18 +95,14 @@ export default function Splash() {
                             by neutral software
                         </p>
                         <div className="mt-2 text-[9px] text-secondary flex justify-center items-center">
-                            Loading the engine...
+                            {startupMessage}
                         </div>
                     </div>
                 </div>
             )) || (
                 <div className="bg-white h-52.5 w-175 rounded-[40px] flex py-7 px-2 flex-col">
                     <div className="flex flex-row">
-                        <img
-                            src="../../assets/iconDebug.png"
-                            alt="App Icon"
-                            className="w-25 h-25 ml-5 shrink-0"
-                        ></img>
+                        <AppLogo className="w-25 h-25 ml-5 shrink-0"></AppLogo>
                         <div className="flex items-start flex-col ml-5 mt-1">
                             <h1 className="text-4xl font-bold">
                                 Atlas Engine (Development)
@@ -59,7 +114,7 @@ export default function Splash() {
                                 by neutral software
                             </p>
                             <div className="mt-2 text-[9px] text-secondary flex justify-center items-center">
-                                Loading the engine...
+                                {startupMessage}
                             </div>
                         </div>
                     </div>
