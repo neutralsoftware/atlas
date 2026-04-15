@@ -20,7 +20,7 @@ fn main() {
         Commands::Pack { .. } => {
             pack::pack(cli.command);
         }
-        Commands::Run { .. } => pack::run(cli.command),
+        Commands::Run { .. } => run::run(cli.command),
         Commands::Clangd { .. } => pack::clangd(cli.command),
         Commands::Script { .. } => script::script(cli.command),
     }

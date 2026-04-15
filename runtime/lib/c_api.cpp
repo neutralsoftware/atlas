@@ -9,6 +9,23 @@ namespace {
 using RuntimeContextHandle = std::shared_ptr<Context>;
 }
 
+bool atlas_runtime_run_project(const char *projectFile) {
+    if (projectFile == nullptr || projectFile[0] == '\0') {
+        return false;
+    }
+
+    try {
+        auto context = runtime::makeContext(projectFile);
+        context->loadProject();
+        context->runWindowed();
+        return true;
+    } catch (const std::exception &) {
+        return false;
+    } catch (...) {
+        return false;
+    }
+}
+
 bool atlas_runtime_run_in_metal_view(const char *projectFile, void *metalView,
                                      void *sdlInputWindow) {
     if (projectFile == nullptr || projectFile[0] == '\0') {

@@ -595,6 +595,10 @@ target_compile_definitions(runtime_lib PRIVATE
 add_dependencies(runtime_lib generate_shaders generate_runtime_scripts)
 target_include_directories(runtime_lib PUBLIC ${CMAKE_SOURCE_DIR}/extern/quickjs)
 target_include_directories(runtime_lib PRIVATE ${ATLAS_DEP_INCLUDE_DIRS})
+set_target_properties(runtime_lib PROPERTIES
+    OUTPUT_NAME runtime
+    PREFIX ""
+)
 
 # ─── runtime executable ──────────────────────────────────────────────────────
 add_executable(atlasrun ${RUNTIME_SOURCES})
