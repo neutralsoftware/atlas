@@ -3,6 +3,7 @@ import path from "node:path";
 import { readFile, stat } from "node:fs/promises";
 import type { StartupTaskUpdate, TaskContext } from "../../shared/types/ipc";
 import { VERSION_ID } from "../main";
+import { Project } from "src/shared/types/atlas";
 
 export let runtimeLib: string | null = null;
 export let atlasExecutablePath: string | null = null;
@@ -75,4 +76,16 @@ export async function startupTask(
     if (ctx.signal.aborted) return;
 
     ctx.emit("done");
+}
+
+export async function getProjects(): Promise<Project[]> {
+    const configFile = path.join(app.getPath("home"), ".atlas", "config.json");
+
+    try {
+        const configContent = await readFile(configFile, "utf-8");
+        const config = JSON.parse(configContent)[VERSION_ID];
+        return config.projects || [];
+    } catch {
+        return [];
+    }
 }

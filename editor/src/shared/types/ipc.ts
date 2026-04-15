@@ -1,3 +1,5 @@
+import { Project } from "./atlas";
+
 export type AppPlatform =
     | "aix"
     | "darwin"
@@ -89,16 +91,23 @@ export interface StartupTask {
     start(): Promise<void>;
 }
 
+export interface GeneralTask {
+    getProjects(): Promise<Project[]>;
+}
+
 export type WindowHandle<TWindow = unknown> = {
     id: string;
     window: TWindow;
 };
 
-export type WindowMaker<TWindow = unknown> = () => Promise<WindowHandle<TWindow>>;
+export type WindowMaker<TWindow = unknown> = () => Promise<
+    WindowHandle<TWindow>
+>;
 
 declare global {
     interface Window {
         app: WindowApi;
         startupTask: StartupTask;
+        tasks: GeneralTask;
     }
 }
