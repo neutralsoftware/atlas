@@ -87,6 +87,10 @@ export default function Projects() {
         return "";
     }
 
+    function newProject() {
+        window.app.showWindow("createProject");
+    }
+
     function projectsPage() {
         return (
             <div className="ml-56 h-screen flex flex-1 flex-col select-none bg-[#f7f7f8]">
@@ -121,7 +125,9 @@ export default function Projects() {
                         </Button>
                         <Button
                             type="special"
-                            onClick={() => {}}
+                            onClick={() => {
+                                newProject();
+                            }}
                             className="min-w-0 text-sm px-3 py-1.5 cursor-pointer"
                         >
                             New project
