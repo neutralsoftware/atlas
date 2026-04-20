@@ -1,5 +1,6 @@
 import { contextBridge, ipcRenderer } from "electron";
 import type {
+    GeneralTask,
     StartupTask,
     StartupTaskUpdate,
     WindowApi,
@@ -44,5 +45,11 @@ const startupTask: StartupTask = {
     },
 };
 
+const generalTasks: GeneralTask = {
+    getProjects: () => ipcRenderer.invoke("general:get-projects"),
+    createProject: (payload) => ipcRenderer.invoke("general:create-project", payload),
+};
+
 contextBridge.exposeInMainWorld("app", api);
 contextBridge.exposeInMainWorld("startupTask", startupTask);
+contextBridge.exposeInMainWorld("tasks", generalTasks);

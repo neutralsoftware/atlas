@@ -1,3 +1,5 @@
+import { Project } from "./atlas";
+
 export type AppPlatform =
     | "aix"
     | "darwin"
@@ -50,6 +52,8 @@ export interface WindowApi {
     }): Promise<void>;
 }
 
+export type CreateProjectStyle = "pbr" | "pathtracing" | "pbr-gi";
+
 export type StartupTaskUpdate =
     | "starting"
     | "locating-config-file"
@@ -89,16 +93,28 @@ export interface StartupTask {
     start(): Promise<void>;
 }
 
+export interface GeneralTask {
+    getProjects(): Promise<Project[]>;
+    createProject(payload: {
+        name: string;
+        location: string;
+        style: CreateProjectStyle;
+    }): Promise<Project>;
+}
+
 export type WindowHandle<TWindow = unknown> = {
     id: string;
     window: TWindow;
 };
 
-export type WindowMaker<TWindow = unknown> = () => Promise<WindowHandle<TWindow>>;
+export type WindowMaker<TWindow = unknown> = () => Promise<
+    WindowHandle<TWindow>
+>;
 
 declare global {
     interface Window {
         app: WindowApi;
         startupTask: StartupTask;
+        tasks: GeneralTask;
     }
 }

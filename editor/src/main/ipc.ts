@@ -4,6 +4,8 @@ import { tasks } from "./tasks/register";
 import { allWindows } from "./main";
 import { makerRegistry } from "./windows";
 import { WindowMaker } from "src/shared/types/ipc";
+import { createProject } from "./tasks/create-project";
+import { getProjects } from "./tasks/startup";
 
 type OnboardingDataPayload = {
     runtimePath: string | null;
@@ -79,5 +81,13 @@ export function registerIpcHandlers() {
         const { dialog } = await import("electron");
         const result = await dialog.showOpenDialog(win, options);
         return result.canceled ? undefined : result.filePaths;
+    });
+
+    ipcMain.handle("general:get-projects", async () => {
+        return getProjects();
+    });
+
+    ipcMain.handle("general:create-project", async (_event, payload) => {
+        return createProject(payload);
     });
 }

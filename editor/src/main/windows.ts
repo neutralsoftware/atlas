@@ -86,6 +86,8 @@ export const createProjectsWindow: WindowMaker<BrowserWindow> = async () => {
         fullscreenable: false,
 
         frame: true,
+        titleBarStyle: "hiddenInset",
+
         hasShadow: true,
 
         center: true,
@@ -133,7 +135,67 @@ export const createProjectsWindow: WindowMaker<BrowserWindow> = async () => {
     return { id: "projects", window: win };
 };
 
+export const createNewProjectModal: WindowMaker<BrowserWindow> = async () => {
+    const windowIcon = getWindowIcon();
+
+    const win = new BrowserWindow({
+        width: 560,
+        height: 680,
+        parent: mainWindow!,
+        modal: true,
+
+        frame: true,
+        titleBarStyle: "default",
+
+        hasShadow: true,
+
+        center: true,
+
+        show: true,
+        ...(windowIcon ? { icon: windowIcon } : {}),
+
+        webPreferences: {
+            preload: getPreloadPath(),
+            contextIsolation: true,
+            nodeIntegration: false,
+            sandbox: true,
+        },
+    });
+
+    setMainWindow(win);
+    allWindows.push({
+        id: "createProject",
+        window: win,
+    });
+
+    win.once("ready-to-show", () => {
+        win.show();
+    });
+
+    win.on("closed", () => {
+        if (mainWindow === win) {
+            setMainWindow(null);
+        }
+    });
+
+    const devServerUrl = "http://localhost:5173/#/createProject";
+
+    if (!app.isPackaged && DEBUG) {
+        try {
+            await win.loadURL(devServerUrl);
+            return { id: "createProject", window: win };
+        } catch {
+            // Fallback to built renderer when the dev server is unavailable.
+        }
+    }
+
+    await win.loadFile(getRendererIndexPath(), { hash: "/createProject" });
+
+    return { id: "createProject", window: win };
+};
+
 export const makerRegistry: Record<string, WindowMaker<BrowserWindow>> = {
     onboarding: createOnboardingWindow,
     projects: createProjectsWindow,
+    createProject: createNewProjectModal,
 };
