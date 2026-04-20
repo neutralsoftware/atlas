@@ -40,9 +40,27 @@ export default function Projects() {
     }
 
     useEffect(() => {
-        window.tasks.getProjects().then((projects) => {
-            if (projects) setProjects(projects);
-        });
+        let isMounted = true;
+
+        const loadProjects = async () => {
+            const nextProjects = await window.tasks.getProjects();
+            if (isMounted && nextProjects) {
+                setProjects(nextProjects);
+            }
+        };
+
+        void loadProjects();
+
+        const handleFocus = () => {
+            void loadProjects();
+        };
+
+        window.addEventListener("focus", handleFocus);
+
+        return () => {
+            isMounted = false;
+            window.removeEventListener("focus", handleFocus);
+        };
     }, []);
 
     const filteredProjects = useMemo(() => {

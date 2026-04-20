@@ -52,6 +52,8 @@ export interface WindowApi {
     }): Promise<void>;
 }
 
+export type CreateProjectStyle = "pbr" | "pathtracing" | "pbr-gi";
+
 export type StartupTaskUpdate =
     | "starting"
     | "locating-config-file"
@@ -93,6 +95,11 @@ export interface StartupTask {
 
 export interface GeneralTask {
     getProjects(): Promise<Project[]>;
+    createProject(payload: {
+        name: string;
+        location: string;
+        style: CreateProjectStyle;
+    }): Promise<Project>;
 }
 
 export type WindowHandle<TWindow = unknown> = {

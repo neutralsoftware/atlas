@@ -84,7 +84,21 @@ export async function getProjects(): Promise<Project[]> {
     try {
         const configContent = await readFile(configFile, "utf-8");
         const config = JSON.parse(configContent)[VERSION_ID];
-        return config.projects || [];
+        const projects: unknown[] = Array.isArray(config?.projects)
+            ? config.projects
+            : [];
+
+        return projects
+            .filter(
+                (project): project is Project & { modified: string | Date } =>
+                    Boolean(project) &&
+                    typeof project === "object" &&
+                    !Array.isArray(project),
+            )
+            .map((project) => ({
+                ...project,
+                modified: new Date(project.modified),
+            }));
     } catch {
         return [];
     }

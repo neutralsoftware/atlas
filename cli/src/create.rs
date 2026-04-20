@@ -1,4 +1,4 @@
-use crate::Commands;
+use crate::{Commands, CreateRenderer};
 use colored::Colorize;
 use dialoguer::Input;
 use dialoguer::Select;
@@ -28,8 +28,8 @@ icon = "none"
 supported_platforms = "all"
 
 [renderer]
-default = "deferred"
-global_illumination = false
+default = "((RENDERER_DEFAULT))"
+global_illumination = ((GLOBAL_ILLUMINATION))
 
 [window]
 dimensions = [1280, 720]
@@ -214,14 +214,35 @@ fn infer_name_from_path(path: &Path) -> Option<String> {
         .map(ToOwned::to_owned)
 }
 
+fn fail(message: impl std::fmt::Display) -> ! {
+    eprintln!("{} {}", "atlas create failed:".red().bold(), message);
+    std::process::exit(1);
+}
+
 pub fn create(cmd: Commands) {
-    let (positional_name, flagged_name, requested_path, requested_version) = match cmd {
+    let (
+        positional_name,
+        flagged_name,
+        requested_path,
+        requested_version,
+        requested_renderer,
+        requested_global_illumination,
+    ) = match cmd {
         Commands::Create {
             name,
             project_name,
             path,
             version,
-        } => (name, project_name, path, version),
+            renderer,
+            global_illumination,
+        } => (
+            name,
+            project_name,
+            path,
+            version,
+            renderer,
+            global_illumination,
+        ),
         _ => return,
     };
 
@@ -229,28 +250,20 @@ pub fn create(cmd: Commands) {
 
     let installs = match read_runtime_installs() {
         Ok(installs) => installs,
-        Err(e) => {
-            eprintln!("{} {e}", "atlas create failed:".red().bold());
-            return;
-        }
+        Err(e) => fail(e),
     };
 
     let runtime = match select_runtime(&installs, requested_version) {
         Ok(runtime) => runtime,
-        Err(e) => {
-            eprintln!("{} {e}", "atlas create failed:".red().bold());
-            return;
-        }
+        Err(e) => fail(e),
     };
 
     if let Err(e) = ensure_file_exists(&runtime.atlas_executable_path, "Atlas executable") {
-        eprintln!("{} {e}", "atlas create failed:".red().bold());
-        return;
+        fail(e);
     }
 
     if let Err(e) = ensure_file_exists(&runtime.runtime_lib_path, "Runtime library") {
-        eprintln!("{} {e}", "atlas create failed:".red().bold());
-        return;
+        fail(e);
     }
 
     let project_root = match requested_path {
@@ -264,20 +277,12 @@ pub fn create(cmd: Commands) {
                     .interact_text()
                 {
                     Ok(value) => value,
-                    Err(e) => {
-                        eprintln!("{} {e}", "atlas create failed:".red().bold());
-                        return;
-                    }
+                    Err(e) => fail(e),
                 };
 
                 let trimmed = name.trim().to_string();
                 if trimmed.is_empty() {
-                    eprintln!(
-                        "{} {}",
-                        "atlas create failed:".red().bold(),
-                        "project name cannot be empty"
-                    );
-                    return;
+                    fail("project name cannot be empty");
                 }
 
                 PathBuf::from(trimmed)
@@ -287,46 +292,47 @@ pub fn create(cmd: Commands) {
 
     let name = match requested_name.or_else(|| infer_name_from_path(&project_root)) {
         Some(name) => name,
-        None => {
-            eprintln!(
-                "{} {}",
-                "atlas create failed:".red().bold(),
-                format!(
-                    "could not infer a project name from path {}. Pass --name explicitly.",
-                    project_root.display()
-                )
-            );
-            return;
-        }
+        None => fail(format!(
+            "could not infer a project name from path {}. Pass --name explicitly.",
+            project_root.display()
+        )),
     };
 
+    let renderer = requested_renderer.unwrap_or(CreateRenderer::Deferred);
+    let default_renderer = match renderer {
+        CreateRenderer::Deferred => "deferred",
+        CreateRenderer::Pathtracing => "pathtracing",
+    };
+    let global_illumination =
+        matches!(renderer, CreateRenderer::Deferred) && requested_global_illumination;
+
     if project_root.exists() {
-        eprintln!(
-            "{} {}",
-            "atlas create failed:".red().bold(),
-            format!("target path already exists: {}", project_root.display())
-        );
-        return;
+        fail(format!(
+            "target path already exists: {}",
+            project_root.display()
+        ));
     }
 
     if let Err(e) = fs::create_dir_all(project_root.join("assets/scripts")) {
-        eprintln!("{} {e}", "atlas create failed:".red().bold());
-        return;
+        fail(e);
     }
 
     let manifest = PROJECT_TEMPLATE
         .replace("((APP_NAME))", &name)
         .replace("((ATLAS_VERSION))", &runtime.version)
-        .replace("((PROJECT_NAME))", &name);
+        .replace("((PROJECT_NAME))", &name)
+        .replace("((RENDERER_DEFAULT))", default_renderer)
+        .replace(
+            "((GLOBAL_ILLUMINATION))",
+            if global_illumination { "true" } else { "false" },
+        );
 
     if let Err(e) = write_file(&project_root.join("project.atlas"), &manifest) {
-        eprintln!("{} {e}", "atlas create failed:".red().bold());
-        return;
+        fail(e);
     }
 
     if let Err(e) = write_file(&project_root.join("main.ascene"), SCENE_TEMPLATE) {
-        eprintln!("{} {e}", "atlas create failed:".red().bold());
-        return;
+        fail(e);
     }
 
     println!(

@@ -2,7 +2,13 @@ pub mod create;
 pub mod pack;
 pub mod run;
 pub mod script;
-use clap::Subcommand;
+use clap::{Subcommand, ValueEnum};
+
+#[derive(Clone, Copy, Debug, ValueEnum)]
+pub enum CreateRenderer {
+    Deferred,
+    Pathtracing,
+}
 
 #[derive(Subcommand)]
 pub enum Commands {
@@ -14,6 +20,10 @@ pub enum Commands {
         path: Option<String>,
         #[arg(long, alias = "runtime")]
         version: Option<String>,
+        #[arg(long, value_enum)]
+        renderer: Option<CreateRenderer>,
+        #[arg(long)]
+        global_illumination: bool,
     },
     Build {
         #[arg(default_value_t = 0, long, short)]

@@ -139,8 +139,8 @@ export const createNewProjectModal: WindowMaker<BrowserWindow> = async () => {
     const windowIcon = getWindowIcon();
 
     const win = new BrowserWindow({
-        width: 480,
-        height: 557,
+        width: 560,
+        height: 680,
         parent: mainWindow!,
         modal: true,
 
