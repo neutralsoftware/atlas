@@ -196,7 +196,17 @@ export default function Projects() {
                             <div
                                 key={index}
                                 className="group flex flex-row bg-white rounded-xl border border-gray-200/80 px-4 py-3 gap-4 items-center cursor-pointer hover:border-gray-300 hover:shadow-sm transition-all duration-150"
-                                onClick={() => console.log("Opening project.")}
+                                onClick={() => {
+                                    console.log(
+                                        "Opening project at path:",
+                                        project.path,
+                                    );
+                                    window.tasks.openProject({
+                                        path: project.path,
+                                    });
+                                    window.app.showWindow("editor");
+                                    window.app.destroyWindow("projects");
+                                }}
                             >
                                 {/* Star */}
                                 <button
