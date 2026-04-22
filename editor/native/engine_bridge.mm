@@ -1,5 +1,5 @@
-#import <AppKit/AppKit.h>
 #import <Foundation/Foundation.h>
+#import <AppKit/AppKit.h>
 #include <dlfcn.h>
 #include <memory>
 #include <string>
@@ -58,7 +58,7 @@ static void *requireSymbol(void *handle, const char *name) {
 }
 
 Napi::Value LoadLibrary(const Napi::CallbackInfo &info) {
-    Napi::Env env = info.env();
+    Napi::Env env = info.Env();
 
     if (info.Length() < 1 || !info[0].IsString()) {
         throw Napi::TypeError::New(env,
@@ -116,7 +116,7 @@ Napi::Value AttachToNativeWindow(const Napi::CallbackInfo &info) {
     [hostView addSubview:child positioned:NSWindowAbove relativeTo:nil];
     bridgeState.childView = child;
 
-    bridgeState.editor = bridgeState.createFn(child);
+    bridgeState.editor = bridgeState.createFn(child, nullptr);
     if (!bridgeState.editor) {
         throw Napi::Error::New(env, "editor_create returned null");
     }

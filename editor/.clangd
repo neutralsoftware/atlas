@@ -1,8 +1,0 @@
-CompileFlags:
-  Add:
-    - -xobjective-c++
-    - -std=c++20
-    - -DNAPI_CPP_EXCEPTIONS
-    - -I./node_modules/node-addon-api
-    - -I./native
-    - -F/System/Library/Frameworks
