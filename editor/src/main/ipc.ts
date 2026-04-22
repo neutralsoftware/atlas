@@ -12,6 +12,8 @@ type OnboardingDataPayload = {
     executablePath: string | null;
 };
 
+export let currentProjectPath: string | null = null;
+
 export function registerIpcHandlers() {
     ipcMain.handle("app:get-info", () => {
         return {
@@ -89,5 +91,9 @@ export function registerIpcHandlers() {
 
     ipcMain.handle("general:create-project", async (_event, payload) => {
         return createProject(payload);
+    });
+
+    ipcMain.handle("general:open-project", async (_event, payload) => {
+        currentProjectPath = payload.path;
     });
 }

@@ -100,6 +100,7 @@ export interface GeneralTask {
         location: string;
         style: CreateProjectStyle;
     }): Promise<Project>;
+    openProject(payload: { path: string }): Promise<void>;
 }
 
 export type WindowHandle<TWindow = unknown> = {

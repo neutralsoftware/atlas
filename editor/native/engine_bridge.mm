@@ -157,6 +157,7 @@ Napi::Value Resize(const Napi::CallbackInfo &info) {
 
     // bridgeState.editor_resize(bridgeState.editor, width, height, scale);
     // return env.Undefined();
+    return env.Undefined();
 }
 
 Napi::Value Step(const Napi::CallbackInfo &info) {

@@ -2,6 +2,7 @@ import { app, BrowserWindow } from "electron";
 import { WindowMaker } from "src/shared/types/ipc";
 import {
     allWindows,
+    engineBridge,
     getPreloadPath,
     getRendererIndexPath,
     getWindowIcon,
@@ -9,6 +10,7 @@ import {
     setMainWindow,
 } from "./main";
 import { DEBUG } from "../shared/generated/build";
+import { runtimeLib } from "./tasks/startup";
 
 export const createOnboardingWindow: WindowMaker<BrowserWindow> = async () => {
     const windowIcon = getWindowIcon();
@@ -194,8 +196,94 @@ export const createNewProjectModal: WindowMaker<BrowserWindow> = async () => {
     return { id: "createProject", window: win };
 };
 
+export let frameTimer: NodeJS.Timeout | null = null;
+
+export const viewport: WindowMaker<BrowserWindow> = async () => {
+    const windowIcon = getWindowIcon();
+
+    const win = new BrowserWindow({
+        width: 1200,
+        height: 800,
+        backgroundColor: "#000000",
+
+        frame: true,
+        titleBarStyle: "hiddenInset",
+
+        show: true,
+        ...(windowIcon ? { icon: windowIcon } : {}),
+
+        webPreferences: {
+            preload: getPreloadPath(),
+            contextIsolation: true,
+            nodeIntegration: false,
+            sandbox: true,
+        },
+    });
+
+    const dylibPath = runtimeLib as string;
+    engineBridge.loadLibrary(dylibPath);
+
+    const nativeHandle: Buffer = win.getNativeWindowHandle();
+    engineBridge.attachToNativeWindow(nativeHandle);
+
+    function resizeEditorToWindow(window: BrowserWindow) {
+        const [width, height] = window.getContentSize();
+        const scale = window.webContents.getZoomFactor();
+        engineBridge.resizeEditor(width, height, scale);
+    }
+
+    resizeEditorToWindow(win);
+
+    setMainWindow(win);
+    allWindows.push({
+        id: "editor",
+        window: win,
+    });
+
+    frameTimer = setInterval(() => {}, 1000 / 30);
+
+    win.once("ready-to-show", () => {
+        win.show();
+    });
+
+    win.on("resize", () => {
+        resizeEditorToWindow(win);
+    });
+
+    win.on("closed", () => {
+        if (frameTimer) {
+            clearInterval(frameTimer);
+            frameTimer = null;
+        }
+        try {
+            engineBridge.shutdown();
+        } catch (err) {
+            console.error("Error during engine shutdown:", err);
+        }
+        if (mainWindow === win) {
+            setMainWindow(null);
+        }
+    });
+
+    const devServerUrl = "http://localhost:5173/#/editor";
+
+    if (!app.isPackaged && DEBUG) {
+        try {
+            await win.loadURL(devServerUrl);
+            return { id: "editor", window: win };
+        } catch {
+            // Fallback to built renderer when the dev server is unavailable.
+        }
+    }
+
+    await win.loadFile(getRendererIndexPath(), { hash: "/editor" });
+
+    return { id: "editor", window: win };
+};
+
 export const makerRegistry: Record<string, WindowMaker<BrowserWindow>> = {
     onboarding: createOnboardingWindow,
     projects: createProjectsWindow,
     createProject: createNewProjectModal,
+    editor: viewport,
 };
