@@ -84,6 +84,7 @@ class Context {
 
     void runWindowed();
     bool stepFrame();
+    bool resize(int width, int height, float scale);
     void end();
     void loadProject();
     void loadMainScene(Window &window);

@@ -81,6 +81,24 @@ bool atlas_runtime_step_frame(void *runtimeContext) {
     }
 }
 
+bool atlas_runtime_resize_context(void *runtimeContext, int width, int height,
+                                  float scale) {
+    if (runtimeContext == nullptr) {
+        return false;
+    }
+    try {
+        auto *handle = reinterpret_cast<RuntimeContextHandle *>(runtimeContext);
+        if (*handle == nullptr) {
+            return false;
+        }
+        return (*handle)->resize(width, height, scale);
+    } catch (const std::exception &) {
+        return false;
+    } catch (...) {
+        return false;
+    }
+}
+
 void atlas_runtime_end_context(void *runtimeContext) {
     if (runtimeContext == nullptr) {
         return;

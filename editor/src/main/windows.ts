@@ -11,6 +11,7 @@ import {
 } from "./main";
 import { DEBUG } from "../shared/generated/build";
 import { runtimeLib } from "./tasks/startup";
+import { currentProjectPath } from "./ipc";
 
 export const createOnboardingWindow: WindowMaker<BrowserWindow> = async () => {
     const windowIcon = getWindowIcon();
@@ -230,7 +231,10 @@ export const viewport: WindowMaker<BrowserWindow> = async () => {
 
     const nativeHandle: Buffer = win.getNativeWindowHandle();
     try {
-        engineBridge.attachToNativeWindow(nativeHandle);
+        engineBridge.attachToNativeWindow(
+            currentProjectPath + "/project.atlas",
+            nativeHandle,
+        );
     } catch (err) {
         console.error("Failed to attach to native window:", err);
         throw err;

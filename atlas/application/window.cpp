@@ -1375,6 +1375,33 @@ bool Window::stepFrame() {
     return !this->shouldClose;
 }
 
+void Window::resize(int width, int height, float scale) {
+    const int clampedWidth = std::max(1, width);
+    const int clampedHeight = std::max(1, height);
+    const float clampedScale = scale > 0.0f ? scale : 1.0f;
+
+    this->width = clampedWidth;
+    this->height = clampedHeight;
+
+    if (this->windowRef != nullptr) {
+        SDL_SetWindowSize(this->windowRef, clampedWidth, clampedHeight);
+    }
+
+    const int pixelWidth = std::max(
+        1, static_cast<int>(std::lround(clampedWidth * clampedScale)));
+    const int pixelHeight = std::max(
+        1, static_cast<int>(std::lround(clampedHeight * clampedScale)));
+
+    if (device == nullptr) {
+        return;
+    }
+
+    device->getDefaultFramebuffer()->setViewport(0, 0, pixelWidth, pixelHeight);
+    setViewportState(0, 0, pixelWidth, pixelHeight);
+    this->shadowMapsDirty = true;
+    this->ssaoMapsDirty = true;
+}
+
 void Window::endRunLoop() {
     if (!this->runLoopInitialized) {
         return;

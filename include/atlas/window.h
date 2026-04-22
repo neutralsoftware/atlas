@@ -421,6 +421,7 @@ class Window {
      * @return (bool) True while rendering should continue.
      */
     bool stepFrame();
+    void resize(int width, int height, float scale = 1.0f);
     /**
      * @brief Tears down state created by stepFrame()/run().
      */

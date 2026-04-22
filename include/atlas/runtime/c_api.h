@@ -43,6 +43,9 @@ void *atlas_runtime_create_metal_view_context(const char *projectFile,
  */
 bool atlas_runtime_step_frame(void *runtimeContext);
 
+bool atlas_runtime_resize_context(void *runtimeContext, int width, int height,
+                                  float scale);
+
 /**
  * @brief Requests shutdown and releases frame-loop resources.
  */

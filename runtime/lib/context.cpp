@@ -3114,6 +3114,14 @@ bool Context::stepFrame() {
     return window->stepFrame();
 }
 
+bool Context::resize(int width, int height, float scale) {
+    if (window == nullptr) {
+        throw std::runtime_error("Window is not initialized");
+    }
+    window->resize(width, height, scale);
+    return true;
+}
+
 void Context::end() {
     if (window == nullptr) {
         return;
