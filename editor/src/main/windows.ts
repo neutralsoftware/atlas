@@ -221,10 +221,20 @@ export const viewport: WindowMaker<BrowserWindow> = async () => {
     });
 
     const dylibPath = runtimeLib as string;
-    engineBridge.loadLibrary(dylibPath);
+    try {
+        engineBridge.loadLibrary(dylibPath);
+    } catch (err) {
+        console.error("Failed to load engine library:", err);
+        throw err;
+    }
 
     const nativeHandle: Buffer = win.getNativeWindowHandle();
-    engineBridge.attachToNativeWindow(nativeHandle);
+    try {
+        engineBridge.attachToNativeWindow(nativeHandle);
+    } catch (err) {
+        console.error("Failed to attach to native window:", err);
+        throw err;
+    }
 
     function resizeEditorToWindow(window: BrowserWindow) {
         const [width, height] = window.getContentSize();
