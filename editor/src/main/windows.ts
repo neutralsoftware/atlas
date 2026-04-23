@@ -254,7 +254,13 @@ export const viewport: WindowMaker<BrowserWindow> = async () => {
         window: win,
     });
 
-    frameTimer = setInterval(() => {}, 1000 / 30);
+    frameTimer = setInterval(() => {
+        try {
+            engineBridge.step();
+        } catch (err) {
+            console.error("Failed to step engine frame:", err);
+        }
+    }, 1000 / 30);
 
     win.once("ready-to-show", () => {
         win.show();
@@ -262,6 +268,11 @@ export const viewport: WindowMaker<BrowserWindow> = async () => {
 
     win.on("resize", () => {
         resizeEditorToWindow(win);
+        try {
+            engineBridge.step();
+        } catch (err) {
+            console.error("Failed to step engine frame after resize:", err);
+        }
     });
 
     win.on("closed", () => {
