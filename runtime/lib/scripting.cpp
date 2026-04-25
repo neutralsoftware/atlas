@@ -7247,6 +7247,7 @@ bool parseWindowConfiguration(JSContext *ctx, JSValueConst value,
         out.mouseCaptured = false;
         out.multisampling = window->useMultisampling;
         out.ssaoScale = window->getSSAORenderScale();
+        out.editorControls = window->areEditorControlsEnabled();
     }
     if (!JS_IsObject(value) || JS_IsNull(value)) {
         return false;
@@ -7276,6 +7277,7 @@ bool parseWindowConfiguration(JSContext *ctx, JSValueConst value,
         out.posY = static_cast<int>(intValue);
     }
     readBoolProperty(ctx, value, "multisampling", out.multisampling);
+    readBoolProperty(ctx, value, "editorControls", out.editorControls);
     readBoolProperty(ctx, value, "decorations", out.decorations);
     readBoolProperty(ctx, value, "resizable", out.resizable);
     readBoolProperty(ctx, value, "transparent", out.transparent);

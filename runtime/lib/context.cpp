@@ -2954,6 +2954,7 @@ makeContextWithWindowOptions(std::string projectFile, void *metalView,
     bool mouseCaptured = false;
     bool multisampling = false;
     float ssaoScale = 0.4f;
+    bool editorControls = false;
 
     if (auto *windowTable = configTable["window"].as_table()) {
         if (auto *dimensions = (*windowTable)["dimensions"].as_array()) {
@@ -2967,6 +2968,9 @@ makeContextWithWindowOptions(std::string projectFile, void *metalView,
         multisampling = (*windowTable)["multisampling"].value_or(false);
         ssaoScale = (*windowTable)["ssaoScale"].value_or(0.4f);
     }
+    if (auto *editorTable = configTable["editor"].as_table()) {
+        editorControls = (*editorTable)["controls"].value_or(false);
+    }
     Logger::getInstance().setConsoleFilter(false, true, true);
 
     context->window = std::make_unique<Window>(WindowConfiguration{
@@ -2979,6 +2983,7 @@ makeContextWithWindowOptions(std::string projectFile, void *metalView,
         .ssaoScale = ssaoScale,
         .metalTargetView = metalView,
         .sdlInputWindow = sdlInputWindow,
+        .editorControls = editorControls,
     });
 
     context->projectFile =
@@ -3120,6 +3125,69 @@ bool Context::resize(int width, int height, float scale) {
     }
     window->resize(width, height, scale);
     return true;
+}
+
+bool Context::setEditorControlsEnabled(bool enabled) {
+    if (window == nullptr) {
+        throw std::runtime_error("Window is not initialized");
+    }
+    window->setEditorControlsEnabled(enabled);
+    return true;
+}
+
+bool Context::setEditorSimulationEnabled(bool enabled) {
+    if (window == nullptr) {
+        throw std::runtime_error("Window is not initialized");
+    }
+    window->setEditorSimulationEnabled(enabled);
+    return true;
+}
+
+bool Context::setEditorControlMode(int mode) {
+    if (window == nullptr) {
+        throw std::runtime_error("Window is not initialized");
+    }
+    if (mode < 0 || mode > 3) {
+        return false;
+    }
+    window->setEditorControlMode(static_cast<EditorControlMode>(mode));
+    return true;
+}
+
+bool Context::editorPointerEvent(int action, float x, float y, int button,
+                                 float scale) {
+    if (window == nullptr) {
+        throw std::runtime_error("Window is not initialized");
+    }
+    window->editorPointerEvent(action, x, y, button, scale);
+    return true;
+}
+
+bool Context::editorKeyEvent(int key, bool pressed) {
+    if (window == nullptr) {
+        throw std::runtime_error("Window is not initialized");
+    }
+    window->editorKeyEvent(key, pressed);
+    return true;
+}
+
+int Context::selectedObjectId() const {
+    if (window == nullptr || window->getSelectedEditorObject() == nullptr) {
+        return -1;
+    }
+    return static_cast<int>(window->getSelectedEditorObject()->getId());
+}
+
+std::string Context::selectedObjectName() const {
+    int id = selectedObjectId();
+    if (id < 0) {
+        return {};
+    }
+    auto it = objectNames.find(id);
+    if (it != objectNames.end()) {
+        return it->second;
+    }
+    return std::to_string(id);
 }
 
 void Context::end() {

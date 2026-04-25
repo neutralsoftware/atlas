@@ -254,13 +254,14 @@ export const viewport: WindowMaker<BrowserWindow> = async () => {
         window: win,
     });
 
+    const targetEditorFps = 60;
     frameTimer = setInterval(() => {
         try {
             engineBridge.step();
         } catch (err) {
             console.error("Failed to step engine frame:", err);
         }
-    }, 1000 / 30);
+    }, 1000 / targetEditorFps);
 
     win.once("ready-to-show", () => {
         win.show();

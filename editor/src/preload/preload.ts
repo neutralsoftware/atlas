@@ -1,5 +1,6 @@
 import { contextBridge, ipcRenderer } from "electron";
 import type {
+    EditorControlsApi,
     GeneralTask,
     StartupTask,
     StartupTaskUpdate,
@@ -53,6 +54,16 @@ const generalTasks: GeneralTask = {
         ipcRenderer.invoke("general:open-project", payload),
 };
 
+const editorControls: EditorControlsApi = {
+    setEnabled: (enabled) =>
+        ipcRenderer.invoke("editor-controls:set-enabled", enabled),
+    setPlaying: (playing) =>
+        ipcRenderer.invoke("editor-controls:set-playing", playing),
+    setMode: (mode) => ipcRenderer.invoke("editor-controls:set-mode", mode),
+    getSelection: () => ipcRenderer.invoke("editor-controls:get-selection"),
+};
+
 contextBridge.exposeInMainWorld("app", api);
 contextBridge.exposeInMainWorld("startupTask", startupTask);
 contextBridge.exposeInMainWorld("tasks", generalTasks);
+contextBridge.exposeInMainWorld("editorControls", editorControls);

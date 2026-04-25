@@ -4,6 +4,7 @@
 
 #include <exception>
 #include <memory>
+#include <string>
 
 namespace {
 using RuntimeContextHandle = std::shared_ptr<Context>;
@@ -96,6 +97,133 @@ bool atlas_runtime_resize_context(void *runtimeContext, int width, int height,
         return false;
     } catch (...) {
         return false;
+    }
+}
+
+bool atlas_runtime_set_editor_controls_enabled(void *runtimeContext,
+                                               bool enabled) {
+    if (runtimeContext == nullptr) {
+        return false;
+    }
+    try {
+        auto *handle = reinterpret_cast<RuntimeContextHandle *>(runtimeContext);
+        if (*handle == nullptr) {
+            return false;
+        }
+        return (*handle)->setEditorControlsEnabled(enabled);
+    } catch (const std::exception &) {
+        return false;
+    } catch (...) {
+        return false;
+    }
+}
+
+bool atlas_runtime_set_editor_simulation_enabled(void *runtimeContext,
+                                                 bool enabled) {
+    if (runtimeContext == nullptr) {
+        return false;
+    }
+    try {
+        auto *handle = reinterpret_cast<RuntimeContextHandle *>(runtimeContext);
+        if (*handle == nullptr) {
+            return false;
+        }
+        return (*handle)->setEditorSimulationEnabled(enabled);
+    } catch (const std::exception &) {
+        return false;
+    } catch (...) {
+        return false;
+    }
+}
+
+bool atlas_runtime_set_editor_control_mode(void *runtimeContext, int mode) {
+    if (runtimeContext == nullptr) {
+        return false;
+    }
+    try {
+        auto *handle = reinterpret_cast<RuntimeContextHandle *>(runtimeContext);
+        if (*handle == nullptr) {
+            return false;
+        }
+        return (*handle)->setEditorControlMode(mode);
+    } catch (const std::exception &) {
+        return false;
+    } catch (...) {
+        return false;
+    }
+}
+
+bool atlas_runtime_editor_pointer_event(void *runtimeContext, int action,
+                                        float x, float y, int button,
+                                        float scale) {
+    if (runtimeContext == nullptr) {
+        return false;
+    }
+    try {
+        auto *handle = reinterpret_cast<RuntimeContextHandle *>(runtimeContext);
+        if (*handle == nullptr) {
+            return false;
+        }
+        return (*handle)->editorPointerEvent(action, x, y, button, scale);
+    } catch (const std::exception &) {
+        return false;
+    } catch (...) {
+        return false;
+    }
+}
+
+bool atlas_runtime_editor_key_event(void *runtimeContext, int key,
+                                    bool pressed) {
+    if (runtimeContext == nullptr) {
+        return false;
+    }
+    try {
+        auto *handle = reinterpret_cast<RuntimeContextHandle *>(runtimeContext);
+        if (*handle == nullptr) {
+            return false;
+        }
+        return (*handle)->editorKeyEvent(key, pressed);
+    } catch (const std::exception &) {
+        return false;
+    } catch (...) {
+        return false;
+    }
+}
+
+int atlas_runtime_get_selected_object_id(void *runtimeContext) {
+    if (runtimeContext == nullptr) {
+        return -1;
+    }
+    try {
+        auto *handle = reinterpret_cast<RuntimeContextHandle *>(runtimeContext);
+        if (*handle == nullptr) {
+            return -1;
+        }
+        return (*handle)->selectedObjectId();
+    } catch (const std::exception &) {
+        return -1;
+    } catch (...) {
+        return -1;
+    }
+}
+
+const char *atlas_runtime_get_selected_object_name(void *runtimeContext) {
+    static thread_local std::string selectedName;
+    selectedName.clear();
+    if (runtimeContext == nullptr) {
+        return selectedName.c_str();
+    }
+    try {
+        auto *handle = reinterpret_cast<RuntimeContextHandle *>(runtimeContext);
+        if (*handle == nullptr) {
+            return selectedName.c_str();
+        }
+        selectedName = (*handle)->selectedObjectName();
+        return selectedName.c_str();
+    } catch (const std::exception &) {
+        return selectedName.c_str();
+    } catch (...) {
+        return selectedName.c_str();
     }
 }
 

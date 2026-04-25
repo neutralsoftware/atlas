@@ -504,6 +504,7 @@ void CoreObject::refreshPipeline() {
     unbuiltPipeline->setViewport(window.viewportX, window.viewportY,
                                  viewportWidth, viewportHeight);
     unbuiltPipeline->setPrimitiveStyle(window.primitiveStyle);
+    unbuiltPipeline->setLineWidth(window.lineWidth);
     unbuiltPipeline->setRasterizerMode(window.rasterizerMode);
     unbuiltPipeline->setCullMode(window.cullMode);
     unbuiltPipeline->setFrontFace(window.frontFace);
@@ -616,7 +617,8 @@ void CoreObject::render(float dt,
                                      material.normalMapStrength);
         this->pipeline->setUniform1i("useNormalMap",
                                      material.useNormalMap ? 1 : 0);
-        if (Window::mainWindow != nullptr && Window::mainWindow->getCamera() != nullptr) {
+        if (Window::mainWindow != nullptr &&
+            Window::mainWindow->getCamera() != nullptr) {
             this->pipeline->setUniform3f(
                 "cameraPosition", Window::mainWindow->getCamera()->position.x,
                 Window::mainWindow->getCamera()->position.y,
