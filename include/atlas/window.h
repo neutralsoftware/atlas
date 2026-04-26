@@ -876,6 +876,7 @@ class Window {
         const std::shared_ptr<opal::CommandBuffer> &commandBuffer);
     void updateEditorControlGeometry();
     void selectEditorObjectAt(float x, float y, float scale);
+    int hitTestEditorGizmoAxis(float x, float y, float scale);
     void updateEditorDrag(float x, float y, float scale);
     void updateEditorCameraDrag(float x, float y, float scale);
     void updateEditorCameraMovement(float deltaTime);
@@ -966,6 +967,7 @@ class Window {
     GameObject *selectedEditorObject = nullptr;
     bool editorDragging = false;
     bool editorCameraDragging = false;
+    int editorActiveGizmoAxis = 0;
     float editorDragStartX = 0.0f;
     float editorDragStartY = 0.0f;
     float editorCameraLastX = 0.0f;

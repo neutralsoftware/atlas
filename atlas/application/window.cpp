@@ -143,6 +143,46 @@ bool projectBoundsToScreen(const glm::vec3 &boundsMin,
     return any;
 }
 
+bool projectPointToScreen(const glm::vec3 &point,
+                          const glm::mat4 &viewProjection, float viewWidth,
+                          float viewHeight, glm::vec2 &screen,
+                          float &depth) {
+    glm::vec4 clip = viewProjection * glm::vec4(point, 1.0f);
+    if (std::abs(clip.w) < 0.000001f || clip.w < 0.0f) {
+        return false;
+    }
+    glm::vec3 ndc = glm::vec3(clip) / clip.w;
+    screen = glm::vec2((ndc.x * 0.5f + 0.5f) * viewWidth,
+                       (ndc.y * 0.5f + 0.5f) * viewHeight);
+    depth = ndc.z;
+    return true;
+}
+
+float distanceToScreenSegment(const glm::vec2 &point, const glm::vec2 &from,
+                              const glm::vec2 &to) {
+    glm::vec2 segment = to - from;
+    float lengthSquared = glm::dot(segment, segment);
+    if (lengthSquared < 0.000001f) {
+        return glm::length(point - from);
+    }
+    float t = glm::clamp(glm::dot(point - from, segment) / lengthSquared, 0.0f,
+                         1.0f);
+    return glm::length(point - (from + segment * t));
+}
+
+glm::vec3 editorAxisVector(int axis) {
+    if (axis == 1) {
+        return glm::vec3(1.0f, 0.0f, 0.0f);
+    }
+    if (axis == 2) {
+        return glm::vec3(0.0f, 1.0f, 0.0f);
+    }
+    if (axis == 3) {
+        return glm::vec3(0.0f, 0.0f, 1.0f);
+    }
+    return glm::vec3(0.0f);
+}
+
 void ensureEditorLineObject(std::unique_ptr<CoreObject> &object,
                             bool &initialized,
                             const std::vector<CoreVertex> &vertices) {
@@ -1116,6 +1156,15 @@ void Window::pollEvents() {
             }
             break;
         case SDL_EVENT_MOUSE_WHEEL:
+            if (this->editorControlsEnabled &&
+                event.wheel.windowID == this->runLoopWindowID) {
+                float offsetY = event.wheel.y;
+                if (event.wheel.direction == SDL_MOUSEWHEEL_FLIPPED) {
+                    offsetY = -offsetY;
+                }
+                this->editorPointerEvent(3, 0.0f, offsetY, 0, 1.0f);
+                break;
+            }
             if ((!this->editorControlsEnabled ||
                  this->editorSimulationEnabled) &&
                 event.wheel.windowID == this->runLoopWindowID &&
@@ -1682,6 +1731,7 @@ void Window::setEditorControlsEnabled(bool enabled) {
     if (!enabled) {
         selectedEditorObject = nullptr;
         editorDragging = false;
+        editorActiveGizmoAxis = 0;
         editorCameraDragging = false;
         editorCameraKeys.fill(false);
     }
@@ -1690,12 +1740,14 @@ void Window::setEditorControlsEnabled(bool enabled) {
 void Window::setEditorSimulationEnabled(bool enabled) {
     editorSimulationEnabled = enabled;
     editorDragging = false;
+    editorActiveGizmoAxis = 0;
     editorCameraDragging = false;
 }
 
 void Window::setEditorControlMode(EditorControlMode mode) {
     editorControlMode = mode;
     editorDragging = false;
+    editorActiveGizmoAxis = 0;
 }
 
 unsigned int Window::getSelectedEditorObjectId() const {
@@ -1709,6 +1761,35 @@ void Window::editorPointerEvent(int action, float x, float y, int button,
     }
 
     float effectiveScale = scale > 0.0f ? scale : 1.0f;
+    if (action == 3) {
+        if (camera == nullptr) {
+            return;
+        }
+        glm::vec3 position = camera->position.toGlm();
+        glm::vec3 target = camera->target.toGlm();
+        glm::vec3 front = target - position;
+        if (glm::length(front) < 0.000001f) {
+            front = camera->getFrontVector().toGlm();
+        }
+        if (glm::length(front) < 0.000001f) {
+            return;
+        }
+        front = glm::normalize(front);
+        float scrollAmount = y / effectiveScale;
+        float distance = glm::length(target - position);
+        float step = std::max(0.15f, distance * 0.12f) * scrollAmount;
+        glm::vec3 movement = front * step;
+        camera->position = Position3d::fromGlm(position + movement);
+        camera->target = Position3d::fromGlm(target + movement);
+        if (editorOrbitPivotInitialized) {
+            editorOrbitPivot =
+                Position3d::fromGlm(editorOrbitPivot.toGlm() + movement);
+        }
+        shadowMapsDirty = true;
+        ssaoMapsDirty = true;
+        return;
+    }
+
     if (button == 2 || button == 3) {
         if (action == 0) {
             editorCameraDragging = true;
@@ -1739,17 +1820,24 @@ void Window::editorPointerEvent(int action, float x, float y, int button,
     }
 
     if (action == 0) {
-        selectEditorObjectAt(x, y, effectiveScale);
         if (selectedEditorObject != nullptr &&
             editorControlMode != EditorControlMode::None) {
-            editorDragging = true;
-            editorDragStartX = x;
-            editorDragStartY = y;
-            editorDragStartScale = effectiveScale;
-            editorDragStartPosition = selectedEditorObject->getPosition();
-            editorDragStartRotation = selectedEditorObject->getRotation();
-            editorDragStartObjectScale = selectedEditorObject->getScale();
+            int axis = hitTestEditorGizmoAxis(x, y, effectiveScale);
+            if (axis != 0) {
+                editorActiveGizmoAxis = axis;
+                editorDragging = true;
+                editorDragStartX = x;
+                editorDragStartY = y;
+                editorDragStartScale = effectiveScale;
+                editorDragStartPosition = selectedEditorObject->getPosition();
+                editorDragStartRotation = selectedEditorObject->getRotation();
+                editorDragStartObjectScale = selectedEditorObject->getScale();
+                return;
+            }
         }
+
+        selectEditorObjectAt(x, y, effectiveScale);
+        editorActiveGizmoAxis = 0;
         return;
     }
 
@@ -1760,6 +1848,7 @@ void Window::editorPointerEvent(int action, float x, float y, int button,
 
     if (action == 2) {
         editorDragging = false;
+        editorActiveGizmoAxis = 0;
     }
 }
 
@@ -1827,36 +1916,223 @@ void Window::selectEditorObjectAt(float x, float y, float scale) {
     selectedEditorObject = bestObject;
 }
 
+int Window::hitTestEditorGizmoAxis(float x, float y, float scale) {
+    if (selectedEditorObject == nullptr || camera == nullptr ||
+        editorControlMode == EditorControlMode::None) {
+        return 0;
+    }
+
+    glm::vec3 boundsMin;
+    glm::vec3 boundsMax;
+    if (!objectBounds(selectedEditorObject, boundsMin, boundsMax)) {
+        return 0;
+    }
+
+    float effectiveScale = scale > 0.0f ? scale : 1.0f;
+    float viewWidth = std::max(1.0f, static_cast<float>(width));
+    float viewHeight = std::max(1.0f, static_cast<float>(height));
+    glm::mat4 viewProjection = calculateProjectionMatrix() *
+                               camera->calculateViewMatrix();
+    glm::vec2 pointer(x, y);
+    glm::vec3 center = selectedEditorObject->getPosition().toGlm();
+    float radius = std::max(0.75f, glm::length(boundsMax - boundsMin) * 0.45f);
+    float cameraDistance = glm::length(camera->position.toGlm() - center);
+    float gizmoScale =
+        std::max(radius * 2.35f, std::max(1.85f, cameraDistance * 0.19f));
+    float axisLength = gizmoScale * 1.35f;
+    float hitPadding = std::max(13.0f, 18.0f / effectiveScale);
+    int bestAxis = 0;
+    float bestDistance = hitPadding;
+
+    if (editorControlMode == EditorControlMode::Move ||
+        editorControlMode == EditorControlMode::Scale) {
+        for (int axis = 1; axis <= 3; ++axis) {
+            glm::vec3 axisVector = editorAxisVector(axis);
+            glm::vec2 from;
+            glm::vec2 to;
+            float depth = 0.0f;
+            if (!projectPointToScreen(center, viewProjection, viewWidth,
+                                      viewHeight, from, depth) ||
+                !projectPointToScreen(center + axisVector * axisLength,
+                                      viewProjection, viewWidth, viewHeight, to,
+                                      depth)) {
+                continue;
+            }
+            float distance = distanceToScreenSegment(pointer, from, to);
+            if (distance < bestDistance) {
+                bestDistance = distance;
+                bestAxis = axis;
+            }
+        }
+        return bestAxis;
+    }
+
+    int segments = 128;
+    float ringRadius = gizmoScale * 1.12f;
+    for (int axis = 1; axis <= 3; ++axis) {
+        for (int i = 0; i < segments; ++i) {
+            float a0 =
+                (static_cast<float>(i) / segments) * glm::two_pi<float>();
+            float a1 = (static_cast<float>(i + 1) / segments) *
+                       glm::two_pi<float>();
+            glm::vec3 p0;
+            glm::vec3 p1;
+            if (axis == 1) {
+                p0 = center +
+                     glm::vec3(0, std::cos(a0), std::sin(a0)) * ringRadius;
+                p1 = center +
+                     glm::vec3(0, std::cos(a1), std::sin(a1)) * ringRadius;
+            } else if (axis == 2) {
+                p0 = center +
+                     glm::vec3(std::cos(a0), 0, std::sin(a0)) * ringRadius;
+                p1 = center +
+                     glm::vec3(std::cos(a1), 0, std::sin(a1)) * ringRadius;
+            } else {
+                p0 = center +
+                     glm::vec3(std::cos(a0), std::sin(a0), 0) * ringRadius;
+                p1 = center +
+                     glm::vec3(std::cos(a1), std::sin(a1), 0) * ringRadius;
+            }
+
+            glm::vec2 from;
+            glm::vec2 to;
+            float depth = 0.0f;
+            if (!projectPointToScreen(p0, viewProjection, viewWidth,
+                                      viewHeight, from, depth) ||
+                !projectPointToScreen(p1, viewProjection, viewWidth,
+                                      viewHeight, to, depth)) {
+                continue;
+            }
+            float distance = distanceToScreenSegment(pointer, from, to);
+            if (distance < bestDistance) {
+                bestDistance = distance;
+                bestAxis = axis;
+            }
+        }
+    }
+
+    return bestAxis;
+}
+
 void Window::updateEditorDrag(float x, float y, float scale) {
-    if (selectedEditorObject == nullptr || camera == nullptr) {
+    if (selectedEditorObject == nullptr || camera == nullptr ||
+        editorActiveGizmoAxis == 0) {
         return;
     }
 
     float effectiveScale = scale > 0.0f ? scale : editorDragStartScale;
     float dx = (x - editorDragStartX) / effectiveScale;
     float dy = (y - editorDragStartY) / effectiveScale;
-    float distance = glm::length(selectedEditorObject->getPosition().toGlm() -
-                                 camera->position.toGlm());
+    glm::vec3 axis = editorAxisVector(editorActiveGizmoAxis);
+    if (glm::length(axis) < 0.000001f) {
+        return;
+    }
 
     if (editorControlMode == EditorControlMode::Move) {
-        glm::mat4 inverseView = glm::inverse(camera->calculateViewMatrix());
-        glm::vec3 right = glm::normalize(glm::vec3(inverseView[0]));
-        glm::vec3 up = glm::normalize(glm::vec3(inverseView[1]));
-        float factor = std::max(0.01f, distance * 0.0025f);
-        glm::vec3 delta = right * (dx * factor) + up * (dy * factor);
+        float viewWidth = std::max(1.0f, static_cast<float>(width));
+        float viewHeight = std::max(1.0f, static_cast<float>(height));
+        glm::mat4 viewProjection = calculateProjectionMatrix() *
+                                   camera->calculateViewMatrix();
+        glm::vec3 center = editorDragStartPosition.toGlm();
+        glm::vec2 centerScreen;
+        glm::vec2 axisScreen;
+        float depth = 0.0f;
+        float worldDelta = 0.0f;
+        if (projectPointToScreen(center, viewProjection, viewWidth, viewHeight,
+                                 centerScreen, depth) &&
+            projectPointToScreen(center + axis, viewProjection, viewWidth,
+                                 viewHeight, axisScreen, depth)) {
+            glm::vec2 projectedAxis = axisScreen - centerScreen;
+            float pixelsPerWorld = glm::length(projectedAxis);
+            if (pixelsPerWorld > 0.000001f) {
+                glm::vec2 direction = projectedAxis / pixelsPerWorld;
+                worldDelta = glm::dot(glm::vec2(dx, dy), direction) /
+                             pixelsPerWorld;
+            }
+        }
+        if (std::abs(worldDelta) < 0.000001f) {
+            float distance =
+                glm::length(editorDragStartPosition.toGlm() -
+                            camera->position.toGlm());
+            worldDelta = (dx + dy) * std::max(0.01f, distance * 0.0025f);
+        }
+        glm::vec3 delta = axis * worldDelta;
         selectedEditorObject->setPosition(
             Position3d::fromGlm(editorDragStartPosition.toGlm() + delta));
     } else if (editorControlMode == EditorControlMode::Rotate) {
-        selectedEditorObject->setRotation(
-            Rotation3d(editorDragStartRotation.pitch + dy * 0.25f,
-                       editorDragStartRotation.yaw + dx * 0.25f,
-                       editorDragStartRotation.roll));
+        float viewWidth = std::max(1.0f, static_cast<float>(width));
+        float viewHeight = std::max(1.0f, static_cast<float>(height));
+        glm::mat4 viewProjection = calculateProjectionMatrix() *
+                                   camera->calculateViewMatrix();
+        glm::vec2 centerScreen;
+        float depth = 0.0f;
+        float angle = 0.0f;
+        if (projectPointToScreen(editorDragStartPosition.toGlm(),
+                                 viewProjection, viewWidth, viewHeight,
+                                 centerScreen, depth)) {
+            glm::vec2 startVector =
+                glm::vec2(editorDragStartX, editorDragStartY) - centerScreen;
+            glm::vec2 currentVector = glm::vec2(x, y) - centerScreen;
+            if (glm::length(startVector) > 0.000001f &&
+                glm::length(currentVector) > 0.000001f) {
+                startVector = glm::normalize(startVector);
+                currentVector = glm::normalize(currentVector);
+                float cross = startVector.x * currentVector.y -
+                              startVector.y * currentVector.x;
+                float dot = glm::clamp(glm::dot(startVector, currentVector),
+                                       -1.0f, 1.0f);
+                angle = glm::degrees(std::atan2(cross, dot));
+            }
+        }
+        if (std::abs(angle) < 0.000001f) {
+            angle = (dx + dy) * 0.25f;
+        }
+        Rotation3d rotation = editorDragStartRotation;
+        if (editorActiveGizmoAxis == 1) {
+            rotation.pitch = editorDragStartRotation.pitch + angle;
+        } else if (editorActiveGizmoAxis == 2) {
+            rotation.yaw = editorDragStartRotation.yaw + angle;
+        } else if (editorActiveGizmoAxis == 3) {
+            rotation.roll = editorDragStartRotation.roll + angle;
+        }
+        selectedEditorObject->setRotation(rotation);
     } else if (editorControlMode == EditorControlMode::Scale) {
-        float factor = std::max(0.05f, 1.0f + (dx + dy) * 0.01f);
-        selectedEditorObject->setScale(
-            Position3d(editorDragStartObjectScale.x * factor,
-                       editorDragStartObjectScale.y * factor,
-                       editorDragStartObjectScale.z * factor));
+        float viewWidth = std::max(1.0f, static_cast<float>(width));
+        float viewHeight = std::max(1.0f, static_cast<float>(height));
+        glm::mat4 viewProjection = calculateProjectionMatrix() *
+                                   camera->calculateViewMatrix();
+        glm::vec3 center = editorDragStartPosition.toGlm();
+        glm::vec2 centerScreen;
+        glm::vec2 axisScreen;
+        float depth = 0.0f;
+        float scaleDelta = 0.0f;
+        if (projectPointToScreen(center, viewProjection, viewWidth, viewHeight,
+                                 centerScreen, depth) &&
+            projectPointToScreen(center + axis, viewProjection, viewWidth,
+                                 viewHeight, axisScreen, depth)) {
+            glm::vec2 projectedAxis = axisScreen - centerScreen;
+            float pixelsPerWorld = glm::length(projectedAxis);
+            if (pixelsPerWorld > 0.000001f) {
+                glm::vec2 direction = projectedAxis / pixelsPerWorld;
+                scaleDelta = glm::dot(glm::vec2(dx, dy), direction) /
+                             pixelsPerWorld;
+            }
+        }
+        if (std::abs(scaleDelta) < 0.000001f) {
+            scaleDelta = (dx + dy) * 0.01f;
+        }
+        Scale3d nextScale = editorDragStartObjectScale;
+        if (editorActiveGizmoAxis == 1) {
+            nextScale.x = std::max(0.05f, editorDragStartObjectScale.x +
+                                              scaleDelta);
+        } else if (editorActiveGizmoAxis == 2) {
+            nextScale.y = std::max(0.05f, editorDragStartObjectScale.y +
+                                              scaleDelta);
+        } else if (editorActiveGizmoAxis == 3) {
+            nextScale.z = std::max(0.05f, editorDragStartObjectScale.z +
+                                              scaleDelta);
+        }
+        selectedEditorObject->setScale(nextScale);
     }
     shadowMapsDirty = true;
     ssaoMapsDirty = true;
@@ -2041,18 +2317,23 @@ void Window::updateEditorControlGeometry() {
     if (!objectBounds(selectedEditorObject, boundsMin, boundsMax)) {
         selectedEditorObject = nullptr;
         editorDragging = false;
+        editorActiveGizmoAxis = 0;
         return;
     }
 
     Color outlineColor{0.0f, 0.95f, 1.0f, 1.0f};
-    glm::vec3 p000(boundsMin.x, boundsMin.y, boundsMin.z);
-    glm::vec3 p001(boundsMin.x, boundsMin.y, boundsMax.z);
-    glm::vec3 p010(boundsMin.x, boundsMax.y, boundsMin.z);
-    glm::vec3 p011(boundsMin.x, boundsMax.y, boundsMax.z);
-    glm::vec3 p100(boundsMax.x, boundsMin.y, boundsMin.z);
-    glm::vec3 p101(boundsMax.x, boundsMin.y, boundsMax.z);
-    glm::vec3 p110(boundsMax.x, boundsMax.y, boundsMin.z);
-    glm::vec3 p111(boundsMax.x, boundsMax.y, boundsMax.z);
+    float outlinePadding =
+        std::max(0.04f, glm::length(boundsMax - boundsMin) * 0.035f);
+    glm::vec3 outlineMin = boundsMin - glm::vec3(outlinePadding);
+    glm::vec3 outlineMax = boundsMax + glm::vec3(outlinePadding);
+    glm::vec3 p000(outlineMin.x, outlineMin.y, outlineMin.z);
+    glm::vec3 p001(outlineMin.x, outlineMin.y, outlineMax.z);
+    glm::vec3 p010(outlineMin.x, outlineMax.y, outlineMin.z);
+    glm::vec3 p011(outlineMin.x, outlineMax.y, outlineMax.z);
+    glm::vec3 p100(outlineMax.x, outlineMin.y, outlineMin.z);
+    glm::vec3 p101(outlineMax.x, outlineMin.y, outlineMax.z);
+    glm::vec3 p110(outlineMax.x, outlineMax.y, outlineMin.z);
+    glm::vec3 p111(outlineMax.x, outlineMax.y, outlineMax.z);
     std::vector<CoreVertex> outlineVertices = {
         editorVertex(p000, outlineColor), editorVertex(p100, outlineColor),
         editorVertex(p100, outlineColor), editorVertex(p101, outlineColor),
@@ -2080,10 +2361,10 @@ void Window::updateEditorControlGeometry() {
     float radius = std::max(0.75f, glm::length(boundsMax - boundsMin) * 0.45f);
     float cameraDistance = glm::length(camera->position.toGlm() - center);
     float gizmoScale =
-        std::max(radius * 2.0f, std::max(1.5f, cameraDistance * 0.16f));
-    float axisLength = gizmoScale * 1.25f;
-    float squareHalfSize = std::max(0.2f, gizmoScale * 0.22f);
-    float arrowSize = std::max(0.2f, gizmoScale * 0.2f);
+        std::max(radius * 2.35f, std::max(1.85f, cameraDistance * 0.19f));
+    float axisLength = gizmoScale * 1.35f;
+    float squareHalfSize = std::max(0.24f, gizmoScale * 0.27f);
+    float arrowSize = std::max(0.24f, gizmoScale * 0.25f);
     Color red{1.0f, 0.1f, 0.08f, 1.0f};
     Color green{0.25f, 1.0f, 0.35f, 1.0f};
     Color blue{0.2f, 0.48f, 1.0f, 1.0f};
@@ -2122,7 +2403,7 @@ void Window::updateEditorControlGeometry() {
         appendArrowHead(gizmoVertices, zTip, zAxis, arrowSize, blue);
     } else if (editorControlMode == EditorControlMode::Rotate) {
         int segments = 128;
-        float ringRadius = gizmoScale * 1.05f;
+        float ringRadius = gizmoScale * 1.12f;
         for (int ring = 0; ring < 3; ++ring) {
             Color color = ring == 0 ? red : (ring == 1 ? green : blue);
             for (int i = 0; i < segments; ++i) {
@@ -2204,7 +2485,7 @@ void Window::renderEditorControls(
         return;
     }
 
-    updatePipelineStateField(this->lineWidth, 3.0f);
+    updatePipelineStateField(this->lineWidth, 3.8f);
     updatePipelineStateField(this->useDepth, false);
     updatePipelineStateField(this->depthCompareOp, opal::CompareOp::Always);
     renderEditorLineObject(editorOutlineObject.get(), view, projection,
@@ -2275,6 +2556,7 @@ void Window::removeObject(Renderable *obj) {
     if (selectedEditorObject == dynamic_cast<GameObject *>(obj)) {
         selectedEditorObject = nullptr;
         editorDragging = false;
+        editorActiveGizmoAxis = 0;
     }
 
     if (this->physicsWorld != nullptr) {
