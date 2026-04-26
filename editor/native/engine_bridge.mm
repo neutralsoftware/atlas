@@ -74,6 +74,26 @@ static void sendEditorPointerEvent(NSEvent *event, NSView *view, int action) {
                                      static_cast<float>(scale));
 }
 
+static void sendEditorScrollEvent(NSEvent *event, NSView *view) {
+    if (!bridgeState.runtimeContext || !bridgeState.editorPointerEventFn ||
+        !view) {
+        return;
+    }
+
+    CGFloat scale = 1.0;
+    if ([view window]) {
+        CGFloat backingScale = [[view window] backingScaleFactor];
+        if (backingScale > 0.0) {
+            scale = backingScale;
+        }
+    }
+
+    bridgeState.editorPointerEventFn(
+        bridgeState.runtimeContext, 3, 0.0f,
+        static_cast<float>([event scrollingDeltaY]), 0,
+        static_cast<float>(scale));
+}
+
 static int editorKeyFromEvent(NSEvent *event) {
     switch ([event keyCode]) {
     case 126:
@@ -149,6 +169,10 @@ static bool sendEditorKeyEvent(NSEvent *event, bool pressed) {
 
 - (void)rightMouseUp:(NSEvent *)event {
     sendEditorPointerEvent(event, self, 2);
+}
+
+- (void)scrollWheel:(NSEvent *)event {
+    sendEditorScrollEvent(event, self);
 }
 
 - (void)keyDown:(NSEvent *)event {

@@ -226,6 +226,62 @@ void appendEditorLine(std::vector<CoreVertex> &vertices, const glm::vec3 &from,
     vertices.push_back(editorVertex(to, color));
 }
 
+void linePlaneBasis(const glm::vec3 &axis, glm::vec3 &u, glm::vec3 &v) {
+    glm::vec3 direction = axis;
+    if (glm::length(direction) < 0.000001f) {
+        direction = glm::vec3(0.0f, 1.0f, 0.0f);
+    }
+    direction = glm::normalize(direction);
+    glm::vec3 seed = std::abs(direction.y) < 0.92f
+                         ? glm::vec3(0.0f, 1.0f, 0.0f)
+                         : glm::vec3(1.0f, 0.0f, 0.0f);
+    u = glm::normalize(glm::cross(direction, seed));
+    v = glm::normalize(glm::cross(direction, u));
+}
+
+void appendEditorTriangle(std::vector<CoreVertex> &vertices,
+                          const glm::vec3 &a, const glm::vec3 &b,
+                          const glm::vec3 &c, const Color &color) {
+    vertices.push_back(editorVertex(a, color));
+    vertices.push_back(editorVertex(b, color));
+    vertices.push_back(editorVertex(c, color));
+}
+
+void appendEditorQuad(std::vector<CoreVertex> &vertices, const glm::vec3 &a,
+                      const glm::vec3 &b, const glm::vec3 &c,
+                      const glm::vec3 &d, const Color &color) {
+    appendEditorTriangle(vertices, a, b, c, color);
+    appendEditorTriangle(vertices, a, c, d, color);
+}
+
+void appendRibbonLine(std::vector<CoreVertex> &vertices, const glm::vec3 &from,
+                      const glm::vec3 &to, float halfWidth,
+                      const glm::vec3 &cameraPosition, const Color &color) {
+    glm::vec3 axis = to - from;
+    if (glm::length(axis) < 0.000001f) {
+        return;
+    }
+
+    glm::vec3 viewDirection =
+        cameraPosition - ((from + to) * 0.5f);
+    if (glm::length(viewDirection) < 0.000001f) {
+        viewDirection = glm::vec3(0.0f, 0.0f, 1.0f);
+    }
+
+    glm::vec3 side = glm::cross(glm::normalize(axis),
+                                glm::normalize(viewDirection));
+    if (glm::length(side) < 0.000001f) {
+        glm::vec3 u;
+        glm::vec3 v;
+        linePlaneBasis(axis, u, v);
+        side = u;
+    }
+
+    side = glm::normalize(side) * halfWidth;
+    appendEditorQuad(vertices, from - side, to - side, to + side, from + side,
+                     color);
+}
+
 void axisPlaneBasis(const glm::vec3 &axis, glm::vec3 &u, glm::vec3 &v) {
     if (std::abs(axis.x) > 0.5f) {
         u = glm::vec3(0.0f, 1.0f, 0.0f);
@@ -239,22 +295,32 @@ void axisPlaneBasis(const glm::vec3 &axis, glm::vec3 &u, glm::vec3 &v) {
     }
 }
 
-void appendSquareCap(std::vector<CoreVertex> &vertices, const glm::vec3 &tip,
-                     const glm::vec3 &axis, float halfSize,
-                     const Color &color) {
+void appendSolidCubeCap(std::vector<CoreVertex> &vertices,
+                        const glm::vec3 &center, const glm::vec3 &axis,
+                        float halfSize, const Color &color) {
     glm::vec3 u;
     glm::vec3 v;
     axisPlaneBasis(axis, u, v);
+    glm::vec3 w = glm::normalize(axis);
+    if (glm::length(w) < 0.000001f) {
+        w = glm::vec3(1.0f, 0.0f, 0.0f);
+    }
 
-    glm::vec3 p0 = tip + (u + v) * halfSize;
-    glm::vec3 p1 = tip + (u - v) * halfSize;
-    glm::vec3 p2 = tip + (-u - v) * halfSize;
-    glm::vec3 p3 = tip + (-u + v) * halfSize;
+    glm::vec3 p000 = center + (-u - v - w) * halfSize;
+    glm::vec3 p001 = center + (-u - v + w) * halfSize;
+    glm::vec3 p010 = center + (-u + v - w) * halfSize;
+    glm::vec3 p011 = center + (-u + v + w) * halfSize;
+    glm::vec3 p100 = center + (u - v - w) * halfSize;
+    glm::vec3 p101 = center + (u - v + w) * halfSize;
+    glm::vec3 p110 = center + (u + v - w) * halfSize;
+    glm::vec3 p111 = center + (u + v + w) * halfSize;
 
-    appendEditorLine(vertices, p0, p1, color);
-    appendEditorLine(vertices, p1, p2, color);
-    appendEditorLine(vertices, p2, p3, color);
-    appendEditorLine(vertices, p3, p0, color);
+    appendEditorQuad(vertices, p000, p100, p110, p010, color);
+    appendEditorQuad(vertices, p001, p011, p111, p101, color);
+    appendEditorQuad(vertices, p000, p001, p101, p100, color);
+    appendEditorQuad(vertices, p010, p110, p111, p011, color);
+    appendEditorQuad(vertices, p000, p010, p011, p001, color);
+    appendEditorQuad(vertices, p100, p101, p111, p110, color);
 }
 
 void appendArrowHead(std::vector<CoreVertex> &vertices, const glm::vec3 &tip,
@@ -269,10 +335,11 @@ void appendArrowHead(std::vector<CoreVertex> &vertices, const glm::vec3 &tip,
     glm::vec3 p2 = baseCenter + v * size;
     glm::vec3 p3 = baseCenter - v * size;
 
-    appendEditorLine(vertices, p0, tip, color);
-    appendEditorLine(vertices, p1, tip, color);
-    appendEditorLine(vertices, p2, tip, color);
-    appendEditorLine(vertices, p3, tip, color);
+    appendEditorTriangle(vertices, p0, p2, tip, color);
+    appendEditorTriangle(vertices, p2, p1, tip, color);
+    appendEditorTriangle(vertices, p1, p3, tip, color);
+    appendEditorTriangle(vertices, p3, p0, tip, color);
+    appendEditorQuad(vertices, p0, p3, p1, p2, color);
 }
 
 #if defined(METAL) && defined(__APPLE__)
@@ -1767,24 +1834,30 @@ void Window::editorPointerEvent(int action, float x, float y, int button,
         }
         glm::vec3 position = camera->position.toGlm();
         glm::vec3 target = camera->target.toGlm();
-        glm::vec3 front = target - position;
-        if (glm::length(front) < 0.000001f) {
-            front = camera->getFrontVector().toGlm();
+        glm::vec3 pivot = editorOrbitPivotInitialized
+                              ? editorOrbitPivot.toGlm()
+                              : target;
+        glm::vec3 toPivot = pivot - position;
+        float distance = glm::length(toPivot);
+        if (distance < 0.000001f) {
+            glm::vec3 front = camera->getFrontVector().toGlm();
+            if (glm::length(front) < 0.000001f) {
+                return;
+            }
+            toPivot = glm::normalize(front);
+            distance = std::max(editorOrbitDistance, 3.0f);
+            pivot = position + toPivot * distance;
+        } else {
+            toPivot = glm::normalize(toPivot);
         }
-        if (glm::length(front) < 0.000001f) {
-            return;
-        }
-        front = glm::normalize(front);
         float scrollAmount = y / effectiveScale;
-        float distance = glm::length(target - position);
-        float step = std::max(0.15f, distance * 0.12f) * scrollAmount;
-        glm::vec3 movement = front * step;
-        camera->position = Position3d::fromGlm(position + movement);
-        camera->target = Position3d::fromGlm(target + movement);
-        if (editorOrbitPivotInitialized) {
-            editorOrbitPivot =
-                Position3d::fromGlm(editorOrbitPivot.toGlm() + movement);
-        }
+        float zoomFactor = std::pow(0.86f, scrollAmount);
+        float nextDistance = std::clamp(distance * zoomFactor, 0.2f, 1000.0f);
+        camera->position = Position3d::fromGlm(pivot - toPivot * nextDistance);
+        camera->lookAt(Position3d::fromGlm(pivot));
+        editorOrbitPivot = Position3d::fromGlm(pivot);
+        editorOrbitDistance = nextDistance;
+        editorOrbitPivotInitialized = true;
         shadowMapsDirty = true;
         ssaoMapsDirty = true;
         return;
@@ -2266,8 +2339,8 @@ void Window::updateEditorControlGeometry() {
     float frustumHalfHeight =
         std::tan(glm::radians(camera->fov) * 0.5f) * baseDistance;
     float frustumHalfWidth = frustumHalfHeight * aspect;
-    float extent = std::max(20.0f, (frustumHalfWidth + frustumHalfHeight) *
-                                       (1.75f + (1.0f - pitchFactor) * 0.8f));
+    float extent = std::max(250.0f, (frustumHalfWidth + frustumHalfHeight) *
+                                        (10.0f + (1.0f - pitchFactor) * 4.0f));
 
     float minX = std::floor((camera->position.x - extent) / step) * step;
     float maxX = std::ceil((camera->position.x + extent) / step) * step;
@@ -2275,9 +2348,9 @@ void Window::updateEditorControlGeometry() {
     float maxZ = std::ceil((camera->position.z + extent) / step) * step;
 
     int xLineCount = std::clamp(
-        static_cast<int>(std::round((maxX - minX) / step)) + 1, 40, 900);
+        static_cast<int>(std::round((maxX - minX) / step)) + 1, 300, 2400);
     int zLineCount = std::clamp(
-        static_cast<int>(std::round((maxZ - minZ) / step)) + 1, 40, 900);
+        static_cast<int>(std::round((maxZ - minZ) / step)) + 1, 300, 2400);
     float clampedMaxX = minX + (xLineCount - 1) * step;
     float clampedMaxZ = minZ + (zLineCount - 1) * step;
     gridVertices.reserve(
@@ -2356,15 +2429,17 @@ void Window::updateEditorControlGeometry() {
     }
 
     std::vector<CoreVertex> gizmoVertices;
-    gizmoVertices.reserve(1024);
+    gizmoVertices.reserve(4096);
     glm::vec3 center = selectedEditorObject->getPosition().toGlm();
+    glm::vec3 cameraPosition = camera->position.toGlm();
     float radius = std::max(0.75f, glm::length(boundsMax - boundsMin) * 0.45f);
-    float cameraDistance = glm::length(camera->position.toGlm() - center);
+    float cameraDistance = glm::length(cameraPosition - center);
     float gizmoScale =
         std::max(radius * 2.35f, std::max(1.85f, cameraDistance * 0.19f));
     float axisLength = gizmoScale * 1.35f;
-    float squareHalfSize = std::max(0.24f, gizmoScale * 0.27f);
-    float arrowSize = std::max(0.24f, gizmoScale * 0.25f);
+    float gizmoThickness = std::max(0.018f, gizmoScale * 0.018f);
+    float squareHalfSize = std::max(0.08f, gizmoScale * 0.07f);
+    float arrowSize = std::max(0.18f, gizmoScale * 0.17f);
     Color red{1.0f, 0.1f, 0.08f, 1.0f};
     Color green{0.25f, 1.0f, 0.35f, 1.0f};
     Color blue{0.2f, 0.48f, 1.0f, 1.0f};
@@ -2377,14 +2452,17 @@ void Window::updateEditorControlGeometry() {
         glm::vec3 yTip = center + yAxis * axisLength;
         glm::vec3 zTip = center + zAxis * axisLength;
 
-        appendEditorLine(gizmoVertices, center, xTip, red);
-        appendSquareCap(gizmoVertices, xTip, xAxis, squareHalfSize, red);
+        appendRibbonLine(gizmoVertices, center, xTip, gizmoThickness,
+                         cameraPosition, red);
+        appendSolidCubeCap(gizmoVertices, xTip, xAxis, squareHalfSize, red);
 
-        appendEditorLine(gizmoVertices, center, yTip, green);
-        appendSquareCap(gizmoVertices, yTip, yAxis, squareHalfSize, green);
+        appendRibbonLine(gizmoVertices, center, yTip, gizmoThickness,
+                         cameraPosition, green);
+        appendSolidCubeCap(gizmoVertices, yTip, yAxis, squareHalfSize, green);
 
-        appendEditorLine(gizmoVertices, center, zTip, blue);
-        appendSquareCap(gizmoVertices, zTip, zAxis, squareHalfSize, blue);
+        appendRibbonLine(gizmoVertices, center, zTip, gizmoThickness,
+                         cameraPosition, blue);
+        appendSolidCubeCap(gizmoVertices, zTip, zAxis, squareHalfSize, blue);
     } else if (editorControlMode == EditorControlMode::Scale) {
         glm::vec3 xAxis(1.0f, 0.0f, 0.0f);
         glm::vec3 yAxis(0.0f, 1.0f, 0.0f);
@@ -2393,13 +2471,16 @@ void Window::updateEditorControlGeometry() {
         glm::vec3 yTip = center + yAxis * axisLength;
         glm::vec3 zTip = center + zAxis * axisLength;
 
-        appendEditorLine(gizmoVertices, center, xTip, red);
+        appendRibbonLine(gizmoVertices, center, xTip, gizmoThickness,
+                         cameraPosition, red);
         appendArrowHead(gizmoVertices, xTip, xAxis, arrowSize, red);
 
-        appendEditorLine(gizmoVertices, center, yTip, green);
+        appendRibbonLine(gizmoVertices, center, yTip, gizmoThickness,
+                         cameraPosition, green);
         appendArrowHead(gizmoVertices, yTip, yAxis, arrowSize, green);
 
-        appendEditorLine(gizmoVertices, center, zTip, blue);
+        appendRibbonLine(gizmoVertices, center, zTip, gizmoThickness,
+                         cameraPosition, blue);
         appendArrowHead(gizmoVertices, zTip, zAxis, arrowSize, blue);
     } else if (editorControlMode == EditorControlMode::Rotate) {
         int segments = 128;
@@ -2429,7 +2510,8 @@ void Window::updateEditorControlGeometry() {
                     p1 = center +
                          glm::vec3(std::cos(a1), std::sin(a1), 0) * ringRadius;
                 }
-                appendEditorLine(gizmoVertices, p0, p1, color);
+                appendRibbonLine(gizmoVertices, p0, p1, gizmoThickness,
+                                 cameraPosition, color);
             }
         }
     }
@@ -2485,12 +2567,16 @@ void Window::renderEditorControls(
         return;
     }
 
-    updatePipelineStateField(this->lineWidth, 3.8f);
+    updatePipelineStateField(this->lineWidth, 6.0f);
     updatePipelineStateField(this->useDepth, false);
     updatePipelineStateField(this->depthCompareOp, opal::CompareOp::Always);
     renderEditorLineObject(editorOutlineObject.get(), view, projection,
                            commandBuffer);
     if (editorControlMode != EditorControlMode::None) {
+        updatePipelineStateField(this->primitiveStyle,
+                                 opal::PrimitiveStyle::Triangles);
+        updatePipelineStateField(this->useDepth, true);
+        updatePipelineStateField(this->depthCompareOp, opal::CompareOp::Less);
         renderEditorLineObject(editorGizmoObject.get(), view, projection,
                                commandBuffer);
     }
