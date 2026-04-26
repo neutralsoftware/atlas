@@ -206,11 +206,12 @@ export const viewport: WindowMaker<BrowserWindow> = async () => {
         width: 1200,
         height: 800,
         backgroundColor: "#000000",
+        title: "Atlas Editor - " + currentProjectPath?.split("/").pop(),
 
         frame: true,
         titleBarStyle: "hiddenInset",
 
-        show: true,
+        show: false,
         ...(windowIcon ? { icon: windowIcon } : {}),
 
         webPreferences: {
@@ -220,6 +221,59 @@ export const viewport: WindowMaker<BrowserWindow> = async () => {
             sandbox: true,
         },
     });
+
+    function resizeEditorToWindow(window: BrowserWindow) {
+        const [width, height] = window.getContentSize();
+        const scale = window.webContents.getZoomFactor();
+        engineBridge.resizeEditor(width, height, scale);
+    }
+
+    setMainWindow(win);
+    allWindows.push({
+        id: "editor",
+        window: win,
+    });
+
+    win.once("ready-to-show", () => {
+        win.show();
+    });
+
+    win.on("closed", () => {
+        if (frameTimer) {
+            clearInterval(frameTimer);
+            frameTimer = null;
+        }
+        try {
+            engineBridge.shutdown();
+        } catch (err) {
+            console.error("Error during engine shutdown:", err);
+        }
+        if (mainWindow === win) {
+            setMainWindow(null);
+        }
+    });
+
+    const devServerUrl = "http://localhost:5173/#/editor";
+    let rendererLoaded = false;
+
+    if (!app.isPackaged && DEBUG) {
+        try {
+            await win.loadURL(devServerUrl);
+            rendererLoaded = true;
+        } catch {
+            // Fallback to built renderer when the dev server is unavailable.
+        }
+    }
+
+    if (!rendererLoaded) {
+        await win.loadFile(getRendererIndexPath(), { hash: "/editor" });
+    }
+
+    if (!win.isVisible()) {
+        win.show();
+    }
+
+    await new Promise<void>((resolve) => setTimeout(resolve, 50));
 
     const dylibPath = runtimeLib as string;
     try {
@@ -240,19 +294,7 @@ export const viewport: WindowMaker<BrowserWindow> = async () => {
         throw err;
     }
 
-    function resizeEditorToWindow(window: BrowserWindow) {
-        const [width, height] = window.getContentSize();
-        const scale = window.webContents.getZoomFactor();
-        engineBridge.resizeEditor(width, height, scale);
-    }
-
     resizeEditorToWindow(win);
-
-    setMainWindow(win);
-    allWindows.push({
-        id: "editor",
-        window: win,
-    });
 
     const targetEditorFps = 60;
     frameTimer = setInterval(() => {
@@ -263,10 +305,6 @@ export const viewport: WindowMaker<BrowserWindow> = async () => {
         }
     }, 1000 / targetEditorFps);
 
-    win.once("ready-to-show", () => {
-        win.show();
-    });
-
     win.on("resize", () => {
         resizeEditorToWindow(win);
         try {
@@ -275,34 +313,6 @@ export const viewport: WindowMaker<BrowserWindow> = async () => {
             console.error("Failed to step engine frame after resize:", err);
         }
     });
-
-    win.on("closed", () => {
-        if (frameTimer) {
-            clearInterval(frameTimer);
-            frameTimer = null;
-        }
-        try {
-            engineBridge.shutdown();
-        } catch (err) {
-            console.error("Error during engine shutdown:", err);
-        }
-        if (mainWindow === win) {
-            setMainWindow(null);
-        }
-    });
-
-    const devServerUrl = "http://localhost:5173/#/editor";
-
-    if (!app.isPackaged && DEBUG) {
-        try {
-            await win.loadURL(devServerUrl);
-            return { id: "editor", window: win };
-        } catch {
-            // Fallback to built renderer when the dev server is unavailable.
-        }
-    }
-
-    await win.loadFile(getRendererIndexPath(), { hash: "/editor" });
 
     return { id: "editor", window: win };
 };

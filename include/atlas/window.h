@@ -974,6 +974,9 @@ class Window {
     Position3d editorDragStartPosition;
     Rotation3d editorDragStartRotation;
     Scale3d editorDragStartObjectScale;
+    Position3d editorOrbitPivot;
+    float editorOrbitDistance = 3.0f;
+    bool editorOrbitPivotInitialized = false;
     std::unique_ptr<CoreObject> editorGridObject;
     std::unique_ptr<CoreObject> editorOutlineObject;
     std::unique_ptr<CoreObject> editorGizmoObject;
