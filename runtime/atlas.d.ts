@@ -358,6 +358,7 @@ declare module "atlas" {
         posX: number;
         posY: number;
         multisampling: boolean;
+        editorControls: boolean;
         decorations: boolean;
         resizable: boolean;
         transparent: boolean;

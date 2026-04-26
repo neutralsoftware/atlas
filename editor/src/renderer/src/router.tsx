@@ -3,6 +3,7 @@ import TestPage from "./views/Test";
 import Splash from "./views/Splash";
 import Onboarding from "./views/Onboarding";
 import Projects from "./views/Projects";
+import Editor from "./views/Editor";
 import { CreateProject } from "./views/modal/CreateProject";
 
 const router = createHashRouter([
@@ -11,6 +12,7 @@ const router = createHashRouter([
     { path: "/splash", Component: Splash },
     { path: "/projects", Component: Projects },
     { path: "/createProject", Component: CreateProject },
+    { path: "/editor", Component: Editor },
 ]);
 
 export default function AppRouter() {

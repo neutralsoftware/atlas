@@ -15,6 +15,11 @@ export function setMainWindow(win: BrowserWindow | null) {
     mainWindow = win;
 }
 
+// eslint-disable-next-line @typescript-eslint/no-require-imports
+export const engineBridge = require(
+    path.join(__dirname, "../../build/Release/engine_bridge.node"),
+);
+
 export function getWindowIcon() {
     const packagedExt = process.platform === "win32" ? "ico" : "png";
 

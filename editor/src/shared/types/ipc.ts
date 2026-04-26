@@ -53,6 +53,7 @@ export interface WindowApi {
 }
 
 export type CreateProjectStyle = "pbr" | "pathtracing" | "pbr-gi";
+export type EditorControlMode = "none" | "move" | "rotate" | "scale";
 
 export type StartupTaskUpdate =
     | "starting"
@@ -100,6 +101,14 @@ export interface GeneralTask {
         location: string;
         style: CreateProjectStyle;
     }): Promise<Project>;
+    openProject(payload: { path: string }): Promise<void>;
+}
+
+export interface EditorControlsApi {
+    setEnabled(enabled: boolean): Promise<void>;
+    setPlaying(playing: boolean): Promise<void>;
+    setMode(mode: EditorControlMode): Promise<void>;
+    getSelection(): Promise<{ id: number; name: string }>;
 }
 
 export type WindowHandle<TWindow = unknown> = {
@@ -116,5 +125,6 @@ declare global {
         app: WindowApi;
         startupTask: StartupTask;
         tasks: GeneralTask;
+        editorControls: EditorControlsApi;
     }
 }

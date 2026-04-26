@@ -43,6 +43,22 @@ void *atlas_runtime_create_metal_view_context(const char *projectFile,
  */
 bool atlas_runtime_step_frame(void *runtimeContext);
 
+bool atlas_runtime_resize_context(void *runtimeContext, int width, int height,
+                                  float scale);
+
+bool atlas_runtime_set_editor_controls_enabled(void *runtimeContext,
+                                               bool enabled);
+bool atlas_runtime_set_editor_simulation_enabled(void *runtimeContext,
+                                                 bool enabled);
+bool atlas_runtime_set_editor_control_mode(void *runtimeContext, int mode);
+bool atlas_runtime_editor_pointer_event(void *runtimeContext, int action,
+                                        float x, float y, int button,
+                                        float scale);
+bool atlas_runtime_editor_key_event(void *runtimeContext, int key,
+                                    bool pressed);
+int atlas_runtime_get_selected_object_id(void *runtimeContext);
+const char *atlas_runtime_get_selected_object_name(void *runtimeContext);
+
 /**
  * @brief Requests shutdown and releases frame-loop resources.
  */

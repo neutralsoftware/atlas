@@ -84,6 +84,15 @@ class Context {
 
     void runWindowed();
     bool stepFrame();
+    bool resize(int width, int height, float scale);
+    bool setEditorControlsEnabled(bool enabled);
+    bool setEditorSimulationEnabled(bool enabled);
+    bool setEditorControlMode(int mode);
+    bool editorPointerEvent(int action, float x, float y, int button,
+                            float scale);
+    bool editorKeyEvent(int key, bool pressed);
+    int selectedObjectId() const;
+    std::string selectedObjectName() const;
     void end();
     void loadProject();
     void loadMainScene(Window &window);

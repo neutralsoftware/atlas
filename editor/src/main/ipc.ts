@@ -1,15 +1,24 @@
 import { ipcMain, BrowserWindow } from "electron";
 import { BUILDID, DEBUG } from "../shared/generated/build";
 import { tasks } from "./tasks/register";
-import { allWindows } from "./main";
+import { allWindows, engineBridge } from "./main";
 import { makerRegistry } from "./windows";
-import { WindowMaker } from "src/shared/types/ipc";
+import { EditorControlMode, WindowMaker } from "src/shared/types/ipc";
 import { createProject } from "./tasks/create-project";
 import { getProjects } from "./tasks/startup";
 
 type OnboardingDataPayload = {
     runtimePath: string | null;
     executablePath: string | null;
+};
+
+export let currentProjectPath: string | null = null;
+
+const editorControlModes: Record<EditorControlMode, number> = {
+    none: 0,
+    move: 1,
+    rotate: 2,
+    scale: 3,
 };
 
 export function registerIpcHandlers() {
@@ -89,5 +98,31 @@ export function registerIpcHandlers() {
 
     ipcMain.handle("general:create-project", async (_event, payload) => {
         return createProject(payload);
+    });
+
+    ipcMain.handle("general:open-project", async (_event, payload) => {
+        currentProjectPath = payload.path;
+    });
+
+    ipcMain.handle("editor-controls:set-enabled", async (_event, enabled) => {
+        engineBridge.setEditorControlsEnabled(Boolean(enabled));
+    });
+
+    ipcMain.handle("editor-controls:set-playing", async (_event, playing) => {
+        engineBridge.setEditorSimulationEnabled(Boolean(playing));
+    });
+
+    ipcMain.handle("editor-controls:set-mode", async (_event, mode) => {
+        const numericMode =
+            editorControlModes[mode as EditorControlMode] ??
+            editorControlModes.none;
+        engineBridge.setEditorControlMode(numericMode);
+    });
+
+    ipcMain.handle("editor-controls:get-selection", async () => {
+        return {
+            id: engineBridge.getSelectedObjectId(),
+            name: engineBridge.getSelectedObjectName(),
+        };
     });
 }

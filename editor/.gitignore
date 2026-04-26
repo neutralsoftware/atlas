@@ -27,3 +27,5 @@ dist-electron
 public
 release
 release-dev
+
+.clangd

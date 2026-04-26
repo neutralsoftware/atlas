@@ -40,6 +40,13 @@ using CoreMonitorReference = SDL_DisplayID;
 constexpr int WINDOW_CENTERED = -1;
 constexpr int DEFAULT_ASPECT_RATIO = -1;
 
+enum class EditorControlMode {
+    None = 0,
+    Move = 1,
+    Rotate = 2,
+    Scale = 3,
+};
+
 /**
  * @brief Structure representing the configuration options for creating a
  * window.
@@ -146,6 +153,8 @@ struct WindowConfiguration {
      * still using SDL input/audio facilities tied to a host SDL window.
      */
     CoreWindowReference sdlInputWindow = nullptr;
+
+    bool editorControls = false;
 };
 
 /**
@@ -421,6 +430,18 @@ class Window {
      * @return (bool) True while rendering should continue.
      */
     bool stepFrame();
+    void resize(int width, int height, float scale = 1.0f);
+    void setEditorControlsEnabled(bool enabled);
+    bool areEditorControlsEnabled() const { return editorControlsEnabled; }
+    void setEditorSimulationEnabled(bool enabled);
+    bool isEditorSimulationEnabled() const { return editorSimulationEnabled; }
+    void setEditorControlMode(EditorControlMode mode);
+    EditorControlMode getEditorControlMode() const { return editorControlMode; }
+    void editorPointerEvent(int action, float x, float y, int button,
+                            float scale = 1.0f);
+    void editorKeyEvent(int key, bool pressed);
+    GameObject *getSelectedEditorObject() const { return selectedEditorObject; }
+    unsigned int getSelectedEditorObjectId() const;
     /**
      * @brief Tears down state created by stepFrame()/run().
      */
@@ -722,6 +743,8 @@ class Window {
     opal::RasterizerMode rasterizerMode = opal::RasterizerMode::Fill;
     /** @brief Primitive topology used for draw calls. */
     opal::PrimitiveStyle primitiveStyle = opal::PrimitiveStyle::Triangles;
+    /** @brief Line width used when primitive style is lines. */
+    float lineWidth = 1.0f;
     /** @brief Enables depth testing when true. */
     bool useDepth = true;
     /** @brief Enables color blending when true. */
@@ -849,6 +872,13 @@ class Window {
     void setViewportState(int x, int y, int newViewportWidth,
                           int newViewportHeight);
     void updateBackbufferTarget(int backbufferWidth, int backbufferHeight);
+    void renderEditorControls(
+        const std::shared_ptr<opal::CommandBuffer> &commandBuffer);
+    void updateEditorControlGeometry();
+    void selectEditorObjectAt(float x, float y, float scale);
+    void updateEditorDrag(float x, float y, float scale);
+    void updateEditorCameraDrag(float x, float y, float scale);
+    void updateEditorCameraMovement(float deltaTime);
     void queryDrawableSizeInPixels(int *width, int *height) const;
     void initializeRunLoop();
     void pollEvents();
@@ -929,6 +959,31 @@ class Window {
     std::vector<glm::vec4> cachedAreaLightProperties;
     std::size_t lastShadowCasterSignature = 0;
     bool hasShadowCasterSignature = false;
+
+    bool editorControlsEnabled = false;
+    bool editorSimulationEnabled = true;
+    EditorControlMode editorControlMode = EditorControlMode::None;
+    GameObject *selectedEditorObject = nullptr;
+    bool editorDragging = false;
+    bool editorCameraDragging = false;
+    float editorDragStartX = 0.0f;
+    float editorDragStartY = 0.0f;
+    float editorCameraLastX = 0.0f;
+    float editorCameraLastY = 0.0f;
+    float editorDragStartScale = 1.0f;
+    Position3d editorDragStartPosition;
+    Rotation3d editorDragStartRotation;
+    Scale3d editorDragStartObjectScale;
+    Position3d editorOrbitPivot;
+    float editorOrbitDistance = 3.0f;
+    bool editorOrbitPivotInitialized = false;
+    std::unique_ptr<CoreObject> editorGridObject;
+    std::unique_ptr<CoreObject> editorOutlineObject;
+    std::unique_ptr<CoreObject> editorGizmoObject;
+    bool editorGridInitialized = false;
+    bool editorOutlineInitialized = false;
+    bool editorGizmoInitialized = false;
+    std::array<bool, 6> editorCameraKeys{};
 
     void prepareDefaultPipeline(Renderable *renderable, int fbWidth,
                                 int fbHeight);
