@@ -875,6 +875,10 @@ class Window {
     void updateBackbufferTarget(int backbufferWidth, int backbufferHeight);
     void renderEditorControls(
         const std::shared_ptr<opal::CommandBuffer> &commandBuffer);
+    void renderEditorGrid(
+        const std::shared_ptr<opal::CommandBuffer> &commandBuffer);
+    void renderEditorOverlays(
+        const std::shared_ptr<opal::CommandBuffer> &commandBuffer);
     void updateEditorControlGeometry();
     void selectEditorObjectAt(float x, float y, float scale);
     int hitTestEditorGizmoAxis(float x, float y, float scale);

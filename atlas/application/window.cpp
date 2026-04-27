@@ -1507,6 +1507,7 @@ bool Window::stepFrame() {
                                      opal::CompareOp::Less);
             updatePipelineStateField(this->writeDepth, true);
             updatePipelineStateField(this->cullMode, opal::CullMode::Back);
+            renderEditorGrid(commandBuffer);
 
             auto renderForwardOnly = [&](Renderable *obj) {
                 if (obj == nullptr) {
@@ -1569,7 +1570,7 @@ bool Window::stepFrame() {
                             shouldRefreshPipeline(obj));
             }
 
-            renderEditorControls(commandBuffer);
+            renderEditorOverlays(commandBuffer);
             editorControlsRenderedInScenePass = true;
             commandBuffer->endPass();
             continue;
@@ -1578,6 +1579,7 @@ bool Window::stepFrame() {
         commandBuffer->clearColor(this->clearColor.r, this->clearColor.g,
                                   this->clearColor.b, this->clearColor.a);
         commandBuffer->clearDepth(1.0f);
+        renderEditorGrid(commandBuffer);
 
         for (auto &obj : this->firstRenderables) {
             obj->setViewMatrix(this->camera->calculateViewMatrix());
@@ -1602,7 +1604,7 @@ bool Window::stepFrame() {
             obj->render(getDeltaTime(), commandBuffer,
                         shouldRefreshPipeline(obj));
         }
-        renderEditorControls(commandBuffer);
+        renderEditorOverlays(commandBuffer);
         editorControlsRenderedInScenePass = true;
         commandBuffer->endPass();
         target->resolve();
@@ -1626,6 +1628,7 @@ bool Window::stepFrame() {
     if (this->renderTargets.empty() && !usesModeScreenTarget) {
         updateBackbufferTarget(fbWidth, fbHeight);
         this->currentRenderTarget = this->screenRenderTarget.get();
+        renderEditorGrid(commandBuffer);
         for (auto &obj : this->firstRenderables) {
             obj->setViewMatrix(this->camera->calculateViewMatrix());
             obj->setProjectionMatrix(calculateProjectionMatrix());
@@ -1651,7 +1654,7 @@ bool Window::stepFrame() {
             obj->render(getDeltaTime(), commandBuffer,
                         shouldRefreshPipeline(obj));
         }
-        renderEditorControls(commandBuffer);
+        renderEditorOverlays(commandBuffer);
         editorControlsRenderedInScenePass = true;
     } else {
         this->currentRenderTarget = nullptr;
@@ -1664,7 +1667,7 @@ bool Window::stepFrame() {
     }
 
     if (!editorControlsRenderedInScenePass) {
-        renderEditorControls(commandBuffer);
+        renderEditorOverlays(commandBuffer);
     }
 
     updatePipelineStateField(this->useBlending, true);
@@ -2405,9 +2408,9 @@ void Window::updateEditorControlGeometry() {
     glm::vec3 cameraPosition = camera->position.toGlm();
     Color outlineColor{0.0f, 0.95f, 1.0f, 1.0f};
     float outlinePadding =
-        std::max(0.08f, glm::length(boundsMax - boundsMin) * 0.075f);
+        std::max(0.012f, glm::length(boundsMax - boundsMin) * 0.01f);
     float outlineThickness =
-        std::max(0.035f, glm::length(boundsMax - boundsMin) * 0.018f);
+        std::max(0.018f, glm::length(boundsMax - boundsMin) * 0.008f);
     glm::vec3 outlineMin = boundsMin - glm::vec3(outlinePadding);
     glm::vec3 outlineMax = boundsMax + glm::vec3(outlinePadding);
     glm::vec3 p000(outlineMin.x, outlineMin.y, outlineMin.z);
@@ -2463,6 +2466,7 @@ void Window::updateEditorControlGeometry() {
     Color red{1.0f, 0.1f, 0.08f, 1.0f};
     Color green{0.25f, 1.0f, 0.35f, 1.0f};
     Color blue{0.2f, 0.48f, 1.0f, 1.0f};
+    Color active{1.0f, 0.86f, 0.08f, 1.0f};
 
     if (editorControlMode == EditorControlMode::Move) {
         glm::vec3 xAxis(1.0f, 0.0f, 0.0f);
@@ -2471,18 +2475,21 @@ void Window::updateEditorControlGeometry() {
         glm::vec3 xTip = center + xAxis * axisLength;
         glm::vec3 yTip = center + yAxis * axisLength;
         glm::vec3 zTip = center + zAxis * axisLength;
+        Color xColor = editorActiveGizmoAxis == 1 ? active : red;
+        Color yColor = editorActiveGizmoAxis == 2 ? active : green;
+        Color zColor = editorActiveGizmoAxis == 3 ? active : blue;
 
         appendRibbonLine(gizmoVertices, center, xTip, gizmoThickness,
-                         cameraPosition, red);
-        appendArrowHead(gizmoVertices, xTip, xAxis, arrowSize, red);
+                         cameraPosition, xColor);
+        appendArrowHead(gizmoVertices, xTip, xAxis, arrowSize, xColor);
 
         appendRibbonLine(gizmoVertices, center, yTip, gizmoThickness,
-                         cameraPosition, green);
-        appendArrowHead(gizmoVertices, yTip, yAxis, arrowSize, green);
+                         cameraPosition, yColor);
+        appendArrowHead(gizmoVertices, yTip, yAxis, arrowSize, yColor);
 
         appendRibbonLine(gizmoVertices, center, zTip, gizmoThickness,
-                         cameraPosition, blue);
-        appendArrowHead(gizmoVertices, zTip, zAxis, arrowSize, blue);
+                         cameraPosition, zColor);
+        appendArrowHead(gizmoVertices, zTip, zAxis, arrowSize, zColor);
     } else if (editorControlMode == EditorControlMode::Scale) {
         glm::vec3 xAxis(1.0f, 0.0f, 0.0f);
         glm::vec3 yAxis(0.0f, 1.0f, 0.0f);
@@ -2490,23 +2497,29 @@ void Window::updateEditorControlGeometry() {
         glm::vec3 xTip = center + xAxis * axisLength;
         glm::vec3 yTip = center + yAxis * axisLength;
         glm::vec3 zTip = center + zAxis * axisLength;
+        Color xColor = editorActiveGizmoAxis == 1 ? active : red;
+        Color yColor = editorActiveGizmoAxis == 2 ? active : green;
+        Color zColor = editorActiveGizmoAxis == 3 ? active : blue;
 
         appendRibbonLine(gizmoVertices, center, xTip, gizmoThickness,
-                         cameraPosition, red);
-        appendSolidCubeCap(gizmoVertices, xTip, xAxis, squareHalfSize, red);
+                         cameraPosition, xColor);
+        appendSolidCubeCap(gizmoVertices, xTip, xAxis, squareHalfSize, xColor);
 
         appendRibbonLine(gizmoVertices, center, yTip, gizmoThickness,
-                         cameraPosition, green);
-        appendSolidCubeCap(gizmoVertices, yTip, yAxis, squareHalfSize, green);
+                         cameraPosition, yColor);
+        appendSolidCubeCap(gizmoVertices, yTip, yAxis, squareHalfSize, yColor);
 
         appendRibbonLine(gizmoVertices, center, zTip, gizmoThickness,
-                         cameraPosition, blue);
-        appendSolidCubeCap(gizmoVertices, zTip, zAxis, squareHalfSize, blue);
+                         cameraPosition, zColor);
+        appendSolidCubeCap(gizmoVertices, zTip, zAxis, squareHalfSize, zColor);
     } else if (editorControlMode == EditorControlMode::Rotate) {
         int segments = 128;
         float ringRadius = gizmoScale * 1.12f;
         for (int ring = 0; ring < 3; ++ring) {
             Color color = ring == 0 ? red : (ring == 1 ? green : blue);
+            if (editorActiveGizmoAxis == ring + 1) {
+                color = active;
+            }
             for (int i = 0; i < segments; ++i) {
                 float a0 =
                     (static_cast<float>(i) / segments) * glm::two_pi<float>();
@@ -2540,7 +2553,7 @@ void Window::updateEditorControlGeometry() {
                            gizmoVertices);
 }
 
-void Window::renderEditorControls(
+void Window::renderEditorGrid(
     const std::shared_ptr<opal::CommandBuffer> &commandBuffer) {
     if (!editorControlsEnabled || commandBuffer == nullptr ||
         camera == nullptr) {
@@ -2574,28 +2587,54 @@ void Window::renderEditorControls(
     renderEditorLineObject(editorGridObject.get(), view, projection,
                            commandBuffer);
 
-    if (selectedEditorObject == nullptr) {
-        updatePipelineStateField(this->primitiveStyle, previousPrimitiveStyle);
-        updatePipelineStateField(this->cullMode, previousCullMode);
-        updatePipelineStateField(this->depthCompareOp, previousDepthCompare);
-        updatePipelineStateField(this->useDepth, previousDepth);
-        updatePipelineStateField(this->writeDepth, previousWriteDepth);
-        updatePipelineStateField(this->useBlending, previousBlending);
-        updatePipelineStateField(this->srcBlend, previousSrcBlend);
-        updatePipelineStateField(this->dstBlend, previousDstBlend);
-        updatePipelineStateField(this->lineWidth, previousLineWidth);
+    updatePipelineStateField(this->primitiveStyle, previousPrimitiveStyle);
+    updatePipelineStateField(this->cullMode, previousCullMode);
+    updatePipelineStateField(this->depthCompareOp, previousDepthCompare);
+    updatePipelineStateField(this->useDepth, previousDepth);
+    updatePipelineStateField(this->writeDepth, previousWriteDepth);
+    updatePipelineStateField(this->useBlending, previousBlending);
+    updatePipelineStateField(this->srcBlend, previousSrcBlend);
+    updatePipelineStateField(this->dstBlend, previousDstBlend);
+    updatePipelineStateField(this->lineWidth, previousLineWidth);
+}
+
+void Window::renderEditorOverlays(
+    const std::shared_ptr<opal::CommandBuffer> &commandBuffer) {
+    if (!editorControlsEnabled || commandBuffer == nullptr ||
+        camera == nullptr || selectedEditorObject == nullptr) {
         return;
     }
 
+    updateEditorControlGeometry();
+
+    opal::PrimitiveStyle previousPrimitiveStyle = primitiveStyle;
+    opal::CullMode previousCullMode = cullMode;
+    opal::CompareOp previousDepthCompare = depthCompareOp;
+    bool previousDepth = useDepth;
+    bool previousWriteDepth = writeDepth;
+    bool previousBlending = useBlending;
+    opal::BlendFunc previousSrcBlend = srcBlend;
+    opal::BlendFunc previousDstBlend = dstBlend;
+    float previousLineWidth = lineWidth;
+
+    glm::mat4 view = camera->calculateViewMatrix();
+    glm::mat4 projection = calculateProjectionMatrix();
+
+    updatePipelineStateField(this->cullMode, opal::CullMode::None);
+    updatePipelineStateField(this->useBlending, true);
+    updatePipelineStateField(this->srcBlend, opal::BlendFunc::SrcAlpha);
+    updatePipelineStateField(this->dstBlend, opal::BlendFunc::OneMinusSrcAlpha);
+    updatePipelineStateField(this->writeDepth, false);
+
     updatePipelineStateField(this->primitiveStyle,
                              opal::PrimitiveStyle::Triangles);
-    updatePipelineStateField(this->useDepth, false);
-    updatePipelineStateField(this->depthCompareOp, opal::CompareOp::Always);
+    updatePipelineStateField(this->useDepth, true);
+    updatePipelineStateField(this->depthCompareOp, opal::CompareOp::Less);
     renderEditorLineObject(editorOutlineObject.get(), view, projection,
                            commandBuffer);
     if (editorControlMode != EditorControlMode::None) {
-        updatePipelineStateField(this->useDepth, true);
-        updatePipelineStateField(this->depthCompareOp, opal::CompareOp::Less);
+        updatePipelineStateField(this->useDepth, false);
+        updatePipelineStateField(this->depthCompareOp, opal::CompareOp::Always);
         renderEditorLineObject(editorGizmoObject.get(), view, projection,
                                commandBuffer);
     }
@@ -2609,6 +2648,12 @@ void Window::renderEditorControls(
     updatePipelineStateField(this->srcBlend, previousSrcBlend);
     updatePipelineStateField(this->dstBlend, previousDstBlend);
     updatePipelineStateField(this->lineWidth, previousLineWidth);
+}
+
+void Window::renderEditorControls(
+    const std::shared_ptr<opal::CommandBuffer> &commandBuffer) {
+    renderEditorGrid(commandBuffer);
+    renderEditorOverlays(commandBuffer);
 }
 
 void Window::endRunLoop() {
