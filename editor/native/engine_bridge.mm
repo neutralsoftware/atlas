@@ -2,6 +2,7 @@
 #import <AppKit/AppKit.h>
 #include <dispatch/dispatch.h>
 #include <dlfcn.h>
+#include <cmath>
 #include <memory>
 #include <string>
 #include <napi.h>
@@ -20,6 +21,8 @@ using RuntimeSetEditorControlModeFn = bool (*)(void *runtimeContext, int mode);
 using RuntimeEditorPointerEventFn = bool (*)(void *runtimeContext, int action,
                                              float x, float y, int button,
                                              float scale);
+using RuntimeEditorScrollEventFn = bool (*)(void *runtimeContext, float delta,
+                                            float scale);
 using RuntimeEditorKeyEventFn = bool (*)(void *runtimeContext, int key,
                                          bool pressed);
 using RuntimeGetSelectedObjectIdFn = int (*)(void *runtimeContext);
@@ -37,6 +40,7 @@ struct BridgeState {
     RuntimeSetEditorSimulationEnabledFn setEditorSimulationEnabledFn = nullptr;
     RuntimeSetEditorControlModeFn setEditorControlModeFn = nullptr;
     RuntimeEditorPointerEventFn editorPointerEventFn = nullptr;
+    RuntimeEditorScrollEventFn editorScrollEventFn = nullptr;
     RuntimeEditorKeyEventFn editorKeyEventFn = nullptr;
     RuntimeGetSelectedObjectIdFn getSelectedObjectIdFn = nullptr;
     RuntimeGetSelectedObjectNameFn getSelectedObjectNameFn = nullptr;
@@ -46,6 +50,7 @@ struct BridgeState {
 
     NSView *hostView = nil;
     NSView *childView = nil;
+    id scrollMonitor = nil;
 };
 
 struct BridgeState bridgeState;
@@ -72,6 +77,81 @@ static void sendEditorPointerEvent(NSEvent *event, NSView *view, int action) {
                                      static_cast<float>(point.x),
                                      static_cast<float>(y), button,
                                      static_cast<float>(scale));
+}
+
+static void sendEditorScrollEvent(NSEvent *event, NSView *view) {
+    if (!bridgeState.runtimeContext || !view) {
+        return;
+    }
+
+    CGFloat scale = 1.0;
+    if ([view window]) {
+        CGFloat backingScale = [[view window] backingScaleFactor];
+        if (backingScale > 0.0) {
+            scale = backingScale;
+        }
+    }
+
+    CGFloat delta = [event scrollingDeltaY];
+    if (std::abs(delta) < 0.0001) {
+        delta = [event deltaY];
+    }
+    if ([event hasPreciseScrollingDeltas]) {
+        delta *= 0.75;
+    } else {
+        delta *= 4.0;
+    }
+    if (std::abs(delta) < 0.0001) {
+        return;
+    }
+
+    if (bridgeState.editorScrollEventFn) {
+        bridgeState.editorScrollEventFn(bridgeState.runtimeContext,
+                                        static_cast<float>(delta),
+                                        static_cast<float>(scale));
+        return;
+    }
+
+    if (bridgeState.editorPointerEventFn) {
+        bridgeState.editorPointerEventFn(bridgeState.runtimeContext, 3, 0.0f,
+                                         static_cast<float>(delta), 0,
+                                         static_cast<float>(scale));
+    }
+}
+
+static bool eventIsInsideView(NSEvent *event, NSView *view) {
+    if (!event || !view || ![view window] || [event window] != [view window]) {
+        return false;
+    }
+    NSPoint point = [view convertPoint:[event locationInWindow] fromView:nil];
+    return NSPointInRect(point, [view bounds]);
+}
+
+static void installScrollMonitor() {
+    if (bridgeState.scrollMonitor || !bridgeState.childView) {
+        return;
+    }
+
+    bridgeState.scrollMonitor =
+        [NSEvent addLocalMonitorForEventsMatchingMask:NSEventMaskScrollWheel
+                                             handler:^NSEvent *(NSEvent *event) {
+                                               if (eventIsInsideView(
+                                                       event,
+                                                       bridgeState.childView)) {
+                                                   sendEditorScrollEvent(
+                                                       event,
+                                                       bridgeState.childView);
+                                               }
+                                               return event;
+                                             }];
+}
+
+static void removeScrollMonitor() {
+    if (!bridgeState.scrollMonitor) {
+        return;
+    }
+    [NSEvent removeMonitor:bridgeState.scrollMonitor];
+    bridgeState.scrollMonitor = nil;
 }
 
 static int editorKeyFromEvent(NSEvent *event) {
@@ -151,6 +231,15 @@ static bool sendEditorKeyEvent(NSEvent *event, bool pressed) {
     sendEditorPointerEvent(event, self, 2);
 }
 
+- (void)scrollWheel:(NSEvent *)event {
+    sendEditorScrollEvent(event, self);
+}
+
+- (BOOL)wantsScrollEventsForSwipeTrackingOnAxis:(NSEventGestureAxis)axis {
+    (void)axis;
+    return YES;
+}
+
 - (void)keyDown:(NSEvent *)event {
     if (!bridgeState.runtimeContext || !bridgeState.setEditorControlModeFn) {
         if (!sendEditorKeyEvent(event, true)) {
@@ -196,6 +285,8 @@ static bool sendEditorKeyEvent(NSEvent *event, bool pressed) {
 @end
 
 static void unloadEditorIfNeeded() {
+    removeScrollMonitor();
+
     if (bridgeState.runtimeContext && bridgeState.endFn) {
         bridgeState.endFn(bridgeState.runtimeContext);
     }
@@ -223,6 +314,7 @@ static void unloadEditorIfNeeded() {
     bridgeState.setEditorSimulationEnabledFn = nullptr;
     bridgeState.setEditorControlModeFn = nullptr;
     bridgeState.editorPointerEventFn = nullptr;
+    bridgeState.editorScrollEventFn = nullptr;
     bridgeState.editorKeyEventFn = nullptr;
     bridgeState.getSelectedObjectIdFn = nullptr;
     bridgeState.getSelectedObjectNameFn = nullptr;
@@ -276,6 +368,9 @@ Napi::Value LoadLibrary(const Napi::CallbackInfo &info) {
     bridgeState.editorPointerEventFn =
         reinterpret_cast<RuntimeEditorPointerEventFn>(
             requireSymbol(handle, "atlas_runtime_editor_pointer_event"));
+    bridgeState.editorScrollEventFn =
+        reinterpret_cast<RuntimeEditorScrollEventFn>(
+            dlsym(handle, "atlas_runtime_editor_scroll_event"));
     bridgeState.editorKeyEventFn = reinterpret_cast<RuntimeEditorKeyEventFn>(
         requireSymbol(handle, "atlas_runtime_editor_key_event"));
     bridgeState.getSelectedObjectIdFn =
@@ -330,6 +425,7 @@ Napi::Value AttachToNativeWindow(const Napi::CallbackInfo &info) {
     if ([child window]) {
         [[child window] makeFirstResponder:child];
     }
+    installScrollMonitor();
 
     NSLog(@"[runtime] create_metal_view_context called");
     NSLog(@"[runtime] parentView=%p", child);
@@ -487,6 +583,47 @@ Napi::Value SetEditorSimulationEnabled(const Napi::CallbackInfo &info) {
     return env.Undefined();
 }
 
+Napi::Value EditorScroll(const Napi::CallbackInfo &info) {
+    Napi::Env env = info.Env();
+
+    if (!bridgeState.runtimeContext) {
+        return env.Undefined();
+    }
+
+    if (info.Length() < 1 || !info[0].IsNumber()) {
+        throw Napi::TypeError::New(env, "editorScroll(delta[, scale])");
+    }
+
+    float delta = info[0].As<Napi::Number>().FloatValue();
+    float scale = 1.0f;
+    if (info.Length() >= 2 && info[1].IsNumber()) {
+        scale = info[1].As<Napi::Number>().FloatValue();
+    }
+
+    if (std::abs(delta) < 0.0001f) {
+        return env.Undefined();
+    }
+
+    if (bridgeState.editorScrollEventFn) {
+        if (!bridgeState.editorScrollEventFn(bridgeState.runtimeContext, delta,
+                                             scale)) {
+            throw Napi::Error::New(
+                env, "atlas_runtime_editor_scroll_event failed");
+        }
+        return env.Undefined();
+    }
+
+    if (bridgeState.editorPointerEventFn) {
+        if (!bridgeState.editorPointerEventFn(bridgeState.runtimeContext, 3,
+                                              0.0f, delta, 0, scale)) {
+            throw Napi::Error::New(env,
+                                   "atlas_runtime_editor_pointer_event failed");
+        }
+    }
+
+    return env.Undefined();
+}
+
 Napi::Value GetSelectedObjectId(const Napi::CallbackInfo &info) {
     Napi::Env env = info.Env();
 
@@ -538,6 +675,7 @@ Napi::Object Init(Napi::Env env, Napi::Object exports) {
                 Napi::Function::New(env, SetEditorSimulationEnabled));
     exports.Set("setEditorControlMode",
                 Napi::Function::New(env, SetEditorControlMode));
+    exports.Set("editorScroll", Napi::Function::New(env, EditorScroll));
     exports.Set("getSelectedObjectId",
                 Napi::Function::New(env, GetSelectedObjectId));
     exports.Set("getSelectedObjectName",

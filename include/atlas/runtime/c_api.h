@@ -54,6 +54,8 @@ bool atlas_runtime_set_editor_control_mode(void *runtimeContext, int mode);
 bool atlas_runtime_editor_pointer_event(void *runtimeContext, int action,
                                         float x, float y, int button,
                                         float scale);
+bool atlas_runtime_editor_scroll_event(void *runtimeContext, float delta,
+                                       float scale);
 bool atlas_runtime_editor_key_event(void *runtimeContext, int key,
                                     bool pressed);
 int atlas_runtime_get_selected_object_id(void *runtimeContext);

@@ -439,6 +439,7 @@ class Window {
     EditorControlMode getEditorControlMode() const { return editorControlMode; }
     void editorPointerEvent(int action, float x, float y, int button,
                             float scale = 1.0f);
+    void editorScrollEvent(float delta, float scale = 1.0f);
     void editorKeyEvent(int key, bool pressed);
     GameObject *getSelectedEditorObject() const { return selectedEditorObject; }
     unsigned int getSelectedEditorObjectId() const;
@@ -874,12 +875,19 @@ class Window {
     void updateBackbufferTarget(int backbufferWidth, int backbufferHeight);
     void renderEditorControls(
         const std::shared_ptr<opal::CommandBuffer> &commandBuffer);
+    void renderEditorGrid(
+        const std::shared_ptr<opal::CommandBuffer> &commandBuffer);
+    void renderEditorOverlays(
+        const std::shared_ptr<opal::CommandBuffer> &commandBuffer);
     void updateEditorControlGeometry();
     void selectEditorObjectAt(float x, float y, float scale);
     int hitTestEditorGizmoAxis(float x, float y, float scale);
     void updateEditorDrag(float x, float y, float scale);
     void updateEditorCameraDrag(float x, float y, float scale);
     void updateEditorCameraMovement(float deltaTime);
+    void applyEditorOrbitDelta(float yawDelta, float pitchDelta);
+    void applyEditorZoomDelta(float scrollAmount);
+    void updateEditorCameraInertia(float deltaTime);
     void queryDrawableSizeInPixels(int *width, int *height) const;
     void initializeRunLoop();
     void pollEvents();
@@ -972,6 +980,9 @@ class Window {
     float editorDragStartY = 0.0f;
     float editorCameraLastX = 0.0f;
     float editorCameraLastY = 0.0f;
+    float editorOrbitVelocityX = 0.0f;
+    float editorOrbitVelocityY = 0.0f;
+    float editorZoomVelocity = 0.0f;
     float editorDragStartScale = 1.0f;
     Position3d editorDragStartPosition;
     Rotation3d editorDragStartRotation;

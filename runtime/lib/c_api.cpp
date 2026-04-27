@@ -172,6 +172,24 @@ bool atlas_runtime_editor_pointer_event(void *runtimeContext, int action,
     }
 }
 
+bool atlas_runtime_editor_scroll_event(void *runtimeContext, float delta,
+                                       float scale) {
+    if (runtimeContext == nullptr) {
+        return false;
+    }
+    try {
+        auto *handle = reinterpret_cast<RuntimeContextHandle *>(runtimeContext);
+        if (*handle == nullptr) {
+            return false;
+        }
+        return (*handle)->editorScrollEvent(delta, scale);
+    } catch (const std::exception &) {
+        return false;
+    } catch (...) {
+        return false;
+    }
+}
+
 bool atlas_runtime_editor_key_event(void *runtimeContext, int key,
                                     bool pressed) {
     if (runtimeContext == nullptr) {

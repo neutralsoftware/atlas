@@ -3163,6 +3163,14 @@ bool Context::editorPointerEvent(int action, float x, float y, int button,
     return true;
 }
 
+bool Context::editorScrollEvent(float delta, float scale) {
+    if (window == nullptr) {
+        throw std::runtime_error("Window is not initialized");
+    }
+    window->editorScrollEvent(delta, scale);
+    return true;
+}
+
 bool Context::editorKeyEvent(int key, bool pressed) {
     if (window == nullptr) {
         throw std::runtime_error("Window is not initialized");
