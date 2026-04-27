@@ -439,6 +439,7 @@ class Window {
     EditorControlMode getEditorControlMode() const { return editorControlMode; }
     void editorPointerEvent(int action, float x, float y, int button,
                             float scale = 1.0f);
+    void editorScrollEvent(float delta, float scale = 1.0f);
     void editorKeyEvent(int key, bool pressed);
     GameObject *getSelectedEditorObject() const { return selectedEditorObject; }
     unsigned int getSelectedEditorObjectId() const;

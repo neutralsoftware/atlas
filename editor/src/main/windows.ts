@@ -228,6 +228,17 @@ export const viewport: WindowMaker<BrowserWindow> = async () => {
         engineBridge.resizeEditor(width, height, scale);
     }
 
+    function scrollEditor(delta: number) {
+        if (!Number.isFinite(delta) || Math.abs(delta) < 0.0001) {
+            return;
+        }
+        try {
+            engineBridge.editorScroll(delta, 1);
+        } catch (err) {
+            console.error("Failed to scroll editor viewport:", err);
+        }
+    }
+
     setMainWindow(win);
     allWindows.push({
         id: "editor",
@@ -251,6 +262,32 @@ export const viewport: WindowMaker<BrowserWindow> = async () => {
         if (mainWindow === win) {
             setMainWindow(null);
         }
+    });
+
+    win.webContents.on("before-mouse-event", (_event, input) => {
+        const wheelInput = input as typeof input & {
+            type?: string;
+            deltaY?: number;
+            wheelDeltaY?: number;
+            wheelTicksY?: number;
+            hasPreciseScrollingDeltas?: boolean;
+        };
+        if (wheelInput.type !== "mouseWheel") {
+            return;
+        }
+
+        let rawDelta =
+            typeof wheelInput.deltaY === "number"
+                ? -wheelInput.deltaY
+                : typeof wheelInput.wheelDeltaY === "number"
+                  ? wheelInput.wheelDeltaY
+                  : typeof wheelInput.wheelTicksY === "number"
+                    ? wheelInput.wheelTicksY
+                  : 0;
+        if (wheelInput.hasPreciseScrollingDeltas) {
+            rawDelta *= 0.2;
+        }
+        scrollEditor(rawDelta * 0.05);
     });
 
     const devServerUrl = "http://localhost:5173/#/editor";

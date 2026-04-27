@@ -90,6 +90,7 @@ class Context {
     bool setEditorControlMode(int mode);
     bool editorPointerEvent(int action, float x, float y, int button,
                             float scale);
+    bool editorScrollEvent(float delta, float scale);
     bool editorKeyEvent(int key, bool pressed);
     int selectedObjectId() const;
     std::string selectedObjectName() const;
