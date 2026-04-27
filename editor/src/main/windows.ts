@@ -285,9 +285,9 @@ export const viewport: WindowMaker<BrowserWindow> = async () => {
                     ? wheelInput.wheelTicksY
                   : 0;
         if (wheelInput.hasPreciseScrollingDeltas) {
-            rawDelta *= 0.2;
+            rawDelta *= 0.75;
         }
-        scrollEditor(rawDelta * 0.05);
+        scrollEditor(rawDelta * 0.12);
     });
 
     const devServerUrl = "http://localhost:5173/#/editor";

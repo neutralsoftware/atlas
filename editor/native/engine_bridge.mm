@@ -50,6 +50,7 @@ struct BridgeState {
 
     NSView *hostView = nil;
     NSView *childView = nil;
+    id scrollMonitor = nil;
 };
 
 struct BridgeState bridgeState;
@@ -96,9 +97,9 @@ static void sendEditorScrollEvent(NSEvent *event, NSView *view) {
         delta = [event deltaY];
     }
     if ([event hasPreciseScrollingDeltas]) {
-        delta *= 0.2;
+        delta *= 0.75;
     } else {
-        delta *= 2.0;
+        delta *= 4.0;
     }
     if (std::abs(delta) < 0.0001) {
         return;
@@ -116,6 +117,41 @@ static void sendEditorScrollEvent(NSEvent *event, NSView *view) {
                                          static_cast<float>(delta), 0,
                                          static_cast<float>(scale));
     }
+}
+
+static bool eventIsInsideView(NSEvent *event, NSView *view) {
+    if (!event || !view || ![view window] || [event window] != [view window]) {
+        return false;
+    }
+    NSPoint point = [view convertPoint:[event locationInWindow] fromView:nil];
+    return NSPointInRect(point, [view bounds]);
+}
+
+static void installScrollMonitor() {
+    if (bridgeState.scrollMonitor || !bridgeState.childView) {
+        return;
+    }
+
+    bridgeState.scrollMonitor =
+        [NSEvent addLocalMonitorForEventsMatchingMask:NSEventMaskScrollWheel
+                                             handler:^NSEvent *(NSEvent *event) {
+                                               if (eventIsInsideView(
+                                                       event,
+                                                       bridgeState.childView)) {
+                                                   sendEditorScrollEvent(
+                                                       event,
+                                                       bridgeState.childView);
+                                               }
+                                               return event;
+                                             }];
+}
+
+static void removeScrollMonitor() {
+    if (!bridgeState.scrollMonitor) {
+        return;
+    }
+    [NSEvent removeMonitor:bridgeState.scrollMonitor];
+    bridgeState.scrollMonitor = nil;
 }
 
 static int editorKeyFromEvent(NSEvent *event) {
@@ -249,6 +285,8 @@ static bool sendEditorKeyEvent(NSEvent *event, bool pressed) {
 @end
 
 static void unloadEditorIfNeeded() {
+    removeScrollMonitor();
+
     if (bridgeState.runtimeContext && bridgeState.endFn) {
         bridgeState.endFn(bridgeState.runtimeContext);
     }
@@ -387,6 +425,7 @@ Napi::Value AttachToNativeWindow(const Napi::CallbackInfo &info) {
     if ([child window]) {
         [[child window] makeFirstResponder:child];
     }
+    installScrollMonitor();
 
     NSLog(@"[runtime] create_metal_view_context called");
     NSLog(@"[runtime] parentView=%p", child);

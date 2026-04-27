@@ -885,6 +885,9 @@ class Window {
     void updateEditorDrag(float x, float y, float scale);
     void updateEditorCameraDrag(float x, float y, float scale);
     void updateEditorCameraMovement(float deltaTime);
+    void applyEditorOrbitDelta(float yawDelta, float pitchDelta);
+    void applyEditorZoomDelta(float scrollAmount);
+    void updateEditorCameraInertia(float deltaTime);
     void queryDrawableSizeInPixels(int *width, int *height) const;
     void initializeRunLoop();
     void pollEvents();
@@ -977,6 +980,9 @@ class Window {
     float editorDragStartY = 0.0f;
     float editorCameraLastX = 0.0f;
     float editorCameraLastY = 0.0f;
+    float editorOrbitVelocityX = 0.0f;
+    float editorOrbitVelocityY = 0.0f;
+    float editorZoomVelocity = 0.0f;
     float editorDragStartScale = 1.0f;
     Position3d editorDragStartPosition;
     Rotation3d editorDragStartRotation;
