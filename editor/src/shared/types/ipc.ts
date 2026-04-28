@@ -41,6 +41,12 @@ export interface FileDialogOptions {
 export interface WindowApi {
     getAppInfo(): Promise<AppInfo>;
     setTitle(title: string): Promise<void>;
+    minimize(): Promise<void>;
+    toggleMaximize(): Promise<void>;
+    close(): Promise<void>;
+    startDrag(screenX: number, screenY: number): void;
+    drag(screenX: number, screenY: number): void;
+    endDrag(): void;
     onThemeChanged(callback: (theme: "light" | "dark") => void): () => void;
     showWindow(id: string): void;
     hideWindow(id: string): void;

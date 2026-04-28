@@ -11,6 +11,13 @@ import type {
 const api: WindowApi = {
     getAppInfo: () => ipcRenderer.invoke("app:get-info"),
     setTitle: (title) => ipcRenderer.invoke("window:set-title", title),
+    minimize: () => ipcRenderer.invoke("window:minimize"),
+    toggleMaximize: () => ipcRenderer.invoke("window:toggle-maximize"),
+    close: () => ipcRenderer.invoke("window:close"),
+    startDrag: (screenX, screenY) =>
+        ipcRenderer.send("window:start-drag", screenX, screenY),
+    drag: (screenX, screenY) => ipcRenderer.send("window:drag", screenX, screenY),
+    endDrag: () => ipcRenderer.send("window:end-drag"),
     onThemeChanged: (callback) => {
         const listener = (_event: unknown, theme: "light" | "dark") =>
             callback(theme);

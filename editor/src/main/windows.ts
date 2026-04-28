@@ -207,8 +207,7 @@ export const viewport: WindowMaker<BrowserWindow> = async () => {
         height: 800,
         backgroundColor: "#00000000",
         title: "Atlas Editor - " + currentProjectPath?.split("/").pop(),
-        frame: true,
-        titleBarStyle: "hiddenInset",
+        frame: false,
         transparent: true,
         hasShadow: true,
 
