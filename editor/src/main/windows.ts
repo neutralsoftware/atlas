@@ -207,9 +207,8 @@ export const viewport: WindowMaker<BrowserWindow> = async () => {
         height: 800,
         backgroundColor: "#000000",
         title: "Atlas Editor - " + currentProjectPath?.split("/").pop(),
-
-        frame: true,
-        titleBarStyle: "hiddenInset",
+        frame: false,
+        skipTaskbar: true,
 
         show: false,
         ...(windowIcon ? { icon: windowIcon } : {}),
@@ -240,27 +239,9 @@ export const viewport: WindowMaker<BrowserWindow> = async () => {
     }
 
     let overlayWindow: BrowserWindow | null = null;
-    let syncingOverlayFromViewport = false;
-    let syncingViewportFromOverlay = false;
     let overlayMouseTrackingTimer: NodeJS.Timeout | null = null;
     let overlayCapturesMouse = false;
-
-    function getViewportContentBounds() {
-        const bounds = win.getContentBounds();
-
-        return {
-            x: Number.isFinite(bounds.x) ? bounds.x : 0,
-            y: Number.isFinite(bounds.y) ? bounds.y : 0,
-            width:
-                Number.isFinite(bounds.width) && bounds.width > 0
-                    ? bounds.width
-                    : 1,
-            height:
-                Number.isFinite(bounds.height) && bounds.height > 0
-                    ? bounds.height
-                    : 1,
-        };
-    }
+    let syncingViewportToOverlay = false;
 
     function moveOverlayToFront() {
         if (!overlayWindow || overlayWindow.isDestroyed()) {
@@ -274,49 +255,36 @@ export const viewport: WindowMaker<BrowserWindow> = async () => {
         }
     }
 
-    function syncOverlayToViewport() {
-        if (
-            !overlayWindow ||
-            overlayWindow.isDestroyed() ||
-            syncingViewportFromOverlay
-        ) {
-            return;
-        }
-
-        syncingOverlayFromViewport = true;
-
-        try {
-            overlayWindow.setBounds(getViewportContentBounds());
-
-            if (win.isVisible() && !win.isMinimized()) {
-                overlayWindow.showInactive();
-                moveOverlayToFront();
-            } else if (overlayWindow.isVisible()) {
-                overlayWindow.hide();
-            }
-        } finally {
-            syncingOverlayFromViewport = false;
-        }
-    }
-
     function syncViewportToOverlay() {
-        if (
-            !overlayWindow ||
-            overlayWindow.isDestroyed() ||
-            syncingOverlayFromViewport
-        ) {
+        if (!overlayWindow || overlayWindow.isDestroyed()) {
             return;
         }
 
-        syncingViewportFromOverlay = true;
+        syncingViewportToOverlay = true;
 
         try {
-            if (win.isMaximized()) {
-                win.unmaximize();
+            const bounds = overlayWindow.getContentBounds();
+            win.setBounds({
+                x: Number.isFinite(bounds.x) ? bounds.x : 0,
+                y: Number.isFinite(bounds.y) ? bounds.y : 0,
+                width:
+                    Number.isFinite(bounds.width) && bounds.width > 0
+                        ? bounds.width
+                        : 1,
+                height:
+                    Number.isFinite(bounds.height) && bounds.height > 0
+                        ? bounds.height
+                        : 1,
+            });
+
+            if (overlayWindow.isVisible() && !overlayWindow.isMinimized()) {
+                win.showInactive();
+                moveOverlayToFront();
+            } else if (win.isVisible()) {
+                win.hide();
             }
-            win.setContentBounds(overlayWindow.getBounds());
         } finally {
-            syncingViewportFromOverlay = false;
+            syncingViewportToOverlay = false;
         }
     }
 
@@ -326,9 +294,8 @@ export const viewport: WindowMaker<BrowserWindow> = async () => {
         window: win,
     });
 
-    win.once("ready-to-show", () => {
-        win.show();
-    });
+    win.on("focus", moveOverlayToFront);
+    win.on("show", moveOverlayToFront);
 
     win.on("closed", () => {
         if (overlayWindow && !overlayWindow.isDestroyed()) {
@@ -395,10 +362,6 @@ export const viewport: WindowMaker<BrowserWindow> = async () => {
         await win.loadFile(getRendererIndexPath(), { hash: "/editorSplash" });
     }
 
-    if (!win.isVisible()) {
-        win.show();
-    }
-
     await new Promise<void>((resolve) => setTimeout(resolve, 50));
 
     const dylibPath = runtimeLib as string;
@@ -423,20 +386,20 @@ export const viewport: WindowMaker<BrowserWindow> = async () => {
     resizeEditorToWindow(win);
 
     overlayWindow = new BrowserWindow({
-        parent: win,
         width: 1200,
         height: 800,
-        frame: false,
+        title: "Atlas Editor - " + currentProjectPath?.split("/").pop(),
+        frame: true,
+        titleBarStyle: "hiddenInset",
         acceptFirstMouse: true,
         transparent: true,
         backgroundColor: "#00000000",
         show: false,
-        hasShadow: false,
+        hasShadow: true,
         resizable: true,
-        minimizable: false,
+        minimizable: true,
         maximizable: true,
         fullscreenable: false,
-        skipTaskbar: true,
         webPreferences: {
             preload: getPreloadPath(),
             contextIsolation: true,
@@ -446,8 +409,10 @@ export const viewport: WindowMaker<BrowserWindow> = async () => {
         },
     });
 
+    overlayWindow.setContentBounds(win.getBounds());
+    overlayWindow.setAlwaysOnTop(true, "normal");
     overlayWindow.setIgnoreMouseEvents(true, { forward: true });
-    syncOverlayToViewport();
+    setMainWindow(overlayWindow);
 
     const syncOverlayMouseRouting = () => {
         if (!overlayWindow || overlayWindow.isDestroyed()) {
@@ -456,8 +421,7 @@ export const viewport: WindowMaker<BrowserWindow> = async () => {
 
         if (
             !overlayWindow.isVisible() ||
-            win.isMinimized() ||
-            !win.isVisible()
+            overlayWindow.isMinimized()
         ) {
             if (overlayCapturesMouse) {
                 overlayWindow.setIgnoreMouseEvents(true, { forward: true });
@@ -468,6 +432,7 @@ export const viewport: WindowMaker<BrowserWindow> = async () => {
 
         const cursor = screen.getCursorScreenPoint();
         const bounds = overlayWindow.getBounds();
+        const contentBounds = overlayWindow.getContentBounds();
         const insideWindow =
             cursor.x >= bounds.x &&
             cursor.y >= bounds.y &&
@@ -482,17 +447,21 @@ export const viewport: WindowMaker<BrowserWindow> = async () => {
             return;
         }
 
-        const localX = cursor.x - bounds.x;
-        const localY = cursor.y - bounds.y;
+        const contentLocalX = cursor.x - contentBounds.x;
+        const contentLocalY = cursor.y - contentBounds.y;
         const interactiveRegions =
             windowInteractiveRegions.get(overlayWindow) ?? [];
-        const shouldCaptureMouse = interactiveRegions.some(
-            (region) =>
-                localX >= region.x &&
-                localY >= region.y &&
-                localX < region.x + region.width &&
-                localY < region.y + region.height,
-        );
+        const chromeCaptureHeight =
+            Math.max(0, contentBounds.y - bounds.y) + 56;
+        const shouldCaptureMouse =
+            cursor.y - bounds.y < chromeCaptureHeight ||
+            interactiveRegions.some(
+                (region) =>
+                    contentLocalX >= region.x &&
+                    contentLocalY >= region.y &&
+                    contentLocalX < region.x + region.width &&
+                    contentLocalY < region.y + region.height,
+            );
 
         if (shouldCaptureMouse === overlayCapturesMouse) {
             return;
@@ -522,62 +491,38 @@ export const viewport: WindowMaker<BrowserWindow> = async () => {
         });
     }
 
-    overlayWindow.once("ready-to-show", () => {
-        syncOverlayToViewport();
-    });
-
-    syncOverlayToViewport();
-
-    win.on("resize", syncOverlayToViewport);
-    win.on("move", syncOverlayToViewport);
-    win.on("show", syncOverlayToViewport);
-    win.on("restore", syncOverlayToViewport);
-    win.on("maximize", syncOverlayToViewport);
-    win.on("unmaximize", syncOverlayToViewport);
-    win.on("enter-full-screen", syncOverlayToViewport);
-    win.on("leave-full-screen", syncOverlayToViewport);
-    win.on("minimize", () => {
-        overlayWindow?.hide();
-    });
-    win.on("hide", () => {
-        overlayWindow?.hide();
-    });
+    syncViewportToOverlay();
+    if (!overlayWindow.isVisible()) {
+        overlayWindow.show();
+    }
+    syncViewportToOverlay();
 
     overlayWindow.on("move", syncViewportToOverlay);
     overlayWindow.on("resize", syncViewportToOverlay);
+    overlayWindow.on("show", syncViewportToOverlay);
+    overlayWindow.on("restore", syncViewportToOverlay);
     overlayWindow.on("maximize", () => {
-        if (syncingOverlayFromViewport) {
-            return;
-        }
-
-        syncingViewportFromOverlay = true;
-
-        try {
-            win.maximize();
-        } finally {
-            syncingViewportFromOverlay = false;
-        }
-
-        syncOverlayToViewport();
+        syncViewportToOverlay();
     });
     overlayWindow.on("unmaximize", () => {
-        if (syncingOverlayFromViewport) {
-            return;
-        }
-
-        syncingViewportFromOverlay = true;
-
-        try {
-            if (win.isMaximized()) {
-                win.unmaximize();
-            }
-        } finally {
-            syncingViewportFromOverlay = false;
-        }
-
-        syncOverlayToViewport();
+        syncViewportToOverlay();
+    });
+    overlayWindow.on("enter-full-screen", syncViewportToOverlay);
+    overlayWindow.on("leave-full-screen", syncViewportToOverlay);
+    overlayWindow.on("minimize", () => {
+        win.hide();
+    });
+    overlayWindow.on("hide", () => {
+        win.hide();
     });
     overlayWindow.on("closed", () => {
+        const closedOverlay = overlayWindow;
+        if (mainWindow === closedOverlay) {
+            setMainWindow(null);
+        }
+        if (!win.isDestroyed()) {
+            win.close();
+        }
         overlayWindow = null;
     });
 
@@ -593,6 +538,11 @@ export const viewport: WindowMaker<BrowserWindow> = async () => {
     }, 1000 / targetEditorFps);
 
     win.on("resize", () => {
+        if (syncingViewportToOverlay) {
+            resizeEditorToWindow(win);
+            return;
+        }
+
         resizeEditorToWindow(win);
         try {
             engineBridge.step();

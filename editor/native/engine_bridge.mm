@@ -197,6 +197,7 @@ static bool sendEditorKeyEvent(NSEvent *event, bool pressed) {
 - (void)viewDidMoveToWindow {
     [super viewDidMoveToWindow];
     if ([self window]) {
+        [[self window] setAcceptsMouseMovedEvents:YES];
         [[self window] makeFirstResponder:self];
     }
 }
@@ -211,6 +212,10 @@ static bool sendEditorKeyEvent(NSEvent *event, bool pressed) {
 }
 
 - (void)mouseDragged:(NSEvent *)event {
+    sendEditorPointerEvent(event, self, 1);
+}
+
+- (void)mouseMoved:(NSEvent *)event {
     sendEditorPointerEvent(event, self, 1);
 }
 

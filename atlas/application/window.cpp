@@ -1945,6 +1945,16 @@ void Window::editorPointerEvent(int action, float x, float y, int button,
         return;
     }
 
+    if (action == 1 && !editorDragging && !editorCameraDragging) {
+        if (selectedEditorObject != nullptr &&
+            editorControlMode != EditorControlMode::None) {
+            editorActiveGizmoAxis = hitTestEditorGizmoAxis(x, y, effectiveScale);
+        } else {
+            editorActiveGizmoAxis = 0;
+        }
+        return;
+    }
+
     if (button != 1) {
         return;
     }

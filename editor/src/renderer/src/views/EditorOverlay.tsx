@@ -37,10 +37,10 @@ export default function EditorOverlay() {
             const rect = toolbar.getBoundingClientRect();
             void window.app.setInteractiveRegions([
                 {
-                    x: rect.left,
-                    y: rect.top,
-                    width: rect.width,
-                    height: rect.height,
+                    x: 0,
+                    y: 0,
+                    width: window.innerWidth,
+                    height: Math.max(56, rect.bottom),
                 },
             ]);
         };
@@ -82,7 +82,7 @@ export default function EditorOverlay() {
             <div
                 ref={toolbarRef}
                 className="pointer-events-auto absolute inset-x-0 top-0 h-14 [app-region:drag]">
-                <div className="mx-3 mt-3 flex h-11 items-center rounded-2xl border border-white/12 bg-black/38 px-3 backdrop-blur-xl shadow-[0_12px_40px_rgba(0,0,0,0.28)]">
+                <div className="ml-[76px] mr-3 mt-3 flex h-11 items-center rounded-2xl border border-white/12 bg-black/38 px-3 backdrop-blur-xl shadow-[0_12px_40px_rgba(0,0,0,0.28)]">
                     <div className="flex items-center gap-2">
                         <div className="h-2.5 w-2.5 rounded-full bg-[#00c2ff]" />
                         <span className="text-[12px] font-semibold tracking-[0.22em] text-white/80 uppercase">
