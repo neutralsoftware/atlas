@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 import { AppInfo } from "../model/app";
 import AppLogo from "../components/AppLogo";
 
-export default function Editor() {
+export default function EditorSplash() {
     const [appInfo, setAppInfo] = useState<AppInfo>({
         debug: false,
         buildId: "",

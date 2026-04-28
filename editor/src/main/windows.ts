@@ -1,4 +1,4 @@
-import { app, BrowserWindow } from "electron";
+import { app, BrowserWindow, screen } from "electron";
 import { WindowMaker } from "src/shared/types/ipc";
 import {
     allWindows,
@@ -11,7 +11,7 @@ import {
 } from "./main";
 import { DEBUG } from "../shared/generated/build";
 import { runtimeLib } from "./tasks/startup";
-import { currentProjectPath } from "./ipc";
+import { currentProjectPath, windowInteractiveRegions } from "./ipc";
 
 export const createOnboardingWindow: WindowMaker<BrowserWindow> = async () => {
     const windowIcon = getWindowIcon();
@@ -239,6 +239,87 @@ export const viewport: WindowMaker<BrowserWindow> = async () => {
         }
     }
 
+    let overlayWindow: BrowserWindow | null = null;
+    let syncingOverlayFromViewport = false;
+    let syncingViewportFromOverlay = false;
+    let overlayMouseTrackingTimer: NodeJS.Timeout | null = null;
+    let overlayCapturesMouse = false;
+
+    function getViewportContentBounds() {
+        const bounds = win.getContentBounds();
+
+        return {
+            x: Number.isFinite(bounds.x) ? bounds.x : 0,
+            y: Number.isFinite(bounds.y) ? bounds.y : 0,
+            width:
+                Number.isFinite(bounds.width) && bounds.width > 0
+                    ? bounds.width
+                    : 1,
+            height:
+                Number.isFinite(bounds.height) && bounds.height > 0
+                    ? bounds.height
+                    : 1,
+        };
+    }
+
+    function moveOverlayToFront() {
+        if (!overlayWindow || overlayWindow.isDestroyed()) {
+            return;
+        }
+
+        try {
+            overlayWindow.moveTop();
+        } catch {
+            return;
+        }
+    }
+
+    function syncOverlayToViewport() {
+        if (
+            !overlayWindow ||
+            overlayWindow.isDestroyed() ||
+            syncingViewportFromOverlay
+        ) {
+            return;
+        }
+
+        syncingOverlayFromViewport = true;
+
+        try {
+            overlayWindow.setBounds(getViewportContentBounds());
+
+            if (win.isVisible() && !win.isMinimized()) {
+                overlayWindow.showInactive();
+                moveOverlayToFront();
+            } else if (overlayWindow.isVisible()) {
+                overlayWindow.hide();
+            }
+        } finally {
+            syncingOverlayFromViewport = false;
+        }
+    }
+
+    function syncViewportToOverlay() {
+        if (
+            !overlayWindow ||
+            overlayWindow.isDestroyed() ||
+            syncingOverlayFromViewport
+        ) {
+            return;
+        }
+
+        syncingViewportFromOverlay = true;
+
+        try {
+            if (win.isMaximized()) {
+                win.unmaximize();
+            }
+            win.setContentBounds(overlayWindow.getBounds());
+        } finally {
+            syncingViewportFromOverlay = false;
+        }
+    }
+
     setMainWindow(win);
     allWindows.push({
         id: "editor",
@@ -250,6 +331,14 @@ export const viewport: WindowMaker<BrowserWindow> = async () => {
     });
 
     win.on("closed", () => {
+        if (overlayWindow && !overlayWindow.isDestroyed()) {
+            overlayWindow.close();
+            overlayWindow = null;
+        }
+        if (overlayMouseTrackingTimer) {
+            clearInterval(overlayMouseTrackingTimer);
+            overlayMouseTrackingTimer = null;
+        }
         if (frameTimer) {
             clearInterval(frameTimer);
             frameTimer = null;
@@ -283,14 +372,14 @@ export const viewport: WindowMaker<BrowserWindow> = async () => {
                   ? wheelInput.wheelDeltaY
                   : typeof wheelInput.wheelTicksY === "number"
                     ? wheelInput.wheelTicksY
-                  : 0;
+                    : 0;
         if (wheelInput.hasPreciseScrollingDeltas) {
             rawDelta *= 0.75;
         }
         scrollEditor(rawDelta * 0.12);
     });
 
-    const devServerUrl = "http://localhost:5173/#/editor";
+    const devServerUrl = "http://localhost:5173/#/editorSplash";
     let rendererLoaded = false;
 
     if (!app.isPackaged && DEBUG) {
@@ -303,7 +392,7 @@ export const viewport: WindowMaker<BrowserWindow> = async () => {
     }
 
     if (!rendererLoaded) {
-        await win.loadFile(getRendererIndexPath(), { hash: "/editor" });
+        await win.loadFile(getRendererIndexPath(), { hash: "/editorSplash" });
     }
 
     if (!win.isVisible()) {
@@ -332,6 +421,167 @@ export const viewport: WindowMaker<BrowserWindow> = async () => {
     }
 
     resizeEditorToWindow(win);
+
+    overlayWindow = new BrowserWindow({
+        parent: win,
+        width: 1200,
+        height: 800,
+        frame: false,
+        acceptFirstMouse: true,
+        transparent: true,
+        backgroundColor: "#00000000",
+        show: false,
+        hasShadow: false,
+        resizable: true,
+        minimizable: false,
+        maximizable: true,
+        fullscreenable: false,
+        skipTaskbar: true,
+        webPreferences: {
+            preload: getPreloadPath(),
+            contextIsolation: true,
+            nodeIntegration: false,
+            sandbox: true,
+            backgroundThrottling: false,
+        },
+    });
+
+    overlayWindow.setIgnoreMouseEvents(true, { forward: true });
+    syncOverlayToViewport();
+
+    const syncOverlayMouseRouting = () => {
+        if (!overlayWindow || overlayWindow.isDestroyed()) {
+            return;
+        }
+
+        if (
+            !overlayWindow.isVisible() ||
+            win.isMinimized() ||
+            !win.isVisible()
+        ) {
+            if (overlayCapturesMouse) {
+                overlayWindow.setIgnoreMouseEvents(true, { forward: true });
+                overlayCapturesMouse = false;
+            }
+            return;
+        }
+
+        const cursor = screen.getCursorScreenPoint();
+        const bounds = overlayWindow.getBounds();
+        const insideWindow =
+            cursor.x >= bounds.x &&
+            cursor.y >= bounds.y &&
+            cursor.x < bounds.x + bounds.width &&
+            cursor.y < bounds.y + bounds.height;
+
+        if (!insideWindow) {
+            if (overlayCapturesMouse) {
+                overlayWindow.setIgnoreMouseEvents(true, { forward: true });
+                overlayCapturesMouse = false;
+            }
+            return;
+        }
+
+        const localX = cursor.x - bounds.x;
+        const localY = cursor.y - bounds.y;
+        const interactiveRegions =
+            windowInteractiveRegions.get(overlayWindow) ?? [];
+        const shouldCaptureMouse = interactiveRegions.some(
+            (region) =>
+                localX >= region.x &&
+                localY >= region.y &&
+                localX < region.x + region.width &&
+                localY < region.y + region.height,
+        );
+
+        if (shouldCaptureMouse === overlayCapturesMouse) {
+            return;
+        }
+
+        overlayWindow.setIgnoreMouseEvents(!shouldCaptureMouse, {
+            forward: true,
+        });
+        overlayCapturesMouse = shouldCaptureMouse;
+    };
+
+    const overlayDevServerUrl = "http://localhost:5173/#/editorOverlay";
+    let overlayLoaded = false;
+
+    if (!app.isPackaged && DEBUG) {
+        try {
+            await overlayWindow.loadURL(overlayDevServerUrl);
+            overlayLoaded = true;
+        } catch {
+            // Fallback to built renderer when the dev server is unavailable.
+        }
+    }
+
+    if (!overlayLoaded) {
+        await overlayWindow.loadFile(getRendererIndexPath(), {
+            hash: "/editorOverlay",
+        });
+    }
+
+    overlayWindow.once("ready-to-show", () => {
+        syncOverlayToViewport();
+    });
+
+    syncOverlayToViewport();
+
+    win.on("resize", syncOverlayToViewport);
+    win.on("move", syncOverlayToViewport);
+    win.on("show", syncOverlayToViewport);
+    win.on("restore", syncOverlayToViewport);
+    win.on("maximize", syncOverlayToViewport);
+    win.on("unmaximize", syncOverlayToViewport);
+    win.on("enter-full-screen", syncOverlayToViewport);
+    win.on("leave-full-screen", syncOverlayToViewport);
+    win.on("minimize", () => {
+        overlayWindow?.hide();
+    });
+    win.on("hide", () => {
+        overlayWindow?.hide();
+    });
+
+    overlayWindow.on("move", syncViewportToOverlay);
+    overlayWindow.on("resize", syncViewportToOverlay);
+    overlayWindow.on("maximize", () => {
+        if (syncingOverlayFromViewport) {
+            return;
+        }
+
+        syncingViewportFromOverlay = true;
+
+        try {
+            win.maximize();
+        } finally {
+            syncingViewportFromOverlay = false;
+        }
+
+        syncOverlayToViewport();
+    });
+    overlayWindow.on("unmaximize", () => {
+        if (syncingOverlayFromViewport) {
+            return;
+        }
+
+        syncingViewportFromOverlay = true;
+
+        try {
+            if (win.isMaximized()) {
+                win.unmaximize();
+            }
+        } finally {
+            syncingViewportFromOverlay = false;
+        }
+
+        syncOverlayToViewport();
+    });
+    overlayWindow.on("closed", () => {
+        overlayWindow = null;
+    });
+
+    overlayMouseTrackingTimer = setInterval(syncOverlayMouseRouting, 16);
 
     const targetEditorFps = 60;
     frameTimer = setInterval(() => {

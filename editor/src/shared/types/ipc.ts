@@ -41,6 +41,10 @@ export interface FileDialogOptions {
 export interface WindowApi {
     getAppInfo(): Promise<AppInfo>;
     setTitle(title: string): Promise<void>;
+    setMousePassthrough(ignore: boolean): Promise<void>;
+    setInteractiveRegions(
+        regions: Array<{ x: number; y: number; width: number; height: number }>,
+    ): Promise<void>;
     onThemeChanged(callback: (theme: "light" | "dark") => void): () => void;
     showWindow(id: string): void;
     hideWindow(id: string): void;

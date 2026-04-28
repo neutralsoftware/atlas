@@ -12,7 +12,18 @@ type OnboardingDataPayload = {
     executablePath: string | null;
 };
 
+type InteractiveRegion = {
+    x: number;
+    y: number;
+    width: number;
+    height: number;
+};
+
 export let currentProjectPath: string | null = null;
+export const windowInteractiveRegions = new WeakMap<
+    BrowserWindow,
+    InteractiveRegion[]
+>();
 
 const editorControlModes: Record<EditorControlMode, number> = {
     none: 0,
@@ -34,6 +45,61 @@ export function registerIpcHandlers() {
         const win = BrowserWindow.fromWebContents(event.sender);
         win?.setTitle(title);
     });
+
+    ipcMain.handle("window:set-mouse-passthrough", (event, ignore: boolean) => {
+        const win = BrowserWindow.fromWebContents(event.sender);
+        if (!win) {
+            return;
+        }
+
+        if (ignore) {
+            win.setIgnoreMouseEvents(true, { forward: true });
+            return;
+        }
+
+        win.setIgnoreMouseEvents(false);
+    });
+
+    ipcMain.handle(
+        "window:set-interactive-regions",
+        (
+            event,
+            regions: Array<{
+                x: number;
+                y: number;
+                width: number;
+                height: number;
+            }>,
+        ) => {
+            const win = BrowserWindow.fromWebContents(event.sender);
+            if (!win) {
+                return;
+            }
+
+            const sanitizedRegions = Array.isArray(regions)
+                ? regions
+                      .map((region) => ({
+                          x: Number.isFinite(region?.x) ? region.x : 0,
+                          y: Number.isFinite(region?.y) ? region.y : 0,
+                          width:
+                              Number.isFinite(region?.width) &&
+                              region.width > 0
+                                  ? region.width
+                                  : 0,
+                          height:
+                              Number.isFinite(region?.height) &&
+                              region.height > 0
+                                  ? region.height
+                                  : 0,
+                      }))
+                      .filter(
+                          (region) => region.width > 0 && region.height > 0,
+                      )
+                : [];
+
+            windowInteractiveRegions.set(win, sanitizedRegions);
+        },
+    );
 
     ipcMain.handle("startup-task:start", () => {
         return tasks.start("startup-task");

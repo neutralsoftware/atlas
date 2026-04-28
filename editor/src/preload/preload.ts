@@ -10,6 +10,10 @@ import type {
 const api: WindowApi = {
     getAppInfo: () => ipcRenderer.invoke("app:get-info"),
     setTitle: (title) => ipcRenderer.invoke("window:set-title", title),
+    setMousePassthrough: (ignore) =>
+        ipcRenderer.invoke("window:set-mouse-passthrough", ignore),
+    setInteractiveRegions: (regions) =>
+        ipcRenderer.invoke("window:set-interactive-regions", regions),
     onThemeChanged: (callback) => {
         const listener = (_event: unknown, theme: "light" | "dark") =>
             callback(theme);
