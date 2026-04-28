@@ -12,18 +12,7 @@ type OnboardingDataPayload = {
     executablePath: string | null;
 };
 
-type InteractiveRegion = {
-    x: number;
-    y: number;
-    width: number;
-    height: number;
-};
-
 export let currentProjectPath: string | null = null;
-export const windowInteractiveRegions = new WeakMap<
-    BrowserWindow,
-    InteractiveRegion[]
->();
 
 const editorControlModes: Record<EditorControlMode, number> = {
     none: 0,
@@ -45,61 +34,6 @@ export function registerIpcHandlers() {
         const win = BrowserWindow.fromWebContents(event.sender);
         win?.setTitle(title);
     });
-
-    ipcMain.handle("window:set-mouse-passthrough", (event, ignore: boolean) => {
-        const win = BrowserWindow.fromWebContents(event.sender);
-        if (!win) {
-            return;
-        }
-
-        if (ignore) {
-            win.setIgnoreMouseEvents(true, { forward: true });
-            return;
-        }
-
-        win.setIgnoreMouseEvents(false);
-    });
-
-    ipcMain.handle(
-        "window:set-interactive-regions",
-        (
-            event,
-            regions: Array<{
-                x: number;
-                y: number;
-                width: number;
-                height: number;
-            }>,
-        ) => {
-            const win = BrowserWindow.fromWebContents(event.sender);
-            if (!win) {
-                return;
-            }
-
-            const sanitizedRegions = Array.isArray(regions)
-                ? regions
-                      .map((region) => ({
-                          x: Number.isFinite(region?.x) ? region.x : 0,
-                          y: Number.isFinite(region?.y) ? region.y : 0,
-                          width:
-                              Number.isFinite(region?.width) &&
-                              region.width > 0
-                                  ? region.width
-                                  : 0,
-                          height:
-                              Number.isFinite(region?.height) &&
-                              region.height > 0
-                                  ? region.height
-                                  : 0,
-                      }))
-                      .filter(
-                          (region) => region.width > 0 && region.height > 0,
-                      )
-                : [];
-
-            windowInteractiveRegions.set(win, sanitizedRegions);
-        },
-    );
 
     ipcMain.handle("startup-task:start", () => {
         return tasks.start("startup-task");
@@ -190,5 +124,58 @@ export function registerIpcHandlers() {
             id: engineBridge.getSelectedObjectId(),
             name: engineBridge.getSelectedObjectName(),
         };
+    });
+
+    ipcMain.handle("editor-input:pointer", async (event, payload) => {
+        const win = BrowserWindow.fromWebContents(event.sender);
+        if (!win || !payload) {
+            return;
+        }
+
+        const [contentWidthRaw, contentHeightRaw] = win.getContentSize();
+        const contentWidth =
+            typeof contentWidthRaw === "number" &&
+            Number.isFinite(contentWidthRaw) &&
+            contentWidthRaw > 0
+                ? contentWidthRaw
+                : 1;
+        const contentHeight =
+            typeof contentHeightRaw === "number" &&
+            Number.isFinite(contentHeightRaw) &&
+            contentHeightRaw > 0
+                ? contentHeightRaw
+                : 1;
+        const scale =
+            typeof payload.scale === "number" && payload.scale > 0
+                ? payload.scale
+                : win.webContents.getZoomFactor();
+        const x =
+            typeof payload.x === "number" && Number.isFinite(payload.x)
+                ? Math.max(0, Math.min(payload.x, contentWidth))
+                : 0;
+        const y =
+            typeof payload.y === "number" && Number.isFinite(payload.y)
+                ? Math.max(0, Math.min(payload.y, contentHeight))
+                : 0;
+        const action = Number.isFinite(payload.action) ? payload.action : 1;
+        const button = Number.isFinite(payload.button) ? payload.button : 1;
+
+        engineBridge.editorPointer(
+            action,
+            x,
+            Math.max(0, contentHeight - y),
+            button,
+            scale,
+        );
+    });
+
+    ipcMain.handle("editor-input:scroll", async (event, delta, scale) => {
+        const win = BrowserWindow.fromWebContents(event.sender);
+        const effectiveScale =
+            typeof scale === "number" && scale > 0
+                ? scale
+                : (win?.webContents.getZoomFactor() ?? 1);
+
+        engineBridge.editorScroll(delta, effectiveScale);
     });
 }

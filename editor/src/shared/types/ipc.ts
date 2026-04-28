@@ -41,10 +41,6 @@ export interface FileDialogOptions {
 export interface WindowApi {
     getAppInfo(): Promise<AppInfo>;
     setTitle(title: string): Promise<void>;
-    setMousePassthrough(ignore: boolean): Promise<void>;
-    setInteractiveRegions(
-        regions: Array<{ x: number; y: number; width: number; height: number }>,
-    ): Promise<void>;
     onThemeChanged(callback: (theme: "light" | "dark") => void): () => void;
     showWindow(id: string): void;
     hideWindow(id: string): void;
@@ -115,6 +111,17 @@ export interface EditorControlsApi {
     getSelection(): Promise<{ id: number; name: string }>;
 }
 
+export interface EditorInputApi {
+    pointer(payload: {
+        action: 0 | 1 | 2;
+        x: number;
+        y: number;
+        button: number;
+        scale?: number;
+    }): Promise<void>;
+    scroll(delta: number, scale?: number): Promise<void>;
+}
+
 export type WindowHandle<TWindow = unknown> = {
     id: string;
     window: TWindow;
@@ -130,5 +137,6 @@ declare global {
         startupTask: StartupTask;
         tasks: GeneralTask;
         editorControls: EditorControlsApi;
+        editorInput: EditorInputApi;
     }
 }

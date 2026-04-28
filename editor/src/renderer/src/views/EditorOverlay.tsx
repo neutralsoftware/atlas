@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from "react";
+import type { PointerEvent, WheelEvent } from "react";
 import { Play, Move3D, RotateCw, Scale, Square } from "lucide-react";
 import type { EditorControlMode } from "src/shared/types/ipc";
 
@@ -24,45 +25,15 @@ export default function EditorOverlay() {
         id: -1,
         name: "",
     });
-    const toolbarRef = useRef<HTMLDivElement | null>(null);
+    const activePointerButton = useRef(0);
 
     useEffect(() => {
-        const reportInteractiveRegions = () => {
-            const toolbar = toolbarRef.current;
-            if (!toolbar) {
-                void window.app.setInteractiveRegions([]);
-                return;
-            }
-
-            const rect = toolbar.getBoundingClientRect();
-            void window.app.setInteractiveRegions([
-                {
-                    x: 0,
-                    y: 0,
-                    width: window.innerWidth,
-                    height: Math.max(56, rect.bottom),
-                },
-            ]);
-        };
-
         const interval = window.setInterval(() => {
             void window.editorControls.getSelection().then(setSelection);
         }, 250);
 
-        const resizeObserver = new ResizeObserver(reportInteractiveRegions);
-        const toolbar = toolbarRef.current;
-        if (toolbar) {
-            resizeObserver.observe(toolbar);
-        }
-
-        reportInteractiveRegions();
-        window.addEventListener("resize", reportInteractiveRegions);
-
         return () => {
             window.clearInterval(interval);
-            resizeObserver.disconnect();
-            window.removeEventListener("resize", reportInteractiveRegions);
-            void window.app.setInteractiveRegions([]);
         };
     }, []);
 
@@ -77,11 +48,58 @@ export default function EditorOverlay() {
         await window.editorControls.setMode(nextMode);
     }
 
+    function editorButton(button: number) {
+        return button + 1;
+    }
+
+    function sendPointer(
+        event: PointerEvent<HTMLDivElement>,
+        action: 0 | 1 | 2,
+        button: number,
+    ) {
+        void window.editorInput.pointer({
+            action,
+            x: event.clientX,
+            y: event.clientY,
+            button,
+        });
+    }
+
+    function onViewportPointerDown(event: PointerEvent<HTMLDivElement>) {
+        activePointerButton.current = editorButton(event.button);
+        event.currentTarget.setPointerCapture(event.pointerId);
+        sendPointer(event, 0, activePointerButton.current);
+    }
+
+    function onViewportPointerMove(event: PointerEvent<HTMLDivElement>) {
+        sendPointer(event, 1, activePointerButton.current);
+    }
+
+    function onViewportPointerUp(event: PointerEvent<HTMLDivElement>) {
+        sendPointer(event, 2, activePointerButton.current || editorButton(event.button));
+        activePointerButton.current = 0;
+        if (event.currentTarget.hasPointerCapture(event.pointerId)) {
+            event.currentTarget.releasePointerCapture(event.pointerId);
+        }
+    }
+
+    function onViewportWheel(event: WheelEvent<HTMLDivElement>) {
+        event.preventDefault();
+        void window.editorInput.scroll(-event.deltaY * 0.12);
+    }
+
     return (
-        <main className="pointer-events-none fixed inset-0 bg-transparent text-white select-none">
+        <main className="fixed inset-0 bg-transparent text-white select-none">
             <div
-                ref={toolbarRef}
-                className="pointer-events-auto absolute inset-x-0 top-0 h-14 [app-region:drag]">
+                className="absolute inset-0"
+                onPointerDown={onViewportPointerDown}
+                onPointerMove={onViewportPointerMove}
+                onPointerUp={onViewportPointerUp}
+                onPointerCancel={onViewportPointerUp}
+                onWheel={onViewportWheel}
+                onContextMenu={(event) => event.preventDefault()}
+            />
+            <div className="absolute inset-x-0 top-0 z-10 h-14 [app-region:drag]">
                 <div className="ml-[76px] mr-3 mt-3 flex h-11 items-center rounded-2xl border border-white/12 bg-black/38 px-3 backdrop-blur-xl shadow-[0_12px_40px_rgba(0,0,0,0.28)]">
                     <div className="flex items-center gap-2">
                         <div className="h-2.5 w-2.5 rounded-full bg-[#00c2ff]" />

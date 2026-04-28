@@ -1,6 +1,7 @@
 import { contextBridge, ipcRenderer } from "electron";
 import type {
     EditorControlsApi,
+    EditorInputApi,
     GeneralTask,
     StartupTask,
     StartupTaskUpdate,
@@ -10,10 +11,6 @@ import type {
 const api: WindowApi = {
     getAppInfo: () => ipcRenderer.invoke("app:get-info"),
     setTitle: (title) => ipcRenderer.invoke("window:set-title", title),
-    setMousePassthrough: (ignore) =>
-        ipcRenderer.invoke("window:set-mouse-passthrough", ignore),
-    setInteractiveRegions: (regions) =>
-        ipcRenderer.invoke("window:set-interactive-regions", regions),
     onThemeChanged: (callback) => {
         const listener = (_event: unknown, theme: "light" | "dark") =>
             callback(theme);
@@ -67,7 +64,14 @@ const editorControls: EditorControlsApi = {
     getSelection: () => ipcRenderer.invoke("editor-controls:get-selection"),
 };
 
+const editorInput: EditorInputApi = {
+    pointer: (payload) => ipcRenderer.invoke("editor-input:pointer", payload),
+    scroll: (delta, scale) =>
+        ipcRenderer.invoke("editor-input:scroll", delta, scale),
+};
+
 contextBridge.exposeInMainWorld("app", api);
 contextBridge.exposeInMainWorld("startupTask", startupTask);
 contextBridge.exposeInMainWorld("tasks", generalTasks);
 contextBridge.exposeInMainWorld("editorControls", editorControls);
+contextBridge.exposeInMainWorld("editorInput", editorInput);
