@@ -26,6 +26,7 @@
 #include "finewave/audio.h"
 #include <atlas/window.h>
 #include <algorithm>
+#include <array>
 #include <cmath>
 #include <cstdint>
 #include <iostream>
@@ -105,6 +106,61 @@ bool objectBounds(GameObject *object, glm::vec3 &boundsMin,
         boundsMax = glm::max(boundsMax, p);
     }
     return true;
+}
+
+bool objectLocalBounds(GameObject *object, glm::vec3 &boundsMin,
+                       glm::vec3 &boundsMax) {
+    if (object == nullptr) {
+        return false;
+    }
+
+    std::vector<CoreVertex> vertices = object->getVertices();
+    if (vertices.empty()) {
+        return false;
+    }
+
+    boundsMin = glm::vec3(std::numeric_limits<float>::max());
+    boundsMax = glm::vec3(std::numeric_limits<float>::lowest());
+    for (const auto &vertex : vertices) {
+        glm::vec3 p = vertex.position.toGlm();
+        boundsMin = glm::min(boundsMin, p);
+        boundsMax = glm::max(boundsMax, p);
+    }
+    return true;
+}
+
+std::array<glm::vec3, 8> boundsCorners(const glm::vec3 &boundsMin,
+                                       const glm::vec3 &boundsMax) {
+    return {
+        glm::vec3(boundsMin.x, boundsMin.y, boundsMin.z),
+        glm::vec3(boundsMin.x, boundsMin.y, boundsMax.z),
+        glm::vec3(boundsMin.x, boundsMax.y, boundsMin.z),
+        glm::vec3(boundsMin.x, boundsMax.y, boundsMax.z),
+        glm::vec3(boundsMax.x, boundsMin.y, boundsMin.z),
+        glm::vec3(boundsMax.x, boundsMin.y, boundsMax.z),
+        glm::vec3(boundsMax.x, boundsMax.y, boundsMin.z),
+        glm::vec3(boundsMax.x, boundsMax.y, boundsMax.z),
+    };
+}
+
+std::array<glm::vec3, 8> transformBoundsCorners(
+    const std::array<glm::vec3, 8> &corners, const glm::mat4 &transform) {
+    std::array<glm::vec3, 8> transformed{};
+    for (std::size_t i = 0; i < corners.size(); ++i) {
+        transformed[i] =
+            glm::vec3(transform * glm::vec4(corners[i], 1.0f));
+    }
+    return transformed;
+}
+
+void boundsFromCorners(const std::array<glm::vec3, 8> &corners,
+                       glm::vec3 &boundsMin, glm::vec3 &boundsMax) {
+    boundsMin = glm::vec3(std::numeric_limits<float>::max());
+    boundsMax = glm::vec3(std::numeric_limits<float>::lowest());
+    for (const auto &corner : corners) {
+        boundsMin = glm::min(boundsMin, corner);
+        boundsMax = glm::max(boundsMax, corner);
+    }
 }
 
 bool projectBoundsToScreen(const glm::vec3 &boundsMin,
@@ -253,6 +309,25 @@ void appendEditorQuad(std::vector<CoreVertex> &vertices, const glm::vec3 &a,
                       const glm::vec3 &d, const Color &color) {
     appendEditorTriangle(vertices, a, b, c, color);
     appendEditorTriangle(vertices, a, c, d, color);
+}
+
+void appendSolidCube(std::vector<CoreVertex> &vertices, const glm::vec3 &center,
+                     float halfSize, const Color &color) {
+    glm::vec3 p000 = center + glm::vec3(-halfSize, -halfSize, -halfSize);
+    glm::vec3 p001 = center + glm::vec3(-halfSize, -halfSize, halfSize);
+    glm::vec3 p010 = center + glm::vec3(-halfSize, halfSize, -halfSize);
+    glm::vec3 p011 = center + glm::vec3(-halfSize, halfSize, halfSize);
+    glm::vec3 p100 = center + glm::vec3(halfSize, -halfSize, -halfSize);
+    glm::vec3 p101 = center + glm::vec3(halfSize, -halfSize, halfSize);
+    glm::vec3 p110 = center + glm::vec3(halfSize, halfSize, -halfSize);
+    glm::vec3 p111 = center + glm::vec3(halfSize, halfSize, halfSize);
+
+    appendEditorQuad(vertices, p000, p100, p110, p010, color);
+    appendEditorQuad(vertices, p001, p011, p111, p101, color);
+    appendEditorQuad(vertices, p000, p001, p101, p100, color);
+    appendEditorQuad(vertices, p010, p110, p111, p011, color);
+    appendEditorQuad(vertices, p000, p010, p011, p001, color);
+    appendEditorQuad(vertices, p100, p101, p111, p110, color);
 }
 
 void appendRibbonLine(std::vector<CoreVertex> &vertices, const glm::vec3 &from,
@@ -1870,6 +1945,16 @@ void Window::editorPointerEvent(int action, float x, float y, int button,
         return;
     }
 
+    if (action == 1 && !editorDragging && !editorCameraDragging) {
+        if (selectedEditorObject != nullptr &&
+            editorControlMode != EditorControlMode::None) {
+            editorActiveGizmoAxis = hitTestEditorGizmoAxis(x, y, effectiveScale);
+        } else {
+            editorActiveGizmoAxis = 0;
+        }
+        return;
+    }
+
     if (button != 1) {
         return;
     }
@@ -2459,14 +2544,23 @@ void Window::updateEditorControlGeometry() {
         return;
     }
 
-    glm::vec3 boundsMin;
-    glm::vec3 boundsMax;
-    if (!objectBounds(selectedEditorObject, boundsMin, boundsMax)) {
+    glm::vec3 localBoundsMin;
+    glm::vec3 localBoundsMax;
+    if (!objectLocalBounds(selectedEditorObject, localBoundsMin,
+                           localBoundsMax)) {
         selectedEditorObject = nullptr;
         editorDragging = false;
         editorActiveGizmoAxis = 0;
         return;
     }
+
+    glm::mat4 selectedTransform = objectTransform(selectedEditorObject);
+    std::array<glm::vec3, 8> baseOutlineCorners =
+        transformBoundsCorners(boundsCorners(localBoundsMin, localBoundsMax),
+                               selectedTransform);
+    glm::vec3 boundsMin;
+    glm::vec3 boundsMax;
+    boundsFromCorners(baseOutlineCorners, boundsMin, boundsMax);
 
     glm::vec3 cameraPosition = camera->position.toGlm();
     Color outlineColor{0.0f, 0.95f, 1.0f, 1.0f};
@@ -2474,18 +2568,28 @@ void Window::updateEditorControlGeometry() {
         std::max(0.012f, glm::length(boundsMax - boundsMin) * 0.01f);
     float outlineThickness =
         std::max(0.018f, glm::length(boundsMax - boundsMin) * 0.008f);
-    glm::vec3 outlineMin = boundsMin - glm::vec3(outlinePadding);
-    glm::vec3 outlineMax = boundsMax + glm::vec3(outlinePadding);
-    glm::vec3 p000(outlineMin.x, outlineMin.y, outlineMin.z);
-    glm::vec3 p001(outlineMin.x, outlineMin.y, outlineMax.z);
-    glm::vec3 p010(outlineMin.x, outlineMax.y, outlineMin.z);
-    glm::vec3 p011(outlineMin.x, outlineMax.y, outlineMax.z);
-    glm::vec3 p100(outlineMax.x, outlineMin.y, outlineMin.z);
-    glm::vec3 p101(outlineMax.x, outlineMin.y, outlineMax.z);
-    glm::vec3 p110(outlineMax.x, outlineMax.y, outlineMin.z);
-    glm::vec3 p111(outlineMax.x, outlineMax.y, outlineMax.z);
+    glm::vec3 axisScale(
+        glm::length(glm::vec3(selectedTransform[0])),
+        glm::length(glm::vec3(selectedTransform[1])),
+        glm::length(glm::vec3(selectedTransform[2])));
+    glm::vec3 localPadding(
+        outlinePadding / std::max(axisScale.x, 0.0001f),
+        outlinePadding / std::max(axisScale.y, 0.0001f),
+        outlinePadding / std::max(axisScale.z, 0.0001f));
+    std::array<glm::vec3, 8> outlineCorners = transformBoundsCorners(
+        boundsCorners(localBoundsMin - localPadding,
+                      localBoundsMax + localPadding),
+        selectedTransform);
+    const glm::vec3 &p000 = outlineCorners[0];
+    const glm::vec3 &p001 = outlineCorners[1];
+    const glm::vec3 &p010 = outlineCorners[2];
+    const glm::vec3 &p011 = outlineCorners[3];
+    const glm::vec3 &p100 = outlineCorners[4];
+    const glm::vec3 &p101 = outlineCorners[5];
+    const glm::vec3 &p110 = outlineCorners[6];
+    const glm::vec3 &p111 = outlineCorners[7];
     std::vector<CoreVertex> outlineVertices;
-    outlineVertices.reserve(72);
+    outlineVertices.reserve(360);
     appendRibbonLine(outlineVertices, p000, p100, outlineThickness,
                      cameraPosition, outlineColor);
     appendRibbonLine(outlineVertices, p100, p101, outlineThickness,
@@ -2510,6 +2614,10 @@ void Window::updateEditorControlGeometry() {
                      cameraPosition, outlineColor);
     appendRibbonLine(outlineVertices, p001, p011, outlineThickness,
                      cameraPosition, outlineColor);
+    float cornerHalfSize = outlineThickness * 0.95f;
+    for (const auto &corner : outlineCorners) {
+        appendSolidCube(outlineVertices, corner, cornerHalfSize, outlineColor);
+    }
     ensureEditorLineObject(editorOutlineObject, editorOutlineInitialized,
                            outlineVertices);
 

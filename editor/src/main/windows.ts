@@ -205,11 +205,12 @@ export const viewport: WindowMaker<BrowserWindow> = async () => {
     const win = new BrowserWindow({
         width: 1200,
         height: 800,
-        backgroundColor: "#000000",
+        backgroundColor: "#00000000",
         title: "Atlas Editor - " + currentProjectPath?.split("/").pop(),
-
         frame: true,
         titleBarStyle: "hiddenInset",
+        transparent: true,
+        hasShadow: true,
 
         show: false,
         ...(windowIcon ? { icon: windowIcon } : {}),
@@ -219,6 +220,7 @@ export const viewport: WindowMaker<BrowserWindow> = async () => {
             contextIsolation: true,
             nodeIntegration: false,
             sandbox: true,
+            backgroundThrottling: false,
         },
     });
 
@@ -228,25 +230,10 @@ export const viewport: WindowMaker<BrowserWindow> = async () => {
         engineBridge.resizeEditor(width, height, scale);
     }
 
-    function scrollEditor(delta: number) {
-        if (!Number.isFinite(delta) || Math.abs(delta) < 0.0001) {
-            return;
-        }
-        try {
-            engineBridge.editorScroll(delta, 1);
-        } catch (err) {
-            console.error("Failed to scroll editor viewport:", err);
-        }
-    }
-
     setMainWindow(win);
     allWindows.push({
         id: "editor",
         window: win,
-    });
-
-    win.once("ready-to-show", () => {
-        win.show();
     });
 
     win.on("closed", () => {
@@ -264,33 +251,7 @@ export const viewport: WindowMaker<BrowserWindow> = async () => {
         }
     });
 
-    win.webContents.on("before-mouse-event", (_event, input) => {
-        const wheelInput = input as typeof input & {
-            type?: string;
-            deltaY?: number;
-            wheelDeltaY?: number;
-            wheelTicksY?: number;
-            hasPreciseScrollingDeltas?: boolean;
-        };
-        if (wheelInput.type !== "mouseWheel") {
-            return;
-        }
-
-        let rawDelta =
-            typeof wheelInput.deltaY === "number"
-                ? -wheelInput.deltaY
-                : typeof wheelInput.wheelDeltaY === "number"
-                  ? wheelInput.wheelDeltaY
-                  : typeof wheelInput.wheelTicksY === "number"
-                    ? wheelInput.wheelTicksY
-                  : 0;
-        if (wheelInput.hasPreciseScrollingDeltas) {
-            rawDelta *= 0.75;
-        }
-        scrollEditor(rawDelta * 0.12);
-    });
-
-    const devServerUrl = "http://localhost:5173/#/editor";
+    const devServerUrl = "http://localhost:5173/#/editorOverlay";
     let rendererLoaded = false;
 
     if (!app.isPackaged && DEBUG) {
@@ -303,11 +264,7 @@ export const viewport: WindowMaker<BrowserWindow> = async () => {
     }
 
     if (!rendererLoaded) {
-        await win.loadFile(getRendererIndexPath(), { hash: "/editor" });
-    }
-
-    if (!win.isVisible()) {
-        win.show();
+        await win.loadFile(getRendererIndexPath(), { hash: "/editorOverlay" });
     }
 
     await new Promise<void>((resolve) => setTimeout(resolve, 50));
@@ -332,6 +289,7 @@ export const viewport: WindowMaker<BrowserWindow> = async () => {
     }
 
     resizeEditorToWindow(win);
+    win.show();
 
     const targetEditorFps = 60;
     frameTimer = setInterval(() => {

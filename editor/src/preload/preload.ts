@@ -1,6 +1,7 @@
 import { contextBridge, ipcRenderer } from "electron";
 import type {
     EditorControlsApi,
+    EditorInputApi,
     GeneralTask,
     StartupTask,
     StartupTaskUpdate,
@@ -63,7 +64,14 @@ const editorControls: EditorControlsApi = {
     getSelection: () => ipcRenderer.invoke("editor-controls:get-selection"),
 };
 
+const editorInput: EditorInputApi = {
+    pointer: (payload) => ipcRenderer.invoke("editor-input:pointer", payload),
+    scroll: (delta, scale) =>
+        ipcRenderer.invoke("editor-input:scroll", delta, scale),
+};
+
 contextBridge.exposeInMainWorld("app", api);
 contextBridge.exposeInMainWorld("startupTask", startupTask);
 contextBridge.exposeInMainWorld("tasks", generalTasks);
 contextBridge.exposeInMainWorld("editorControls", editorControls);
+contextBridge.exposeInMainWorld("editorInput", editorInput);

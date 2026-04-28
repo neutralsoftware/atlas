@@ -111,6 +111,17 @@ export interface EditorControlsApi {
     getSelection(): Promise<{ id: number; name: string }>;
 }
 
+export interface EditorInputApi {
+    pointer(payload: {
+        action: 0 | 1 | 2;
+        x: number;
+        y: number;
+        button: number;
+        scale?: number;
+    }): Promise<void>;
+    scroll(delta: number, scale?: number): Promise<void>;
+}
+
 export type WindowHandle<TWindow = unknown> = {
     id: string;
     window: TWindow;
@@ -126,5 +137,6 @@ declare global {
         startupTask: StartupTask;
         tasks: GeneralTask;
         editorControls: EditorControlsApi;
+        editorInput: EditorInputApi;
     }
 }

@@ -197,6 +197,7 @@ static bool sendEditorKeyEvent(NSEvent *event, bool pressed) {
 - (void)viewDidMoveToWindow {
     [super viewDidMoveToWindow];
     if ([self window]) {
+        [[self window] setAcceptsMouseMovedEvents:YES];
         [[self window] makeFirstResponder:self];
     }
 }
@@ -211,6 +212,10 @@ static bool sendEditorKeyEvent(NSEvent *event, bool pressed) {
 }
 
 - (void)mouseDragged:(NSEvent *)event {
+    sendEditorPointerEvent(event, self, 1);
+}
+
+- (void)mouseMoved:(NSEvent *)event {
     sendEditorPointerEvent(event, self, 1);
 }
 
@@ -417,10 +422,18 @@ Napi::Value AttachToNativeWindow(const Napi::CallbackInfo &info) {
 
     bridgeState.hostView = hostView;
 
-    NSRect bounds = [hostView bounds];
-    NSView *child = [[AtlasRuntimeView alloc] initWithFrame:bounds];
+    NSView *parentView = [hostView superview] ?: hostView;
+    bool childIsSibling = parentView != hostView;
+    NSRect frame = childIsSibling ? [hostView frame] : [hostView bounds];
+    NSView *child = [[AtlasRuntimeView alloc] initWithFrame:frame];
     [child setAutoresizingMask:(NSViewWidthSizable | NSViewHeightSizable)];
-    [hostView addSubview:child positioned:NSWindowAbove relativeTo:nil];
+    if (childIsSibling) {
+        [parentView addSubview:child
+                    positioned:NSWindowBelow
+                    relativeTo:hostView];
+    } else {
+        [hostView addSubview:child positioned:NSWindowBelow relativeTo:nil];
+    }
     bridgeState.childView = child;
     if ([child window]) {
         [[child window] makeFirstResponder:child];
@@ -475,14 +488,21 @@ static void resizeChildView(NSView *childView, int width, int height) {
         return;
     }
 
-    NSRect frame = NSMakeRect(0, 0, width, height);
+    auto resizeBlock = ^{
+      NSRect frame = NSMakeRect(0, 0, width, height);
+      if (bridgeState.hostView && [childView superview] == [bridgeState.hostView superview]) {
+          frame = [bridgeState.hostView frame];
+      }
+      [childView setFrame:frame];
+    };
+
     if ([NSThread isMainThread]) {
-        [childView setFrame:frame];
+        resizeBlock();
         return;
     }
 
     dispatch_sync(dispatch_get_main_queue(), ^{
-        [childView setFrame:frame];
+      resizeBlock();
     });
 }
 
@@ -624,6 +644,34 @@ Napi::Value EditorScroll(const Napi::CallbackInfo &info) {
     return env.Undefined();
 }
 
+Napi::Value EditorPointer(const Napi::CallbackInfo &info) {
+    Napi::Env env = info.Env();
+
+    if (!bridgeState.runtimeContext || !bridgeState.editorPointerEventFn) {
+        return env.Undefined();
+    }
+
+    if (info.Length() < 5 || !info[0].IsNumber() || !info[1].IsNumber() ||
+        !info[2].IsNumber() || !info[3].IsNumber() || !info[4].IsNumber()) {
+        throw Napi::TypeError::New(
+            env, "editorPointer(action, x, y, button, scale)");
+    }
+
+    int action = info[0].As<Napi::Number>().Int32Value();
+    float x = info[1].As<Napi::Number>().FloatValue();
+    float y = info[2].As<Napi::Number>().FloatValue();
+    int button = info[3].As<Napi::Number>().Int32Value();
+    float scale = info[4].As<Napi::Number>().FloatValue();
+
+    if (!bridgeState.editorPointerEventFn(bridgeState.runtimeContext, action, x,
+                                          y, button, scale)) {
+        throw Napi::Error::New(env,
+                               "atlas_runtime_editor_pointer_event failed");
+    }
+
+    return env.Undefined();
+}
+
 Napi::Value GetSelectedObjectId(const Napi::CallbackInfo &info) {
     Napi::Env env = info.Env();
 
@@ -676,6 +724,7 @@ Napi::Object Init(Napi::Env env, Napi::Object exports) {
     exports.Set("setEditorControlMode",
                 Napi::Function::New(env, SetEditorControlMode));
     exports.Set("editorScroll", Napi::Function::New(env, EditorScroll));
+    exports.Set("editorPointer", Napi::Function::New(env, EditorPointer));
     exports.Set("getSelectedObjectId",
                 Napi::Function::New(env, GetSelectedObjectId));
     exports.Set("getSelectedObjectName",
