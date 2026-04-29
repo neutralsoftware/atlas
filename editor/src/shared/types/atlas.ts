@@ -5,3 +5,14 @@ export type Project = {
     modified: Date;
     id: string;
 };
+
+export type GameObject = {
+    viewportId: number;
+    name: string;
+    type: string;
+};
+
+export type Scene = {
+    name: string;
+    objects: GameObject[];
+};

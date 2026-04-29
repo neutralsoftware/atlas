@@ -56,6 +56,7 @@ const generalTasks: GeneralTask = {
         ipcRenderer.invoke("general:create-project", payload),
     openProject: (payload) =>
         ipcRenderer.invoke("general:open-project", payload),
+    getCurrentProject: () => ipcRenderer.invoke("general:get-current-project"),
 };
 
 const editorControls: EditorControlsApi = {

@@ -1,12 +1,28 @@
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useState } from "react";
 import type { PointerEvent, WheelEvent } from "react";
 import TopSelector from "../components/editor/TopSelector";
 import Hierarchy from "../components/editor/Hierarchy";
+import { Project } from "src/shared/types/atlas";
+import { AppInfo } from "../model/app";
 
 export default function EditorOverlay() {
     const activePointerButton = useRef(0);
     const shellRef = useRef<HTMLElement>(null);
     const viewportRef = useRef<HTMLDivElement>(null);
+    const [project, setProject] = useState<Project | null>(null);
+    const [appInfo, setAppInfo] = useState<AppInfo>({
+        debug: false,
+        buildId: "",
+        platform: "",
+    });
+
+    useEffect(() => {
+        window.tasks.getCurrentProject().then((project) => {
+            setProject(project);
+        });
+
+        window.app.getAppInfo().then(setAppInfo);
+    }, []);
 
     useEffect(() => {
         const keyMap: Record<string, 0 | 1 | 2 | 3 | 4 | 5> = {
@@ -150,6 +166,13 @@ export default function EditorOverlay() {
             ref={shellRef}
             className="fixed inset-0 flex bg-transparent text-white select-none"
         >
+            <div className="w-full h-8 bg-white absolute z-50 flex items-center justify-center text-black">
+                <p className="text-xs font-bold">
+                    {project?.name ?? ""} - Atlas Engine Alpha 9{" "}
+                    {appInfo.debug &&
+                        "(Development Build - " + appInfo.buildId + ")"}
+                </p>
+            </div>
             <Hierarchy />
 
             <section ref={viewportRef} className="relative min-w-0 flex-1">

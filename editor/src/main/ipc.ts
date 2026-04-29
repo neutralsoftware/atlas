@@ -258,7 +258,9 @@ export function registerIpcHandlers() {
         const win = BrowserWindow.fromWebContents(event.sender);
         const effectiveScale = positiveNumber(
             scale,
-            editorViewportBounds?.scale ?? win?.webContents.getZoomFactor() ?? 1,
+            editorViewportBounds?.scale ??
+                win?.webContents.getZoomFactor() ??
+                1,
         );
 
         engineBridge.editorScroll(delta, effectiveScale);
@@ -285,5 +287,17 @@ export function registerIpcHandlers() {
         }
 
         engineBridge.editorKey(numericKey, Boolean(pressed));
+    });
+
+    ipcMain.handle("general:get-current-project", async () => {
+        if (!currentProjectPath) {
+            return null;
+        }
+
+        const projects = await getProjects();
+        return (
+            projects.find((project) => project.path === currentProjectPath) ??
+            null
+        );
     });
 }

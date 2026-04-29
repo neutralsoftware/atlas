@@ -105,6 +105,7 @@ export interface GeneralTask {
         style: CreateProjectStyle;
     }): Promise<Project>;
     openProject(payload: { path: string }): Promise<void>;
+    getCurrentProject(): Promise<Project | null>;
 }
 
 export interface EditorControlsApi {
