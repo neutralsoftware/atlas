@@ -12,15 +12,7 @@ type OnboardingDataPayload = {
     executablePath: string | null;
 };
 
-type WindowDragState = {
-    startScreenX: number;
-    startScreenY: number;
-    startWindowX: number;
-    startWindowY: number;
-};
-
 export let currentProjectPath: string | null = null;
-const windowDragStates = new WeakMap<BrowserWindow, WindowDragState>();
 
 const editorControlModes: Record<EditorControlMode, number> = {
     none: 0,
@@ -65,64 +57,6 @@ export function registerIpcHandlers() {
     ipcMain.handle("window:close", (event) => {
         const win = BrowserWindow.fromWebContents(event.sender);
         win?.close();
-    });
-
-    ipcMain.on("window:start-drag", (event, screenX, screenY) => {
-        const win = BrowserWindow.fromWebContents(event.sender);
-        if (!win || win.isMaximized() || win.isFullScreen()) {
-            return;
-        }
-
-        const bounds = win.getBounds();
-        windowDragStates.set(win, {
-            startScreenX:
-                typeof screenX === "number" && Number.isFinite(screenX)
-                    ? screenX
-                    : bounds.x,
-            startScreenY:
-                typeof screenY === "number" && Number.isFinite(screenY)
-                    ? screenY
-                    : bounds.y,
-            startWindowX: bounds.x,
-            startWindowY: bounds.y,
-        });
-    });
-
-    ipcMain.on("window:drag", (event, screenX, screenY) => {
-        const win = BrowserWindow.fromWebContents(event.sender);
-        if (!win) {
-            return;
-        }
-
-        const dragState = windowDragStates.get(win);
-        if (!dragState) {
-            return;
-        }
-
-        const nextScreenX =
-            typeof screenX === "number" && Number.isFinite(screenX)
-                ? screenX
-                : dragState.startScreenX;
-        const nextScreenY =
-            typeof screenY === "number" && Number.isFinite(screenY)
-                ? screenY
-                : dragState.startScreenY;
-
-        win.setPosition(
-            Math.round(
-                dragState.startWindowX + nextScreenX - dragState.startScreenX,
-            ),
-            Math.round(
-                dragState.startWindowY + nextScreenY - dragState.startScreenY,
-            ),
-        );
-    });
-
-    ipcMain.on("window:end-drag", (event) => {
-        const win = BrowserWindow.fromWebContents(event.sender);
-        if (win) {
-            windowDragStates.delete(win);
-        }
     });
 
     ipcMain.handle("startup-task:start", () => {

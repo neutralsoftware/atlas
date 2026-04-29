@@ -207,7 +207,14 @@ export const viewport: WindowMaker<BrowserWindow> = async () => {
         height: 800,
         backgroundColor: "#00000000",
         title: "Atlas Editor - " + currentProjectPath?.split("/").pop(),
+        resizable: true,
+        minimizable: true,
+        maximizable: true,
+        fullscreenable: false,
         frame: false,
+        titleBarStyle: "hidden",
+        trafficLightPosition: { x: 12, y: 13 },
+        roundedCorners: true,
         transparent: true,
         hasShadow: true,
 
@@ -222,6 +229,9 @@ export const viewport: WindowMaker<BrowserWindow> = async () => {
             backgroundThrottling: false,
         },
     });
+    if (process.platform === "darwin") {
+        win.setWindowButtonVisibility(true);
+    }
 
     function resizeEditorToWindow(window: BrowserWindow) {
         const [width, height] = window.getContentSize();

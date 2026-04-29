@@ -50,10 +50,13 @@ struct BridgeState {
 
     NSView *hostView = nil;
     NSView *childView = nil;
+    NSView *dragView = nil;
     id scrollMonitor = nil;
 };
 
 struct BridgeState bridgeState;
+static constexpr CGFloat EditorTitlebarHeight = 40.0;
+static constexpr CGFloat EditorWindowControlsWidth = 86.0;
 
 static void sendEditorPointerEvent(NSEvent *event, NSView *view, int action) {
     if (!bridgeState.runtimeContext || !bridgeState.editorPointerEventFn ||
@@ -181,6 +184,41 @@ static bool sendEditorKeyEvent(NSEvent *event, bool pressed) {
     return true;
 }
 
+@interface AtlasWindowDragView : NSView
+@end
+
+@implementation AtlasWindowDragView
+- (instancetype)initWithFrame:(NSRect)frame {
+    self = [super initWithFrame:frame];
+    if (self) {
+        [self setWantsLayer:YES];
+        [[self layer] setBackgroundColor:[[NSColor clearColor] CGColor]];
+    }
+    return self;
+}
+
+- (BOOL)isOpaque {
+    return NO;
+}
+
+- (BOOL)acceptsFirstMouse:(NSEvent *)event {
+    (void)event;
+    return YES;
+}
+
+- (NSView *)hitTest:(NSPoint)point {
+    if (point.x >= 0.0 && point.x < EditorWindowControlsWidth &&
+        point.y >= 0.0 && point.y < EditorTitlebarHeight) {
+        return nil;
+    }
+    return [super hitTest:point];
+}
+
+- (void)mouseDown:(NSEvent *)event {
+    [[self window] performWindowDragWithEvent:event];
+}
+@end
+
 @interface AtlasRuntimeView : NSView
 @end
 
@@ -289,6 +327,45 @@ static bool sendEditorKeyEvent(NSEvent *event, bool pressed) {
 }
 @end
 
+static NSRect titlebarDragFrame(NSView *hostView) {
+    NSView *parentView = [hostView superview] ?: hostView;
+    NSRect bounds = [parentView bounds];
+    CGFloat y = [parentView isFlipped] ? NSMinY(bounds)
+                                      : NSMaxY(bounds) - EditorTitlebarHeight;
+    return NSMakeRect(NSMinX(bounds), y, NSWidth(bounds), EditorTitlebarHeight);
+}
+
+static void installTitlebarDragView(NSView *hostView) {
+    if (!hostView || bridgeState.dragView) {
+        return;
+    }
+
+    NSView *parentView = [hostView superview] ?: hostView;
+    NSView *dragView =
+        [[AtlasWindowDragView alloc] initWithFrame:titlebarDragFrame(hostView)];
+    [dragView setAutoresizingMask:(NSViewWidthSizable | NSViewMinYMargin)];
+
+    if ([hostView superview]) {
+        [parentView addSubview:dragView
+                    positioned:NSWindowAbove
+                    relativeTo:hostView];
+    } else {
+        [hostView addSubview:dragView positioned:NSWindowAbove relativeTo:nil];
+    }
+
+    bridgeState.dragView = dragView;
+    if ([hostView window]) {
+        [[hostView window] setMovableByWindowBackground:YES];
+    }
+}
+
+static void resizeTitlebarDragView() {
+    if (!bridgeState.hostView || !bridgeState.dragView) {
+        return;
+    }
+    [bridgeState.dragView setFrame:titlebarDragFrame(bridgeState.hostView)];
+}
+
 static void unloadEditorIfNeeded() {
     removeScrollMonitor();
 
@@ -304,6 +381,11 @@ static void unloadEditorIfNeeded() {
     if (bridgeState.childView) {
         [bridgeState.childView removeFromSuperview];
         bridgeState.childView = nil;
+    }
+
+    if (bridgeState.dragView) {
+        [bridgeState.dragView removeFromSuperview];
+        bridgeState.dragView = nil;
     }
 
     if (bridgeState.dylibHandle) {
@@ -435,6 +517,7 @@ Napi::Value AttachToNativeWindow(const Napi::CallbackInfo &info) {
         [hostView addSubview:child positioned:NSWindowBelow relativeTo:nil];
     }
     bridgeState.childView = child;
+    installTitlebarDragView(hostView);
     if ([child window]) {
         [[child window] makeFirstResponder:child];
     }
@@ -530,6 +613,7 @@ Napi::Value Resize(const Napi::CallbackInfo &info) {
     }
 
     resizeChildView(bridgeState.childView, width, height);
+    resizeTitlebarDragView();
 
     if (!bridgeState.resizeFn(bridgeState.runtimeContext, width, height,
                               effectiveScale)) {
