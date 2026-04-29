@@ -68,9 +68,22 @@ const editorControls: EditorControlsApi = {
 };
 
 const editorInput: EditorInputApi = {
-    pointer: (payload) => ipcRenderer.invoke("editor-input:pointer", payload),
-    scroll: (delta, scale) =>
-        ipcRenderer.invoke("editor-input:scroll", delta, scale),
+    pointer: (payload) => {
+        ipcRenderer.send("editor-input:pointer", payload);
+        return Promise.resolve();
+    },
+    scroll: (delta, scale) => {
+        ipcRenderer.send("editor-input:scroll", delta, scale);
+        return Promise.resolve();
+    },
+    key: (key, pressed) => {
+        ipcRenderer.send("editor-input:key", key, pressed);
+        return Promise.resolve();
+    },
+    setViewportBounds: (bounds) => {
+        ipcRenderer.send("editor-input:set-viewport-bounds", bounds);
+        return Promise.resolve();
+    },
 };
 
 contextBridge.exposeInMainWorld("app", api);

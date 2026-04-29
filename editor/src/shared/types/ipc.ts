@@ -123,6 +123,14 @@ export interface EditorInputApi {
         scale?: number;
     }): Promise<void>;
     scroll(delta: number, scale?: number): Promise<void>;
+    key(key: 0 | 1 | 2 | 3 | 4 | 5, pressed: boolean): Promise<void>;
+    setViewportBounds(bounds: {
+        x: number;
+        y: number;
+        width: number;
+        height: number;
+        scale?: number;
+    }): Promise<void>;
 }
 
 export type WindowHandle<TWindow = unknown> = {

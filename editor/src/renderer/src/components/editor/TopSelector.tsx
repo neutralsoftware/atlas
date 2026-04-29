@@ -16,21 +16,31 @@ export default function TopSelector() {
     const selectedIndex = modes.findIndex((m) => m.id === mode);
 
     useEffect(() => {
-        void window.editorControls.setMode(mode);
-    }, [mode]);
+        void window.editorControls.setMode("move");
+        void window.editorControls.setPlaying(false);
+    }, []);
 
-    useEffect(() => {
-        void window.editorControls.setPlaying(isPlaying);
-    }, [isPlaying]);
+    function selectMode(nextMode: Mode) {
+        setMode(nextMode);
+        void window.editorControls.setMode(nextMode);
+    }
+
+    function togglePlaying() {
+        setIsPlaying((playing) => {
+            const nextPlaying = !playing;
+            void window.editorControls.setPlaying(nextPlaying);
+            return nextPlaying;
+        });
+    }
 
     const buttonClass =
         "relative z-10 flex h-8 w-8 shrink-0 items-center justify-center rounded-full transition-all duration-300";
 
     return (
-        <main className="absolute left-0 top-0 mt-6 flex w-full items-center justify-center">
-            <div className="flex items-center rounded-full bg-white/70 p-1.5 shadow backdrop-blur-lg">
+        <main className="pointer-events-none absolute left-0 top-12 z-50 flex w-full items-center justify-center">
+            <div className="pointer-events-auto flex items-center rounded-full bg-white/70 p-1.5 shadow backdrop-blur-lg">
                 <button
-                    onClick={() => setIsPlaying((v) => !v)}
+                    onClick={togglePlaying}
                     className={`${buttonClass} ${
                         isPlaying
                             ? "bg-linear-to-r from-purple-200 via-pink-200 to-blue-200 shadow-[0_0_10px_rgba(180,160,255,0.4)]"
@@ -53,7 +63,7 @@ export default function TopSelector() {
                     {modes.map(({ id, icon: Icon }) => (
                         <button
                             key={id}
-                            onClick={() => setMode(id)}
+                            onClick={() => selectMode(id)}
                             className={`${buttonClass} ${
                                 mode === id
                                     ? "text-black"

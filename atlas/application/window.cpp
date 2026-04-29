@@ -252,6 +252,10 @@ float distanceToScreenSegment(const glm::vec2 &point, const glm::vec2 &from,
     return glm::length(point - (from + segment * t));
 }
 
+float distanceToScreenPoint(const glm::vec2 &point, const glm::vec2 &target) {
+    return glm::length(point - target);
+}
+
 glm::vec3 editorAxisVector(int axis) {
     if (axis == 1) {
         return glm::vec3(1.0f, 0.0f, 0.0f);
@@ -2122,7 +2126,7 @@ int Window::hitTestEditorGizmoAxis(float x, float y, float scale) {
     float cameraDistance = glm::length(camera->position.toGlm() - center);
     float gizmoScale = std::max(1.2f, cameraDistance * 0.16f);
     float axisLength = gizmoScale * 1.35f;
-    float hitPadding = std::max(13.0f, 18.0f / effectiveScale);
+    float hitPadding = std::max(28.0f, 40.0f / effectiveScale);
     int bestAxis = 0;
     float bestDistance = hitPadding;
 
@@ -2141,6 +2145,7 @@ int Window::hitTestEditorGizmoAxis(float x, float y, float scale) {
                 continue;
             }
             float distance = distanceToScreenSegment(pointer, from, to);
+            distance = std::min(distance, distanceToScreenPoint(pointer, to));
             if (distance < bestDistance) {
                 bestDistance = distance;
                 bestAxis = axis;

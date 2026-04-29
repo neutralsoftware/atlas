@@ -11,7 +11,11 @@ import {
 } from "./main";
 import { DEBUG } from "../shared/generated/build";
 import { runtimeLib } from "./tasks/startup";
-import { currentProjectPath } from "./ipc";
+import {
+    applyEditorViewportBounds,
+    clearEditorViewportBounds,
+    currentProjectPath,
+} from "./ipc";
 
 export const createOnboardingWindow: WindowMaker<BrowserWindow> = async () => {
     const windowIcon = getWindowIcon();
@@ -201,6 +205,7 @@ export let frameTimer: NodeJS.Timeout | null = null;
 
 export const viewport: WindowMaker<BrowserWindow> = async () => {
     const windowIcon = getWindowIcon();
+    clearEditorViewportBounds();
 
     const win = new BrowserWindow({
         width: 1200,
@@ -236,7 +241,7 @@ export const viewport: WindowMaker<BrowserWindow> = async () => {
     function resizeEditorToWindow(window: BrowserWindow) {
         const [width, height] = window.getContentSize();
         const scale = window.webContents.getZoomFactor();
-        engineBridge.resizeEditor(width, height, scale);
+        applyEditorViewportBounds(width, height, scale);
     }
 
     setMainWindow(win);

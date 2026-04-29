@@ -55,8 +55,6 @@ struct BridgeState {
 };
 
 struct BridgeState bridgeState;
-static constexpr CGFloat EditorTitlebarHeight = 40.0;
-static constexpr CGFloat EditorWindowControlsWidth = 86.0;
 
 static void sendEditorPointerEvent(NSEvent *event, NSView *view, int action) {
     if (!bridgeState.runtimeContext || !bridgeState.editorPointerEventFn ||
@@ -184,6 +182,90 @@ static bool sendEditorKeyEvent(NSEvent *event, bool pressed) {
     return true;
 }
 
+static CGFloat editorTitlebarHeight(NSWindow *window, NSView *parentView) {
+    if (!window || !parentView) {
+        return 0.0;
+    }
+
+    NSRect buttonUnion = NSZeroRect;
+    bool hasButton = false;
+    const NSWindowButton buttons[] = {
+        NSWindowCloseButton,
+        NSWindowMiniaturizeButton,
+        NSWindowZoomButton,
+    };
+
+    for (NSWindowButton buttonType : buttons) {
+        NSButton *button = [window standardWindowButton:buttonType];
+        if (!button || [button isHidden]) {
+            continue;
+        }
+
+        NSView *buttonSuperview = [button superview];
+        if (!buttonSuperview) {
+            continue;
+        }
+
+        NSRect frame = [buttonSuperview convertRect:[button frame]
+                                             toView:parentView];
+        buttonUnion = hasButton ? NSUnionRect(buttonUnion, frame) : frame;
+        hasButton = true;
+    }
+
+    if (!hasButton) {
+        NSRect frame = [window frame];
+        NSRect contentLayoutRect = [window contentLayoutRect];
+        CGFloat height = NSHeight(frame) - NSHeight(contentLayoutRect);
+        return height > 0.0 ? height : 0.0;
+    }
+
+    NSRect bounds = [parentView bounds];
+    if ([parentView isFlipped]) {
+        CGFloat topInset = NSMinY(buttonUnion) - NSMinY(bounds);
+        CGFloat height = topInset + NSHeight(buttonUnion) + topInset;
+        if (height > 0.0) {
+            return height;
+        }
+        return NSMaxY(buttonUnion) - NSMinY(bounds);
+    }
+
+    CGFloat topInset = NSMaxY(bounds) - NSMaxY(buttonUnion);
+    CGFloat height = topInset + NSHeight(buttonUnion) + topInset;
+    if (height > 0.0) {
+        return height;
+    }
+
+    return NSMaxY(bounds) - NSMinY(buttonUnion);
+}
+
+static bool pointIsInsideStandardWindowButton(NSView *view, NSPoint point) {
+    NSWindow *window = [view window];
+    if (!window) {
+        return false;
+    }
+
+    NSPoint windowPoint = [view convertPoint:point toView:nil];
+    const NSWindowButton buttons[] = {
+        NSWindowCloseButton,
+        NSWindowMiniaturizeButton,
+        NSWindowZoomButton,
+    };
+
+    for (NSWindowButton buttonType : buttons) {
+        NSButton *button = [window standardWindowButton:buttonType];
+        if (!button || [button isHidden]) {
+            continue;
+        }
+
+        NSPoint buttonPoint = [button convertPoint:windowPoint fromView:nil];
+        if (NSPointInRect(buttonPoint, [button bounds])) {
+            return true;
+        }
+    }
+
+    return false;
+}
+
 @interface AtlasWindowDragView : NSView
 @end
 
@@ -207,8 +289,7 @@ static bool sendEditorKeyEvent(NSEvent *event, bool pressed) {
 }
 
 - (NSView *)hitTest:(NSPoint)point {
-    if (point.x >= 0.0 && point.x < EditorWindowControlsWidth &&
-        point.y >= 0.0 && point.y < EditorTitlebarHeight) {
+    if (pointIsInsideStandardWindowButton(self, point)) {
         return nil;
     }
     return [super hitTest:point];
@@ -330,9 +411,10 @@ static bool sendEditorKeyEvent(NSEvent *event, bool pressed) {
 static NSRect titlebarDragFrame(NSView *hostView) {
     NSView *parentView = [hostView superview] ?: hostView;
     NSRect bounds = [parentView bounds];
+    CGFloat height = editorTitlebarHeight([hostView window], parentView);
     CGFloat y = [parentView isFlipped] ? NSMinY(bounds)
-                                      : NSMaxY(bounds) - EditorTitlebarHeight;
-    return NSMakeRect(NSMinX(bounds), y, NSWidth(bounds), EditorTitlebarHeight);
+                                      : NSMaxY(bounds) - height;
+    return NSMakeRect(NSMinX(bounds), y, NSWidth(bounds), height);
 }
 
 static void installTitlebarDragView(NSView *hostView) {
@@ -566,15 +648,31 @@ Napi::Value AttachToNativeWindow(const Napi::CallbackInfo &info) {
     return env.Undefined();
 }
 
-static void resizeChildView(NSView *childView, int width, int height) {
+static NSRect frameForCssRect(NSView *hostView, NSView *targetSuperview, int x,
+                              int y, int width, int height) {
+    NSView *parentView = targetSuperview ?: ([hostView superview] ?: hostView);
+    NSRect hostFrame = [hostView superview] == parentView ? [hostView frame]
+                                                          : [hostView bounds];
+    CGFloat frameX = NSMinX(hostFrame) + x;
+    CGFloat frameY = [parentView isFlipped]
+                         ? NSMinY(hostFrame) + y
+                         : NSMaxY(hostFrame) - y - height;
+
+    return NSMakeRect(frameX, frameY, width, height);
+}
+
+static void resizeChildView(NSView *childView, int x, int y, int width,
+                            int height) {
     if (!childView) {
         return;
     }
 
     auto resizeBlock = ^{
-      NSRect frame = NSMakeRect(0, 0, width, height);
-      if (bridgeState.hostView && [childView superview] == [bridgeState.hostView superview]) {
-          frame = [bridgeState.hostView frame];
+      NSRect frame = NSMakeRect(x, y, width, height);
+      if (bridgeState.hostView) {
+          frame =
+              frameForCssRect(bridgeState.hostView, [childView superview], x,
+                              y, width, height);
       }
       [childView setFrame:frame];
     };
@@ -597,12 +695,31 @@ Napi::Value Resize(const Napi::CallbackInfo &info) {
     }
 
     if (info.Length() < 3) {
-        throw Napi::TypeError::New(env, "resize(width, height, scale)");
+        throw Napi::TypeError::New(env, "resize([x, y,] width, height, scale)");
     }
 
-    int width = info[0].As<Napi::Number>().Int32Value();
-    int height = info[1].As<Napi::Number>().Int32Value();
-    float scale = info[2].As<Napi::Number>().FloatValue();
+    int x = 0;
+    int y = 0;
+    int width = 0;
+    int height = 0;
+    float scale = 1.0f;
+
+    if (info.Length() >= 5 && info[0].IsNumber() && info[1].IsNumber() &&
+        info[2].IsNumber() && info[3].IsNumber() && info[4].IsNumber()) {
+        x = info[0].As<Napi::Number>().Int32Value();
+        y = info[1].As<Napi::Number>().Int32Value();
+        width = info[2].As<Napi::Number>().Int32Value();
+        height = info[3].As<Napi::Number>().Int32Value();
+        scale = info[4].As<Napi::Number>().FloatValue();
+    } else if (info[0].IsNumber() && info[1].IsNumber() &&
+               info[2].IsNumber()) {
+        width = info[0].As<Napi::Number>().Int32Value();
+        height = info[1].As<Napi::Number>().Int32Value();
+        scale = info[2].As<Napi::Number>().FloatValue();
+    } else {
+        throw Napi::TypeError::New(env, "resize([x, y,] width, height, scale)");
+    }
+
     float effectiveScale = scale > 0.0f ? scale : 1.0f;
 
     if (bridgeState.hostView && [bridgeState.hostView window]) {
@@ -612,7 +729,7 @@ Napi::Value Resize(const Napi::CallbackInfo &info) {
         }
     }
 
-    resizeChildView(bridgeState.childView, width, height);
+    resizeChildView(bridgeState.childView, x, y, width, height);
     resizeTitlebarDragView();
 
     if (!bridgeState.resizeFn(bridgeState.runtimeContext, width, height,
@@ -756,6 +873,28 @@ Napi::Value EditorPointer(const Napi::CallbackInfo &info) {
     return env.Undefined();
 }
 
+Napi::Value EditorKey(const Napi::CallbackInfo &info) {
+    Napi::Env env = info.Env();
+
+    if (!bridgeState.runtimeContext || !bridgeState.editorKeyEventFn) {
+        return env.Undefined();
+    }
+
+    if (info.Length() < 2 || !info[0].IsNumber() || !info[1].IsBoolean()) {
+        throw Napi::TypeError::New(env, "editorKey(key, pressed)");
+    }
+
+    int key = info[0].As<Napi::Number>().Int32Value();
+    bool pressed = info[1].As<Napi::Boolean>().Value();
+
+    if (!bridgeState.editorKeyEventFn(bridgeState.runtimeContext, key,
+                                      pressed)) {
+        throw Napi::Error::New(env, "atlas_runtime_editor_key_event failed");
+    }
+
+    return env.Undefined();
+}
+
 Napi::Value GetSelectedObjectId(const Napi::CallbackInfo &info) {
     Napi::Env env = info.Env();
 
@@ -809,6 +948,7 @@ Napi::Object Init(Napi::Env env, Napi::Object exports) {
                 Napi::Function::New(env, SetEditorControlMode));
     exports.Set("editorScroll", Napi::Function::New(env, EditorScroll));
     exports.Set("editorPointer", Napi::Function::New(env, EditorPointer));
+    exports.Set("editorKey", Napi::Function::New(env, EditorKey));
     exports.Set("getSelectedObjectId",
                 Napi::Function::New(env, GetSelectedObjectId));
     exports.Set("getSelectedObjectName",
