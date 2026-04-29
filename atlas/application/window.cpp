@@ -215,6 +215,31 @@ bool projectPointToScreen(const glm::vec3 &point,
     return true;
 }
 
+float worldUnitsPerScreenPixel(Camera *camera, const glm::vec3 &point,
+                               float viewHeight) {
+    if (camera == nullptr) {
+        return 0.001f;
+    }
+
+    float safeViewHeight = std::max(1.0f, viewHeight);
+    if (camera->useOrthographic) {
+        return std::max(0.000001f,
+                        (camera->orthographicSize * 2.0f) / safeViewHeight);
+    }
+
+    glm::vec3 cameraPosition = camera->position.toGlm();
+    glm::vec3 cameraDirection = camera->target.toGlm() - cameraPosition;
+    float distance = glm::length(point - cameraPosition);
+    if (glm::length(cameraDirection) > 0.000001f) {
+        glm::vec3 forward = glm::normalize(cameraDirection);
+        distance = std::abs(glm::dot(point - cameraPosition, forward));
+    }
+    distance = std::max(distance, camera->nearClip);
+    float visibleHeight =
+        2.0f * std::tan(glm::radians(camera->fov) * 0.5f) * distance;
+    return std::max(0.000001f, visibleHeight / safeViewHeight);
+}
+
 float distanceToScreenSegment(const glm::vec2 &point, const glm::vec2 &from,
                               const glm::vec2 &to) {
     glm::vec2 segment = to - from;
@@ -2564,10 +2589,11 @@ void Window::updateEditorControlGeometry() {
 
     glm::vec3 cameraPosition = camera->position.toGlm();
     Color outlineColor{0.0f, 0.95f, 1.0f, 1.0f};
-    float outlinePadding =
-        std::max(0.012f, glm::length(boundsMax - boundsMin) * 0.01f);
-    float outlineThickness =
-        std::max(0.018f, glm::length(boundsMax - boundsMin) * 0.008f);
+    glm::vec3 boundsCenter = (boundsMin + boundsMax) * 0.5f;
+    float outlinePixelSize = worldUnitsPerScreenPixel(
+        camera, boundsCenter, static_cast<float>(fbHeight));
+    float outlinePadding = outlinePixelSize * 5.0f;
+    float outlineThickness = outlinePixelSize * 1.5f;
     glm::vec3 axisScale(
         glm::length(glm::vec3(selectedTransform[0])),
         glm::length(glm::vec3(selectedTransform[1])),

@@ -1,5 +1,6 @@
 import { useRef } from "react";
 import type { PointerEvent, WheelEvent } from "react";
+import TopSelector from "../components/editor/TopSelector";
 
 export default function EditorOverlay() {
     const activePointerButton = useRef(0);
@@ -59,11 +60,8 @@ export default function EditorOverlay() {
                 onWheel={onViewportWheel}
                 onContextMenu={(event) => event.preventDefault()}
             />
-            <div className="pointer-events-none absolute left-0 top-0 z-50 flex h-10 w-full items-center backdrop-blur">
-                <div className="ml-20 text-[11px] font-semibold uppercase tracking-[0.18em] text-white/70">
-                    Atlas Editor
-                </div>
-            </div>
+            <div className="pointer-events-none absolute left-0 top-0 z-50 flex h-10 w-full items-center"></div>
+            <TopSelector></TopSelector>
         </main>
     );
 }
