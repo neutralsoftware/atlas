@@ -1406,17 +1406,21 @@ void registerGameObject(Context &context, GameObject &object,
         name = objectType + "_" + std::to_string(generatedIndex);
     }
 
+    object.name = name;
     registerObjectReference(context, name, &object);
     context.objectNames[object.getId()] = name;
+    context.objectSceneReferences[object.getId()] = name;
 
     if (const json *idField = findField(objectData, {"id"});
         idField != nullptr) {
         if (idField->is_string()) {
-            registerObjectReference(context, idField->get<std::string>(),
-                                    &object);
+            std::string sceneReference = idField->get<std::string>();
+            context.objectSceneReferences[object.getId()] = sceneReference;
+            registerObjectReference(context, sceneReference, &object);
         } else if (idField->is_number_integer()) {
-            registerObjectReference(
-                context, std::to_string(idField->get<int>()), &object);
+            std::string sceneReference = std::to_string(idField->get<int>());
+            context.objectSceneReferences[object.getId()] = sceneReference;
+            registerObjectReference(context, sceneReference, &object);
         }
     }
 
@@ -1444,6 +1448,110 @@ void applyTransform(GameObject &object, const json &objectData) {
     if (tryReadVec3Any(objectData, {"target", "lookAt"}, target)) {
         object.lookAt(target, {0.0f, 1.0f, 0.0f});
     }
+}
+
+json vec3ToJson(const Position3d &value) {
+    return json::array({value.x, value.y, value.z});
+}
+
+json rotationToJson(const Rotation3d &value) {
+    return json::array({value.pitch, value.yaw, value.roll});
+}
+
+std::string serializableObjectName(const Context &context, GameObject &object) {
+    if (!object.name.empty()) {
+        return object.name;
+    }
+    auto it = context.objectNames.find(static_cast<int>(object.getId()));
+    if (it != context.objectNames.end()) {
+        return it->second;
+    }
+    return {};
+}
+
+std::string serializableObjectReference(const Context &context,
+                                        GameObject &object) {
+    auto it =
+        context.objectSceneReferences.find(static_cast<int>(object.getId()));
+    if (it != context.objectSceneReferences.end()) {
+        return it->second;
+    }
+    return {};
+}
+
+bool objectNodeMatches(const json &node, const std::string &name,
+                       const std::string &reference) {
+    if (!node.is_object()) {
+        return false;
+    }
+    if (!name.empty() || !reference.empty()) {
+        if (const json *nameField = findField(node, {"name"});
+            nameField != nullptr && nameField->is_string()) {
+            const std::string nodeName = nameField->get<std::string>();
+            if ((!name.empty() && nodeName == name) ||
+                (!reference.empty() && nodeName == reference)) {
+                return true;
+            }
+        }
+    }
+    if (!reference.empty()) {
+        if (const json *idField = findField(node, {"id"}); idField != nullptr) {
+            if (idField->is_string() &&
+                idField->get<std::string>() == reference) {
+                return true;
+            }
+            if (idField->is_number_integer() &&
+                std::to_string(idField->get<int>()) == reference) {
+                return true;
+            }
+        }
+    }
+    return false;
+}
+
+void writeObjectTransform(json &node, const Context &context,
+                          GameObject &object) {
+    const std::string name = serializableObjectName(context, object);
+    if (!name.empty()) {
+        node["name"] = name;
+    }
+    node["position"] = vec3ToJson(object.getPosition());
+    node["rotation"] = rotationToJson(object.getRotation());
+    node["scale"] = vec3ToJson(object.getScale());
+}
+
+bool updateObjectNode(json &node, const Context &context, GameObject &object) {
+    const std::string name = serializableObjectName(context, object);
+    const std::string reference = serializableObjectReference(context, object);
+    if (objectNodeMatches(node, name, reference)) {
+        writeObjectTransform(node, context, object);
+        return true;
+    }
+
+    if (const json *children = findField(node, {"objects"});
+        children != nullptr && children->is_array()) {
+        json &mutableChildren = node["objects"];
+        for (auto &child : mutableChildren) {
+            if (updateObjectNode(child, context, object)) {
+                return true;
+            }
+        }
+    }
+
+    return false;
+}
+
+json serializeNewObject(const Context &context, GameObject &object) {
+    json node = json::object();
+    const std::string name = serializableObjectName(context, object);
+    if (!name.empty()) {
+        node["name"] = name;
+    }
+    node["id"] = static_cast<int>(object.getId());
+    node["type"] = "solid";
+    node["solid_type"] = "cube";
+    writeObjectTransform(node, context, object);
+    return node;
 }
 
 void applyMaterial(GameObject &object, const MaterialDefinition &material) {
@@ -3195,7 +3303,55 @@ std::string Context::selectedObjectName() const {
     if (it != objectNames.end()) {
         return it->second;
     }
+    if (window != nullptr && window->getSelectedEditorObject() != nullptr &&
+        !window->getSelectedEditorObject()->name.empty()) {
+        return window->getSelectedEditorObject()->name;
+    }
     return std::to_string(id);
+}
+
+bool Context::saveCurrentScene() {
+    if (currentSceneFile.empty()) {
+        return false;
+    }
+
+    json sceneData = loadJsonFile(currentSceneFile);
+    if (!sceneData.is_object()) {
+        return false;
+    }
+    if (!sceneData.contains("objects") || !sceneData["objects"].is_array()) {
+        sceneData["objects"] = json::array();
+    }
+
+    for (const auto &renderable : objects) {
+        if (renderable == nullptr) {
+            continue;
+        }
+
+        auto *object = dynamic_cast<GameObject *>(renderable.get());
+        if (object == nullptr) {
+            continue;
+        }
+
+        bool updated = false;
+        for (auto &objectNode : sceneData["objects"]) {
+            if (updateObjectNode(objectNode, *this, *object)) {
+                updated = true;
+                break;
+            }
+        }
+
+        if (!updated && dynamic_cast<CoreObject *>(object) != nullptr) {
+            sceneData["objects"].push_back(serializeNewObject(*this, *object));
+        }
+    }
+
+    std::ofstream output(currentSceneFile, std::ios::trunc);
+    if (!output.is_open()) {
+        return false;
+    }
+    output << sceneData.dump(4) << '\n';
+    return output.good();
 }
 
 void Context::end() {
@@ -3327,6 +3483,7 @@ void Context::loadMainScene(Window &window) {
     const std::string resolvedScenePath =
         resolveRuntimePath(projectDir, config.mainScene);
     json sceneData = loadJsonFile(resolvedScenePath);
+    currentSceneFile = resolvedScenePath;
     sceneDir = std::filesystem::path(resolvedScenePath).parent_path().string();
     currentSceneName = std::filesystem::path(resolvedScenePath).stem().string();
     auto sceneNameIt = sceneData.find("name");
@@ -3377,6 +3534,7 @@ void Context::loadScene(Window &window, const json &sceneData) {
     objects.clear();
     objectReferences.clear();
     objectNames.clear();
+    objectSceneReferences.clear();
     renderTargets.clear();
     directionalLights.clear();
     pointLights.clear();

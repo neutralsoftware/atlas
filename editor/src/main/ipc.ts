@@ -219,6 +219,10 @@ export function registerIpcHandlers() {
         };
     });
 
+    ipcMain.handle("editor-controls:save-current-scene", async () => {
+        return Boolean(engineBridge.saveCurrentScene());
+    });
+
     ipcMain.on("editor-input:pointer", (event, payload) => {
         const win = BrowserWindow.fromWebContents(event.sender);
         if (!win || !payload) {

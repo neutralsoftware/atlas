@@ -22,6 +22,7 @@
 #include <memory>
 #include <optional>
 #include <random>
+#include <string>
 #include <vector>
 
 class CoreObject;
@@ -223,6 +224,7 @@ class GameObject : public Renderable {
         std::uniform_int_distribution<int> dist(0, INT_MAX);
         id = dist(gen);
 
+        name = other.name;
         copyComponents(other);
         dependencies = other.dependencies;
 
@@ -235,6 +237,7 @@ class GameObject : public Renderable {
         std::uniform_int_distribution<int> dist(0, INT_MAX);
         id = dist(gen);
 
+        name = std::move(other.name);
         moveComponents(std::move(other));
         dependencies = std::move(other.dependencies);
 
@@ -243,6 +246,7 @@ class GameObject : public Renderable {
 
     GameObject &operator=(const GameObject &other) {
         if (this != &other) {
+            name = other.name;
             copyComponents(other);
             dependencies = other.dependencies;
             atlas::gameObjects[id] = this;
@@ -252,6 +256,7 @@ class GameObject : public Renderable {
 
     GameObject &operator=(GameObject &&other) noexcept {
         if (this != &other) {
+            name = std::move(other.name);
             moveComponents(std::move(other));
             dependencies = std::move(other.dependencies);
             atlas::gameObjects[id] = this;
@@ -439,6 +444,8 @@ class GameObject : public Renderable {
      * @brief Returns the unique identifier associated with this object.
      */
     unsigned int getId() override { return id; }
+
+    std::string name;
 
     /** @brief Returns object rotation in Euler angles. */
     virtual Rotation3d getRotation() const { return Rotation3d(0.f, 0.f, 0.f); }

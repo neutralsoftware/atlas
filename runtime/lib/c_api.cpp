@@ -245,6 +245,23 @@ const char *atlas_runtime_get_selected_object_name(void *runtimeContext) {
     }
 }
 
+bool atlas_runtime_save_current_scene(void *runtimeContext) {
+    if (runtimeContext == nullptr) {
+        return false;
+    }
+    try {
+        auto *handle = reinterpret_cast<RuntimeContextHandle *>(runtimeContext);
+        if (*handle == nullptr) {
+            return false;
+        }
+        return (*handle)->saveCurrentScene();
+    } catch (const std::exception &) {
+        return false;
+    } catch (...) {
+        return false;
+    }
+}
+
 void atlas_runtime_end_context(void *runtimeContext) {
     if (runtimeContext == nullptr) {
         return;

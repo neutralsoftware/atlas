@@ -56,6 +56,7 @@ class Context {
     std::string projectFile;
     std::string projectDir;
     std::string sceneDir;
+    std::string currentSceneFile;
     std::string currentSceneName;
     std::shared_ptr<RuntimeScene> scene;
 
@@ -79,6 +80,7 @@ class Context {
     std::vector<std::shared_ptr<Renderable>> objects;
     std::unordered_map<std::string, GameObject *> objectReferences;
     std::unordered_map<int, std::string> objectNames;
+    std::unordered_map<int, std::string> objectSceneReferences;
 
     ProjectConfig config;
 
@@ -94,6 +96,7 @@ class Context {
     bool editorKeyEvent(int key, bool pressed);
     int selectedObjectId() const;
     std::string selectedObjectName() const;
+    bool saveCurrentScene();
     void end();
     void loadProject();
     void loadMainScene(Window &window);

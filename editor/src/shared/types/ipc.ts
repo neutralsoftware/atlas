@@ -113,6 +113,7 @@ export interface EditorControlsApi {
     setPlaying(playing: boolean): Promise<void>;
     setMode(mode: EditorControlMode): Promise<void>;
     getSelection(): Promise<{ id: number; name: string }>;
+    saveCurrentScene(): Promise<boolean>;
 }
 
 export interface EditorInputApi {

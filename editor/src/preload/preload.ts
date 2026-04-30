@@ -66,6 +66,8 @@ const editorControls: EditorControlsApi = {
         ipcRenderer.invoke("editor-controls:set-playing", playing),
     setMode: (mode) => ipcRenderer.invoke("editor-controls:set-mode", mode),
     getSelection: () => ipcRenderer.invoke("editor-controls:get-selection"),
+    saveCurrentScene: () =>
+        ipcRenderer.invoke("editor-controls:save-current-scene"),
 };
 
 const editorInput: EditorInputApi = {

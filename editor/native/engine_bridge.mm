@@ -27,6 +27,7 @@ using RuntimeEditorKeyEventFn = bool (*)(void *runtimeContext, int key,
                                          bool pressed);
 using RuntimeGetSelectedObjectIdFn = int (*)(void *runtimeContext);
 using RuntimeGetSelectedObjectNameFn = const char *(*)(void *runtimeContext);
+using RuntimeSaveCurrentSceneFn = bool (*)(void *runtimeContext);
 using RuntimeStepFn = bool (*)(void *runtimeContext);
 
 struct BridgeState {
@@ -44,6 +45,7 @@ struct BridgeState {
     RuntimeEditorKeyEventFn editorKeyEventFn = nullptr;
     RuntimeGetSelectedObjectIdFn getSelectedObjectIdFn = nullptr;
     RuntimeGetSelectedObjectNameFn getSelectedObjectNameFn = nullptr;
+    RuntimeSaveCurrentSceneFn saveCurrentSceneFn = nullptr;
     RuntimeStepFn stepFn = nullptr;
 
     void *runtimeContext = nullptr;
@@ -487,6 +489,7 @@ static void unloadEditorIfNeeded() {
     bridgeState.editorKeyEventFn = nullptr;
     bridgeState.getSelectedObjectIdFn = nullptr;
     bridgeState.getSelectedObjectNameFn = nullptr;
+    bridgeState.saveCurrentSceneFn = nullptr;
     bridgeState.stepFn = nullptr;
     bridgeState.hostView = nil;
 }
@@ -548,6 +551,8 @@ Napi::Value LoadLibrary(const Napi::CallbackInfo &info) {
     bridgeState.getSelectedObjectNameFn =
         reinterpret_cast<RuntimeGetSelectedObjectNameFn>(
             requireSymbol(handle, "atlas_runtime_get_selected_object_name"));
+    bridgeState.saveCurrentSceneFn = reinterpret_cast<RuntimeSaveCurrentSceneFn>(
+        requireSymbol(handle, "atlas_runtime_save_current_scene"));
     bridgeState.stepFn = reinterpret_cast<RuntimeStepFn>(
         requireSymbol(handle, "atlas_runtime_step_frame"));
 
@@ -918,6 +923,20 @@ Napi::Value GetSelectedObjectName(const Napi::CallbackInfo &info) {
     return Napi::String::New(env, name ? name : "");
 }
 
+Napi::Value SaveCurrentScene(const Napi::CallbackInfo &info) {
+    Napi::Env env = info.Env();
+
+    if (!bridgeState.runtimeContext || !bridgeState.saveCurrentSceneFn) {
+        return Napi::Boolean::New(env, false);
+    }
+
+    if (!bridgeState.saveCurrentSceneFn(bridgeState.runtimeContext)) {
+        throw Napi::Error::New(env, "atlas_runtime_save_current_scene failed");
+    }
+
+    return Napi::Boolean::New(env, true);
+}
+
 Napi::Value Step(const Napi::CallbackInfo &info) {
     Napi::Env env = info.Env();
 
@@ -953,6 +972,7 @@ Napi::Object Init(Napi::Env env, Napi::Object exports) {
                 Napi::Function::New(env, GetSelectedObjectId));
     exports.Set("getSelectedObjectName",
                 Napi::Function::New(env, GetSelectedObjectName));
+    exports.Set("saveCurrentScene", Napi::Function::New(env, SaveCurrentScene));
     exports.Set("step", Napi::Function::New(env, Step));
     exports.Set("shutdown", Napi::Function::New(env, Shutdown));
     return exports;

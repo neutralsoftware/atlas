@@ -60,6 +60,7 @@ bool atlas_runtime_editor_key_event(void *runtimeContext, int key,
                                     bool pressed);
 int atlas_runtime_get_selected_object_id(void *runtimeContext);
 const char *atlas_runtime_get_selected_object_name(void *runtimeContext);
+bool atlas_runtime_save_current_scene(void *runtimeContext);
 
 /**
  * @brief Requests shutdown and releases frame-loop resources.

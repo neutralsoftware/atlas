@@ -604,6 +604,8 @@ void assignObjectName(Context &context, GameObject &object,
 
     if (name.empty()) {
         context.objectNames.erase(objectId);
+        context.objectSceneReferences.erase(objectId);
+        object.name.clear();
         return;
     }
 
@@ -624,6 +626,7 @@ void assignObjectName(Context &context, GameObject &object,
     context.objectReferences[name] = &object;
     context.objectReferences[normalized] = &object;
     context.objectNames[objectId] = name;
+    object.name = name;
 }
 
 void cachePrototype(JSContext *ctx, JSValueConst ns, const char *exportName,
@@ -4206,6 +4209,9 @@ JSValue syncObjectWrapper(JSContext *ctx, ScriptHost &host,
         if (nameIt != host.context->objectNames.end()) {
             name = nameIt->second;
         }
+    }
+    if (name.empty()) {
+        name = object.name;
     }
     setProperty(ctx, wrapper, "name", JS_NewString(ctx, name.c_str()));
 
