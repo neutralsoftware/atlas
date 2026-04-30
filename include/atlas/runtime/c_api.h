@@ -60,6 +60,13 @@ bool atlas_runtime_editor_key_event(void *runtimeContext, int key,
                                     bool pressed);
 int atlas_runtime_get_selected_object_id(void *runtimeContext);
 const char *atlas_runtime_get_selected_object_name(void *runtimeContext);
+const char *atlas_runtime_get_scene_objects(void *runtimeContext);
+bool atlas_runtime_select_object(void *runtimeContext, int id,
+                                 bool focusCamera);
+bool atlas_runtime_rename_object(void *runtimeContext, int id,
+                                 const char *name);
+int atlas_runtime_create_object(void *runtimeContext, const char *type,
+                                const char *name);
 bool atlas_runtime_save_current_scene(void *runtimeContext);
 
 /**

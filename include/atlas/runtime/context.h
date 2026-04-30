@@ -81,6 +81,8 @@ class Context {
     std::unordered_map<std::string, GameObject *> objectReferences;
     std::unordered_map<int, std::string> objectNames;
     std::unordered_map<int, std::string> objectSceneReferences;
+    std::unordered_map<int, std::string> objectSceneTypes;
+    std::unordered_map<int, std::string> objectSceneSolidTypes;
 
     ProjectConfig config;
 
@@ -96,6 +98,10 @@ class Context {
     bool editorKeyEvent(int key, bool pressed);
     int selectedObjectId() const;
     std::string selectedObjectName() const;
+    std::string sceneObjectsJson() const;
+    bool selectObject(int id, bool focusCamera);
+    bool renameObject(int id, const std::string &name);
+    int createObject(const std::string &type, const std::string &name);
     bool saveCurrentScene();
     void end();
     void loadProject();

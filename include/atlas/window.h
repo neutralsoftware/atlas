@@ -443,6 +443,7 @@ class Window {
     void editorKeyEvent(int key, bool pressed);
     GameObject *getSelectedEditorObject() const { return selectedEditorObject; }
     unsigned int getSelectedEditorObjectId() const;
+    void selectEditorObject(GameObject *object, bool focusCamera = false);
     /**
      * @brief Tears down state created by stepFrame()/run().
      */

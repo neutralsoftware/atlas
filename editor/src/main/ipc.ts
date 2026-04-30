@@ -1,4 +1,4 @@
-import { ipcMain, BrowserWindow } from "electron";
+import { ipcMain, BrowserWindow, Menu } from "electron";
 import { BUILDID, DEBUG } from "../shared/generated/build";
 import { tasks } from "./tasks/register";
 import { allWindows, engineBridge } from "./main";
@@ -6,7 +6,6 @@ import { makerRegistry } from "./windows";
 import { EditorControlMode, WindowMaker } from "src/shared/types/ipc";
 import { createProject } from "./tasks/create-project";
 import { getProjects } from "./tasks/startup";
-import { getScene } from "./project/selectScene";
 
 type OnboardingDataPayload = {
     runtimePath: string | null;
@@ -22,6 +21,12 @@ type EditorViewportBounds = {
     height: number;
     scale: number;
 };
+
+type ObjectMenuResult =
+    | { action: "create"; type: string }
+    | { action: "rename" }
+    | { action: "select" }
+    | null;
 
 let editorViewportBounds: EditorViewportBounds | null = null;
 
@@ -62,6 +67,25 @@ function sanitizeViewportBounds(
         height: Math.round(positiveNumber(candidate.height, fallbackHeight)),
         scale: positiveNumber(candidate.scale, fallbackScale),
     };
+}
+
+function emptyScene() {
+    return { name: "Scene", objects: [], selectedId: -1 };
+}
+
+function getRuntimeSceneObjects() {
+    const raw =
+        typeof engineBridge.getSceneObjects === "function"
+            ? engineBridge.getSceneObjects()
+            : "";
+    if (typeof raw !== "string" || raw.length === 0) {
+        return emptyScene();
+    }
+    try {
+        return JSON.parse(raw);
+    } catch {
+        return emptyScene();
+    }
 }
 
 export function applyEditorViewportBounds(
@@ -220,6 +244,112 @@ export function registerIpcHandlers() {
         };
     });
 
+    ipcMain.handle("editor-controls:get-scene-objects", async () => {
+        return getRuntimeSceneObjects();
+    });
+
+    ipcMain.handle(
+        "editor-controls:select-object",
+        async (_event, id, focus) => {
+            return Boolean(
+                engineBridge.selectObject(Number(id), Boolean(focus)),
+            );
+        },
+    );
+
+    ipcMain.handle(
+        "editor-controls:rename-object",
+        async (_event, id, name) => {
+            if (typeof name !== "string") {
+                return false;
+            }
+            return Boolean(engineBridge.renameObject(Number(id), name));
+        },
+    );
+
+    ipcMain.handle(
+        "editor-controls:create-object",
+        async (_event, type, name) => {
+            if (typeof type !== "string") {
+                return -1;
+            }
+            return Number(engineBridge.createObject(type, String(name ?? "")));
+        },
+    );
+
+    ipcMain.handle(
+        "editor-controls:show-object-menu",
+        async (event, payload) => {
+            const win = BrowserWindow.fromWebContents(event.sender);
+            if (!win) {
+                return null;
+            }
+
+            const hasObject =
+                payload &&
+                typeof payload === "object" &&
+                typeof payload.id === "number" &&
+                Number.isFinite(payload.id);
+
+            return new Promise<ObjectMenuResult>((resolve) => {
+                let settled = false;
+                const finish = (result: ObjectMenuResult) => {
+                    if (!settled) {
+                        settled = true;
+                        resolve(result);
+                    }
+                };
+
+                const menu = Menu.buildFromTemplate([
+                    {
+                        label: "Add New Object",
+                        submenu: [
+                            {
+                                label: "Cube",
+                                click: () =>
+                                    finish({ action: "create", type: "cube" }),
+                            },
+                            {
+                                label: "Sphere",
+                                click: () =>
+                                    finish({
+                                        action: "create",
+                                        type: "sphere",
+                                    }),
+                            },
+                            {
+                                label: "Plane",
+                                click: () =>
+                                    finish({ action: "create", type: "plane" }),
+                            },
+                            {
+                                label: "Pyramid",
+                                click: () =>
+                                    finish({
+                                        action: "create",
+                                        type: "pyramid",
+                                    }),
+                            },
+                        ],
+                    },
+                    { type: "separator" },
+                    {
+                        label: "Rename",
+                        enabled: hasObject,
+                        click: () => finish({ action: "rename" }),
+                    },
+                    {
+                        label: "Select and Frame",
+                        enabled: hasObject,
+                        click: () => finish({ action: "select" }),
+                    },
+                ]);
+
+                menu.popup({ window: win, callback: () => finish(null) });
+            });
+        },
+    );
+
     ipcMain.handle("editor-controls:save-current-scene", async () => {
         return Boolean(engineBridge.saveCurrentScene());
     });
@@ -307,6 +437,6 @@ export function registerIpcHandlers() {
     });
 
     ipcMain.handle("general:get-objects", async () => {
-        return getScene();
+        return getRuntimeSceneObjects();
     });
 }

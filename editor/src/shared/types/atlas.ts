@@ -7,6 +7,7 @@ export type Project = {
 };
 
 export type GameObject = {
+    id?: number;
     viewportId: number;
     name: string;
     type: string;
@@ -16,4 +17,5 @@ export type GameObject = {
 export type Scene = {
     name: string;
     objects: GameObject[];
+    selectedId?: number;
 };

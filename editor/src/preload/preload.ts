@@ -7,7 +7,7 @@ import type {
     StartupTaskUpdate,
     WindowApi,
 } from "../shared/types/ipc";
-import { Scene } from "src/shared/types/atlas";
+import type { Scene } from "src/shared/types/atlas";
 
 const api: WindowApi = {
     getAppInfo: () => ipcRenderer.invoke("app:get-info"),
@@ -68,6 +68,16 @@ const editorControls: EditorControlsApi = {
         ipcRenderer.invoke("editor-controls:set-playing", playing),
     setMode: (mode) => ipcRenderer.invoke("editor-controls:set-mode", mode),
     getSelection: () => ipcRenderer.invoke("editor-controls:get-selection"),
+    getSceneObjects: () =>
+        ipcRenderer.invoke("editor-controls:get-scene-objects"),
+    selectObject: (id, focus = false) =>
+        ipcRenderer.invoke("editor-controls:select-object", id, focus),
+    renameObject: (id, name) =>
+        ipcRenderer.invoke("editor-controls:rename-object", id, name),
+    createObject: (type, name = "") =>
+        ipcRenderer.invoke("editor-controls:create-object", type, name),
+    showObjectMenu: (payload) =>
+        ipcRenderer.invoke("editor-controls:show-object-menu", payload),
     saveCurrentScene: () =>
         ipcRenderer.invoke("editor-controls:save-current-scene"),
 };

@@ -1935,6 +1935,42 @@ unsigned int Window::getSelectedEditorObjectId() const {
     return selectedEditorObject != nullptr ? selectedEditorObject->getId() : 0;
 }
 
+void Window::selectEditorObject(GameObject *object, bool focusCamera) {
+    selectedEditorObject = object;
+    editorDragging = false;
+    editorActiveGizmoAxis = 0;
+    if (!focusCamera || selectedEditorObject == nullptr || camera == nullptr) {
+        return;
+    }
+
+    glm::vec3 boundsMin;
+    glm::vec3 boundsMax;
+    glm::vec3 center = selectedEditorObject->getPosition().toGlm();
+    float radius = 1.0f;
+    if (objectBounds(selectedEditorObject, boundsMin, boundsMax)) {
+        center = (boundsMin + boundsMax) * 0.5f;
+        radius = std::max(0.5f, glm::length(boundsMax - boundsMin) * 0.5f);
+    }
+
+    glm::vec3 offset = camera->position.toGlm() - camera->target.toGlm();
+    if (glm::length(offset) < 0.000001f) {
+        glm::vec3 front = camera->getFrontVector().toGlm();
+        offset = glm::length(front) > 0.000001f ? -glm::normalize(front)
+                                                : glm::vec3(0.0f, 0.0f, 1.0f);
+    } else {
+        offset = glm::normalize(offset);
+    }
+
+    float distance = std::max(3.0f, radius * 3.2f);
+    camera->position = Position3d::fromGlm(center + offset * distance);
+    camera->lookAt(Position3d::fromGlm(center));
+    editorOrbitPivot = Position3d::fromGlm(center);
+    editorOrbitDistance = distance;
+    editorOrbitPivotInitialized = true;
+    shadowMapsDirty = true;
+    ssaoMapsDirty = true;
+}
+
 void Window::editorPointerEvent(int action, float x, float y, int button,
                                 float scale) {
     if (!editorControlsEnabled) {

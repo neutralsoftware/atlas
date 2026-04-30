@@ -23,6 +23,7 @@
 #include "aurora/procedural.h"
 #include "aurora/terrain.h"
 #include "atlas/runtime/atlasScripts.h"
+#include "hydra/fluid.h"
 #include <algorithm>
 #include <array>
 #include <cctype>
@@ -35,6 +36,7 @@
 #include <json.hpp>
 #include <string>
 #include <toml.hpp>
+#include <unordered_set>
 #include <variant>
 #include <vector>
 
@@ -1410,6 +1412,13 @@ void registerGameObject(Context &context, GameObject &object,
     registerObjectReference(context, name, &object);
     context.objectNames[object.getId()] = name;
     context.objectSceneReferences[object.getId()] = name;
+    context.objectSceneTypes[object.getId()] = objectType;
+    if (objectType == "solid") {
+        std::string solidType;
+        tryReadStringAny(objectData, {"solid_type", "solidType"}, solidType);
+        context.objectSceneSolidTypes[object.getId()] =
+            normalizeToken(solidType);
+    }
 
     if (const json *idField = findField(objectData, {"id"});
         idField != nullptr) {
@@ -1548,8 +1557,18 @@ json serializeNewObject(const Context &context, GameObject &object) {
         node["name"] = name;
     }
     node["id"] = static_cast<int>(object.getId());
-    node["type"] = "solid";
-    node["solid_type"] = "cube";
+    const int id = static_cast<int>(object.getId());
+    auto typeIt = context.objectSceneTypes.find(id);
+    const std::string type =
+        typeIt != context.objectSceneTypes.end() ? typeIt->second : "solid";
+    node["type"] = type;
+    if (type == "solid") {
+        auto solidIt = context.objectSceneSolidTypes.find(id);
+        node["solid_type"] =
+            solidIt != context.objectSceneSolidTypes.end()
+                ? solidIt->second
+                : "cube";
+    }
     writeObjectTransform(node, context, object);
     return node;
 }
@@ -3310,6 +3329,254 @@ std::string Context::selectedObjectName() const {
     return std::to_string(id);
 }
 
+namespace {
+GameObject *findContextObject(const Context &context, int id) {
+    for (const auto &renderable : context.objects) {
+        if (renderable == nullptr) {
+            continue;
+        }
+        auto *object = dynamic_cast<GameObject *>(renderable.get());
+        if (object != nullptr && static_cast<int>(object->getId()) == id) {
+            return object;
+        }
+    }
+    return nullptr;
+}
+
+std::string editorObjectName(const Context &context, GameObject &object) {
+    if (!object.name.empty()) {
+        return object.name;
+    }
+    auto it = context.objectNames.find(static_cast<int>(object.getId()));
+    if (it != context.objectNames.end()) {
+        return it->second;
+    }
+    return std::to_string(object.getId());
+}
+
+std::string editorObjectType(const Context &context, GameObject &object) {
+    const int id = static_cast<int>(object.getId());
+    auto sceneType = context.objectSceneTypes.find(id);
+    if (sceneType != context.objectSceneTypes.end()) {
+        if (sceneType->second == "solid") {
+            auto solidType = context.objectSceneSolidTypes.find(id);
+            if (solidType != context.objectSceneSolidTypes.end() &&
+                !solidType->second.empty()) {
+                return solidType->second;
+            }
+        }
+        return sceneType->second;
+    }
+    if (dynamic_cast<CompoundObject *>(&object) != nullptr) {
+        return "compound";
+    }
+    if (dynamic_cast<Model *>(&object) != nullptr) {
+        return "model";
+    }
+    if (dynamic_cast<Terrain *>(&object) != nullptr) {
+        return "terrain";
+    }
+    if (dynamic_cast<ParticleEmitter *>(&object) != nullptr) {
+        return "particleEmitter";
+    }
+    if (dynamic_cast<Fluid *>(&object) != nullptr) {
+        return "fluid";
+    }
+    if (dynamic_cast<UIObject *>(&object) != nullptr) {
+        return "uiObject";
+    }
+    if (dynamic_cast<CoreObject *>(&object) != nullptr) {
+        return "solid";
+    }
+    return "gameObject";
+}
+
+json editorObjectJson(const Context &context, GameObject &object,
+                      std::unordered_set<int> &visiting) {
+    const int id = static_cast<int>(object.getId());
+    json node = json::object();
+    node["id"] = id;
+    node["viewportId"] = id;
+    node["name"] = editorObjectName(context, object);
+    node["type"] = editorObjectType(context, object);
+
+    if (visiting.contains(id)) {
+        return node;
+    }
+    visiting.insert(id);
+
+    if (auto *compound = dynamic_cast<CompoundObject *>(&object);
+        compound != nullptr && !compound->objects.empty()) {
+        node["children"] = json::array();
+        for (GameObject *child : compound->objects) {
+            if (child != nullptr) {
+                node["children"].push_back(
+                    editorObjectJson(context, *child, visiting));
+            }
+        }
+    }
+
+    visiting.erase(id);
+    return node;
+}
+
+std::string uniqueEditorObjectName(const Context &context,
+                                   const std::string &baseName) {
+    std::string base = baseName.empty() ? "Object" : baseName;
+    auto exists = [&](const std::string &name) {
+        const std::string normalized = normalizeToken(name);
+        for (const auto &[id, existingName] : context.objectNames) {
+            (void)id;
+            if (existingName == name ||
+                normalizeToken(existingName) == normalized) {
+                return true;
+            }
+        }
+        if (context.objectReferences.contains(name) ||
+            context.objectReferences.contains(normalized)) {
+            return true;
+        }
+        return false;
+    };
+
+    if (!exists(base)) {
+        return base;
+    }
+
+    for (int index = 2; index < 100000; ++index) {
+        std::string candidate = base + " " + std::to_string(index);
+        if (!exists(candidate)) {
+            return candidate;
+        }
+    }
+    return base + " " + std::to_string(context.objects.size() + 1);
+}
+}
+
+std::string Context::sceneObjectsJson() const {
+    json snapshot = json::object();
+    snapshot["name"] =
+        currentSceneName.empty()
+            ? std::filesystem::path(currentSceneFile).stem().string()
+            : currentSceneName;
+    snapshot["selectedId"] = selectedObjectId();
+    snapshot["objects"] = json::array();
+
+    std::unordered_set<GameObject *> compoundChildren;
+    for (const auto &renderable : objects) {
+        if (renderable == nullptr) {
+            continue;
+        }
+        auto *compound = dynamic_cast<CompoundObject *>(renderable.get());
+        if (compound == nullptr) {
+            continue;
+        }
+        for (GameObject *child : compound->objects) {
+            if (child != nullptr) {
+                compoundChildren.insert(child);
+            }
+        }
+    }
+
+    std::unordered_set<int> visiting;
+    for (const auto &renderable : objects) {
+        if (renderable == nullptr) {
+            continue;
+        }
+        auto *object = dynamic_cast<GameObject *>(renderable.get());
+        if (object == nullptr || compoundChildren.contains(object)) {
+            continue;
+        }
+        snapshot["objects"].push_back(
+            editorObjectJson(*this, *object, visiting));
+    }
+
+    return snapshot.dump();
+}
+
+bool Context::selectObject(int id, bool focusCamera) {
+    if (window == nullptr) {
+        return false;
+    }
+    GameObject *object = findContextObject(*this, id);
+    if (object == nullptr) {
+        return false;
+    }
+    window->selectEditorObject(object, focusCamera);
+    return true;
+}
+
+bool Context::renameObject(int id, const std::string &name) {
+    if (name.empty()) {
+        return false;
+    }
+    GameObject *object = findContextObject(*this, id);
+    if (object == nullptr) {
+        return false;
+    }
+
+    const std::string normalized = normalizeToken(name);
+    for (const auto &[key, referenced] : objectReferences) {
+        if ((key == name || key == normalized) && referenced != object) {
+            return false;
+        }
+    }
+
+    object->name = name;
+    objectNames[id] = name;
+    registerObjectReference(*this, name, object);
+    registerObjectReference(*this, std::to_string(id), object);
+    return true;
+}
+
+int Context::createObject(const std::string &type, const std::string &name) {
+    if (window == nullptr) {
+        return -1;
+    }
+
+    const std::string normalized = normalizeToken(type);
+    auto object = std::make_shared<CoreObject>();
+    std::string solidType = normalized.empty() ? "cube" : normalized;
+
+    if (solidType == "cube" || solidType == "box") {
+        solidType = "cube";
+        *object = createBox({1.0f, 1.0f, 1.0f}, Color::white());
+    } else if (solidType == "sphere") {
+        *object = createSphere(0.5f, 36, 18, Color::white());
+    } else if (solidType == "plane") {
+        *object = createPlane({1.0f, 1.0f}, Color::white());
+    } else if (solidType == "pyramid") {
+        *object = createPyramid({1.0f, 1.0f, 1.0f}, Color::white());
+    } else {
+        return -1;
+    }
+
+    Position3d position = Position3d::zero();
+    if (window->getSelectedEditorObject() != nullptr) {
+        position = window->getSelectedEditorObject()->getPosition();
+        position.x += 1.25f;
+    } else if (window->getCamera() != nullptr) {
+        position = window->getCamera()->target;
+    }
+    object->setPosition(position);
+
+    const int id = static_cast<int>(object->getId());
+    const std::string displayName =
+        uniqueEditorObjectName(*this, name.empty() ? solidType : name);
+    object->name = displayName;
+    objectNames[id] = displayName;
+    objectSceneReferences[id] = std::to_string(id);
+    objectSceneTypes[id] = "solid";
+    objectSceneSolidTypes[id] = solidType;
+    registerObjectReference(*this, displayName, object.get());
+    registerObjectReference(*this, std::to_string(id), object.get());
+
+    objects.push_back(object);
+    window->addObject(object.get());
+    window->selectEditorObject(object.get(), true);
+    return id;
+}
+
 bool Context::saveCurrentScene() {
     if (currentSceneFile.empty()) {
         return false;
@@ -3535,6 +3802,8 @@ void Context::loadScene(Window &window, const json &sceneData) {
     objectReferences.clear();
     objectNames.clear();
     objectSceneReferences.clear();
+    objectSceneTypes.clear();
+    objectSceneSolidTypes.clear();
     renderTargets.clear();
     directionalLights.clear();
     pointLights.clear();

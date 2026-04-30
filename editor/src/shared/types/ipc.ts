@@ -114,6 +114,19 @@ export interface EditorControlsApi {
     setPlaying(playing: boolean): Promise<void>;
     setMode(mode: EditorControlMode): Promise<void>;
     getSelection(): Promise<{ id: number; name: string }>;
+    getSceneObjects(): Promise<Scene>;
+    selectObject(id: number, focus?: boolean): Promise<boolean>;
+    renameObject(id: number, name: string): Promise<boolean>;
+    createObject(type: string, name?: string): Promise<number>;
+    showObjectMenu(payload?: {
+        id?: number;
+        name?: string;
+    }): Promise<
+        | { action: "create"; type: string }
+        | { action: "rename" }
+        | { action: "select" }
+        | null
+    >;
     saveCurrentScene(): Promise<boolean>;
 }
 
