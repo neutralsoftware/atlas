@@ -6,6 +6,7 @@ import { makerRegistry } from "./windows";
 import { EditorControlMode, WindowMaker } from "src/shared/types/ipc";
 import { createProject } from "./tasks/create-project";
 import { getProjects } from "./tasks/startup";
+import { getScene } from "./project/selectScene";
 
 type OnboardingDataPayload = {
     runtimePath: string | null;
@@ -303,5 +304,9 @@ export function registerIpcHandlers() {
             projects.find((project) => project.path === currentProjectPath) ??
             null
         );
+    });
+
+    ipcMain.handle("general:get-objects", async () => {
+        return getScene();
     });
 }

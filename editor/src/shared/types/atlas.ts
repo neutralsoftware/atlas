@@ -10,6 +10,7 @@ export type GameObject = {
     viewportId: number;
     name: string;
     type: string;
+    children?: GameObject[];
 };
 
 export type Scene = {

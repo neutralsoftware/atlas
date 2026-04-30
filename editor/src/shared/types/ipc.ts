@@ -1,4 +1,4 @@
-import { Project } from "./atlas";
+import { Project, Scene } from "./atlas";
 
 export type AppPlatform =
     | "aix"
@@ -106,6 +106,7 @@ export interface GeneralTask {
     }): Promise<Project>;
     openProject(payload: { path: string }): Promise<void>;
     getCurrentProject(): Promise<Project | null>;
+    getObjects(): Promise<Scene>;
 }
 
 export interface EditorControlsApi {

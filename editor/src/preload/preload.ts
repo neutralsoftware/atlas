@@ -7,6 +7,7 @@ import type {
     StartupTaskUpdate,
     WindowApi,
 } from "../shared/types/ipc";
+import { Scene } from "src/shared/types/atlas";
 
 const api: WindowApi = {
     getAppInfo: () => ipcRenderer.invoke("app:get-info"),
@@ -57,6 +58,7 @@ const generalTasks: GeneralTask = {
     openProject: (payload) =>
         ipcRenderer.invoke("general:open-project", payload),
     getCurrentProject: () => ipcRenderer.invoke("general:get-current-project"),
+    getObjects: (): Promise<Scene> => ipcRenderer.invoke("general:get-objects"),
 };
 
 const editorControls: EditorControlsApi = {
