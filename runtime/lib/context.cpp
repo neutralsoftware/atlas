@@ -1918,6 +1918,7 @@ std::shared_ptr<CoreObject> createEditorLightProxy(const std::string &type,
     object->material.emissiveColor = color;
     object->material.emissiveIntensity = 1.5f;
     object->castsShadows = false;
+    object->editorOnly = true;
     return object;
 }
 
@@ -3438,6 +3439,7 @@ makeContextWithWindowOptions(std::string projectFile, void *metalView,
     }
 
     toml::table configTable = toml::parse_file(projectFile);
+    context->editorRuntime = metalView != nullptr;
 
     int resWidth = 1280;
     int resHeight = 720;
@@ -4675,13 +4677,15 @@ void Context::loadScene(Window &window, const json &sceneData) {
                 JSON_READ_FLOAT(lightData, "intensity", intensity);
                 scene->setAmbientColor(ambientColor);
                 scene->setAmbientIntensity(intensity * 4.0f);
-                Position3d position = Position3d::zero();
-                tryReadVec3(lightData, "position", position);
-                auto object = createEditorLightProxy("ambientLight",
-                                                     ambientColor, position);
-                int id = registerEditorLightObject(*this, object, lightData,
-                                                   "ambientLight");
-                (void)id;
+                if (editorRuntime) {
+                    Position3d position = Position3d::zero();
+                    tryReadVec3(lightData, "position", position);
+                    auto object = createEditorLightProxy(
+                        "ambientLight", ambientColor, position);
+                    int id = registerEditorLightObject(*this, object, lightData,
+                                                       "ambientLight");
+                    (void)id;
+                }
                 continue;
             }
 
@@ -4706,16 +4710,18 @@ void Context::loadScene(Window &window, const json &sceneData) {
                 if (castsShadows) {
                     light->castShadows(window, shadowResolution);
                 }
-                Position3d position = Position3d::zero();
-                tryReadVec3(lightData, "position", position);
-                auto object =
-                    createEditorLightProxy("directionalLight", color, position);
-                object->lookAt(position + direction.normalized(),
-                               Position3d::up());
-                int id = registerEditorLightObject(*this, object, lightData,
-                                                   "directionalLight");
-                if (id >= 0) {
-                    editorDirectionalLights[id] = light.get();
+                if (editorRuntime) {
+                    Position3d position = Position3d::zero();
+                    tryReadVec3(lightData, "position", position);
+                    auto object = createEditorLightProxy("directionalLight",
+                                                         color, position);
+                    object->lookAt(position + direction.normalized(),
+                                   Position3d::up());
+                    int id = registerEditorLightObject(*this, object, lightData,
+                                                       "directionalLight");
+                    if (id >= 0) {
+                        editorDirectionalLights[id] = light.get();
+                    }
                 }
                 scene->addDirectionalLight(light.get());
                 directionalLights.push_back(std::move(light));
@@ -4746,14 +4752,17 @@ void Context::loadScene(Window &window, const json &sceneData) {
                 if (castsShadows) {
                     light->castShadows(window, shadowResolution);
                 }
-                light->createDebugObject();
-                if (light->debugObject != nullptr) {
-                    int id = registerEditorLightObject(
-                        *this, light->debugObject, lightData, "pointLight");
-                    if (id >= 0) {
-                        editorPointLights[id] = light.get();
-                        if (addDebugObject) {
-                            editorLightSourceData[id]["addDebugObject"] = true;
+                if (editorRuntime) {
+                    light->createDebugObject();
+                    if (light->debugObject != nullptr) {
+                        int id = registerEditorLightObject(
+                            *this, light->debugObject, lightData, "pointLight");
+                        if (id >= 0) {
+                            editorPointLights[id] = light.get();
+                            if (addDebugObject) {
+                                editorLightSourceData[id]["addDebugObject"] =
+                                    true;
+                            }
                         }
                     }
                 }
@@ -4793,14 +4802,17 @@ void Context::loadScene(Window &window, const json &sceneData) {
                 if (castsShadows) {
                     light->castShadows(window, shadowResolution);
                 }
-                light->createDebugObject();
-                if (light->debugObject != nullptr) {
-                    int id = registerEditorLightObject(
-                        *this, light->debugObject, lightData, "spotLight");
-                    if (id >= 0) {
-                        editorSpotlights[id] = light.get();
-                        if (addDebugObject) {
-                            editorLightSourceData[id]["addDebugObject"] = true;
+                if (editorRuntime) {
+                    light->createDebugObject();
+                    if (light->debugObject != nullptr) {
+                        int id = registerEditorLightObject(
+                            *this, light->debugObject, lightData, "spotLight");
+                        if (id >= 0) {
+                            editorSpotlights[id] = light.get();
+                            if (addDebugObject) {
+                                editorLightSourceData[id]["addDebugObject"] =
+                                    true;
+                            }
                         }
                     }
                 }
@@ -4843,14 +4855,17 @@ void Context::loadScene(Window &window, const json &sceneData) {
                 if (castsShadows) {
                     light->castShadows(window, shadowResolution);
                 }
-                light->createDebugObject();
-                if (light->debugObject != nullptr) {
-                    int id = registerEditorLightObject(
-                        *this, light->debugObject, lightData, "areaLight");
-                    if (id >= 0) {
-                        editorAreaLights[id] = light.get();
-                        if (addDebugObject) {
-                            editorLightSourceData[id]["addDebugObject"] = true;
+                if (editorRuntime) {
+                    light->createDebugObject();
+                    if (light->debugObject != nullptr) {
+                        int id = registerEditorLightObject(
+                            *this, light->debugObject, lightData, "areaLight");
+                        if (id >= 0) {
+                            editorAreaLights[id] = light.get();
+                            if (addDebugObject) {
+                                editorLightSourceData[id]["addDebugObject"] =
+                                    true;
+                            }
                         }
                     }
                 }

@@ -75,6 +75,7 @@ class Context {
     std::vector<std::unique_ptr<AreaLight>> areaLights;
     std::vector<std::string> cameraActions;
     bool cameraAutomaticMoving = false;
+    bool editorRuntime = false;
 
     std::unique_ptr<Window> window;
     std::vector<std::shared_ptr<Renderable>> objects;

@@ -24,7 +24,6 @@ dist-ssr
 *.sw?
 dist-electron
 
-public
 release
 release-dev
 

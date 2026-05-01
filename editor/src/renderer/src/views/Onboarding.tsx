@@ -99,7 +99,7 @@ export default function Onboarding() {
                     <p className="mt-4 text-center text-xs">{welcomeMessage}</p>
                     <figure className="w-full flex flex-col items-center mt-10">
                         <img
-                            src="../../assets/sign.jpg"
+                            src="./sign.jpg"
                             alt="Signature"
                             className="w-40"
                         ></img>

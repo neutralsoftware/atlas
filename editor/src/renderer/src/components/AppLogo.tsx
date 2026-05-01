@@ -20,13 +20,13 @@ export default function AppLogo({ className }: Props) {
         <div>
             {(!appInfo.debug && (
                 <img
-                    src="../../assets/iconRelease.png"
+                    src="./iconRelease.png"
                     className={className}
                     alt="App Logo"
                 />
             )) || (
                 <img
-                    src="../../assets/iconDebug.png"
+                    src="./iconDebug.png"
                     alt="App Logo"
                     className={className}
                 />

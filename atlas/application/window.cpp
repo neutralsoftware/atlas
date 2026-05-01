@@ -1674,6 +1674,7 @@ bool Window::stepFrame() {
                 if (obj->canUseDeferredRendering()) {
                     return;
                 }
+                if (obj && obj->editorOnly && !this->areEditorControlsEnabled()) return;
                 obj->setViewMatrix(this->camera->calculateViewMatrix());
                 obj->setProjectionMatrix(calculateProjectionMatrix());
                 obj->render(getDeltaTime(), commandBuffer,
@@ -1692,6 +1693,7 @@ bool Window::stepFrame() {
             }
 
             for (auto &obj : this->lateForwardRenderables) {
+                if (obj && obj->editorOnly && !this->areEditorControlsEnabled()) continue;
                 obj->setViewMatrix(this->camera->calculateViewMatrix());
                 obj->setProjectionMatrix(calculateProjectionMatrix());
                 obj->render(getDeltaTime(), commandBuffer,
@@ -1710,6 +1712,7 @@ bool Window::stepFrame() {
         renderEditorGrid(commandBuffer);
 
         for (auto &obj : this->firstRenderables) {
+            if (obj && obj->editorOnly && !this->areEditorControlsEnabled()) continue;
             obj->setViewMatrix(this->camera->calculateViewMatrix());
             obj->setProjectionMatrix(calculateProjectionMatrix());
             obj->render(getDeltaTime(), commandBuffer,
@@ -1720,6 +1723,7 @@ bool Window::stepFrame() {
             if (obj->renderLateForward) {
                 continue;
             }
+            if (obj && obj->editorOnly && !this->areEditorControlsEnabled()) continue;
             obj->setViewMatrix(this->camera->calculateViewMatrix());
             obj->setProjectionMatrix(calculateProjectionMatrix());
             obj->render(getDeltaTime(), commandBuffer,
@@ -1727,6 +1731,7 @@ bool Window::stepFrame() {
         }
         updateFluidCaptures(commandBuffer);
         for (auto &obj : this->lateForwardRenderables) {
+            if (obj && obj->editorOnly && !this->areEditorControlsEnabled()) continue;
             obj->setViewMatrix(this->camera->calculateViewMatrix());
             obj->setProjectionMatrix(calculateProjectionMatrix());
             obj->render(getDeltaTime(), commandBuffer,
@@ -1758,6 +1763,7 @@ bool Window::stepFrame() {
         this->currentRenderTarget = this->screenRenderTarget.get();
         renderEditorGrid(commandBuffer);
         for (auto &obj : this->firstRenderables) {
+            if (obj && obj->editorOnly && !this->areEditorControlsEnabled()) continue;
             obj->setViewMatrix(this->camera->calculateViewMatrix());
             obj->setProjectionMatrix(calculateProjectionMatrix());
             obj->render(getDeltaTime(), commandBuffer,
@@ -1768,6 +1774,7 @@ bool Window::stepFrame() {
             if (obj->renderLateForward) {
                 continue;
             }
+            if (obj && obj->editorOnly && !this->areEditorControlsEnabled()) continue;
             obj->setViewMatrix(this->camera->calculateViewMatrix());
             obj->setProjectionMatrix(calculateProjectionMatrix());
             obj->render(getDeltaTime(), commandBuffer,
@@ -1777,6 +1784,7 @@ bool Window::stepFrame() {
         updateFluidCaptures(commandBuffer);
 
         for (auto &obj : this->lateForwardRenderables) {
+            if (obj && obj->editorOnly && !this->areEditorControlsEnabled()) continue;
             obj->setViewMatrix(this->camera->calculateViewMatrix());
             obj->setProjectionMatrix(calculateProjectionMatrix());
             obj->render(getDeltaTime(), commandBuffer,
@@ -1789,6 +1797,7 @@ bool Window::stepFrame() {
     }
 
     for (auto &obj : this->preferenceRenderables) {
+        if (obj && obj->editorOnly && !this->areEditorControlsEnabled()) continue;
         obj->setViewMatrix(this->camera->calculateViewMatrix());
         obj->setProjectionMatrix(calculateProjectionMatrix());
         obj->render(getDeltaTime(), commandBuffer, shouldRefreshPipeline(obj));
@@ -4342,6 +4351,7 @@ void Window::captureFluidReflection(
             if (dynamic_cast<Fluid *>(obj) == &fluid) {
                 continue;
             }
+            if (obj && obj->editorOnly && !this->areEditorControlsEnabled()) continue;
             obj->setViewMatrix(view);
             obj->setProjectionMatrix(projection);
             obj->render(getDeltaTime(), commandBuffer,
@@ -4468,6 +4478,7 @@ void Window::captureFluidRefraction(
             if (dynamic_cast<Fluid *>(obj) == &fluid) {
                 continue;
             }
+            if (obj && obj->editorOnly && !this->areEditorControlsEnabled()) continue;
             obj->setViewMatrix(view);
             obj->setProjectionMatrix(projection);
             obj->render(getDeltaTime(), commandBuffer,

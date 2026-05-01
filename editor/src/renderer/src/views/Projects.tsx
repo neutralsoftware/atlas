@@ -298,7 +298,7 @@ export default function Projects() {
                         }}
                     >
                         <img
-                            src="../../assets/atlasBall.png"
+                            src="./atlasBall.png"
                             alt="Atlas Engine Logo"
                             className="w-5 h-5"
                         />

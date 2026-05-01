@@ -18,7 +18,7 @@ const options: ProjectOption[] = [
         name: "PBR (Physically Based Rendering)",
         description:
             "Create a project with a good balance of visual quality and performance, suitable for most applications.",
-        image: "../../../assets/pbr.png",
+        image: "./pbr.png",
         color: "bg-green-500",
     },
     {
@@ -26,7 +26,7 @@ const options: ProjectOption[] = [
         name: "Path Tracing",
         description:
             "Create a project with hyperrealistic lighting that consumes significant computational resources.",
-        image: "../../../assets/pathtracing.png",
+        image: "./pathtracing.png",
         color: "bg-red-500",
     },
     {
@@ -34,7 +34,7 @@ const options: ProjectOption[] = [
         name: "PBR and Global Illumination",
         description:
             "Create a project with enhanced lighting effects that combines PBR with real-time global illumination techniques.",
-        image: "../../../assets/gi.png",
+        image: "./gi.png",
         color: "bg-blue-500",
     },
 ];

@@ -207,6 +207,45 @@ export const viewport: WindowMaker<BrowserWindow> = async () => {
     const windowIcon = getWindowIcon();
     clearEditorViewportBounds();
 
+    const splash = new BrowserWindow({
+        width: 1080,
+        height: 720,
+        resizable: false,
+        minimizable: false,
+        maximizable: false,
+        fullscreenable: false,
+        frame: false,
+        hasShadow: true,
+        transparent: true,
+        alwaysOnTop: true,
+        center: true,
+        skipTaskbar: true,
+        show: true,
+        ...(windowIcon ? { icon: windowIcon } : {}),
+        webPreferences: {
+            preload: getPreloadPath(),
+            contextIsolation: true,
+            nodeIntegration: false,
+            sandbox: true,
+        },
+    });
+
+    const splashDevServerUrl = "http://localhost:5173/#/editorSplash";
+    let splashLoaded = false;
+    if (!app.isPackaged && DEBUG) {
+        try {
+            await splash.loadURL(splashDevServerUrl);
+            splashLoaded = true;
+        } catch {}
+    }
+    if (!splashLoaded) {
+        await splash.loadFile(getRendererIndexPath(), { hash: "/editorSplash" });
+    }
+
+    // Wait a brief moment to ensure splash renders
+    await new Promise<void>((resolve) => setTimeout(resolve, 500));
+
+
     const win = new BrowserWindow({
         width: 1200,
         height: 800,
@@ -304,6 +343,7 @@ export const viewport: WindowMaker<BrowserWindow> = async () => {
 
     resizeEditorToWindow(win);
     win.show();
+    if (!splash.isDestroyed()) splash.close();
 
     const targetEditorFps = 60;
     frameTimer = setInterval(() => {
