@@ -80,6 +80,8 @@ const editorControls: EditorControlsApi = {
             childId,
             parentId,
         ),
+    deleteObject: (id) =>
+        ipcRenderer.invoke("editor-controls:delete-object", id),
     createObject: (type, name = "") =>
         ipcRenderer.invoke("editor-controls:create-object", type, name),
     showObjectMenu: (payload) =>

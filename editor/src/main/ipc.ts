@@ -27,6 +27,7 @@ type ObjectMenuResult =
     | { action: "rename" }
     | { action: "select" }
     | { action: "unparent" }
+    | { action: "delete" }
     | null;
 
 let editorViewportBounds: EditorViewportBounds | null = null;
@@ -280,6 +281,10 @@ export function registerIpcHandlers() {
         },
     );
 
+    ipcMain.handle("editor-controls:delete-object", async (_event, id) => {
+        return Boolean(engineBridge.deleteObject(Number(id)));
+    });
+
     ipcMain.handle(
         "editor-controls:create-object",
         async (_event, type, name) => {
@@ -385,6 +390,12 @@ export function registerIpcHandlers() {
                         label: "Clear Parent",
                         enabled: hasObject,
                         click: () => finish({ action: "unparent" }),
+                    },
+                    { type: "separator" },
+                    {
+                        label: "Delete",
+                        enabled: hasObject,
+                        click: () => finish({ action: "delete" }),
                     },
                 ]);
 

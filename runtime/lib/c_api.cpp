@@ -319,6 +319,23 @@ bool atlas_runtime_set_object_parent(void *runtimeContext, int childId,
     }
 }
 
+bool atlas_runtime_delete_object(void *runtimeContext, int id) {
+    if (runtimeContext == nullptr) {
+        return false;
+    }
+    try {
+        auto *handle = reinterpret_cast<RuntimeContextHandle *>(runtimeContext);
+        if (*handle == nullptr) {
+            return false;
+        }
+        return (*handle)->deleteObject(id);
+    } catch (const std::exception &) {
+        return false;
+    } catch (...) {
+        return false;
+    }
+}
+
 int atlas_runtime_create_object(void *runtimeContext, const char *type,
                                 const char *name) {
     if (runtimeContext == nullptr || type == nullptr) {

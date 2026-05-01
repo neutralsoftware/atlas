@@ -34,6 +34,7 @@ using RuntimeRenameObjectFn = bool (*)(void *runtimeContext, int id,
                                        const char *name);
 using RuntimeSetObjectParentFn = bool (*)(void *runtimeContext, int childId,
                                           int parentId);
+using RuntimeDeleteObjectFn = bool (*)(void *runtimeContext, int id);
 using RuntimeCreateObjectFn = int (*)(void *runtimeContext, const char *type,
                                       const char *name);
 using RuntimeSaveCurrentSceneFn = bool (*)(void *runtimeContext);
@@ -58,6 +59,7 @@ struct BridgeState {
     RuntimeSelectObjectFn selectObjectFn = nullptr;
     RuntimeRenameObjectFn renameObjectFn = nullptr;
     RuntimeSetObjectParentFn setObjectParentFn = nullptr;
+    RuntimeDeleteObjectFn deleteObjectFn = nullptr;
     RuntimeCreateObjectFn createObjectFn = nullptr;
     RuntimeSaveCurrentSceneFn saveCurrentSceneFn = nullptr;
     RuntimeStepFn stepFn = nullptr;
@@ -507,6 +509,7 @@ static void unloadEditorIfNeeded() {
     bridgeState.selectObjectFn = nullptr;
     bridgeState.renameObjectFn = nullptr;
     bridgeState.setObjectParentFn = nullptr;
+    bridgeState.deleteObjectFn = nullptr;
     bridgeState.createObjectFn = nullptr;
     bridgeState.saveCurrentSceneFn = nullptr;
     bridgeState.stepFn = nullptr;
@@ -579,6 +582,8 @@ Napi::Value LoadLibrary(const Napi::CallbackInfo &info) {
         requireSymbol(handle, "atlas_runtime_rename_object"));
     bridgeState.setObjectParentFn = reinterpret_cast<RuntimeSetObjectParentFn>(
         requireSymbol(handle, "atlas_runtime_set_object_parent"));
+    bridgeState.deleteObjectFn = reinterpret_cast<RuntimeDeleteObjectFn>(
+        requireSymbol(handle, "atlas_runtime_delete_object"));
     bridgeState.createObjectFn = reinterpret_cast<RuntimeCreateObjectFn>(
         requireSymbol(handle, "atlas_runtime_create_object"));
     bridgeState.saveCurrentSceneFn = reinterpret_cast<RuntimeSaveCurrentSceneFn>(
@@ -1024,6 +1029,22 @@ Napi::Value SetObjectParent(const Napi::CallbackInfo &info) {
                                            parentId));
 }
 
+Napi::Value DeleteObject(const Napi::CallbackInfo &info) {
+    Napi::Env env = info.Env();
+
+    if (!bridgeState.runtimeContext || !bridgeState.deleteObjectFn) {
+        return Napi::Boolean::New(env, false);
+    }
+
+    if (info.Length() < 1 || !info[0].IsNumber()) {
+        throw Napi::TypeError::New(env, "deleteObject(id)");
+    }
+
+    int id = info[0].As<Napi::Number>().Int32Value();
+    return Napi::Boolean::New(
+        env, bridgeState.deleteObjectFn(bridgeState.runtimeContext, id));
+}
+
 Napi::Value CreateObject(const Napi::CallbackInfo &info) {
     Napi::Env env = info.Env();
 
@@ -1099,6 +1120,7 @@ Napi::Object Init(Napi::Env env, Napi::Object exports) {
     exports.Set("selectObject", Napi::Function::New(env, SelectObject));
     exports.Set("renameObject", Napi::Function::New(env, RenameObject));
     exports.Set("setObjectParent", Napi::Function::New(env, SetObjectParent));
+    exports.Set("deleteObject", Napi::Function::New(env, DeleteObject));
     exports.Set("createObject", Napi::Function::New(env, CreateObject));
     exports.Set("saveCurrentScene", Napi::Function::New(env, SaveCurrentScene));
     exports.Set("step", Napi::Function::New(env, Step));

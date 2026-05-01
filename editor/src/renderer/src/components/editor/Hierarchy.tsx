@@ -2,9 +2,13 @@ import {
     ApertureIcon,
     AppWindowIcon,
     ArchiveIcon,
+    AtomIcon,
+    BlocksIcon,
     BoxIcon,
     ChevronDown,
+    MountainIcon,
     PlusIcon,
+    TorusIcon,
 } from "lucide-react";
 import {
     Fragment,
@@ -35,19 +39,19 @@ const objectTypes: Record<string, ReactNode> = {
     coreobject: <BoxIcon className="h-3.5 w-3.5" />,
     solid: <BoxIcon className="h-3.5 w-3.5" />,
     cube: <BoxIcon className="h-3.5 w-3.5" />,
-    sphere: <AppWindowIcon className="h-3.5 w-3.5" />,
-    plane: <AppWindowIcon className="h-3.5 w-3.5" />,
-    pyramid: <ArchiveIcon className="h-3.5 w-3.5" />,
-    capsule: <AppWindowIcon className="h-3.5 w-3.5" />,
+    sphere: <BoxIcon className="h-3.5 w-3.5" />,
+    plane: <BoxIcon className="h-3.5 w-3.5" />,
+    pyramid: <BoxIcon className="h-3.5 w-3.5" />,
+    capsule: <BoxIcon className="h-3.5 w-3.5" />,
     group: <ArchiveIcon className="h-3.5 w-3.5" />,
-    model: <AppWindowIcon className="h-3.5 w-3.5" />,
+    model: <TorusIcon className="h-3.5 w-3.5" />,
     compound: <ArchiveIcon className="h-3.5 w-3.5" />,
-    terrain: <AppWindowIcon className="h-3.5 w-3.5" />,
-    particleEmitter: <ArchiveIcon className="h-3.5 w-3.5" />,
-    particleemitter: <ArchiveIcon className="h-3.5 w-3.5" />,
+    terrain: <MountainIcon className="h-3.5 w-3.5" />,
+    particleEmitter: <AtomIcon className="h-3.5 w-3.5" />,
+    particleemitter: <AtomIcon className="h-3.5 w-3.5" />,
     fluid: <AppWindowIcon className="h-3.5 w-3.5" />,
-    uiObject: <AppWindowIcon className="h-3.5 w-3.5" />,
-    uiobject: <AppWindowIcon className="h-3.5 w-3.5" />,
+    uiObject: <BlocksIcon className="h-3.5 w-3.5" />,
+    uiobject: <BlocksIcon className="h-3.5 w-3.5" />,
 };
 
 function objectId(object: GameObject) {
@@ -164,6 +168,12 @@ export default function Hierarchy() {
 
         if (result.action === "unparent") {
             await window.editorControls.setObjectParent(objectId(object), null);
+            await refreshScene();
+            return;
+        }
+
+        if (result.action === "delete") {
+            await window.editorControls.deleteObject(objectId(object));
             await refreshScene();
         }
     }

@@ -118,6 +118,7 @@ export interface EditorControlsApi {
     selectObject(id: number, focus?: boolean): Promise<boolean>;
     renameObject(id: number, name: string): Promise<boolean>;
     setObjectParent(childId: number, parentId: number | null): Promise<boolean>;
+    deleteObject(id: number): Promise<boolean>;
     createObject(type: string, name?: string): Promise<number>;
     showObjectMenu(payload?: {
         id?: number;
@@ -127,6 +128,7 @@ export interface EditorControlsApi {
         | { action: "rename" }
         | { action: "select" }
         | { action: "unparent" }
+        | { action: "delete" }
         | null
     >;
     saveCurrentScene(): Promise<boolean>;

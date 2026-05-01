@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useEffectEvent, useRef, useState } from "react";
 import type { PointerEvent, WheelEvent } from "react";
 import TopSelector from "../components/editor/TopSelector";
 import Hierarchy from "../components/editor/Hierarchy";
@@ -81,15 +81,10 @@ export default function EditorOverlay() {
         savedSceneSignatureRef.current = sceneSignature(scene);
         setSceneDirty(false);
     }
-
-    useEffect(() => {
-        const title = `${project?.name ?? "Atlas"}${sceneDirty ? " (not saved)" : ""}`;
-        void window.app.setTitle(title);
-    }, [project?.name, sceneDirty]);
+    const saveCurrentSceneEvent = useEffectEvent(saveCurrentScene);
 
     useEffect(() => {
         savedSceneSignatureRef.current = null;
-        setSceneDirty(false);
 
         let active = true;
         const checkSceneDirty = async () => {
@@ -100,6 +95,7 @@ export default function EditorOverlay() {
             const signature = sceneSignature(scene);
             if (savedSceneSignatureRef.current === null) {
                 savedSceneSignatureRef.current = signature;
+                setSceneDirty(false);
                 return;
             }
             setSceneDirty(signature !== savedSceneSignatureRef.current);
@@ -122,12 +118,39 @@ export default function EditorOverlay() {
                 return;
             }
             event.preventDefault();
-            void saveCurrentScene();
+            void saveCurrentSceneEvent();
         }
 
         window.addEventListener("keydown", handleSaveShortcut, true);
         return () => {
             window.removeEventListener("keydown", handleSaveShortcut, true);
+        };
+    }, []);
+
+    useEffect(() => {
+        function handleDeleteShortcut(event: KeyboardEvent) {
+            if (event.key !== "Delete" && event.key !== "Backspace") {
+                return;
+            }
+
+            const target = event.target as HTMLElement | null;
+            if (target?.closest("input, textarea, [contenteditable='true']")) {
+                return;
+            }
+
+            event.preventDefault();
+            void (async () => {
+                const selection = await window.editorControls.getSelection();
+                if (!selection || selection.id < 0) {
+                    return;
+                }
+                await window.editorControls.deleteObject(selection.id);
+            })();
+        }
+
+        window.addEventListener("keydown", handleDeleteShortcut, true);
+        return () => {
+            window.removeEventListener("keydown", handleDeleteShortcut, true);
         };
     }, []);
 
@@ -230,7 +253,8 @@ export default function EditorOverlay() {
         >
             <div className="w-full h-8 bg-white absolute z-50 flex items-center justify-center text-black">
                 <p className="text-xs font-bold">
-                    {project?.name ?? ""} - Atlas Engine Alpha 9{" "}
+                    {project?.name ?? "Atlas"}
+                    {sceneDirty ? " (not saved)" : ""} - Atlas Engine Alpha 9{" "}
                     {appInfo.debug &&
                         "(Development Build - " + appInfo.buildId + ")"}
                 </p>

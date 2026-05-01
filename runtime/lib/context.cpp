@@ -1571,6 +1571,33 @@ bool updateObjectNode(json &node, const Context &context, GameObject &object) {
     return false;
 }
 
+bool removeObjectNode(json &nodes, const std::string &name,
+                      const std::string &reference) {
+    if (!nodes.is_array()) {
+        return false;
+    }
+
+    bool removed = false;
+    for (auto it = nodes.begin(); it != nodes.end();) {
+        if (objectNodeMatches(*it, name, reference)) {
+            it = nodes.erase(it);
+            removed = true;
+            continue;
+        }
+
+        if (it->is_object()) {
+            if (const json *children = findField(*it, {"objects"});
+                children != nullptr && children->is_array()) {
+                removed = removeObjectNode((*it)["objects"], name, reference) ||
+                          removed;
+            }
+        }
+
+        ++it;
+    }
+    return removed;
+}
+
 json serializeNewObject(const Context &context, GameObject &object) {
     json node = json::object();
     const std::string name = serializableObjectName(context, object);
@@ -3723,6 +3750,74 @@ bool Context::setObjectParent(int childId, int parentId) {
     return true;
 }
 
+bool Context::deleteObject(int id) {
+    GameObject *object = findContextObject(*this, id);
+    if (object == nullptr) {
+        return false;
+    }
+
+    std::vector<int> childrenToDelete;
+    for (const auto &[childId, parentId] : objectParents) {
+        if (parentId == id) {
+            childrenToDelete.push_back(childId);
+        }
+    }
+    for (int childId : childrenToDelete) {
+        deleteObject(childId);
+    }
+
+    const std::string name = serializableObjectName(*this, *object);
+    const std::string reference = serializableObjectReference(*this, *object);
+    deletedObjectReferences.push_back({name, reference});
+
+    setObjectParent(id, -1);
+    for (auto it = objectParents.begin(); it != objectParents.end();) {
+        if (it->second == id) {
+            objectParentReferences.erase(it->first);
+            it = objectParents.erase(it);
+        } else {
+            ++it;
+        }
+    }
+
+    for (auto it = objectReferences.begin(); it != objectReferences.end();) {
+        if (it->second == object) {
+            it = objectReferences.erase(it);
+        } else {
+            ++it;
+        }
+    }
+
+    objectNames.erase(id);
+    objectSceneReferences.erase(id);
+    objectSceneTypes.erase(id);
+    objectSceneSolidTypes.erase(id);
+    objectParentReferences.erase(id);
+
+    for (const auto &renderable : objects) {
+        auto *compound = dynamic_cast<CompoundObject *>(renderable.get());
+        if (compound == nullptr) {
+            continue;
+        }
+        auto &compoundObjects = compound->objects;
+        compoundObjects.erase(
+            std::remove(compoundObjects.begin(), compoundObjects.end(), object),
+            compoundObjects.end());
+    }
+
+    if (window != nullptr) {
+        window->removeObject(object);
+    }
+
+    objects.erase(std::remove_if(objects.begin(), objects.end(),
+                                 [&](const auto &renderable) {
+                                     return renderable != nullptr &&
+                                            renderable.get() == object;
+                                 }),
+                  objects.end());
+    return true;
+}
+
 int Context::createObject(const std::string &type, const std::string &name) {
     if (window == nullptr) {
         return -1;
@@ -3814,6 +3909,10 @@ bool Context::saveCurrentScene() {
         sceneData["objects"] = json::array();
     }
 
+    for (const auto &[name, reference] : deletedObjectReferences) {
+        removeObjectNode(sceneData["objects"], name, reference);
+    }
+
     for (const auto &renderable : objects) {
         if (renderable == nullptr) {
             continue;
@@ -3842,7 +3941,11 @@ bool Context::saveCurrentScene() {
         return false;
     }
     output << sceneData.dump(4) << '\n';
-    return output.good();
+    bool good = output.good();
+    if (good) {
+        deletedObjectReferences.clear();
+    }
+    return good;
 }
 
 void Context::end() {
@@ -4030,6 +4133,7 @@ void Context::loadScene(Window &window, const json &sceneData) {
     objectSceneSolidTypes.clear();
     objectParentReferences.clear();
     objectParents.clear();
+    deletedObjectReferences.clear();
     renderTargets.clear();
     directionalLights.clear();
     pointLights.clear();

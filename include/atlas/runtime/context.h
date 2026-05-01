@@ -85,6 +85,7 @@ class Context {
     std::unordered_map<int, std::string> objectSceneSolidTypes;
     std::unordered_map<int, std::string> objectParentReferences;
     std::unordered_map<int, int> objectParents;
+    std::vector<std::pair<std::string, std::string>> deletedObjectReferences;
 
     ProjectConfig config;
 
@@ -104,6 +105,7 @@ class Context {
     bool selectObject(int id, bool focusCamera);
     bool renameObject(int id, const std::string &name);
     bool setObjectParent(int childId, int parentId);
+    bool deleteObject(int id);
     int createObject(const std::string &type, const std::string &name);
     bool saveCurrentScene();
     void end();

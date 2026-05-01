@@ -67,6 +67,7 @@ bool atlas_runtime_rename_object(void *runtimeContext, int id,
                                  const char *name);
 bool atlas_runtime_set_object_parent(void *runtimeContext, int childId,
                                      int parentId);
+bool atlas_runtime_delete_object(void *runtimeContext, int id);
 int atlas_runtime_create_object(void *runtimeContext, const char *type,
                                 const char *name);
 bool atlas_runtime_save_current_scene(void *runtimeContext);

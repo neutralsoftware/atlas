@@ -2204,7 +2204,7 @@ int Window::hitTestEditorGizmoAxis(float x, float y, float scale) {
 
     glm::vec3 boundsMin;
     glm::vec3 boundsMax;
-    if (!objectBounds(selectedEditorObject, boundsMin, boundsMax)) {
+    if (!editorSelectionBounds(selectedEditorObject, boundsMin, boundsMax)) {
         return 0;
     }
 
@@ -2214,7 +2214,7 @@ int Window::hitTestEditorGizmoAxis(float x, float y, float scale) {
     glm::mat4 viewProjection =
         calculateProjectionMatrix() * camera->calculateViewMatrix();
     glm::vec2 pointer(x, y);
-    glm::vec3 center = selectedEditorObject->getPosition().toGlm();
+    glm::vec3 center = (boundsMin + boundsMax) * 0.5f;
     float cameraDistance = glm::length(camera->position.toGlm() - center);
     float gizmoScale = std::max(1.2f, cameraDistance * 0.16f);
     float axisLength = gizmoScale * 1.35f;
