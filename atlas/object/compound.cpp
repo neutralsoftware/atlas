@@ -85,17 +85,6 @@ void CompoundObject::initialize() {
 void CompoundObject::render(float dt,
                             std::shared_ptr<opal::CommandBuffer> commandBuffer,
                             bool updatePipeline) {
-    if (originalPositions.empty()) {
-        for (const auto &obj : objects) {
-            originalPositions.push_back(obj->getPosition());
-        }
-    }
-    if (changedPosition) {
-        for (size_t i = 0; i < objects.size(); ++i) {
-            objects[i]->setPosition(position + originalPositions[i]);
-        }
-        changedPosition = false;
-    }
     for (auto &component : components) {
         component->update(dt);
     }
@@ -177,13 +166,7 @@ void CompoundObject::setPipeline(std::shared_ptr<opal::Pipeline> &pipeline) {
 }
 
 Position3d CompoundObject::getPosition() const {
-    if (objects.empty()) {
-        if (!lateForwardObjects.empty() && lateForwardObjects[0] != nullptr) {
-            return lateForwardObjects[0]->getPosition();
-        }
-        return position;
-    }
-    return objects[0]->getPosition();
+    return position;
 }
 
 Size3d CompoundObject::getScale() const {
@@ -198,13 +181,7 @@ Size3d CompoundObject::getScale() const {
 
 void CompoundObject::update(Window &window) {
     updateObjects(window);
-    for (auto &obj : objects) {
-        if (changedPosition) {
-            std::cout << "Updating position of compound object child\n";
-            obj->setPosition(position + this->position);
-            changedPosition = false;
-        }
-    }
+    changedPosition = false;
 }
 
 bool CompoundObject::canCastShadows() const {
@@ -213,13 +190,24 @@ bool CompoundObject::canCastShadows() const {
 }
 
 void CompoundObject::setPosition(const Position3d &newPosition) {
+    Position3d delta = newPosition - position;
     this->position = newPosition;
-    changedPosition = true;
+    for (auto &obj : objects) {
+        if (obj != nullptr) {
+            obj->move(delta);
+        }
+    }
+    changedPosition = false;
 }
 
 void CompoundObject::move(const Position3d &deltaPosition) {
     this->position += deltaPosition;
-    changedPosition = true;
+    for (auto &obj : objects) {
+        if (obj != nullptr) {
+            obj->move(deltaPosition);
+        }
+    }
+    changedPosition = false;
 }
 
 void CompoundObject::setRotation(const Rotation3d &newRotation) {

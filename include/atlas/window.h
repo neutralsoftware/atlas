@@ -444,6 +444,7 @@ class Window {
     GameObject *getSelectedEditorObject() const { return selectedEditorObject; }
     unsigned int getSelectedEditorObjectId() const;
     void selectEditorObject(GameObject *object, bool focusCamera = false);
+    void setEditorObjectParent(GameObject *child, GameObject *parent);
     /**
      * @brief Tears down state created by stepFrame()/run().
      */
@@ -998,9 +999,16 @@ class Window {
     bool editorOutlineInitialized = false;
     bool editorGizmoInitialized = false;
     std::array<bool, 6> editorCameraKeys{};
+    std::unordered_map<GameObject *, GameObject *> editorObjectParents;
+    std::unordered_map<GameObject *, std::vector<GameObject *>>
+        editorObjectChildren;
 
     void prepareDefaultPipeline(Renderable *renderable, int fbWidth,
                                 int fbHeight);
+    bool editorSelectionBounds(GameObject *object, glm::vec3 &boundsMin,
+                               glm::vec3 &boundsMax);
+    void moveEditorObjectChildren(GameObject *object,
+                                  const Position3d &deltaPosition);
 
     uint64_t pipelineStateVersion = 1;
     std::unordered_map<Renderable *, uint64_t> renderablePipelineVersions;

@@ -91,6 +91,24 @@ bool objectBounds(GameObject *object, glm::vec3 &boundsMin,
         return false;
     }
 
+    if (auto *compound = dynamic_cast<CompoundObject *>(object);
+        compound != nullptr && !compound->objects.empty()) {
+        bool any = false;
+        boundsMin = glm::vec3(std::numeric_limits<float>::max());
+        boundsMax = glm::vec3(std::numeric_limits<float>::lowest());
+        for (GameObject *child : compound->objects) {
+            glm::vec3 childMin;
+            glm::vec3 childMax;
+            if (!objectBounds(child, childMin, childMax)) {
+                continue;
+            }
+            boundsMin = any ? glm::min(boundsMin, childMin) : childMin;
+            boundsMax = any ? glm::max(boundsMax, childMax) : childMax;
+            any = true;
+        }
+        return any;
+    }
+
     std::vector<CoreVertex> vertices = object->getVertices();
     if (vertices.empty()) {
         return false;
@@ -1947,7 +1965,7 @@ void Window::selectEditorObject(GameObject *object, bool focusCamera) {
     glm::vec3 boundsMax;
     glm::vec3 center = selectedEditorObject->getPosition().toGlm();
     float radius = 1.0f;
-    if (objectBounds(selectedEditorObject, boundsMin, boundsMax)) {
+    if (editorSelectionBounds(selectedEditorObject, boundsMin, boundsMax)) {
         center = (boundsMin + boundsMax) * 0.5f;
         radius = std::max(0.5f, glm::length(boundsMax - boundsMin) * 0.5f);
     }
@@ -1969,6 +1987,44 @@ void Window::selectEditorObject(GameObject *object, bool focusCamera) {
     editorOrbitPivotInitialized = true;
     shadowMapsDirty = true;
     ssaoMapsDirty = true;
+}
+
+void Window::setEditorObjectParent(GameObject *child, GameObject *parent) {
+    if (child == nullptr || child == parent) {
+        return;
+    }
+
+    auto previousParent = editorObjectParents.find(child);
+    if (previousParent != editorObjectParents.end()) {
+        auto childrenIt = editorObjectChildren.find(previousParent->second);
+        if (childrenIt != editorObjectChildren.end()) {
+            childrenIt->second.erase(
+                std::remove(childrenIt->second.begin(), childrenIt->second.end(),
+                            child),
+                childrenIt->second.end());
+        }
+        editorObjectParents.erase(previousParent);
+    }
+
+    if (parent == nullptr) {
+        return;
+    }
+
+    GameObject *cursor = parent;
+    while (cursor != nullptr) {
+        if (cursor == child) {
+            return;
+        }
+        auto cursorIt = editorObjectParents.find(cursor);
+        cursor = cursorIt != editorObjectParents.end() ? cursorIt->second
+                                                       : nullptr;
+    }
+
+    editorObjectParents[child] = parent;
+    auto &children = editorObjectChildren[parent];
+    if (std::ranges::find(children, child) == children.end()) {
+        children.push_back(child);
+    }
 }
 
 void Window::editorPointerEvent(int action, float x, float y, int button,
@@ -2237,6 +2293,54 @@ int Window::hitTestEditorGizmoAxis(float x, float y, float scale) {
     return bestAxis;
 }
 
+bool Window::editorSelectionBounds(GameObject *object, glm::vec3 &boundsMin,
+                                   glm::vec3 &boundsMax) {
+    if (object == nullptr) {
+        return false;
+    }
+
+    bool any = false;
+    glm::vec3 objectMin;
+    glm::vec3 objectMax;
+    if (objectBounds(object, objectMin, objectMax)) {
+        boundsMin = objectMin;
+        boundsMax = objectMax;
+        any = true;
+    }
+
+    auto childrenIt = editorObjectChildren.find(object);
+    if (childrenIt != editorObjectChildren.end()) {
+        for (GameObject *child : childrenIt->second) {
+            glm::vec3 childMin;
+            glm::vec3 childMax;
+            if (!editorSelectionBounds(child, childMin, childMax)) {
+                continue;
+            }
+            boundsMin = any ? glm::min(boundsMin, childMin) : childMin;
+            boundsMax = any ? glm::max(boundsMax, childMax) : childMax;
+            any = true;
+        }
+    }
+
+    return any;
+}
+
+void Window::moveEditorObjectChildren(GameObject *object,
+                                      const Position3d &deltaPosition) {
+    auto childrenIt = editorObjectChildren.find(object);
+    if (childrenIt == editorObjectChildren.end()) {
+        return;
+    }
+
+    for (GameObject *child : childrenIt->second) {
+        if (child == nullptr) {
+            continue;
+        }
+        child->move(deltaPosition);
+        moveEditorObjectChildren(child, deltaPosition);
+    }
+}
+
 void Window::updateEditorDrag(float x, float y, float scale) {
     if (selectedEditorObject == nullptr || camera == nullptr ||
         editorActiveGizmoAxis == 0) {
@@ -2279,8 +2383,12 @@ void Window::updateEditorDrag(float x, float y, float scale) {
             worldDelta = (dx + dy) * std::max(0.01f, distance * 0.0025f);
         }
         glm::vec3 delta = axis * worldDelta;
-        selectedEditorObject->setPosition(
-            Position3d::fromGlm(editorDragStartPosition.toGlm() + delta));
+        Position3d nextPosition =
+            Position3d::fromGlm(editorDragStartPosition.toGlm() + delta);
+        Position3d childDelta =
+            nextPosition - selectedEditorObject->getPosition();
+        selectedEditorObject->setPosition(nextPosition);
+        moveEditorObjectChildren(selectedEditorObject, childDelta);
     } else if (editorControlMode == EditorControlMode::Rotate) {
         float viewWidth = std::max(1.0f, static_cast<float>(width));
         float viewHeight = std::max(1.0f, static_cast<float>(height));
@@ -2610,23 +2718,14 @@ void Window::updateEditorControlGeometry() {
         return;
     }
 
-    glm::vec3 localBoundsMin;
-    glm::vec3 localBoundsMax;
-    if (!objectLocalBounds(selectedEditorObject, localBoundsMin,
-                           localBoundsMax)) {
+    glm::vec3 boundsMin;
+    glm::vec3 boundsMax;
+    if (!editorSelectionBounds(selectedEditorObject, boundsMin, boundsMax)) {
         selectedEditorObject = nullptr;
         editorDragging = false;
         editorActiveGizmoAxis = 0;
         return;
     }
-
-    glm::mat4 selectedTransform = objectTransform(selectedEditorObject);
-    std::array<glm::vec3, 8> baseOutlineCorners =
-        transformBoundsCorners(boundsCorners(localBoundsMin, localBoundsMax),
-                               selectedTransform);
-    glm::vec3 boundsMin;
-    glm::vec3 boundsMax;
-    boundsFromCorners(baseOutlineCorners, boundsMin, boundsMax);
 
     glm::vec3 cameraPosition = camera->position.toGlm();
     Color outlineColor{0.0f, 0.95f, 1.0f, 1.0f};
@@ -2635,18 +2734,10 @@ void Window::updateEditorControlGeometry() {
         camera, boundsCenter, static_cast<float>(fbHeight));
     float outlinePadding = outlinePixelSize * 5.0f;
     float outlineThickness = outlinePixelSize * 1.5f;
-    glm::vec3 axisScale(
-        glm::length(glm::vec3(selectedTransform[0])),
-        glm::length(glm::vec3(selectedTransform[1])),
-        glm::length(glm::vec3(selectedTransform[2])));
-    glm::vec3 localPadding(
-        outlinePadding / std::max(axisScale.x, 0.0001f),
-        outlinePadding / std::max(axisScale.y, 0.0001f),
-        outlinePadding / std::max(axisScale.z, 0.0001f));
-    std::array<glm::vec3, 8> outlineCorners = transformBoundsCorners(
-        boundsCorners(localBoundsMin - localPadding,
-                      localBoundsMax + localPadding),
-        selectedTransform);
+    glm::vec3 outlinePaddingVector(outlinePadding);
+    std::array<glm::vec3, 8> outlineCorners =
+        boundsCorners(boundsMin - outlinePaddingVector,
+                      boundsMax + outlinePaddingVector);
     const glm::vec3 &p000 = outlineCorners[0];
     const glm::vec3 &p001 = outlineCorners[1];
     const glm::vec3 &p010 = outlineCorners[2];
@@ -2941,7 +3032,18 @@ void Window::removeObject(Renderable *obj) {
     if (obj == nullptr) {
         return;
     }
-    if (selectedEditorObject == dynamic_cast<GameObject *>(obj)) {
+    auto *gameObject = dynamic_cast<GameObject *>(obj);
+    if (gameObject != nullptr) {
+        setEditorObjectParent(gameObject, nullptr);
+        auto childrenIt = editorObjectChildren.find(gameObject);
+        if (childrenIt != editorObjectChildren.end()) {
+            for (GameObject *child : childrenIt->second) {
+                editorObjectParents.erase(child);
+            }
+            editorObjectChildren.erase(childrenIt);
+        }
+    }
+    if (selectedEditorObject == gameObject) {
         selectedEditorObject = nullptr;
         editorDragging = false;
         editorActiveGizmoAxis = 0;

@@ -9,7 +9,9 @@ export default function EditorOverlay() {
     const activePointerButton = useRef(0);
     const shellRef = useRef<HTMLElement>(null);
     const viewportRef = useRef<HTMLDivElement>(null);
+    const savedSceneSignatureRef = useRef<string | null>(null);
     const [project, setProject] = useState<Project | null>(null);
+    const [sceneDirty, setSceneDirty] = useState(false);
     const [appInfo, setAppInfo] = useState<AppInfo>({
         debug: false,
         buildId: "",
@@ -25,18 +27,11 @@ export default function EditorOverlay() {
     }, []);
 
     useEffect(() => {
-        const keyMap: Record<string, 0 | 1 | 2 | 3 | 4 | 5> = {
+        const keyMap: Record<string, 0 | 1 | 2 | 3> = {
             ArrowUp: 0,
-            KeyW: 0,
             ArrowDown: 1,
-            KeyS: 1,
             ArrowLeft: 2,
-            KeyA: 2,
             ArrowRight: 3,
-            KeyD: 3,
-            Space: 4,
-            ShiftLeft: 5,
-            ShiftRight: 5,
         };
 
         function handleKeyDown(event: KeyboardEvent) {
@@ -63,9 +58,76 @@ export default function EditorOverlay() {
         return () => {
             window.removeEventListener("keydown", handleKeyDown);
             window.removeEventListener("keyup", handleKeyUp);
-            for (const key of [0, 1, 2, 3, 4, 5] as const) {
+            for (const key of [0, 1, 2, 3] as const) {
                 void window.editorInput.key(key, false);
             }
+        };
+    }, []);
+
+    function sceneSignature(scene: unknown) {
+        if (!scene || typeof scene !== "object") {
+            return "";
+        }
+        const objects = "objects" in scene ? scene.objects : [];
+        return JSON.stringify(objects);
+    }
+
+    async function saveCurrentScene() {
+        const saved = await window.editorControls.saveCurrentScene();
+        if (!saved) {
+            return;
+        }
+        const scene = await window.editorControls.getSceneObjects();
+        savedSceneSignatureRef.current = sceneSignature(scene);
+        setSceneDirty(false);
+    }
+
+    useEffect(() => {
+        const title = `${project?.name ?? "Atlas"}${sceneDirty ? " (not saved)" : ""}`;
+        void window.app.setTitle(title);
+    }, [project?.name, sceneDirty]);
+
+    useEffect(() => {
+        savedSceneSignatureRef.current = null;
+        setSceneDirty(false);
+
+        let active = true;
+        const checkSceneDirty = async () => {
+            const scene = await window.editorControls.getSceneObjects();
+            if (!active) {
+                return;
+            }
+            const signature = sceneSignature(scene);
+            if (savedSceneSignatureRef.current === null) {
+                savedSceneSignatureRef.current = signature;
+                return;
+            }
+            setSceneDirty(signature !== savedSceneSignatureRef.current);
+        };
+
+        checkSceneDirty();
+        const interval = window.setInterval(checkSceneDirty, 700);
+        return () => {
+            active = false;
+            window.clearInterval(interval);
+        };
+    }, [project?.id]);
+
+    useEffect(() => {
+        function handleSaveShortcut(event: KeyboardEvent) {
+            if (
+                !(event.metaKey || event.ctrlKey) ||
+                event.key.toLowerCase() !== "s"
+            ) {
+                return;
+            }
+            event.preventDefault();
+            void saveCurrentScene();
+        }
+
+        window.addEventListener("keydown", handleSaveShortcut, true);
+        return () => {
+            window.removeEventListener("keydown", handleSaveShortcut, true);
         };
     }, []);
 

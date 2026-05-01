@@ -3555,6 +3555,9 @@ json editorObjectJson(const Context &context, GameObject &object,
     node["viewportId"] = id;
     node["name"] = editorObjectName(context, object);
     node["type"] = editorObjectType(context, object);
+    node["position"] = vec3ToJson(object.getPosition());
+    node["rotation"] = rotationToJson(object.getRotation());
+    node["scale"] = vec3ToJson(object.getScale());
 
     if (visiting.contains(id)) {
         return node;
@@ -3702,45 +3705,19 @@ bool Context::setObjectParent(int childId, int parentId) {
         }
     }
 
-    auto oldParentIt = objectParents.find(childId);
-    bool oldParentWasCompound = false;
-    if (oldParentIt != objectParents.end()) {
-        if (GameObject *oldParent =
-                findContextObject(*this, oldParentIt->second);
-            oldParent != nullptr) {
-            if (auto *compound = dynamic_cast<CompoundObject *>(oldParent);
-                compound != nullptr) {
-                oldParentWasCompound = true;
-                compound->objects.erase(
-                    std::remove(compound->objects.begin(),
-                                compound->objects.end(), child),
-                    compound->objects.end());
-            }
-        }
-    }
-
     if (parentId < 0) {
         objectParents.erase(childId);
         objectParentReferences.erase(childId);
-        if (oldParentWasCompound) {
-            window->addObject(child);
+        if (window != nullptr) {
+            window->setEditorObjectParent(child, nullptr);
         }
         return true;
     }
 
     objectParents[childId] = parentId;
     objectParentReferences[childId] = std::to_string(parentId);
-
-    if (auto *compound = dynamic_cast<CompoundObject *>(parent);
-        compound != nullptr) {
-        if (std::ranges::find(compound->objects, child) ==
-            compound->objects.end()) {
-            compound->addObject(child);
-        }
-        window->removeObject(child);
-        window->selectEditorObject(child, false);
-    } else {
-        window->addObject(child);
+    if (window != nullptr) {
+        window->setEditorObjectParent(child, parent);
     }
 
     return true;
@@ -4374,6 +4351,17 @@ void Context::loadScene(Window &window, const json &sceneData) {
     }
 
     resolveObjectParentReferences(*this);
+    for (const auto &[childId, parentId] : objectParents) {
+        GameObject *child = findContextObject(*this, childId);
+        GameObject *parent = findContextObject(*this, parentId);
+        if (auto *compound = dynamic_cast<CompoundObject *>(parent);
+            compound != nullptr &&
+            std::ranges::find(compound->objects, child) !=
+                compound->objects.end()) {
+            continue;
+        }
+        window.setEditorObjectParent(child, parent);
+    }
 
     for (const auto &pending : rigidbodyComponents) {
         try {
