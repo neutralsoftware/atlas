@@ -191,6 +191,10 @@ class RuntimeScriptComponent final : public Component {
 constexpr const char *RUNTIME_SCRIPT_BUNDLE_PATH = "dist/scripts.js";
 constexpr const char *RUNTIME_FILE_MODULE_PREFIX = "__atlas_file__/";
 
+std::string serializableObjectName(const Context &context, GameObject &object);
+std::string serializableObjectReference(const Context &context,
+                                        GameObject &object);
+
 std::string normalizeScriptPath(std::string path) {
     std::replace(path.begin(), path.end(), '\\', '/');
     return path;
@@ -1479,6 +1483,142 @@ json rotationToJson(const Rotation3d &value) {
     return json::array({value.pitch, value.yaw, value.roll});
 }
 
+json colorToJson(const Color &value) {
+    return json::array({value.r, value.g, value.b, value.a});
+}
+
+json sizeToJson(const Size2d &value) {
+    return json::array({value.width, value.height});
+}
+
+Magnitude3d editorForwardDirection(GameObject &object) {
+    glm::vec3 direction =
+        object.getRotation().toGlmQuat() * glm::vec3(0.0f, -1.0f, 0.0f);
+    if (glm::length(direction) < 0.000001f) {
+        direction = glm::vec3(0.0f, -1.0f, 0.0f);
+    }
+    return Magnitude3d::fromGlm(glm::normalize(direction));
+}
+
+bool isEditorLightObject(const Context &context, GameObject &object) {
+    const int id = static_cast<int>(object.getId());
+    return context.editorPointLights.contains(id) ||
+           context.editorSpotlights.contains(id) ||
+           context.editorAreaLights.contains(id) ||
+           context.editorDirectionalLights.contains(id) ||
+           context.editorLightSourceData.contains(id);
+}
+
+void syncEditorLightObject(Context &context, GameObject &object) {
+    const int id = static_cast<int>(object.getId());
+    if (auto it = context.editorPointLights.find(id);
+        it != context.editorPointLights.end() && it->second != nullptr) {
+        it->second->position = object.getPosition();
+    }
+    if (auto it = context.editorSpotlights.find(id);
+        it != context.editorSpotlights.end() && it->second != nullptr) {
+        it->second->position = object.getPosition();
+        it->second->direction = editorForwardDirection(object);
+        it->second->updateDebugObjectRotation();
+    }
+    if (auto it = context.editorAreaLights.find(id);
+        it != context.editorAreaLights.end() && it->second != nullptr) {
+        it->second->position = object.getPosition();
+        it->second->setRotation(object.getRotation());
+    }
+    if (auto it = context.editorDirectionalLights.find(id);
+        it != context.editorDirectionalLights.end() && it->second != nullptr) {
+        it->second->direction = editorForwardDirection(object);
+    }
+}
+
+json serializeEditorLightObject(Context &context, GameObject &object) {
+    syncEditorLightObject(context, object);
+
+    const int id = static_cast<int>(object.getId());
+    json node = json::object();
+    if (auto source = context.editorLightSourceData.find(id);
+        source != context.editorLightSourceData.end() &&
+        source->second.is_object()) {
+        node = source->second;
+    }
+
+    const std::string name = serializableObjectName(context, object);
+    if (!name.empty()) {
+        node["name"] = name;
+    }
+    const std::string reference = serializableObjectReference(context, object);
+    node["id"] = reference.empty() ? std::to_string(id) : reference;
+
+    if (auto it = context.editorPointLights.find(id);
+        it != context.editorPointLights.end() && it->second != nullptr) {
+        Light &light = *it->second;
+        node["type"] = "pointLight";
+        node["position"] = vec3ToJson(light.position);
+        node["color"] = colorToJson(light.color);
+        node["shineColor"] = colorToJson(light.shineColor);
+        node["intensity"] = light.intensity;
+        node["distance"] = light.distance;
+        return node;
+    }
+
+    if (auto it = context.editorSpotlights.find(id);
+        it != context.editorSpotlights.end() && it->second != nullptr) {
+        Spotlight &light = *it->second;
+        node["type"] = "spotLight";
+        node["position"] = vec3ToJson(light.position);
+        node["direction"] = vec3ToJson(light.direction);
+        node["color"] = colorToJson(light.color);
+        node["shineColor"] = colorToJson(light.shineColor);
+        node["intensity"] = light.intensity;
+        node["range"] = light.range;
+        node["cutoff"] =
+            glm::degrees(std::acos(std::clamp(light.cutOff, -1.0f, 1.0f)));
+        node["outerCutoff"] =
+            glm::degrees(std::acos(std::clamp(light.outerCutoff, -1.0f, 1.0f)));
+        return node;
+    }
+
+    if (auto it = context.editorAreaLights.find(id);
+        it != context.editorAreaLights.end() && it->second != nullptr) {
+        AreaLight &light = *it->second;
+        node["type"] = "areaLight";
+        node["position"] = vec3ToJson(light.position);
+        node["right"] = vec3ToJson(light.right);
+        node["up"] = vec3ToJson(light.up);
+        node["size"] = sizeToJson(light.size);
+        node["color"] = colorToJson(light.color);
+        node["shineColor"] = colorToJson(light.shineColor);
+        node["intensity"] = light.intensity;
+        node["range"] = light.range;
+        node["angle"] = light.angle;
+        node["castsBothSides"] = light.castsBothSides;
+        return node;
+    }
+
+    if (auto it = context.editorDirectionalLights.find(id);
+        it != context.editorDirectionalLights.end() && it->second != nullptr) {
+        DirectionalLight &light = *it->second;
+        node["type"] = "directionalLight";
+        node["position"] = vec3ToJson(object.getPosition());
+        node["direction"] = vec3ToJson(light.direction);
+        node["color"] = colorToJson(light.color);
+        node["shineColor"] = colorToJson(light.shineColor);
+        node["intensity"] = light.intensity;
+        return node;
+    }
+
+    node["type"] = "ambientLight";
+    node["position"] = vec3ToJson(object.getPosition());
+    if (!node.contains("color")) {
+        node["color"] = colorToJson(Color::white());
+    }
+    if (!node.contains("intensity")) {
+        node["intensity"] = 0.5f;
+    }
+    return node;
+}
+
 std::string serializableObjectName(const Context &context, GameObject &object) {
     if (!object.name.empty()) {
         return object.name;
@@ -1539,7 +1679,8 @@ void writeObjectTransform(json &node, const Context &context,
     node["position"] = vec3ToJson(object.getPosition());
     node["rotation"] = rotationToJson(object.getRotation());
     node["scale"] = vec3ToJson(object.getScale());
-    auto parentIt = context.objectParents.find(static_cast<int>(object.getId()));
+    auto parentIt =
+        context.objectParents.find(static_cast<int>(object.getId()));
     if (parentIt != context.objectParents.end()) {
         auto parentName = context.objectNames.find(parentIt->second);
         node["parent"] = parentName != context.objectNames.end()
@@ -1612,10 +1753,9 @@ json serializeNewObject(const Context &context, GameObject &object) {
     node["type"] = type;
     if (type == "solid") {
         auto solidIt = context.objectSceneSolidTypes.find(id);
-        node["solid_type"] =
-            solidIt != context.objectSceneSolidTypes.end()
-                ? solidIt->second
-                : "cube";
+        node["solid_type"] = solidIt != context.objectSceneSolidTypes.end()
+                                 ? solidIt->second
+                                 : "cube";
     }
     writeObjectTransform(node, context, object);
     return node;
@@ -1699,10 +1839,12 @@ CoreObject createCapsulePrimitive(float radius, float height, Color color) {
 }
 
 void resolveObjectParentReferences(Context &context) {
-    for (const auto &[childId, parentReference] : context.objectParentReferences) {
+    for (const auto &[childId, parentReference] :
+         context.objectParentReferences) {
         auto parentIt = context.objectReferences.find(parentReference);
         if (parentIt == context.objectReferences.end()) {
-            parentIt = context.objectReferences.find(normalizeToken(parentReference));
+            parentIt =
+                context.objectReferences.find(normalizeToken(parentReference));
         }
         if (parentIt == context.objectReferences.end() ||
             parentIt->second == nullptr) {
@@ -1715,7 +1857,8 @@ void resolveObjectParentReferences(Context &context) {
                 continue;
             }
             auto *object = dynamic_cast<GameObject *>(renderable.get());
-            if (object != nullptr && static_cast<int>(object->getId()) == childId) {
+            if (object != nullptr &&
+                static_cast<int>(object->getId()) == childId) {
                 child = object;
                 break;
             }
@@ -1728,7 +1871,8 @@ void resolveObjectParentReferences(Context &context) {
             static_cast<int>(parentIt->second->getId());
         if (auto *compound = dynamic_cast<CompoundObject *>(parentIt->second);
             compound != nullptr &&
-            std::ranges::find(compound->objects, child) == compound->objects.end()) {
+            std::ranges::find(compound->objects, child) ==
+                compound->objects.end()) {
             compound->addObject(child);
         }
     }
@@ -1755,6 +1899,43 @@ void applyMaterial(GameObject &object, const MaterialDefinition &material) {
             model->attachTexture(texture);
         }
     }
+}
+
+std::shared_ptr<CoreObject> createEditorLightProxy(const std::string &type,
+                                                   const Color &color,
+                                                   const Position3d &position) {
+    auto object = std::make_shared<CoreObject>();
+    const std::string normalized = normalizeToken(type);
+    if (normalized == "pointlight") {
+        *object = createSphere(0.1f, 24, 12, color);
+    } else if (normalized == "arealight") {
+        *object = createPlane({0.55f, 0.55f}, color);
+    } else {
+        *object = createPyramid({0.35f, 0.35f, 0.35f}, color);
+    }
+    object->setPosition(position);
+    object->material.albedo = color;
+    object->material.emissiveColor = color;
+    object->material.emissiveIntensity = 1.5f;
+    object->castsShadows = false;
+    return object;
+}
+
+int registerEditorLightObject(Context &context,
+                              const std::shared_ptr<CoreObject> &object,
+                              const json &sourceData,
+                              const std::string &objectType) {
+    if (context.window == nullptr || object == nullptr) {
+        return -1;
+    }
+    registerGameObject(context, *object, sourceData, objectType,
+                       context.objects.size());
+    const int id = static_cast<int>(object->getId());
+    context.editorLightSourceData[id] =
+        sourceData.is_object() ? sourceData : json::object();
+    context.objects.push_back(object);
+    context.window->addObject(object.get());
+    return id;
 }
 
 void collectPendingComponents(GameObject &object, const json &objectData,
@@ -3424,6 +3605,13 @@ bool Context::stepFrame() {
     if (scene == nullptr) {
         throw std::runtime_error("Scene is not initialized");
     }
+    for (const auto &renderable : objects) {
+        auto *object = dynamic_cast<GameObject *>(
+            renderable != nullptr ? renderable.get() : nullptr);
+        if (object != nullptr && isEditorLightObject(*this, *object)) {
+            syncEditorLightObject(*this, *object);
+        }
+    }
     window->setScene(scene.get());
     return window->stepFrame();
 }
@@ -3638,7 +3826,7 @@ std::string uniqueEditorObjectName(const Context &context,
     }
     return base + " " + std::to_string(context.objects.size() + 1);
 }
-}
+} // namespace
 
 std::string Context::sceneObjectsJson() const {
     json snapshot = json::object();
@@ -3788,6 +3976,70 @@ bool Context::deleteObject(int id) {
         }
     }
 
+    if (auto it = editorPointLights.find(id); it != editorPointLights.end()) {
+        Light *light = it->second;
+        if (scene != nullptr) {
+            scene->pointLights.erase(std::remove(scene->pointLights.begin(),
+                                                 scene->pointLights.end(),
+                                                 light),
+                                     scene->pointLights.end());
+        }
+        pointLights.erase(std::remove_if(pointLights.begin(), pointLights.end(),
+                                         [&](const auto &entry) {
+                                             return entry != nullptr &&
+                                                    entry.get() == light;
+                                         }),
+                          pointLights.end());
+        editorPointLights.erase(it);
+    }
+    if (auto it = editorSpotlights.find(id); it != editorSpotlights.end()) {
+        Spotlight *light = it->second;
+        if (scene != nullptr) {
+            scene->spotlights.erase(std::remove(scene->spotlights.begin(),
+                                                scene->spotlights.end(), light),
+                                    scene->spotlights.end());
+        }
+        spotlights.erase(std::remove_if(spotlights.begin(), spotlights.end(),
+                                        [&](const auto &entry) {
+                                            return entry != nullptr &&
+                                                   entry.get() == light;
+                                        }),
+                         spotlights.end());
+        editorSpotlights.erase(it);
+    }
+    if (auto it = editorAreaLights.find(id); it != editorAreaLights.end()) {
+        AreaLight *light = it->second;
+        if (scene != nullptr) {
+            scene->areaLights.erase(std::remove(scene->areaLights.begin(),
+                                                scene->areaLights.end(), light),
+                                    scene->areaLights.end());
+        }
+        areaLights.erase(std::remove_if(areaLights.begin(), areaLights.end(),
+                                        [&](const auto &entry) {
+                                            return entry != nullptr &&
+                                                   entry.get() == light;
+                                        }),
+                         areaLights.end());
+        editorAreaLights.erase(it);
+    }
+    if (auto it = editorDirectionalLights.find(id);
+        it != editorDirectionalLights.end()) {
+        DirectionalLight *light = it->second;
+        if (scene != nullptr) {
+            scene->directionalLights.erase(
+                std::remove(scene->directionalLights.begin(),
+                            scene->directionalLights.end(), light),
+                scene->directionalLights.end());
+        }
+        directionalLights.erase(
+            std::remove_if(directionalLights.begin(), directionalLights.end(),
+                           [&](const auto &entry) {
+                               return entry != nullptr && entry.get() == light;
+                           }),
+            directionalLights.end());
+        editorDirectionalLights.erase(it);
+    }
+    editorLightSourceData.erase(id);
     objectNames.erase(id);
     objectSceneReferences.erase(id);
     objectSceneTypes.erase(id);
@@ -3829,6 +4081,14 @@ int Context::createObject(const std::string &type, const std::string &name) {
     std::string solidType = normalized.empty() ? "cube" : normalized;
     std::string fallbackName = solidType;
 
+    Position3d position = Position3d::zero();
+    if (window->getSelectedEditorObject() != nullptr) {
+        position = window->getSelectedEditorObject()->getPosition();
+        position.x += 1.25f;
+    } else if (window->getCamera() != nullptr) {
+        position = window->getCamera()->target;
+    }
+
     if (solidType == "cube" || solidType == "box") {
         solidType = "cube";
         auto core = std::make_shared<CoreObject>();
@@ -3864,17 +4124,132 @@ int Context::createObject(const std::string &type, const std::string &name) {
                               Color{0.25f, 0.55f, 1.0f, 1.0f});
         object = core;
         solidType.clear();
+    } else if (solidType == "particleemitter" || solidType == "particles" ||
+               solidType == "particlegenerator") {
+        sceneType = "particleEmitter";
+        fallbackName = "Particle Emitter";
+        auto emitter = std::make_shared<ParticleEmitter>(100);
+        emitter->setPosition(position);
+        emitter->setSpawnRate(10.0f);
+        object = emitter;
+        solidType.clear();
+    } else if (solidType == "terrain" || solidType == "landscape") {
+        sceneType = "terrain";
+        fallbackName = "Terrain";
+        auto terrain = std::make_shared<Terrain>();
+        terrain->width = 32;
+        terrain->height = 32;
+        terrain->resolution = 64;
+        terrain->maxPeak = 1.0f;
+        terrain->seaLevel = 0.0f;
+        object = terrain;
+        solidType.clear();
+    } else if (solidType == "pointlight" || solidType == "light") {
+        auto light = std::make_unique<Light>(position, Color::white(), 50.0f,
+                                             Color::white(), 1.0f);
+        light->createDebugObject();
+        int id = registerEditorLightObject(*this, light->debugObject,
+                                           json::object(), "pointLight");
+        if (id < 0) {
+            return -1;
+        }
+        const std::string displayName =
+            uniqueEditorObjectName(*this, name.empty() ? "Point Light" : name);
+        light->debugObject->name = displayName;
+        objectNames[id] = displayName;
+        objectSceneReferences[id] = std::to_string(id);
+        registerObjectReference(*this, displayName, light->debugObject.get());
+        editorPointLights[id] = light.get();
+        scene->addLight(light.get());
+        pointLights.push_back(std::move(light));
+        window->selectEditorObject(light->debugObject.get(), true);
+        return id;
+    } else if (solidType == "spotlight" || solidType == "spot") {
+        auto light = std::make_unique<Spotlight>(position, Position3d::down(),
+                                                 Color::white(), 35.0f, 40.0f,
+                                                 Color::white(), 1.0f, 50.0f);
+        light->createDebugObject();
+        int id = registerEditorLightObject(*this, light->debugObject,
+                                           json::object(), "spotLight");
+        if (id < 0) {
+            return -1;
+        }
+        const std::string displayName =
+            uniqueEditorObjectName(*this, name.empty() ? "Spot Light" : name);
+        light->debugObject->name = displayName;
+        objectNames[id] = displayName;
+        objectSceneReferences[id] = std::to_string(id);
+        registerObjectReference(*this, displayName, light->debugObject.get());
+        editorSpotlights[id] = light.get();
+        scene->addSpotlight(light.get());
+        spotlights.push_back(std::move(light));
+        window->selectEditorObject(light->debugObject.get(), true);
+        return id;
+    } else if (solidType == "directionallight" || solidType == "directional" ||
+               solidType == "sun") {
+        auto light = std::make_unique<DirectionalLight>(
+            Position3d::down(), Color::white(), Color::white(), 1.0f);
+        auto proxy = createEditorLightProxy("directionalLight", Color::white(),
+                                            position);
+        proxy->lookAt(position + Position3d::down(), Position3d::up());
+        int id = registerEditorLightObject(*this, proxy, json::object(),
+                                           "directionalLight");
+        if (id < 0) {
+            return -1;
+        }
+        const std::string displayName = uniqueEditorObjectName(
+            *this, name.empty() ? "Directional Light" : name);
+        proxy->name = displayName;
+        objectNames[id] = displayName;
+        objectSceneReferences[id] = std::to_string(id);
+        registerObjectReference(*this, displayName, proxy.get());
+        editorDirectionalLights[id] = light.get();
+        scene->addDirectionalLight(light.get());
+        directionalLights.push_back(std::move(light));
+        window->selectEditorObject(proxy.get(), true);
+        return id;
+    } else if (solidType == "arealight" || solidType == "area") {
+        auto light = std::make_unique<AreaLight>();
+        light->position = position;
+        light->createDebugObject();
+        int id = registerEditorLightObject(*this, light->debugObject,
+                                           json::object(), "areaLight");
+        if (id < 0) {
+            return -1;
+        }
+        const std::string displayName =
+            uniqueEditorObjectName(*this, name.empty() ? "Area Light" : name);
+        light->debugObject->name = displayName;
+        objectNames[id] = displayName;
+        objectSceneReferences[id] = std::to_string(id);
+        registerObjectReference(*this, displayName, light->debugObject.get());
+        editorAreaLights[id] = light.get();
+        scene->addAreaLight(light.get());
+        areaLights.push_back(std::move(light));
+        window->selectEditorObject(light->debugObject.get(), true);
+        return id;
+    } else if (solidType == "ambientlight" || solidType == "ambient") {
+        scene->setAmbientColor(Color::white());
+        scene->setAmbientIntensity(2.0f);
+        auto proxy =
+            createEditorLightProxy("ambientLight", Color::white(), position);
+        int id = registerEditorLightObject(*this, proxy, json::object(),
+                                           "ambientLight");
+        if (id < 0) {
+            return -1;
+        }
+        const std::string displayName = uniqueEditorObjectName(
+            *this, name.empty() ? "Ambient Light" : name);
+        proxy->name = displayName;
+        objectNames[id] = displayName;
+        objectSceneReferences[id] = std::to_string(id);
+        registerObjectReference(*this, displayName, proxy.get());
+        window->selectEditorObject(proxy.get(), true);
+        return id;
     } else {
         return -1;
     }
 
-    Position3d position = Position3d::zero();
-    if (window->getSelectedEditorObject() != nullptr) {
-        position = window->getSelectedEditorObject()->getPosition();
-        position.x += 1.25f;
-    } else if (window->getCamera() != nullptr) {
-        position = window->getCamera()->target;
-    }
     object->setPosition(position);
 
     const int id = static_cast<int>(object->getId());
@@ -3908,11 +4283,15 @@ bool Context::saveCurrentScene() {
     if (!sceneData.contains("objects") || !sceneData["objects"].is_array()) {
         sceneData["objects"] = json::array();
     }
+    if (!sceneData.contains("lights") || !sceneData["lights"].is_array()) {
+        sceneData["lights"] = json::array();
+    }
 
     for (const auto &[name, reference] : deletedObjectReferences) {
         removeObjectNode(sceneData["objects"], name, reference);
     }
 
+    json serializedLights = json::array();
     for (const auto &renderable : objects) {
         if (renderable == nullptr) {
             continue;
@@ -3920,6 +4299,12 @@ bool Context::saveCurrentScene() {
 
         auto *object = dynamic_cast<GameObject *>(renderable.get());
         if (object == nullptr) {
+            continue;
+        }
+
+        if (isEditorLightObject(*this, *object)) {
+            serializedLights.push_back(
+                serializeEditorLightObject(*this, *object));
             continue;
         }
 
@@ -3931,10 +4316,11 @@ bool Context::saveCurrentScene() {
             }
         }
 
-        if (!updated && dynamic_cast<CoreObject *>(object) != nullptr) {
+        if (!updated) {
             sceneData["objects"].push_back(serializeNewObject(*this, *object));
         }
     }
+    sceneData["lights"] = serializedLights;
 
     std::ofstream output(currentSceneFile, std::ios::trunc);
     if (!output.is_open()) {
@@ -4133,6 +4519,11 @@ void Context::loadScene(Window &window, const json &sceneData) {
     objectSceneSolidTypes.clear();
     objectParentReferences.clear();
     objectParents.clear();
+    editorPointLights.clear();
+    editorSpotlights.clear();
+    editorAreaLights.clear();
+    editorDirectionalLights.clear();
+    editorLightSourceData.clear();
     deletedObjectReferences.clear();
     renderTargets.clear();
     directionalLights.clear();
@@ -4284,6 +4675,13 @@ void Context::loadScene(Window &window, const json &sceneData) {
                 JSON_READ_FLOAT(lightData, "intensity", intensity);
                 scene->setAmbientColor(ambientColor);
                 scene->setAmbientIntensity(intensity * 4.0f);
+                Position3d position = Position3d::zero();
+                tryReadVec3(lightData, "position", position);
+                auto object = createEditorLightProxy("ambientLight",
+                                                     ambientColor, position);
+                int id = registerEditorLightObject(*this, object, lightData,
+                                                   "ambientLight");
+                (void)id;
                 continue;
             }
 
@@ -4307,6 +4705,17 @@ void Context::loadScene(Window &window, const json &sceneData) {
                     direction.normalized(), color, shineColor, intensity);
                 if (castsShadows) {
                     light->castShadows(window, shadowResolution);
+                }
+                Position3d position = Position3d::zero();
+                tryReadVec3(lightData, "position", position);
+                auto object =
+                    createEditorLightProxy("directionalLight", color, position);
+                object->lookAt(position + direction.normalized(),
+                               Position3d::up());
+                int id = registerEditorLightObject(*this, object, lightData,
+                                                   "directionalLight");
+                if (id >= 0) {
+                    editorDirectionalLights[id] = light.get();
                 }
                 scene->addDirectionalLight(light.get());
                 directionalLights.push_back(std::move(light));
@@ -4337,9 +4746,16 @@ void Context::loadScene(Window &window, const json &sceneData) {
                 if (castsShadows) {
                     light->castShadows(window, shadowResolution);
                 }
-                if (addDebugObject) {
-                    light->createDebugObject();
-                    light->addDebugObject(window);
+                light->createDebugObject();
+                if (light->debugObject != nullptr) {
+                    int id = registerEditorLightObject(
+                        *this, light->debugObject, lightData, "pointLight");
+                    if (id >= 0) {
+                        editorPointLights[id] = light.get();
+                        if (addDebugObject) {
+                            editorLightSourceData[id]["addDebugObject"] = true;
+                        }
+                    }
                 }
                 scene->addLight(light.get());
                 pointLights.push_back(std::move(light));
@@ -4377,9 +4793,16 @@ void Context::loadScene(Window &window, const json &sceneData) {
                 if (castsShadows) {
                     light->castShadows(window, shadowResolution);
                 }
-                if (addDebugObject) {
-                    light->createDebugObject();
-                    light->addDebugObject(window);
+                light->createDebugObject();
+                if (light->debugObject != nullptr) {
+                    int id = registerEditorLightObject(
+                        *this, light->debugObject, lightData, "spotLight");
+                    if (id >= 0) {
+                        editorSpotlights[id] = light.get();
+                        if (addDebugObject) {
+                            editorLightSourceData[id]["addDebugObject"] = true;
+                        }
+                    }
                 }
                 scene->addSpotlight(light.get());
                 spotlights.push_back(std::move(light));
@@ -4420,9 +4843,16 @@ void Context::loadScene(Window &window, const json &sceneData) {
                 if (castsShadows) {
                     light->castShadows(window, shadowResolution);
                 }
-                if (addDebugObject) {
-                    light->createDebugObject();
-                    light->addDebugObject(window);
+                light->createDebugObject();
+                if (light->debugObject != nullptr) {
+                    int id = registerEditorLightObject(
+                        *this, light->debugObject, lightData, "areaLight");
+                    if (id >= 0) {
+                        editorAreaLights[id] = light.get();
+                        if (addDebugObject) {
+                            editorLightSourceData[id]["addDebugObject"] = true;
+                        }
+                    }
                 }
                 scene->addAreaLight(light.get());
                 areaLights.push_back(std::move(light));

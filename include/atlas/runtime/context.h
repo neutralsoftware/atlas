@@ -85,6 +85,11 @@ class Context {
     std::unordered_map<int, std::string> objectSceneSolidTypes;
     std::unordered_map<int, std::string> objectParentReferences;
     std::unordered_map<int, int> objectParents;
+    std::unordered_map<int, Light *> editorPointLights;
+    std::unordered_map<int, Spotlight *> editorSpotlights;
+    std::unordered_map<int, AreaLight *> editorAreaLights;
+    std::unordered_map<int, DirectionalLight *> editorDirectionalLights;
+    std::unordered_map<int, json> editorLightSourceData;
     std::vector<std::pair<std::string, std::string>> deletedObjectReferences;
 
     ProjectConfig config;

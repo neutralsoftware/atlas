@@ -18,7 +18,7 @@
         "dev:electron": "wait-on http://localhost:5173 && electron .",
         "dev": "bun run dev:prepare && concurrently \"bun run dev:vite\" \"bun run watch:main\" \"bun run watch:preload\" \"bun run dev:electron\"",
         "release": "cross-env APP_MODE=release bun run generate:build:release && bun run build:renderer && bun run build:electron && cross-env APP_MODE=release electron-builder --config electron-builder.config.cjs",
-        "dist:debug": "cross-env APP_MODE=development bun run generate:build:dev && bun run build:renderer && bun run build:electron && cross-env APP_MODE=development electron-builder --config electron-builder.config.cjs",
+        "dist:debug": "mkdir -p ./build/icons/dev && cp ./icons/iconDebug.icns ./build/icons/dev/icon.icns && cross-env APP_MODE=development bun run generate:build:dev && bun run build:renderer && bun run build:electron && cross-env APP_MODE=development electron-builder --config electron-builder.config.cjs",
         "lint": "eslint ."
     },
     "dependencies": {

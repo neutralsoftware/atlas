@@ -34,7 +34,7 @@ ParticleEmitter::ParticleEmitter(unsigned int maxParticles)
     particles.reserve(maxParticles);
 
     this->direction = {0.0, 1.0, 0.0};
-    for (auto& p : particles) {
+    for (auto &p : particles) {
         p.active = false;
     }
 }
@@ -44,8 +44,7 @@ void ParticleEmitter::initialize() {
         {.x = -0.5f, .y = -0.5f, .z = 0.0f, .u = 0.0f, .v = 0.0f},
         {.x = 0.5f, .y = -0.5f, .z = 0.0f, .u = 1.0f, .v = 0.0f},
         {.x = 0.5f, .y = 0.5f, .z = 0.0f, .u = 1.0f, .v = 1.0f},
-        {.x = -0.5f, .y = 0.5f, .z = 0.0f, .u = 0.0f, .v = 1.0f}
-    };
+        {.x = -0.5f, .y = 0.5f, .z = 0.0f, .u = 0.0f, .v = 1.0f}};
 
     static const unsigned int indices[] = {0, 1, 2, 2, 3, 0};
 
@@ -71,8 +70,7 @@ void ParticleEmitter::initialize() {
         .size = 3,
         .stride = static_cast<uint>(sizeof(QuadVertex)),
         .inputRate = opal::VertexBindingInputRate::Vertex,
-        .divisor = 0
-    };
+        .divisor = 0};
     opal::VertexAttribute uvAttr{
         .name = "particleUV",
         .type = opal::VertexAttributeType::Float,
@@ -82,8 +80,7 @@ void ParticleEmitter::initialize() {
         .size = 2,
         .stride = static_cast<uint>(sizeof(QuadVertex)),
         .inputRate = opal::VertexBindingInputRate::Vertex,
-        .divisor = 0
-    };
+        .divisor = 0};
     opal::VertexAttribute instancePos{
         .name = "instancePosition",
         .type = opal::VertexAttributeType::Float,
@@ -93,8 +90,7 @@ void ParticleEmitter::initialize() {
         .size = 3,
         .stride = static_cast<uint>(sizeof(ParticleInstanceData)),
         .inputRate = opal::VertexBindingInputRate::Instance,
-        .divisor = 1
-    };
+        .divisor = 1};
     opal::VertexAttribute instanceColor{
         .name = "instanceColor",
         .type = opal::VertexAttributeType::Float,
@@ -104,8 +100,7 @@ void ParticleEmitter::initialize() {
         .size = 4,
         .stride = static_cast<uint>(sizeof(ParticleInstanceData)),
         .inputRate = opal::VertexBindingInputRate::Instance,
-        .divisor = 1
-    };
+        .divisor = 1};
     opal::VertexAttribute instanceSize{
         .name = "instanceSize",
         .type = opal::VertexAttributeType::Float,
@@ -115,16 +110,14 @@ void ParticleEmitter::initialize() {
         .size = 1,
         .stride = static_cast<uint>(sizeof(ParticleInstanceData)),
         .inputRate = opal::VertexBindingInputRate::Instance,
-        .divisor = 1
-    };
+        .divisor = 1};
 
     std::vector<opal::VertexAttributeBinding> bindings = {
         {.attribute = positionAttr, .sourceBuffer = quadBuffer},
         {.attribute = uvAttr, .sourceBuffer = quadBuffer},
         {.attribute = instancePos, .sourceBuffer = instanceBuffer},
         {.attribute = instanceColor, .sourceBuffer = instanceBuffer},
-        {.attribute = instanceSize, .sourceBuffer = instanceBuffer}
-    };
+        {.attribute = instanceSize, .sourceBuffer = instanceBuffer}};
     vao->configureAttributes(bindings);
 
     program = ShaderProgram::fromDefaultShaders(AtlasVertexShader::Particle,
@@ -138,7 +131,7 @@ void ParticleEmitter::spawnParticle() {
     }
 }
 
-void ParticleEmitter::updateParticle(Particle& p, float deltaTime) {
+void ParticleEmitter::updateParticle(Particle &p, float deltaTime) {
     if (!p.active)
         return;
 
@@ -150,8 +143,7 @@ void ParticleEmitter::updateParticle(Particle& p, float deltaTime) {
 
     if (emissionType == ParticleEmissionType::Fountain) {
         p.velocity.y += settings.gravity * deltaTime;
-    }
-    else if (emissionType == ParticleEmissionType::Ambient) {
+    } else if (emissionType == ParticleEmissionType::Ambient) {
         p.velocity.y += settings.gravity * 0.1f * deltaTime;
 
         float time = atlasGetTimeSeconds();
@@ -187,14 +179,13 @@ void ParticleEmitter::updateParticle(Particle& p, float deltaTime) {
 }
 
 Position3d ParticleEmitter::generateSpawnPosition() {
-    static std::default_random_engine rng([]
-    {
+    static std::default_random_engine rng([] {
         std::random_device rd;
         return std::default_random_engine(rd());
     }());
     static std::uniform_real_distribution<float> rand01(0.0f, 1.0f);
-    static std::uniform_real_distribution<float> randAngle(0.0f,
-                                                           2.0f * std::numbers::pi_v<float>);
+    static std::uniform_real_distribution<float> randAngle(
+        0.0f, 2.0f * std::numbers::pi_v<float>);
 
     if (emissionType == ParticleEmissionType::Ambient) {
         Position3d spawnPos = position;
@@ -221,8 +212,7 @@ Position3d ParticleEmitter::generateSpawnPosition() {
 }
 
 Magnitude3d ParticleEmitter::generateRandomVelocity() {
-    static std::default_random_engine rng([]
-    {
+    static std::default_random_engine rng([] {
         std::random_device rd;
         return std::default_random_engine(rd());
     }());
@@ -235,8 +225,7 @@ Magnitude3d ParticleEmitter::generateRandomVelocity() {
         float spreadZ = (rand01(rng) - 0.5f) * settings.spread;
         vel.x += spreadX;
         vel.z += spreadZ;
-    }
-    else if (emissionType == ParticleEmissionType::Ambient) {
+    } else if (emissionType == ParticleEmissionType::Ambient) {
         vel.x = (rand01(rng) - 0.5f) * 0.5f;
         vel.y = -0.5f - (rand01(rng) * 1.0f);
         vel.z = (rand01(rng) - 0.5f) * 0.5f;
@@ -263,14 +252,13 @@ void ParticleEmitter::activateParticle(int index) {
     if (index < 0 || std::cmp_greater_equal(index, particles.size()))
         return;
 
-    static std::default_random_engine rng([]
-    {
+    static std::default_random_engine rng([] {
         std::random_device rd;
         return std::default_random_engine(rd());
     }());
     static std::uniform_real_distribution<float> rand01(0.0f, 1.0f);
 
-    Particle& p = particles.at(index);
+    Particle &p = particles.at(index);
     p.active = true;
     p.position = generateSpawnPosition();
     p.velocity = generateRandomVelocity();
@@ -293,13 +281,13 @@ void ParticleEmitter::activateParticle(int index) {
 
     p.life = baseLifetime * heightMultiplier;
     p.maxLife = p.life;
-    p.size =
-        settings.minSize + ((settings.maxSize - settings.minSize) * rand01(rng));
+    p.size = settings.minSize +
+             ((settings.maxSize - settings.minSize) * rand01(rng));
 }
 
-void ParticleEmitter::update(Window& window) {
+void ParticleEmitter::update(Window &window) {
     float dt = window.getDeltaTime();
-    Camera* cam = window.getCamera();
+    Camera *cam = window.getCamera();
     this->model = glm::translate(
         glm::mat4(1.0f),
         glm::vec3(cam->position.x, cam->position.y, cam->position.z));
@@ -326,14 +314,14 @@ void ParticleEmitter::update(Window& window) {
         }
     }
 
-    for (auto& p : particles) {
+    for (auto &p : particles) {
         updateParticle(p, dt);
     }
 
     std::vector<ParticleInstanceData> instanceData;
     instanceData.reserve(maxParticles);
 
-    for (const auto& p : particles) {
+    for (const auto &p : particles) {
         if (p.active) {
             ParticleInstanceData data;
             data.posX = static_cast<float>(p.position.x);
@@ -363,7 +351,7 @@ void ParticleEmitter::render(float dt,
                              std::shared_ptr<opal::CommandBuffer> commandBuffer,
                              bool updatePipeline) {
     (void)updatePipeline;
-    for (auto& component : components) {
+    for (auto &component : components) {
         component->update(dt);
     }
     if (activeParticleCount == 0)
@@ -424,27 +412,43 @@ void ParticleEmitter::render(float dt,
     }
 }
 
-void ParticleEmitter::setProjectionMatrix(const glm::mat4& newProjection) {
+void ParticleEmitter::setProjectionMatrix(const glm::mat4 &newProjection) {
     this->projection = newProjection;
 }
 
-void ParticleEmitter::setViewMatrix(const glm::mat4& newView) {
+void ParticleEmitter::setViewMatrix(const glm::mat4 &newView) {
     this->view = newView;
 }
 
-void ParticleEmitter::attachTexture(const Texture& tex) {
+void ParticleEmitter::attachTexture(const Texture &tex) {
     this->texture = tex;
     this->useTexture = true;
 }
 
-void ParticleEmitter::setColor(const Color& newColor) { this->color = newColor; }
+void ParticleEmitter::setColor(const Color &newColor) {
+    this->color = newColor;
+}
 
-void ParticleEmitter::setPosition(const Position3d& newPosition) {
+void ParticleEmitter::setPosition(const Position3d &newPosition) {
     this->position = newPosition;
 }
 
-void ParticleEmitter::move(const Position3d& deltaPosition) {
+void ParticleEmitter::move(const Position3d &deltaPosition) {
     this->position = this->position + deltaPosition;
+}
+
+void ParticleEmitter::setRotation(const Rotation3d &newRotation) {
+    this->rotation = newRotation;
+    glm::vec3 nextDirection =
+        newRotation.toGlmQuat() * glm::vec3(0.0f, 1.0f, 0.0f);
+    if (glm::length(nextDirection) < 0.000001f) {
+        nextDirection = glm::vec3(0.0f, 1.0f, 0.0f);
+    }
+    this->direction = Magnitude3d::fromGlm(glm::normalize(nextDirection));
+}
+
+void ParticleEmitter::rotate(const Rotation3d &deltaRotation) {
+    setRotation(this->rotation + deltaRotation);
 }
 
 void ParticleEmitter::setEmissionType(ParticleEmissionType type) {
@@ -458,7 +462,7 @@ void ParticleEmitter::setEmissionType(ParticleEmissionType type) {
     this->emissionType = type;
 }
 
-void ParticleEmitter::setDirection(const Magnitude3d& dir) {
+void ParticleEmitter::setDirection(const Magnitude3d &dir) {
     this->direction = dir;
 }
 
@@ -470,7 +474,8 @@ void ParticleEmitter::setSpawnRate(float particlesPerSecond) {
     this->spawnRate = particlesPerSecond;
 }
 
-void ParticleEmitter::setParticleSettings(const ParticleSettings& particleSettings) {
+void ParticleEmitter::setParticleSettings(
+    const ParticleSettings &particleSettings) {
     this->settings = particleSettings;
 }
 

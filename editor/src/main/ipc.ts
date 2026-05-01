@@ -373,6 +373,73 @@ export function registerIpcHandlers() {
                                         type: "group",
                                     }),
                             },
+                            { type: "separator" },
+                            {
+                                label: "Lights",
+                                submenu: [
+                                    {
+                                        label: "Point Light",
+                                        click: () =>
+                                            finish({
+                                                action: "create",
+                                                type: "pointLight",
+                                            }),
+                                    },
+                                    {
+                                        label: "Spot Light",
+                                        click: () =>
+                                            finish({
+                                                action: "create",
+                                                type: "spotLight",
+                                            }),
+                                    },
+                                    {
+                                        label: "Directional Light",
+                                        click: () =>
+                                            finish({
+                                                action: "create",
+                                                type: "directionalLight",
+                                            }),
+                                    },
+                                    {
+                                        label: "Area Light",
+                                        click: () =>
+                                            finish({
+                                                action: "create",
+                                                type: "areaLight",
+                                            }),
+                                    },
+                                    {
+                                        label: "Ambient Light",
+                                        click: () =>
+                                            finish({
+                                                action: "create",
+                                                type: "ambientLight",
+                                            }),
+                                    },
+                                ],
+                            },
+                            {
+                                label: "Effects",
+                                submenu: [
+                                    {
+                                        label: "Particle Emitter",
+                                        click: () =>
+                                            finish({
+                                                action: "create",
+                                                type: "particleEmitter",
+                                            }),
+                                    },
+                                    {
+                                        label: "Terrain / Landscape",
+                                        click: () =>
+                                            finish({
+                                                action: "create",
+                                                type: "terrain",
+                                            }),
+                                    },
+                                ],
+                            },
                         ],
                     },
                     { type: "separator" },

@@ -111,7 +111,12 @@ bool objectBounds(GameObject *object, glm::vec3 &boundsMin,
 
     std::vector<CoreVertex> vertices = object->getVertices();
     if (vertices.empty()) {
-        return false;
+        glm::vec3 center = object->getPosition().toGlm();
+        glm::vec3 radius =
+            glm::max(object->getScale().toGlm() * 0.25f, glm::vec3(0.25f));
+        boundsMin = center - radius;
+        boundsMax = center + radius;
+        return true;
     }
 
     glm::mat4 transform = objectTransform(object);
@@ -161,12 +166,12 @@ std::array<glm::vec3, 8> boundsCorners(const glm::vec3 &boundsMin,
     };
 }
 
-std::array<glm::vec3, 8> transformBoundsCorners(
-    const std::array<glm::vec3, 8> &corners, const glm::mat4 &transform) {
+std::array<glm::vec3, 8>
+transformBoundsCorners(const std::array<glm::vec3, 8> &corners,
+                       const glm::mat4 &transform) {
     std::array<glm::vec3, 8> transformed{};
     for (std::size_t i = 0; i < corners.size(); ++i) {
-        transformed[i] =
-            glm::vec3(transform * glm::vec4(corners[i], 1.0f));
+        transformed[i] = glm::vec3(transform * glm::vec4(corners[i], 1.0f));
     }
     return transformed;
 }
@@ -1998,10 +2003,10 @@ void Window::setEditorObjectParent(GameObject *child, GameObject *parent) {
     if (previousParent != editorObjectParents.end()) {
         auto childrenIt = editorObjectChildren.find(previousParent->second);
         if (childrenIt != editorObjectChildren.end()) {
-            childrenIt->second.erase(
-                std::remove(childrenIt->second.begin(), childrenIt->second.end(),
-                            child),
-                childrenIt->second.end());
+            childrenIt->second.erase(std::remove(childrenIt->second.begin(),
+                                                 childrenIt->second.end(),
+                                                 child),
+                                     childrenIt->second.end());
         }
         editorObjectParents.erase(previousParent);
     }
@@ -2016,8 +2021,8 @@ void Window::setEditorObjectParent(GameObject *child, GameObject *parent) {
             return;
         }
         auto cursorIt = editorObjectParents.find(cursor);
-        cursor = cursorIt != editorObjectParents.end() ? cursorIt->second
-                                                       : nullptr;
+        cursor =
+            cursorIt != editorObjectParents.end() ? cursorIt->second : nullptr;
     }
 
     editorObjectParents[child] = parent;
@@ -2069,7 +2074,8 @@ void Window::editorPointerEvent(int action, float x, float y, int button,
     if (action == 1 && !editorDragging && !editorCameraDragging) {
         if (selectedEditorObject != nullptr &&
             editorControlMode != EditorControlMode::None) {
-            editorActiveGizmoAxis = hitTestEditorGizmoAxis(x, y, effectiveScale);
+            editorActiveGizmoAxis =
+                hitTestEditorGizmoAxis(x, y, effectiveScale);
         } else {
             editorActiveGizmoAxis = 0;
         }
@@ -2735,9 +2741,8 @@ void Window::updateEditorControlGeometry() {
     float outlinePadding = outlinePixelSize * 5.0f;
     float outlineThickness = outlinePixelSize * 1.5f;
     glm::vec3 outlinePaddingVector(outlinePadding);
-    std::array<glm::vec3, 8> outlineCorners =
-        boundsCorners(boundsMin - outlinePaddingVector,
-                      boundsMax + outlinePaddingVector);
+    std::array<glm::vec3, 8> outlineCorners = boundsCorners(
+        boundsMin - outlinePaddingVector, boundsMax + outlinePaddingVector);
     const glm::vec3 &p000 = outlineCorners[0];
     const glm::vec3 &p001 = outlineCorners[1];
     const glm::vec3 &p010 = outlineCorners[2];
