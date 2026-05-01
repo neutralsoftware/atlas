@@ -83,6 +83,8 @@ class Context {
     std::unordered_map<int, std::string> objectSceneReferences;
     std::unordered_map<int, std::string> objectSceneTypes;
     std::unordered_map<int, std::string> objectSceneSolidTypes;
+    std::unordered_map<int, std::string> objectParentReferences;
+    std::unordered_map<int, int> objectParents;
 
     ProjectConfig config;
 
@@ -101,6 +103,7 @@ class Context {
     std::string sceneObjectsJson() const;
     bool selectObject(int id, bool focusCamera);
     bool renameObject(int id, const std::string &name);
+    bool setObjectParent(int childId, int parentId);
     int createObject(const std::string &type, const std::string &name);
     bool saveCurrentScene();
     void end();

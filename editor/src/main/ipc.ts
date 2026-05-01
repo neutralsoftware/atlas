@@ -26,6 +26,7 @@ type ObjectMenuResult =
     | { action: "create"; type: string }
     | { action: "rename" }
     | { action: "select" }
+    | { action: "unparent" }
     | null;
 
 let editorViewportBounds: EditorViewportBounds | null = null;
@@ -268,6 +269,18 @@ export function registerIpcHandlers() {
     );
 
     ipcMain.handle(
+        "editor-controls:set-object-parent",
+        async (_event, childId, parentId) => {
+            return Boolean(
+                engineBridge.setObjectParent(
+                    Number(childId),
+                    parentId === null ? -1 : Number(parentId),
+                ),
+            );
+        },
+    );
+
+    ipcMain.handle(
         "editor-controls:create-object",
         async (_event, type, name) => {
             if (typeof type !== "string") {
@@ -330,6 +343,31 @@ export function registerIpcHandlers() {
                                         type: "pyramid",
                                     }),
                             },
+                            {
+                                label: "Capsule",
+                                click: () =>
+                                    finish({
+                                        action: "create",
+                                        type: "capsule",
+                                    }),
+                            },
+                            { type: "separator" },
+                            {
+                                label: "Camera",
+                                click: () =>
+                                    finish({
+                                        action: "create",
+                                        type: "camera",
+                                    }),
+                            },
+                            {
+                                label: "Group",
+                                click: () =>
+                                    finish({
+                                        action: "create",
+                                        type: "group",
+                                    }),
+                            },
                         ],
                     },
                     { type: "separator" },
@@ -342,6 +380,11 @@ export function registerIpcHandlers() {
                         label: "Select and Frame",
                         enabled: hasObject,
                         click: () => finish({ action: "select" }),
+                    },
+                    {
+                        label: "Clear Parent",
+                        enabled: hasObject,
+                        click: () => finish({ action: "unparent" }),
                     },
                 ]);
 

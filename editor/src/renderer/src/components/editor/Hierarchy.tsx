@@ -8,6 +8,7 @@ import {
 } from "lucide-react";
 import {
     Fragment,
+    type DragEvent,
     type MouseEvent,
     type ReactNode,
     useEffect,
@@ -20,6 +21,9 @@ const createLabels: Record<string, string> = {
     sphere: "Sphere",
     plane: "Plane",
     pyramid: "Pyramid",
+    capsule: "Capsule",
+    camera: "Camera",
+    group: "Group",
 };
 
 const objectTypes: Record<string, ReactNode> = {
@@ -34,6 +38,8 @@ const objectTypes: Record<string, ReactNode> = {
     sphere: <AppWindowIcon className="h-3.5 w-3.5" />,
     plane: <AppWindowIcon className="h-3.5 w-3.5" />,
     pyramid: <ArchiveIcon className="h-3.5 w-3.5" />,
+    capsule: <AppWindowIcon className="h-3.5 w-3.5" />,
+    group: <ArchiveIcon className="h-3.5 w-3.5" />,
     model: <AppWindowIcon className="h-3.5 w-3.5" />,
     compound: <ArchiveIcon className="h-3.5 w-3.5" />,
     terrain: <AppWindowIcon className="h-3.5 w-3.5" />,
@@ -56,6 +62,7 @@ export default function Hierarchy() {
     const [scene, setScene] = useState<Scene>(emptyScene);
     const [editingId, setEditingId] = useState<number | null>(null);
     const [editingName, setEditingName] = useState("");
+    const [draggingId, setDraggingId] = useState<number | null>(null);
 
     async function refreshScene() {
         const nextScene = await window.editorControls.getSceneObjects();
@@ -152,12 +159,43 @@ export default function Hierarchy() {
 
         if (result.action === "select") {
             await selectObject(object, true);
+            return;
         }
+
+        if (result.action === "unparent") {
+            await window.editorControls.setObjectParent(objectId(object), null);
+            await refreshScene();
+        }
+    }
+
+    async function dropOnObject(event: DragEvent, target: GameObject) {
+        event.preventDefault();
+        event.stopPropagation();
+        const sourceId = Number(event.dataTransfer.getData("text/plain"));
+        const targetId = objectId(target);
+        setDraggingId(null);
+        if (!Number.isFinite(sourceId) || sourceId === targetId) {
+            return;
+        }
+        await window.editorControls.setObjectParent(sourceId, targetId);
+        await refreshScene();
+    }
+
+    async function dropOnRoot(event: DragEvent) {
+        event.preventDefault();
+        const sourceId = Number(event.dataTransfer.getData("text/plain"));
+        setDraggingId(null);
+        if (!Number.isFinite(sourceId)) {
+            return;
+        }
+        await window.editorControls.setObjectParent(sourceId, null);
+        await refreshScene();
     }
 
     function renderObject(object: GameObject, depth = 0): ReactNode {
         const id = objectId(object);
         const selected = scene.selectedId === id;
+        const dragging = draggingId === id;
         const hasChildren = Boolean(object.children?.length);
         const icon = objectTypes[object.type] ?? (
             <AppWindowIcon className="h-3.5 w-3.5" />
@@ -167,16 +205,29 @@ export default function Hierarchy() {
             <Fragment key={id}>
                 <div
                     data-hierarchy-object-id={id}
+                    draggable={editingId !== id}
                     className={[
                         "group flex h-8 cursor-default items-center gap-2 rounded-xl border px-2 text-xs transition",
                         selected
                             ? "border-sky-300 bg-sky-100 text-sky-950 shadow-[0_10px_22px_rgba(2,132,199,0.16)]"
                             : "border-transparent text-slate-700 hover:border-slate-200 hover:bg-white hover:text-slate-950",
+                        dragging ? "opacity-45" : "",
                     ].join(" ")}
                     style={{ paddingLeft: `${8 + depth * 18}px` }}
                     onClick={() => selectObject(object, true)}
                     onContextMenu={(event) => openMenu(event, object)}
                     onDoubleClick={() => startRename(object)}
+                    onDragStart={(event) => {
+                        event.dataTransfer.setData("text/plain", String(id));
+                        event.dataTransfer.effectAllowed = "move";
+                        setDraggingId(id);
+                    }}
+                    onDragEnd={() => setDraggingId(null)}
+                    onDragOver={(event) => {
+                        event.preventDefault();
+                        event.dataTransfer.dropEffect = "move";
+                    }}
+                    onDrop={(event) => dropOnObject(event, object)}
                 >
                     <span className="flex h-4 w-4 items-center justify-center text-slate-400">
                         {hasChildren ? (
@@ -232,6 +283,8 @@ export default function Hierarchy() {
         <aside
             className="relative z-40 flex h-full w-72 shrink-0 flex-col border-r border-slate-200 bg-[linear-gradient(180deg,#ffffff_0%,#f8fafc_48%,#eef6ff_100%)] pt-10 text-slate-950 shadow-[22px_0_60px_rgba(15,23,42,0.18)]"
             onContextMenu={(event) => openMenu(event)}
+            onDragOver={(event) => event.preventDefault()}
+            onDrop={(event) => dropOnRoot(event)}
         >
             <div className="flex items-center justify-between border-b border-slate-200/80 px-4 pb-3 pt-3">
                 <div className="min-w-0">

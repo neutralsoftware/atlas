@@ -74,6 +74,12 @@ const editorControls: EditorControlsApi = {
         ipcRenderer.invoke("editor-controls:select-object", id, focus),
     renameObject: (id, name) =>
         ipcRenderer.invoke("editor-controls:rename-object", id, name),
+    setObjectParent: (childId, parentId) =>
+        ipcRenderer.invoke(
+            "editor-controls:set-object-parent",
+            childId,
+            parentId,
+        ),
     createObject: (type, name = "") =>
         ipcRenderer.invoke("editor-controls:create-object", type, name),
     showObjectMenu: (payload) =>

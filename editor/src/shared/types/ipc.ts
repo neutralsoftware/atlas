@@ -117,6 +117,7 @@ export interface EditorControlsApi {
     getSceneObjects(): Promise<Scene>;
     selectObject(id: number, focus?: boolean): Promise<boolean>;
     renameObject(id: number, name: string): Promise<boolean>;
+    setObjectParent(childId: number, parentId: number | null): Promise<boolean>;
     createObject(type: string, name?: string): Promise<number>;
     showObjectMenu(payload?: {
         id?: number;
@@ -125,6 +126,7 @@ export interface EditorControlsApi {
         | { action: "create"; type: string }
         | { action: "rename" }
         | { action: "select" }
+        | { action: "unparent" }
         | null
     >;
     saveCurrentScene(): Promise<boolean>;

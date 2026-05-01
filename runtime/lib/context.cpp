@@ -31,6 +31,7 @@
 #include <filesystem>
 #include <fstream>
 #include <memory>
+#include <numbers>
 #include <sstream>
 #include <stdexcept>
 #include <json.hpp>
@@ -1433,6 +1434,17 @@ void registerGameObject(Context &context, GameObject &object,
         }
     }
 
+    if (const json *parentField = findField(objectData, {"parent"});
+        parentField != nullptr) {
+        if (parentField->is_string()) {
+            context.objectParentReferences[object.getId()] =
+                parentField->get<std::string>();
+        } else if (parentField->is_number_integer()) {
+            context.objectParentReferences[object.getId()] =
+                std::to_string(parentField->get<int>());
+        }
+    }
+
     registerObjectReference(context, std::to_string(object.getId()), &object);
 }
 
@@ -1527,6 +1539,15 @@ void writeObjectTransform(json &node, const Context &context,
     node["position"] = vec3ToJson(object.getPosition());
     node["rotation"] = rotationToJson(object.getRotation());
     node["scale"] = vec3ToJson(object.getScale());
+    auto parentIt = context.objectParents.find(static_cast<int>(object.getId()));
+    if (parentIt != context.objectParents.end()) {
+        auto parentName = context.objectNames.find(parentIt->second);
+        node["parent"] = parentName != context.objectNames.end()
+                             ? parentName->second
+                             : std::to_string(parentIt->second);
+    } else {
+        node.erase("parent");
+    }
 }
 
 bool updateObjectNode(json &node, const Context &context, GameObject &object) {
@@ -1571,6 +1592,119 @@ json serializeNewObject(const Context &context, GameObject &object) {
     }
     writeObjectTransform(node, context, object);
     return node;
+}
+
+CoreObject createCapsulePrimitive(float radius, float height, Color color) {
+    constexpr unsigned int sectorCount = 32;
+    constexpr unsigned int hemisphereSegments = 8;
+    std::vector<CoreVertex> vertices;
+    std::vector<Index> indices;
+    const float halfHeight = std::max(0.0f, height * 0.5f);
+    const float pi = static_cast<float>(std::numbers::pi);
+
+    auto appendRing = [&](float y, float ringRadius, float centerY,
+                          float vCoord) {
+        for (unsigned int j = 0; j <= sectorCount; ++j) {
+            float sector = (static_cast<float>(j) / sectorCount) * pi * 2.0f;
+            float x = ringRadius * std::cos(sector);
+            float z = ringRadius * std::sin(sector);
+            glm::vec3 normal(x, y - centerY, z);
+            if (glm::length(normal) < 0.000001f) {
+                normal = glm::vec3(0.0f, y >= 0.0f ? 1.0f : -1.0f, 0.0f);
+            } else {
+                normal = glm::normalize(normal);
+            }
+            glm::vec3 tangent(-std::sin(sector), 0.0f, std::cos(sector));
+            if (glm::length(tangent) < 0.000001f) {
+                tangent = glm::vec3(1.0f, 0.0f, 0.0f);
+            } else {
+                tangent = glm::normalize(tangent);
+            }
+            glm::vec3 bitangent = glm::normalize(glm::cross(normal, tangent));
+
+            CoreVertex vertex;
+            vertex.position = Position3d(x, y, z);
+            vertex.color = color;
+            vertex.textureCoordinate = {
+                static_cast<float>(j) / sectorCount,
+                vCoord,
+            };
+            vertex.normal = Normal3d::fromGlm(normal);
+            vertex.tangent = Normal3d::fromGlm(tangent);
+            vertex.bitangent = Normal3d::fromGlm(bitangent);
+            vertices.push_back(vertex);
+        }
+    };
+
+    for (unsigned int i = 0; i <= hemisphereSegments; ++i) {
+        float t = static_cast<float>(i) / hemisphereSegments;
+        float angle = (pi * 0.5f) * (1.0f - t);
+        appendRing(halfHeight + radius * std::sin(angle),
+                   radius * std::cos(angle), halfHeight, t * 0.5f);
+    }
+    for (unsigned int i = 1; i <= hemisphereSegments; ++i) {
+        float t = static_cast<float>(i) / hemisphereSegments;
+        float angle = -(pi * 0.5f) * t;
+        appendRing(-halfHeight + radius * std::sin(angle),
+                   radius * std::cos(angle), -halfHeight, 0.5f + t * 0.5f);
+    }
+
+    const unsigned int ringCount = hemisphereSegments * 2 + 1;
+    for (unsigned int i = 0; i < ringCount - 1; ++i) {
+        unsigned int k1 = i * (sectorCount + 1);
+        unsigned int k2 = k1 + sectorCount + 1;
+        for (unsigned int j = 0; j < sectorCount; ++j, ++k1, ++k2) {
+            indices.push_back(k1);
+            indices.push_back(k2);
+            indices.push_back(k1 + 1);
+            indices.push_back(k1 + 1);
+            indices.push_back(k2);
+            indices.push_back(k2 + 1);
+        }
+    }
+
+    CoreObject capsule;
+    capsule.attachVertices(vertices);
+    capsule.attachIndices(indices);
+    capsule.material.albedo = color;
+    capsule.initialize();
+    return capsule;
+}
+
+void resolveObjectParentReferences(Context &context) {
+    for (const auto &[childId, parentReference] : context.objectParentReferences) {
+        auto parentIt = context.objectReferences.find(parentReference);
+        if (parentIt == context.objectReferences.end()) {
+            parentIt = context.objectReferences.find(normalizeToken(parentReference));
+        }
+        if (parentIt == context.objectReferences.end() ||
+            parentIt->second == nullptr) {
+            continue;
+        }
+
+        GameObject *child = nullptr;
+        for (const auto &renderable : context.objects) {
+            if (renderable == nullptr) {
+                continue;
+            }
+            auto *object = dynamic_cast<GameObject *>(renderable.get());
+            if (object != nullptr && static_cast<int>(object->getId()) == childId) {
+                child = object;
+                break;
+            }
+        }
+        if (child == nullptr || child == parentIt->second) {
+            continue;
+        }
+
+        context.objectParents[childId] =
+            static_cast<int>(parentIt->second->getId());
+        if (auto *compound = dynamic_cast<CompoundObject *>(parentIt->second);
+            compound != nullptr &&
+            std::ranges::find(compound->objects, child) == compound->objects.end()) {
+            compound->addObject(child);
+        }
+    }
 }
 
 void applyMaterial(GameObject &object, const MaterialDefinition &material) {
@@ -2828,6 +2962,12 @@ createRenderable(Context &context, const json &objectData,
             *object =
                 createSphere(radius, static_cast<unsigned int>(sectorCount),
                              static_cast<unsigned int>(stackCount), color);
+        } else if (normalizedSolidType == "capsule") {
+            float radius = 0.35f;
+            float height = 1.0f;
+            tryReadFloatAny(objectData, {"radius"}, radius);
+            tryReadFloatAny(objectData, {"height"}, height);
+            *object = createCapsulePrimitive(radius, height, color);
         } else {
             throw std::runtime_error("Unknown solid type: " + solidType);
         }
@@ -2842,6 +2982,19 @@ createRenderable(Context &context, const json &objectData,
                           loadMaterialDefinition(*materialField, baseDir));
         }
 
+        applyTransform(*object, objectData);
+        collectPendingComponents(*object, objectData, baseDir, rigidbodies,
+                                 standard, joints);
+        return object;
+    }
+
+    if (normalizedType == "camera") {
+        auto object = std::make_shared<CoreObject>();
+        *object = createPyramid({0.65f, 0.45f, 0.65f},
+                                Color{0.25f, 0.55f, 1.0f, 1.0f});
+        registerGameObject(context, *object, objectData, normalizedType,
+                           generatedIndex);
+        context.objects.push_back(object);
         applyTransform(*object, objectData);
         collectPendingComponents(*object, objectData, baseDir, rigidbodies,
                                  standard, joints);
@@ -2869,6 +3022,8 @@ createRenderable(Context &context, const json &objectData,
                         "children");
                 }
                 object->addObject(childObject.get());
+                context.objectParents[static_cast<int>(childObject->getId())] =
+                    static_cast<int>(object->getId());
             }
         }
 
@@ -3392,6 +3547,7 @@ std::string editorObjectType(const Context &context, GameObject &object) {
 }
 
 json editorObjectJson(const Context &context, GameObject &object,
+                      const std::unordered_map<int, std::vector<int>> &children,
                       std::unordered_set<int> &visiting) {
     const int id = static_cast<int>(object.getId());
     json node = json::object();
@@ -3405,13 +3561,14 @@ json editorObjectJson(const Context &context, GameObject &object,
     }
     visiting.insert(id);
 
-    if (auto *compound = dynamic_cast<CompoundObject *>(&object);
-        compound != nullptr && !compound->objects.empty()) {
+    auto childrenIt = children.find(id);
+    if (childrenIt != children.end() && !childrenIt->second.empty()) {
         node["children"] = json::array();
-        for (GameObject *child : compound->objects) {
+        for (int childId : childrenIt->second) {
+            GameObject *child = findContextObject(context, childId);
             if (child != nullptr) {
                 node["children"].push_back(
-                    editorObjectJson(context, *child, visiting));
+                    editorObjectJson(context, *child, children, visiting));
             }
         }
     }
@@ -3462,20 +3619,9 @@ std::string Context::sceneObjectsJson() const {
     snapshot["selectedId"] = selectedObjectId();
     snapshot["objects"] = json::array();
 
-    std::unordered_set<GameObject *> compoundChildren;
-    for (const auto &renderable : objects) {
-        if (renderable == nullptr) {
-            continue;
-        }
-        auto *compound = dynamic_cast<CompoundObject *>(renderable.get());
-        if (compound == nullptr) {
-            continue;
-        }
-        for (GameObject *child : compound->objects) {
-            if (child != nullptr) {
-                compoundChildren.insert(child);
-            }
-        }
+    std::unordered_map<int, std::vector<int>> children;
+    for (const auto &[childId, parentId] : objectParents) {
+        children[parentId].push_back(childId);
     }
 
     std::unordered_set<int> visiting;
@@ -3484,11 +3630,12 @@ std::string Context::sceneObjectsJson() const {
             continue;
         }
         auto *object = dynamic_cast<GameObject *>(renderable.get());
-        if (object == nullptr || compoundChildren.contains(object)) {
+        if (object == nullptr ||
+            objectParents.contains(static_cast<int>(object->getId()))) {
             continue;
         }
         snapshot["objects"].push_back(
-            editorObjectJson(*this, *object, visiting));
+            editorObjectJson(*this, *object, children, visiting));
     }
 
     return snapshot.dump();
@@ -3529,24 +3676,122 @@ bool Context::renameObject(int id, const std::string &name) {
     return true;
 }
 
+bool Context::setObjectParent(int childId, int parentId) {
+    GameObject *child = findContextObject(*this, childId);
+    if (child == nullptr) {
+        return false;
+    }
+
+    GameObject *parent = nullptr;
+    if (parentId >= 0) {
+        parent = findContextObject(*this, parentId);
+        if (parent == nullptr || parent == child) {
+            return false;
+        }
+
+        int cursor = parentId;
+        while (cursor >= 0) {
+            if (cursor == childId) {
+                return false;
+            }
+            auto parentIt = objectParents.find(cursor);
+            if (parentIt == objectParents.end()) {
+                break;
+            }
+            cursor = parentIt->second;
+        }
+    }
+
+    auto oldParentIt = objectParents.find(childId);
+    bool oldParentWasCompound = false;
+    if (oldParentIt != objectParents.end()) {
+        if (GameObject *oldParent =
+                findContextObject(*this, oldParentIt->second);
+            oldParent != nullptr) {
+            if (auto *compound = dynamic_cast<CompoundObject *>(oldParent);
+                compound != nullptr) {
+                oldParentWasCompound = true;
+                compound->objects.erase(
+                    std::remove(compound->objects.begin(),
+                                compound->objects.end(), child),
+                    compound->objects.end());
+            }
+        }
+    }
+
+    if (parentId < 0) {
+        objectParents.erase(childId);
+        objectParentReferences.erase(childId);
+        if (oldParentWasCompound) {
+            window->addObject(child);
+        }
+        return true;
+    }
+
+    objectParents[childId] = parentId;
+    objectParentReferences[childId] = std::to_string(parentId);
+
+    if (auto *compound = dynamic_cast<CompoundObject *>(parent);
+        compound != nullptr) {
+        if (std::ranges::find(compound->objects, child) ==
+            compound->objects.end()) {
+            compound->addObject(child);
+        }
+        window->removeObject(child);
+        window->selectEditorObject(child, false);
+    } else {
+        window->addObject(child);
+    }
+
+    return true;
+}
+
 int Context::createObject(const std::string &type, const std::string &name) {
     if (window == nullptr) {
         return -1;
     }
 
     const std::string normalized = normalizeToken(type);
-    auto object = std::make_shared<CoreObject>();
+    std::shared_ptr<GameObject> object;
+    std::string sceneType = "solid";
     std::string solidType = normalized.empty() ? "cube" : normalized;
+    std::string fallbackName = solidType;
 
     if (solidType == "cube" || solidType == "box") {
         solidType = "cube";
-        *object = createBox({1.0f, 1.0f, 1.0f}, Color::white());
+        auto core = std::make_shared<CoreObject>();
+        *core = createBox({1.0f, 1.0f, 1.0f}, Color::white());
+        object = core;
     } else if (solidType == "sphere") {
-        *object = createSphere(0.5f, 36, 18, Color::white());
+        auto core = std::make_shared<CoreObject>();
+        *core = createSphere(0.5f, 36, 18, Color::white());
+        object = core;
     } else if (solidType == "plane") {
-        *object = createPlane({1.0f, 1.0f}, Color::white());
+        auto core = std::make_shared<CoreObject>();
+        *core = createPlane({1.0f, 1.0f}, Color::white());
+        object = core;
     } else if (solidType == "pyramid") {
-        *object = createPyramid({1.0f, 1.0f, 1.0f}, Color::white());
+        auto core = std::make_shared<CoreObject>();
+        *core = createPyramid({1.0f, 1.0f, 1.0f}, Color::white());
+        object = core;
+    } else if (solidType == "capsule") {
+        auto core = std::make_shared<CoreObject>();
+        *core = createCapsulePrimitive(0.35f, 1.0f, Color::white());
+        object = core;
+    } else if (solidType == "group" || solidType == "empty" ||
+               solidType == "emptygameobject") {
+        sceneType = "compound";
+        fallbackName = "Group";
+        object = std::make_shared<CompoundObject>();
+        solidType.clear();
+    } else if (solidType == "camera") {
+        sceneType = "camera";
+        fallbackName = "Camera";
+        auto core = std::make_shared<CoreObject>();
+        *core = createPyramid({0.65f, 0.45f, 0.65f},
+                              Color{0.25f, 0.55f, 1.0f, 1.0f});
+        object = core;
+        solidType.clear();
     } else {
         return -1;
     }
@@ -3562,12 +3807,14 @@ int Context::createObject(const std::string &type, const std::string &name) {
 
     const int id = static_cast<int>(object->getId());
     const std::string displayName =
-        uniqueEditorObjectName(*this, name.empty() ? solidType : name);
+        uniqueEditorObjectName(*this, name.empty() ? fallbackName : name);
     object->name = displayName;
     objectNames[id] = displayName;
     objectSceneReferences[id] = std::to_string(id);
-    objectSceneTypes[id] = "solid";
-    objectSceneSolidTypes[id] = solidType;
+    objectSceneTypes[id] = sceneType;
+    if (!solidType.empty()) {
+        objectSceneSolidTypes[id] = solidType;
+    }
     registerObjectReference(*this, displayName, object.get());
     registerObjectReference(*this, std::to_string(id), object.get());
 
@@ -3804,6 +4051,8 @@ void Context::loadScene(Window &window, const json &sceneData) {
     objectSceneReferences.clear();
     objectSceneTypes.clear();
     objectSceneSolidTypes.clear();
+    objectParentReferences.clear();
+    objectParents.clear();
     renderTargets.clear();
     directionalLights.clear();
     pointLights.clear();
@@ -4124,6 +4373,8 @@ void Context::loadScene(Window &window, const json &sceneData) {
         }
     }
 
+    resolveObjectParentReferences(*this);
+
     for (const auto &pending : rigidbodyComponents) {
         try {
             attachComponent(*this, pending);
@@ -4158,6 +4409,19 @@ void Context::loadScene(Window &window, const json &sceneData) {
             skybox != nullptr) {
             scene->setSkybox(skybox);
             continue;
+        }
+
+        if (auto object = std::dynamic_pointer_cast<GameObject>(renderable);
+            object != nullptr) {
+            auto parentIt =
+                objectParents.find(static_cast<int>(object->getId()));
+            if (parentIt != objectParents.end()) {
+                if (auto *parentObject =
+                        findContextObject(*this, parentIt->second);
+                    dynamic_cast<CompoundObject *>(parentObject) != nullptr) {
+                    continue;
+                }
+            }
         }
 
         window.addObject(renderable.get());

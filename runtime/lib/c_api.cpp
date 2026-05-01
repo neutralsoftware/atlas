@@ -301,6 +301,24 @@ bool atlas_runtime_rename_object(void *runtimeContext, int id,
     }
 }
 
+bool atlas_runtime_set_object_parent(void *runtimeContext, int childId,
+                                     int parentId) {
+    if (runtimeContext == nullptr) {
+        return false;
+    }
+    try {
+        auto *handle = reinterpret_cast<RuntimeContextHandle *>(runtimeContext);
+        if (*handle == nullptr) {
+            return false;
+        }
+        return (*handle)->setObjectParent(childId, parentId);
+    } catch (const std::exception &) {
+        return false;
+    } catch (...) {
+        return false;
+    }
+}
+
 int atlas_runtime_create_object(void *runtimeContext, const char *type,
                                 const char *name) {
     if (runtimeContext == nullptr || type == nullptr) {

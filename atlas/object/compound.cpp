@@ -181,7 +181,7 @@ Position3d CompoundObject::getPosition() const {
         if (!lateForwardObjects.empty() && lateForwardObjects[0] != nullptr) {
             return lateForwardObjects[0]->getPosition();
         }
-        return Position3d{0.0, 0.0, 0.0};
+        return position;
     }
     return objects[0]->getPosition();
 }
