@@ -308,7 +308,7 @@ export default function Hierarchy() {
 
     return (
         <aside
-            className="relative z-40 flex h-full w-72 shrink-0 flex-col border-r border-slate-200 bg-[linear-gradient(180deg,#ffffff_0%,#f8fafc_48%,#eef6ff_100%)] pt-10 text-slate-950 shadow-[22px_0_60px_rgba(15,23,42,0.18)]"
+            className="relative z-40 flex h-full w-72 shrink-0 flex-col border-r border-slate-200 bg-white pt-10 text-slate-950 shadow-[16px_0_20px_rgba(15,23,42,0.25)] [clip-path:inset(0_-3rem_0_0)]"
             onContextMenu={(event) => openMenu(event)}
             onDragOver={(event) => event.preventDefault()}
             onDrop={(event) => dropOnRoot(event)}

@@ -236,15 +236,18 @@ export const viewport: WindowMaker<BrowserWindow> = async () => {
         try {
             await splash.loadURL(splashDevServerUrl);
             splashLoaded = true;
-        } catch {}
+        } catch (err) {
+            console.error("Failed to load splash URL:", err);
+        }
     }
     if (!splashLoaded) {
-        await splash.loadFile(getRendererIndexPath(), { hash: "/editorSplash" });
+        await splash.loadFile(getRendererIndexPath(), {
+            hash: "/editorSplash",
+        });
     }
 
     // Wait a brief moment to ensure splash renders
     await new Promise<void>((resolve) => setTimeout(resolve, 500));
-
 
     const win = new BrowserWindow({
         width: 1200,

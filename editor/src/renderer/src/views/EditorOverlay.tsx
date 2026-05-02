@@ -4,6 +4,8 @@ import TopSelector from "../components/editor/TopSelector";
 import Hierarchy from "../components/editor/Hierarchy";
 import { Project } from "src/shared/types/atlas";
 import { AppInfo } from "../model/app";
+import FileExplorer from "../components/editor/FileExplorer";
+import Inspector from "../components/editor/Inspector";
 
 export default function EditorOverlay() {
     const activePointerButton = useRef(0);
@@ -249,7 +251,7 @@ export default function EditorOverlay() {
     return (
         <main
             ref={shellRef}
-            className="fixed inset-0 flex bg-transparent text-white select-none"
+            className="fixed inset-0 grid grid-cols-[18rem_minmax(0,1fr)_18rem] grid-rows-[32.5rem_minmax(0,1fr)] bg-transparent text-white select-none"
         >
             <div className="w-full h-8 bg-white absolute z-50 flex items-center justify-center text-black">
                 <p className="text-xs font-bold">
@@ -261,7 +263,7 @@ export default function EditorOverlay() {
             </div>
             <Hierarchy />
 
-            <section ref={viewportRef} className="relative min-w-0 flex-1">
+            <section ref={viewportRef} className="relative min-w-0">
                 <div
                     className="absolute inset-0 z-0 outline-none"
                     tabIndex={0}
@@ -275,6 +277,15 @@ export default function EditorOverlay() {
 
                 <TopSelector />
             </section>
+            <div className="relative col-span-3 h-full min-w-0">
+                <FileExplorer />
+                <div className="pointer-events-none absolute top-0 right-72 left-72 z-40 h-full shadow-[0_-16px_20px_rgba(15,23,42,0.25)] [clip-path:inset(-3rem_0_0_0)]" />
+            </div>
+
+            <div className="relative col-start-3 row-start-1 h-full min-h-0">
+                <Inspector />
+                <div className="pointer-events-none absolute top-0 left-0 z-40 h-full w-full shadow-[-16px_0_20px_rgba(15,23,42,0.25)] [clip-path:inset(0_0_0_-3rem)]" />
+            </div>
         </main>
     );
 }
