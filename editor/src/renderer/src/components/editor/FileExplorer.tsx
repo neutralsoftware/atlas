@@ -9,7 +9,11 @@ import {
     Package,
 } from "lucide-react";
 import { useEffect, useState } from "react";
-import { DirectoryInformation, FileInformation } from "src/shared/types/ipc";
+import {
+    ContextMenuItem,
+    DirectoryInformation,
+    FileInformation,
+} from "src/shared/types/ipc";
 
 export default function FileExplorer() {
     const [path, setPath] = useState("");
@@ -25,7 +29,7 @@ export default function FileExplorer() {
         if (!path) return;
 
         window.tasks
-            .getDirectoryInformation({ path })
+            .getDirectoryInformation({path})
             .then((info) => setDirInfo(info));
     }, [path]);
 
@@ -61,18 +65,126 @@ export default function FileExplorer() {
         }
     }
 
+    const fileExplorerMenuGeneric: ContextMenuItem[] = [
+        {
+            kind: "submenu",
+            label: "Create",
+            children: [
+                {
+                    kind: "item",
+                    label: "Scene",
+                    action: "new-scene",
+                },
+                {
+                    kind: "item",
+                    label: "Script",
+                    action: "new-script",
+                },
+                {
+                    kind: "item",
+                    label: "Material",
+                    action: "new-material",
+                },
+            ],
+        },
+        {
+            kind: "item",
+            label: "New Folder",
+            action: "new-folder",
+        },
+        {
+            kind: "separator",
+        },
+        {
+            label: "Reveal in Finder",
+            action: "reveal-in-finder",
+            kind: "item",
+        },
+        {
+            label: "Copy Path",
+            action: "copy-path",
+            kind: "item",
+        },
+    ];
+
+    const fileExplorerMenuForFile: ContextMenuItem[] =
+        fileExplorerMenuGeneric.concat([
+            {
+                kind: "separator",
+            },
+            {
+                label: "Rename",
+                action: "rename",
+                kind: "item",
+            },
+            {
+                label: "Delete",
+                action: "delete",
+                kind: "item",
+            },
+        ]);
+
+    function handleBackgroundContextMenu(event: React.MouseEvent) {
+        event.preventDefault();
+
+        window.contextMenu.show(fileExplorerMenuGeneric);
+    }
+
+    function handleChildContextMenu(
+        event: React.MouseEvent,
+        child: DirectoryInformation | FileInformation,
+    ) {
+        event.preventDefault();
+        event.stopPropagation();
+
+        window.contextMenu.show(fileExplorerMenuForFile);
+    }
+
+    useEffect(() => {
+        window.contextMenu.onClick((action) => {
+            switch (action) {
+                case "new-scene":
+                    console.log("New Scene");
+                    break;
+                case "new-script":
+                    console.log("Create script");
+                    break;
+
+                case "new-folder":
+                    console.log("Create folder");
+                    break;
+
+                case "rename":
+                    console.log("Rename");
+                    break;
+
+                case "delete":
+                    console.log("Delete");
+                    break;
+
+                case "copy-path":
+                    navigator.clipboard.writeText(path);
+                    break;
+            }
+        })
+    }, [path]);
+
     return (
         <div className="h-full w-full border-t border-slate-200 bg-white">
             <div className="flex h-10 items-center gap-2 px-4 text-sm text-slate-500">
                 {path}
             </div>
             {dirInfo ? (
-                <div className="grid grid-cols-[repeat(auto-fill,minmax(96px,1fr))] gap-3 overflow-auto p-4">
+                <div
+                    className="grid grid-cols-[repeat(auto-fill,minmax(96px,1fr))] gap-3 overflow-auto p-4"
+                    onContextMenu={handleBackgroundContextMenu}
+                >
                     {dirInfo.children.map((child) => (
                         <div
                             key={child.name}
                             className="flex cursor-pointer flex-col items-center rounded-lg p-3 hover:bg-slate-100"
                             onClick={() => handleClickOnChild(child)}
+                            onContextMenu={(event) => handleChildContextMenu(event, child)}
                         >
                             {child.type === "directory"
                                 ? getIconForDirName(child.name)

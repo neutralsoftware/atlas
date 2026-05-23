@@ -6,6 +6,10 @@
         "exactOptionalPropertyTypes": true,
         "skipLibCheck": true,
         "resolveJsonModule": true,
-        "isolatedModules": true
+        "isolatedModules": true,
+        "paths": {
+            "src/*": ["./src/*"],
+            "@shared/*": ["./src/shared/*"]
+        }
     }
 }

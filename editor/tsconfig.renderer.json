@@ -2,7 +2,8 @@
     "extends": "./tsconfig.base.json",
     "compilerOptions": {
         "ignoreDeprecations": "6.0",
-        "baseUrl": ".",
+        "module": "ESNext",
+        "moduleResolution": "Bundler",
         "lib": ["ES2022", "DOM", "DOM.Iterable"],
         "jsx": "react-jsx",
         "types": ["vite/client"]
@@ -10,6 +11,7 @@
     "include": [
         "src/renderer/src/**/*.ts",
         "src/renderer/src/**/*.tsx",
-        "src/shared/**/*.ts"
+        "src/shared/**/*.ts",
+        "src/shared/**/*.d.ts"
     ]
 }

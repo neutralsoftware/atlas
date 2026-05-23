@@ -1,16 +1,15 @@
-import { app, BrowserWindow } from "electron";
-import { WindowMaker } from "src/shared/types/ipc";
+import {app, BrowserWindow} from "electron";
+import {WindowMaker} from "src/shared/types/ipc";
 import {
     allWindows,
-    engineBridge,
-    getPreloadPath,
+    engineBridge, getPreloadPath,
     getRendererIndexPath,
     getWindowIcon,
     mainWindow,
     setMainWindow,
 } from "./main";
-import { DEBUG } from "../shared/generated/build";
-import { runtimeLib } from "./tasks/startup";
+import {DEBUG} from "../shared/generated/build";
+import {runtimeLib} from "./tasks/startup";
 import {
     applyEditorViewportBounds,
     clearEditorViewportBounds,
@@ -38,7 +37,7 @@ export const createOnboardingWindow: WindowMaker<BrowserWindow> = async () => {
         skipTaskbar: true,
 
         show: true,
-        ...(windowIcon ? { icon: windowIcon } : {}),
+        ...(windowIcon ? {icon: windowIcon} : {}),
 
         webPreferences: {
             preload: getPreloadPath(),
@@ -69,15 +68,15 @@ export const createOnboardingWindow: WindowMaker<BrowserWindow> = async () => {
     if (!app.isPackaged && DEBUG) {
         try {
             await win.loadURL(devServerUrl);
-            return { id: "onboarding", window: win };
+            return {id: "onboarding", window: win};
         } catch {
             // Fallback to built renderer when the dev server is unavailable.
         }
     }
 
-    await win.loadFile(getRendererIndexPath(), { hash: "/onboarding" });
+    await win.loadFile(getRendererIndexPath(), {hash: "/onboarding"});
 
-    return { id: "onboarding", window: win };
+    return {id: "onboarding", window: win};
 };
 
 export const createProjectsWindow: WindowMaker<BrowserWindow> = async () => {
@@ -100,7 +99,7 @@ export const createProjectsWindow: WindowMaker<BrowserWindow> = async () => {
         center: true,
 
         show: true,
-        ...(windowIcon ? { icon: windowIcon } : {}),
+        ...(windowIcon ? {icon: windowIcon} : {}),
 
         webPreferences: {
             preload: getPreloadPath(),
@@ -131,15 +130,15 @@ export const createProjectsWindow: WindowMaker<BrowserWindow> = async () => {
     if (!app.isPackaged && DEBUG) {
         try {
             await win.loadURL(devServerUrl);
-            return { id: "projects", window: win };
+            return {id: "projects", window: win};
         } catch {
             // Fallback to built renderer when the dev server is unavailable.
         }
     }
 
-    await win.loadFile(getRendererIndexPath(), { hash: "/projects" });
+    await win.loadFile(getRendererIndexPath(), {hash: "/projects"});
 
-    return { id: "projects", window: win };
+    return {id: "projects", window: win};
 };
 
 export const createNewProjectModal: WindowMaker<BrowserWindow> = async () => {
@@ -159,7 +158,7 @@ export const createNewProjectModal: WindowMaker<BrowserWindow> = async () => {
         center: true,
 
         show: true,
-        ...(windowIcon ? { icon: windowIcon } : {}),
+        ...(windowIcon ? {icon: windowIcon} : {}),
 
         webPreferences: {
             preload: getPreloadPath(),
@@ -190,15 +189,15 @@ export const createNewProjectModal: WindowMaker<BrowserWindow> = async () => {
     if (!app.isPackaged && DEBUG) {
         try {
             await win.loadURL(devServerUrl);
-            return { id: "createProject", window: win };
+            return {id: "createProject", window: win};
         } catch {
             // Fallback to built renderer when the dev server is unavailable.
         }
     }
 
-    await win.loadFile(getRendererIndexPath(), { hash: "/createProject" });
+    await win.loadFile(getRendererIndexPath(), {hash: "/createProject"});
 
-    return { id: "createProject", window: win };
+    return {id: "createProject", window: win};
 };
 
 export let frameTimer: NodeJS.Timeout | null = null;
@@ -221,7 +220,7 @@ export const viewport: WindowMaker<BrowserWindow> = async () => {
         center: true,
         skipTaskbar: true,
         show: true,
-        ...(windowIcon ? { icon: windowIcon } : {}),
+        ...(windowIcon ? {icon: windowIcon} : {}),
         webPreferences: {
             preload: getPreloadPath(),
             contextIsolation: true,
@@ -260,13 +259,13 @@ export const viewport: WindowMaker<BrowserWindow> = async () => {
         fullscreenable: false,
         frame: false,
         titleBarStyle: "hidden",
-        trafficLightPosition: { x: 12, y: 13 },
+        trafficLightPosition: {x: 12, y: 13},
         roundedCorners: true,
         transparent: true,
         hasShadow: true,
 
         show: false,
-        ...(windowIcon ? { icon: windowIcon } : {}),
+        ...(windowIcon ? {icon: windowIcon} : {}),
 
         webPreferences: {
             preload: getPreloadPath(),
@@ -320,7 +319,7 @@ export const viewport: WindowMaker<BrowserWindow> = async () => {
     }
 
     if (!rendererLoaded) {
-        await win.loadFile(getRendererIndexPath(), { hash: "/editorOverlay" });
+        await win.loadFile(getRendererIndexPath(), {hash: "/editorOverlay"});
     }
 
     await new Promise<void>((resolve) => setTimeout(resolve, 50));
@@ -366,7 +365,7 @@ export const viewport: WindowMaker<BrowserWindow> = async () => {
         }
     });
 
-    return { id: "editor", window: win };
+    return {id: "editor", window: win};
 };
 
 export const makerRegistry: Record<string, WindowMaker<BrowserWindow>> = {
