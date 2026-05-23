@@ -1,4 +1,5 @@
 import {
+    app,
     ipcMain,
     BrowserWindow,
     Menu,
@@ -8,7 +9,7 @@ import {
 import path from "node:path";
 import { BUILDID, DEBUG } from "../shared/generated/build";
 import { tasks } from "./tasks/register";
-import { allWindows, engineBridge, mainWindow } from "./main";
+import { allWindows, engineBridge, mainWindow, VERSION_ID } from "./main";
 import { makerRegistry } from "./windows";
 import {
     ContextMenuItem,
@@ -257,6 +258,59 @@ async function writeProjectMainScene(scenePath: string) {
     await writeFile(projectFile, `${content.trimEnd()}\n\n[game]\n${line}\n`);
 }
 
+async function touchProjectModified(projectPath: string) {
+    const { readFile, writeFile } = await import("fs/promises");
+    const configFile = path.join(app.getPath("home"), ".atlas", "config.json");
+    const configContent = await readFile(configFile, "utf-8");
+    const config = JSON.parse(configContent) as Record<string, unknown>;
+    const versionEntry = config[VERSION_ID];
+
+    if (
+        !versionEntry ||
+        typeof versionEntry !== "object" ||
+        Array.isArray(versionEntry)
+    ) {
+        return;
+    }
+
+    const entry = versionEntry as Record<string, unknown>;
+    const projects = Array.isArray(entry.projects) ? entry.projects : [];
+    const modified = new Date().toISOString();
+    let changed = false;
+
+    const nextProjects = projects.map((project) => {
+        if (
+            !project ||
+            typeof project !== "object" ||
+            Array.isArray(project)
+        ) {
+            return project;
+        }
+
+        const projectRecord = project as Record<string, unknown>;
+        if (projectRecord.path !== projectPath) {
+            return project;
+        }
+
+        changed = true;
+        return {
+            ...projectRecord,
+            modified,
+        };
+    });
+
+    if (!changed) {
+        return;
+    }
+
+    config[VERSION_ID] = {
+        ...entry,
+        projects: nextProjects,
+    };
+
+    await writeFile(configFile, JSON.stringify(config, null, 2), "utf-8");
+}
+
 function getRuntimeSceneObjects() {
     const raw =
         typeof engineBridge.getSceneObjects === "function"
@@ -431,7 +485,12 @@ export function registerIpcHandlers() {
     });
 
     ipcMain.handle("general:open-project", async (_event, payload) => {
+        if (typeof payload?.path !== "string" || !payload.path.trim()) {
+            throw new Error("Invalid project path");
+        }
+
         currentProjectPath = payload.path;
+        await touchProjectModified(payload.path);
     });
 
     ipcMain.handle("editor-controls:set-enabled", async (_event, enabled) => {

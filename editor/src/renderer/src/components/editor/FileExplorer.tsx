@@ -115,7 +115,7 @@ function ToolbarButton({
 }) {
     return (
         <button
-            className="flex h-8 w-8 items-center justify-center rounded-lg border border-slate-200 bg-white text-slate-600 shadow-sm transition hover:border-sky-200 hover:bg-sky-50 hover:text-sky-700 disabled:cursor-not-allowed disabled:opacity-35 disabled:hover:border-slate-200 disabled:hover:bg-white disabled:hover:text-slate-600"
+            className="flex h-7 w-7 items-center justify-center rounded-lg border border-slate-200 bg-white text-slate-600 shadow-sm transition hover:border-sky-200 hover:bg-sky-50 hover:text-sky-700 disabled:cursor-not-allowed disabled:opacity-35 disabled:hover:border-slate-200 disabled:hover:bg-white disabled:hover:text-slate-600"
             disabled={disabled}
             title={title}
             onClick={(event) => {
@@ -389,24 +389,24 @@ export default function FileExplorer() {
 
     function getIconForFileType(type: string) {
         if (type === ".ascene") {
-            return <LandPlot className="h-12 w-12 text-slate-500" />;
+            return <LandPlot className="h-9 w-9 text-slate-500" />;
         } else if (type === ".png" || type === ".jpg" || type === ".jpeg") {
-            return <ImageIcon className="h-12 w-12 text-slate-500" />;
+            return <ImageIcon className="h-9 w-9 text-slate-500" />;
         } else if (type === ".ts") {
-            return <Code className="h-12 w-12 text-slate-500" />;
+            return <Code className="h-9 w-9 text-slate-500" />;
         } else if (type === ".atlas") {
-            return <Package className="h-12 w-12 text-slate-500" />;
+            return <Package className="h-9 w-9 text-slate-500" />;
         }
-        return <File className="h-12 w-12 text-slate-500" />;
+        return <File className="h-9 w-9 text-slate-500" />;
     }
 
     function getIconForDirName(dirName: string) {
         if (dirName === "assets") {
-            return <Blocks className="h-12 w-12 text-blue-500" />;
+            return <Blocks className="h-9 w-9 text-blue-500" />;
         } else if (dirName === "scripts") {
-            return <FolderCode className="h-12 w-12 text-blue-500" />;
+            return <FolderCode className="h-9 w-9 text-blue-500" />;
         }
-        return <Folder className="h-12 w-12 text-blue-500" />;
+        return <Folder className="h-9 w-9 text-blue-500" />;
     }
 
     function getIconForCreateKind(kind: FileSystemCreateKind) {
@@ -638,15 +638,9 @@ export default function FileExplorer() {
     }
 
     const pathParts = relativePathParts();
-    const directoryCount =
-        dirInfo?.children.filter((child) => child.type === "directory").length ??
-        0;
-    const fileCount =
-        dirInfo?.children.filter((child) => child.type === "file").length ?? 0;
-
     return (
         <div className="flex h-full w-full flex-col border-t border-slate-200 bg-slate-50 text-slate-950 shadow-[0_-16px_20px_rgba(15,23,42,0.25)] [clip-path:inset(-3rem_0_0_0)]">
-            <div className="flex min-h-16 items-center gap-3 border-b border-slate-200 bg-white px-4">
+            <div className="flex h-12 shrink-0 items-center gap-2 border-b border-slate-200 bg-white px-3">
                 <div className="flex items-center gap-1">
                     <ToolbarButton
                         title="Back"
@@ -674,9 +668,9 @@ export default function FileExplorer() {
                     </ToolbarButton>
                 </div>
 
-                <div className="flex min-w-0 flex-1 items-center gap-1 overflow-hidden rounded-xl border border-slate-200 bg-slate-50 px-2 py-1 shadow-inner">
+                <div className="flex min-w-0 flex-1 items-center gap-1 overflow-hidden rounded-lg border border-slate-200 bg-slate-50 px-1.5 py-0.5 shadow-inner">
                     <button
-                        className="flex h-7 items-center gap-1 rounded-lg px-2 text-xs font-bold text-slate-600 transition hover:bg-white hover:text-sky-700"
+                        className="flex h-7 items-center gap-1 rounded-md px-2 text-xs font-bold text-slate-600 transition hover:bg-white hover:text-sky-700"
                         onClick={() => navigateTo(projectRoot)}
                         title={projectRoot}
                     >
@@ -688,7 +682,7 @@ export default function FileExplorer() {
                     {pathParts.map((part, index) => (
                         <button
                             key={`${part}-${index}`}
-                            className="flex min-w-0 items-center gap-1 rounded-lg px-1.5 py-1 text-xs font-semibold text-slate-500 transition hover:bg-white hover:text-sky-700"
+                            className="flex min-w-0 items-center gap-1 rounded-md px-1.5 py-1 text-xs font-semibold text-slate-500 transition hover:bg-white hover:text-sky-700"
                             onClick={() => navigateTo(pathForPart(index))}
                             title={pathForPart(index)}
                         >
@@ -696,12 +690,6 @@ export default function FileExplorer() {
                             <span className="truncate">{part}</span>
                         </button>
                     ))}
-                </div>
-
-                <div className="hidden shrink-0 items-center gap-2 text-[11px] font-semibold text-slate-400 md:flex">
-                    <span>{directoryCount} folders</span>
-                    <span className="h-1 w-1 rounded-full bg-slate-300" />
-                    <span>{fileCount} files</span>
                 </div>
 
                 <div className="flex items-center gap-1">
@@ -721,14 +709,14 @@ export default function FileExplorer() {
             </div>
             {dirInfo ? (
                 <div
-                    className="grid flex-1 content-start gap-3 overflow-auto p-4 [grid-template-columns:repeat(auto-fill,minmax(118px,1fr))]"
+                    className="grid flex-1 content-start gap-2.5 overflow-auto p-3 [grid-template-columns:repeat(auto-fill,minmax(104px,1fr))]"
                     onContextMenu={handleBackgroundContextMenu}
                     onDragOver={(event) => handleDragOver(event, path)}
                     onDragLeave={() => setDragOverDirectory(null)}
                     onDrop={(event) => handleDrop(event, path)}
                 >
                     {pendingCreate && (
-                        <div className="flex flex-col items-center rounded-lg bg-blue-50 p-3">
+                            <div className="flex min-h-24 flex-col items-center justify-center rounded-xl border border-sky-200 bg-sky-50 p-2.5">
                             {getIconForCreateKind(pendingCreate.kind)}
                             <NameTextArea
                                 value={pendingCreate.name}
@@ -746,16 +734,11 @@ export default function FileExplorer() {
                         const targetPath = childPath(child);
                         const isDirectory = child.type === "directory";
                         const isDropTarget = dragOverDirectory === targetPath;
-                        const fileExtension =
-                            child.type === "file"
-                                ? child.extension.replace(".", "").toUpperCase()
-                                : "Folder";
-
                         return (
                             <div
                                 key={child.name}
                                 draggable={!pendingRename}
-                                className={`group flex min-h-28 cursor-pointer flex-col items-center justify-between rounded-xl border p-3 shadow-sm transition ${
+                                className={`group flex min-h-24 cursor-pointer flex-col items-center justify-center rounded-xl border p-2.5 shadow-sm transition ${
                                     isDropTarget
                                         ? "border-sky-300 bg-sky-50 ring-2 ring-sky-200"
                                         : "border-slate-200 bg-white hover:border-sky-200 hover:bg-sky-50/60 hover:shadow-md"
@@ -797,9 +780,6 @@ export default function FileExplorer() {
                                     ? getIconForDirName(child.name)
                                     : getIconForFileType(child.extension)}
                                 {renderName(child)}
-                                <span className="mt-1 max-w-full truncate rounded-full bg-slate-100 px-2 py-0.5 text-[10px] font-bold uppercase text-slate-400 transition group-hover:bg-white group-hover:text-sky-500">
-                                    {fileExtension || "File"}
-                                </span>
                             </div>
                         );
                     })}

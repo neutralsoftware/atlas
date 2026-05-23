@@ -351,21 +351,27 @@ export default function EditorOverlay() {
             </section>
             <button
                 className="absolute top-8 bottom-0 z-50 w-2 cursor-col-resize bg-transparent transition hover:bg-sky-300/40"
-                style={{ left: `${leftPanelWidth - 4}px` }}
+                style={{
+                    left: `${leftPanelWidth - 4}px`,
+                    bottom: `${explorerHeight}px`,
+                }}
                 onPointerDown={(event) => {
                     event.preventDefault();
                     beginHorizontalResize("left", event.clientX);
                 }}
-                title="Resize scene tree"
+                aria-label="Resize scene tree"
             />
             <button
                 className="absolute top-8 bottom-0 z-50 w-2 cursor-col-resize bg-transparent transition hover:bg-sky-300/40"
-                style={{ right: `${rightPanelWidth - 4}px` }}
+                style={{
+                    right: `${rightPanelWidth - 4}px`,
+                    bottom: `${explorerHeight}px`,
+                }}
                 onPointerDown={(event) => {
                     event.preventDefault();
                     beginHorizontalResize("right", event.clientX);
                 }}
-                title="Resize inspector"
+                aria-label="Resize inspector"
             />
             <button
                 className="absolute right-0 left-0 z-50 h-2 cursor-row-resize bg-transparent transition hover:bg-sky-300/40"
@@ -374,7 +380,7 @@ export default function EditorOverlay() {
                     event.preventDefault();
                     beginExplorerResize(event.clientY);
                 }}
-                title="Resize file explorer"
+                aria-label="Resize file explorer"
             />
             <div className="relative col-span-3 h-full min-w-0">
                 <FileExplorer />
