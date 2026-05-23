@@ -107,6 +107,9 @@ export interface GeneralTask {
     openProject(payload: { path: string }): Promise<void>;
     getCurrentProject(): Promise<Project | null>;
     getObjects(): Promise<Scene>;
+    getDirectoryInformation(payload: {
+        path: string;
+    }): Promise<DirectoryInformation>;
 }
 
 export interface EditorControlsApi {
@@ -161,6 +164,18 @@ export type WindowHandle<TWindow = unknown> = {
 export type WindowMaker<TWindow = unknown> = () => Promise<
     WindowHandle<TWindow>
 >;
+
+export type FileInformation = {
+    name: string;
+    extension: string;
+    type: "file";
+};
+
+export type DirectoryInformation = {
+    name: string;
+    children: Array<FileInformation | DirectoryInformation>;
+    type: "directory";
+};
 
 declare global {
     interface Window {

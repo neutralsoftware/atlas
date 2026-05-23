@@ -59,6 +59,8 @@ const generalTasks: GeneralTask = {
         ipcRenderer.invoke("general:open-project", payload),
     getCurrentProject: () => ipcRenderer.invoke("general:get-current-project"),
     getObjects: (): Promise<Scene> => ipcRenderer.invoke("general:get-objects"),
+    getDirectoryInformation: (payload) =>
+        ipcRenderer.invoke("general:get-directory-information", payload),
 };
 
 const editorControls: EditorControlsApi = {

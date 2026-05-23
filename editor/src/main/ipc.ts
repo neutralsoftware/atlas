@@ -560,4 +560,38 @@ export function registerIpcHandlers() {
     ipcMain.handle("general:get-objects", async () => {
         return getRuntimeSceneObjects();
     });
+
+    ipcMain.handle(
+        "general:get-directory-information",
+        async (_event, payload) => {
+            const { readdir } = await import("fs/promises");
+            const { extname } = await import("path");
+
+            const entries = await readdir(payload.path, {
+                withFileTypes: true,
+            });
+
+            return {
+                name: payload.path,
+                type: "directory",
+                children: entries
+                    .filter((entry) => !entry.name.startsWith("."))
+                    .map((entry) => {
+                        if (entry.isDirectory()) {
+                            return {
+                                name: entry.name,
+                                type: "directory",
+                                children: [],
+                            };
+                        }
+
+                        return {
+                            name: entry.name,
+                            extension: extname(entry.name),
+                            type: "file",
+                        };
+                    }),
+            };
+        },
+    );
 }
