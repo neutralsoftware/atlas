@@ -220,10 +220,13 @@ class ParticleEmitter : public GameObject {
      * @brief Moves the emitter by a relative offset.
      */
     void move(const Position3d &deltaPosition) override;
+    void setRotation(const Rotation3d &newRotation) override;
+    void rotate(const Rotation3d &deltaRotation) override;
     /**
      * @brief Returns the emitter world-space origin.
      */
     Position3d getPosition() const override { return position; };
+    Rotation3d getRotation() const override { return rotation; };
     /**
      * @brief Particle emitters do not cast scene shadows.
      */
@@ -340,6 +343,7 @@ class ParticleEmitter : public GameObject {
     glm::mat4 model = glm::mat4(1.0f);
 
     Position3d position = {0.0, 0.0, 0.0};
+    Rotation3d rotation = {0.0, 0.0, 0.0};
     std::optional<Position3d> firstCameraPosition = std::nullopt;
 
     void spawnParticle();

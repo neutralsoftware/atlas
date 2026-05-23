@@ -1,52 +1,208 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useEffectEvent, useRef, useState } from "react";
 import type { PointerEvent, WheelEvent } from "react";
-import { Play, Move3D, RotateCw, Scale, Square } from "lucide-react";
-import type { EditorControlMode } from "src/shared/types/ipc";
-
-type SelectionState = {
-    id: number;
-    name: string;
-};
-
-const modes: Array<{
-    mode: EditorControlMode;
-    label: string;
-    icon: typeof Move3D;
-}> = [
-    { mode: "move", label: "Move", icon: Move3D },
-    { mode: "rotate", label: "Rotate", icon: RotateCw },
-    { mode: "scale", label: "Scale", icon: Scale },
-];
+import TopSelector from "../components/editor/TopSelector";
+import Hierarchy from "../components/editor/Hierarchy";
+import { Project } from "src/shared/types/atlas";
+import { AppInfo } from "../model/app";
+import FileExplorer from "../components/editor/FileExplorer";
+import Inspector from "../components/editor/Inspector";
 
 export default function EditorOverlay() {
-    const [playing, setPlaying] = useState(false);
-    const [mode, setMode] = useState<EditorControlMode>("move");
-    const [selection, setSelection] = useState<SelectionState>({
-        id: -1,
-        name: "",
-    });
     const activePointerButton = useRef(0);
+    const shellRef = useRef<HTMLElement>(null);
+    const viewportRef = useRef<HTMLDivElement>(null);
+    const savedSceneSignatureRef = useRef<string | null>(null);
+    const [leftPanelWidth, setLeftPanelWidth] = useState(288);
+    const [rightPanelWidth, setRightPanelWidth] = useState(288);
+    const [explorerHeight, setExplorerHeight] = useState(280);
+    const [project, setProject] = useState<Project | null>(null);
+    const [sceneDirty, setSceneDirty] = useState(false);
+    const [appInfo, setAppInfo] = useState<AppInfo>({
+        debug: false,
+        buildId: "",
+        platform: "",
+    });
 
     useEffect(() => {
-        const interval = window.setInterval(() => {
-            void window.editorControls.getSelection().then(setSelection);
-        }, 250);
+        window.tasks.getCurrentProject().then((project) => {
+            setProject(project);
+        });
+
+        window.app.getAppInfo().then(setAppInfo);
+    }, []);
+
+    useEffect(() => {
+        const keyMap: Record<string, 0 | 1 | 2 | 3> = {
+            ArrowUp: 0,
+            ArrowDown: 1,
+            ArrowLeft: 2,
+            ArrowRight: 3,
+        };
+
+        function handleKeyDown(event: KeyboardEvent) {
+            const key = keyMap[event.code];
+            if (key === undefined || event.repeat) {
+                return;
+            }
+            event.preventDefault();
+            void window.editorInput.key(key, true);
+        }
+
+        function handleKeyUp(event: KeyboardEvent) {
+            const key = keyMap[event.code];
+            if (key === undefined) {
+                return;
+            }
+            event.preventDefault();
+            void window.editorInput.key(key, false);
+        }
+
+        window.addEventListener("keydown", handleKeyDown);
+        window.addEventListener("keyup", handleKeyUp);
 
         return () => {
-            window.clearInterval(interval);
+            window.removeEventListener("keydown", handleKeyDown);
+            window.removeEventListener("keyup", handleKeyUp);
+            for (const key of [0, 1, 2, 3] as const) {
+                void window.editorInput.key(key, false);
+            }
         };
     }, []);
 
-    async function togglePlaying() {
-        const next = !playing;
-        setPlaying(next);
-        await window.editorControls.setPlaying(next);
+    function sceneSignature(scene: unknown) {
+        if (!scene || typeof scene !== "object") {
+            return "";
+        }
+        const objects = "objects" in scene ? scene.objects : [];
+        return JSON.stringify(objects);
     }
 
-    async function selectMode(nextMode: EditorControlMode) {
-        setMode(nextMode);
-        await window.editorControls.setMode(nextMode);
+    async function saveCurrentScene() {
+        const saved = await window.editorControls.saveCurrentScene();
+        if (!saved) {
+            return;
+        }
+        const scene = await window.editorControls.getSceneObjects();
+        savedSceneSignatureRef.current = sceneSignature(scene);
+        setSceneDirty(false);
     }
+    const saveCurrentSceneEvent = useEffectEvent(saveCurrentScene);
+
+    useEffect(() => {
+        savedSceneSignatureRef.current = null;
+
+        let active = true;
+        const checkSceneDirty = async () => {
+            const scene = await window.editorControls.getSceneObjects();
+            if (!active) {
+                return;
+            }
+            const signature = sceneSignature(scene);
+            if (savedSceneSignatureRef.current === null) {
+                savedSceneSignatureRef.current = signature;
+                setSceneDirty(false);
+                return;
+            }
+            setSceneDirty(signature !== savedSceneSignatureRef.current);
+        };
+
+        checkSceneDirty();
+        const interval = window.setInterval(checkSceneDirty, 700);
+        return () => {
+            active = false;
+            window.clearInterval(interval);
+        };
+    }, [project?.id]);
+
+    useEffect(() => {
+        function handleSaveShortcut(event: KeyboardEvent) {
+            if (
+                !(event.metaKey || event.ctrlKey) ||
+                event.key.toLowerCase() !== "s"
+            ) {
+                return;
+            }
+            event.preventDefault();
+            void saveCurrentSceneEvent();
+        }
+
+        window.addEventListener("keydown", handleSaveShortcut, true);
+        return () => {
+            window.removeEventListener("keydown", handleSaveShortcut, true);
+        };
+    }, []);
+
+    useEffect(() => {
+        function handleDeleteShortcut(event: KeyboardEvent) {
+            if (event.key !== "Delete" && event.key !== "Backspace") {
+                return;
+            }
+
+            const target = event.target as HTMLElement | null;
+            if (target?.closest("input, textarea, [contenteditable='true']")) {
+                return;
+            }
+
+            event.preventDefault();
+            void (async () => {
+                const selection = await window.editorControls.getSelection();
+                if (!selection || selection.id < 0) {
+                    return;
+                }
+                await window.editorControls.deleteObject(selection.id);
+            })();
+        }
+
+        window.addEventListener("keydown", handleDeleteShortcut, true);
+        return () => {
+            window.removeEventListener("keydown", handleDeleteShortcut, true);
+        };
+    }, []);
+
+    useEffect(() => {
+        function publishViewportBounds() {
+            const viewport = viewportRef.current;
+            if (!viewport) {
+                return;
+            }
+
+            const rect = viewport.getBoundingClientRect();
+            void window.editorInput.setViewportBounds({
+                x: rect.left,
+                y: rect.top,
+                width: rect.width,
+                height: rect.height,
+                scale: window.devicePixelRatio,
+            });
+        }
+
+        publishViewportBounds();
+
+        const observer = new ResizeObserver(publishViewportBounds);
+        if (viewportRef.current) {
+            observer.observe(viewportRef.current);
+        }
+        if (shellRef.current) {
+            observer.observe(shellRef.current);
+        }
+
+        const mutationObserver = new MutationObserver(publishViewportBounds);
+        if (shellRef.current) {
+            mutationObserver.observe(shellRef.current, {
+                attributes: true,
+                childList: true,
+                subtree: true,
+            });
+        }
+
+        window.addEventListener("resize", publishViewportBounds);
+
+        return () => {
+            observer.disconnect();
+            mutationObserver.disconnect();
+            window.removeEventListener("resize", publishViewportBounds);
+        };
+    }, []);
 
     function editorButton(button: number) {
         return button + 1;
@@ -57,15 +213,18 @@ export default function EditorOverlay() {
         action: 0 | 1 | 2,
         button: number,
     ) {
+        const rect = event.currentTarget.getBoundingClientRect();
         void window.editorInput.pointer({
             action,
-            x: event.clientX,
-            y: event.clientY,
+            x: event.clientX - rect.left,
+            y: event.clientY - rect.top,
             button,
+            scale: window.devicePixelRatio,
         });
     }
 
     function onViewportPointerDown(event: PointerEvent<HTMLDivElement>) {
+        event.currentTarget.focus({ preventScroll: true });
         activePointerButton.current = editorButton(event.button);
         event.currentTarget.setPointerCapture(event.pointerId);
         sendPointer(event, 0, activePointerButton.current);
@@ -76,7 +235,11 @@ export default function EditorOverlay() {
     }
 
     function onViewportPointerUp(event: PointerEvent<HTMLDivElement>) {
-        sendPointer(event, 2, activePointerButton.current || editorButton(event.button));
+        sendPointer(
+            event,
+            2,
+            activePointerButton.current || editorButton(event.button),
+        );
         activePointerButton.current = 0;
         if (event.currentTarget.hasPointerCapture(event.pointerId)) {
             event.currentTarget.releasePointerCapture(event.pointerId);
@@ -88,74 +251,144 @@ export default function EditorOverlay() {
         void window.editorInput.scroll(-event.deltaY * 0.12);
     }
 
+    function clamp(value: number, min: number, max: number) {
+        return Math.max(min, Math.min(max, value));
+    }
+
+    function beginHorizontalResize(side: "left" | "right", clientX: number) {
+        const shell = shellRef.current;
+        if (!shell) {
+            return;
+        }
+
+        const rect = shell.getBoundingClientRect();
+        const minPanel = 220;
+        const maxPanel = Math.max(
+            minPanel,
+            rect.width - leftPanelWidth - rightPanelWidth + (side === "left" ? leftPanelWidth : rightPanelWidth) - 360,
+        );
+
+        function handlePointerMove(event: globalThis.PointerEvent) {
+            if (side === "left") {
+                setLeftPanelWidth(
+                    clamp(event.clientX - rect.left, minPanel, maxPanel),
+                );
+            } else {
+                setRightPanelWidth(
+                    clamp(rect.right - event.clientX, minPanel, maxPanel),
+                );
+            }
+        }
+
+        function handlePointerUp() {
+            window.removeEventListener("pointermove", handlePointerMove);
+            window.removeEventListener("pointerup", handlePointerUp);
+        }
+
+        handlePointerMove({ clientX } as globalThis.PointerEvent);
+        window.addEventListener("pointermove", handlePointerMove);
+        window.addEventListener("pointerup", handlePointerUp);
+    }
+
+    function beginExplorerResize(clientY: number) {
+        const shell = shellRef.current;
+        if (!shell) {
+            return;
+        }
+
+        const rect = shell.getBoundingClientRect();
+        const minExplorer = 160;
+        const maxExplorer = Math.max(minExplorer, rect.height - 240);
+
+        function handlePointerMove(event: globalThis.PointerEvent) {
+            setExplorerHeight(
+                clamp(rect.bottom - event.clientY, minExplorer, maxExplorer),
+            );
+        }
+
+        function handlePointerUp() {
+            window.removeEventListener("pointermove", handlePointerMove);
+            window.removeEventListener("pointerup", handlePointerUp);
+        }
+
+        handlePointerMove({ clientY } as globalThis.PointerEvent);
+        window.addEventListener("pointermove", handlePointerMove);
+        window.addEventListener("pointerup", handlePointerUp);
+    }
+
     return (
-        <main className="fixed inset-0 bg-transparent text-white select-none">
-            <div
-                className="absolute inset-0"
-                onPointerDown={onViewportPointerDown}
-                onPointerMove={onViewportPointerMove}
-                onPointerUp={onViewportPointerUp}
-                onPointerCancel={onViewportPointerUp}
-                onWheel={onViewportWheel}
-                onContextMenu={(event) => event.preventDefault()}
+        <main
+            ref={shellRef}
+            className="fixed inset-0 grid bg-transparent text-white select-none"
+            style={{
+                gridTemplateColumns: `${leftPanelWidth}px minmax(320px,1fr) ${rightPanelWidth}px`,
+                gridTemplateRows: `minmax(220px,1fr) ${explorerHeight}px`,
+            }}
+        >
+            <div className="w-full h-8 bg-white absolute z-50 flex items-center justify-center text-black">
+                <p className="text-xs font-bold">
+                    {project?.name ?? "Atlas"}
+                    {sceneDirty ? " (not saved)" : ""} - Atlas Engine Alpha 9{" "}
+                    {appInfo.debug &&
+                        "(Development Build - " + appInfo.buildId + ")"}
+                </p>
+            </div>
+            <Hierarchy />
+
+            <section ref={viewportRef} className="relative min-w-0">
+                <div
+                    className="absolute inset-0 z-0 outline-none"
+                    tabIndex={0}
+                    onPointerDown={onViewportPointerDown}
+                    onPointerMove={onViewportPointerMove}
+                    onPointerUp={onViewportPointerUp}
+                    onPointerCancel={onViewportPointerUp}
+                    onWheel={onViewportWheel}
+                    onContextMenu={(event) => event.preventDefault()}
+                />
+
+                <TopSelector />
+            </section>
+            <button
+                className="absolute top-8 bottom-0 z-50 w-2 cursor-col-resize bg-transparent transition hover:bg-sky-300/40"
+                style={{
+                    left: `${leftPanelWidth - 4}px`,
+                    bottom: `${explorerHeight}px`,
+                }}
+                onPointerDown={(event) => {
+                    event.preventDefault();
+                    beginHorizontalResize("left", event.clientX);
+                }}
+                aria-label="Resize scene tree"
             />
-            <div className="absolute inset-x-0 top-0 z-10 h-14 [app-region:drag]">
-                <div className="ml-[76px] mr-3 mt-3 flex h-11 items-center rounded-2xl border border-white/12 bg-black/38 px-3 backdrop-blur-xl shadow-[0_12px_40px_rgba(0,0,0,0.28)]">
-                    <div className="flex items-center gap-2">
-                        <div className="h-2.5 w-2.5 rounded-full bg-[#00c2ff]" />
-                        <span className="text-[12px] font-semibold tracking-[0.22em] text-white/80 uppercase">
-                            Atlas Editor
-                        </span>
-                    </div>
+            <button
+                className="absolute top-8 bottom-0 z-50 w-2 cursor-col-resize bg-transparent transition hover:bg-sky-300/40"
+                style={{
+                    right: `${rightPanelWidth - 4}px`,
+                    bottom: `${explorerHeight}px`,
+                }}
+                onPointerDown={(event) => {
+                    event.preventDefault();
+                    beginHorizontalResize("right", event.clientX);
+                }}
+                aria-label="Resize inspector"
+            />
+            <button
+                className="absolute right-0 left-0 z-50 h-2 cursor-row-resize bg-transparent transition hover:bg-sky-300/40"
+                style={{ bottom: `${explorerHeight - 4}px` }}
+                onPointerDown={(event) => {
+                    event.preventDefault();
+                    beginExplorerResize(event.clientY);
+                }}
+                aria-label="Resize file explorer"
+            />
+            <div className="relative col-span-3 h-full min-w-0">
+                <FileExplorer />
+            </div>
 
-                    <div className="ml-4 flex items-center gap-1 rounded-xl border border-white/10 bg-white/6 p-1 [app-region:no-drag]">
-                        <button
-                            type="button"
-                            onClick={() => {
-                                void togglePlaying();
-                            }}
-                            className={`flex h-8 items-center gap-2 rounded-lg px-3 text-[12px] font-medium transition ${
-                                playing
-                                    ? "bg-[#00c2ff] text-black"
-                                    : "text-white/80 hover:bg-white/10 hover:text-white"
-                            }`}
-                        >
-                            {playing ? (
-                                <Square size={13} strokeWidth={2.2} />
-                            ) : (
-                                <Play size={13} strokeWidth={2.2} />
-                            )}
-                            {playing ? "Stop" : "Play"}
-                        </button>
-
-                        {modes.map(({ mode: nextMode, label, icon: Icon }) => (
-                            <button
-                                key={nextMode}
-                                type="button"
-                                onClick={() => {
-                                    void selectMode(nextMode);
-                                }}
-                                className={`flex h-8 items-center gap-2 rounded-lg px-3 text-[12px] font-medium transition ${
-                                    mode === nextMode
-                                        ? "bg-white text-black"
-                                        : "text-white/80 hover:bg-white/10 hover:text-white"
-                                }`}
-                            >
-                                <Icon size={13} strokeWidth={2.2} />
-                                {label}
-                            </button>
-                        ))}
-                    </div>
-
-                    <div className="ml-auto flex items-center gap-2 rounded-xl border border-white/10 bg-white/6 px-3 py-1.5 text-[12px] [app-region:no-drag]">
-                        <span className="text-white/45">Selection</span>
-                        <span className="font-medium text-white/90">
-                            {selection.id >= 0
-                                ? selection.name || `Object ${selection.id}`
-                                : "None"}
-                        </span>
-                    </div>
-                </div>
+            <div className="relative col-start-3 row-start-1 h-full min-h-0">
+                <Inspector />
+                <div className="pointer-events-none absolute top-0 left-0 z-40 h-full w-full shadow-[-16px_0_20px_rgba(15,23,42,0.25)] [clip-path:inset(0_0_0_-3rem)]" />
             </div>
         </main>
     );

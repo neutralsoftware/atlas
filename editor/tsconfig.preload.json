@@ -1,13 +1,12 @@
 {
     "extends": "./tsconfig.base.json",
     "compilerOptions": {
-        "baseUrl": ".",
         "ignoreDeprecations": "6.0",
         "rootDir": "src",
         "outDir": "dist-electron",
         "target": "ES2022",
-        "module": "CommonJS",
-        "moduleResolution": "Node",
+        "module": "NodeNext",
+        "moduleResolution": "NodeNext",
         "lib": ["ES2022", "DOM"],
         "types": ["node", "electron"]
     },

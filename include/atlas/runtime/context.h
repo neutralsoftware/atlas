@@ -56,6 +56,7 @@ class Context {
     std::string projectFile;
     std::string projectDir;
     std::string sceneDir;
+    std::string currentSceneFile;
     std::string currentSceneName;
     std::shared_ptr<RuntimeScene> scene;
 
@@ -74,11 +75,23 @@ class Context {
     std::vector<std::unique_ptr<AreaLight>> areaLights;
     std::vector<std::string> cameraActions;
     bool cameraAutomaticMoving = false;
+    bool editorRuntime = false;
 
     std::unique_ptr<Window> window;
     std::vector<std::shared_ptr<Renderable>> objects;
     std::unordered_map<std::string, GameObject *> objectReferences;
     std::unordered_map<int, std::string> objectNames;
+    std::unordered_map<int, std::string> objectSceneReferences;
+    std::unordered_map<int, std::string> objectSceneTypes;
+    std::unordered_map<int, std::string> objectSceneSolidTypes;
+    std::unordered_map<int, std::string> objectParentReferences;
+    std::unordered_map<int, int> objectParents;
+    std::unordered_map<int, Light *> editorPointLights;
+    std::unordered_map<int, Spotlight *> editorSpotlights;
+    std::unordered_map<int, AreaLight *> editorAreaLights;
+    std::unordered_map<int, DirectionalLight *> editorDirectionalLights;
+    std::unordered_map<int, json> editorLightSourceData;
+    std::vector<std::pair<std::string, std::string>> deletedObjectReferences;
 
     ProjectConfig config;
 
@@ -94,6 +107,13 @@ class Context {
     bool editorKeyEvent(int key, bool pressed);
     int selectedObjectId() const;
     std::string selectedObjectName() const;
+    std::string sceneObjectsJson() const;
+    bool selectObject(int id, bool focusCamera);
+    bool renameObject(int id, const std::string &name);
+    bool setObjectParent(int childId, int parentId);
+    bool deleteObject(int id);
+    int createObject(const std::string &type, const std::string &name);
+    bool saveCurrentScene();
     void end();
     void loadProject();
     void loadMainScene(Window &window);

@@ -2,8 +2,7 @@ import { app, BrowserWindow } from "electron";
 import { WindowMaker } from "src/shared/types/ipc";
 import {
     allWindows,
-    engineBridge,
-    getPreloadPath,
+    engineBridge, getPreloadPath,
     getRendererIndexPath,
     getWindowIcon,
     mainWindow,
@@ -11,7 +10,11 @@ import {
 } from "./main";
 import { DEBUG } from "../shared/generated/build";
 import { runtimeLib } from "./tasks/startup";
-import { currentProjectPath } from "./ipc";
+import {
+    applyEditorViewportBounds,
+    clearEditorViewportBounds,
+    currentProjectPath,
+} from "./ipc";
 
 export const createOnboardingWindow: WindowMaker<BrowserWindow> = async () => {
     const windowIcon = getWindowIcon();
@@ -34,7 +37,7 @@ export const createOnboardingWindow: WindowMaker<BrowserWindow> = async () => {
         skipTaskbar: true,
 
         show: true,
-        ...(windowIcon ? { icon: windowIcon } : {}),
+        ...(windowIcon ? {icon: windowIcon} : {}),
 
         webPreferences: {
             preload: getPreloadPath(),
@@ -65,15 +68,15 @@ export const createOnboardingWindow: WindowMaker<BrowserWindow> = async () => {
     if (!app.isPackaged && DEBUG) {
         try {
             await win.loadURL(devServerUrl);
-            return { id: "onboarding", window: win };
+            return {id: "onboarding", window: win};
         } catch {
             // Fallback to built renderer when the dev server is unavailable.
         }
     }
 
-    await win.loadFile(getRendererIndexPath(), { hash: "/onboarding" });
+    await win.loadFile(getRendererIndexPath(), {hash: "/onboarding"});
 
-    return { id: "onboarding", window: win };
+    return {id: "onboarding", window: win};
 };
 
 export const createProjectsWindow: WindowMaker<BrowserWindow> = async () => {
@@ -96,7 +99,7 @@ export const createProjectsWindow: WindowMaker<BrowserWindow> = async () => {
         center: true,
 
         show: true,
-        ...(windowIcon ? { icon: windowIcon } : {}),
+        ...(windowIcon ? {icon: windowIcon} : {}),
 
         webPreferences: {
             preload: getPreloadPath(),
@@ -127,15 +130,15 @@ export const createProjectsWindow: WindowMaker<BrowserWindow> = async () => {
     if (!app.isPackaged && DEBUG) {
         try {
             await win.loadURL(devServerUrl);
-            return { id: "projects", window: win };
+            return {id: "projects", window: win};
         } catch {
             // Fallback to built renderer when the dev server is unavailable.
         }
     }
 
-    await win.loadFile(getRendererIndexPath(), { hash: "/projects" });
+    await win.loadFile(getRendererIndexPath(), {hash: "/projects"});
 
-    return { id: "projects", window: win };
+    return {id: "projects", window: win};
 };
 
 export const createNewProjectModal: WindowMaker<BrowserWindow> = async () => {
@@ -155,7 +158,7 @@ export const createNewProjectModal: WindowMaker<BrowserWindow> = async () => {
         center: true,
 
         show: true,
-        ...(windowIcon ? { icon: windowIcon } : {}),
+        ...(windowIcon ? {icon: windowIcon} : {}),
 
         webPreferences: {
             preload: getPreloadPath(),
@@ -186,34 +189,83 @@ export const createNewProjectModal: WindowMaker<BrowserWindow> = async () => {
     if (!app.isPackaged && DEBUG) {
         try {
             await win.loadURL(devServerUrl);
-            return { id: "createProject", window: win };
+            return {id: "createProject", window: win};
         } catch {
             // Fallback to built renderer when the dev server is unavailable.
         }
     }
 
-    await win.loadFile(getRendererIndexPath(), { hash: "/createProject" });
+    await win.loadFile(getRendererIndexPath(), {hash: "/createProject"});
 
-    return { id: "createProject", window: win };
+    return {id: "createProject", window: win};
 };
 
 export let frameTimer: NodeJS.Timeout | null = null;
 
 export const viewport: WindowMaker<BrowserWindow> = async () => {
     const windowIcon = getWindowIcon();
+    clearEditorViewportBounds();
+
+    const splash = new BrowserWindow({
+        width: 1080,
+        height: 720,
+        resizable: false,
+        minimizable: false,
+        maximizable: false,
+        fullscreenable: false,
+        frame: false,
+        hasShadow: true,
+        transparent: true,
+        alwaysOnTop: true,
+        center: true,
+        skipTaskbar: true,
+        show: true,
+        ...(windowIcon ? {icon: windowIcon} : {}),
+        webPreferences: {
+            preload: getPreloadPath(),
+            contextIsolation: true,
+            nodeIntegration: false,
+            sandbox: true,
+        },
+    });
+
+    const splashDevServerUrl = "http://localhost:5173/#/editorSplash";
+    let splashLoaded = false;
+    if (!app.isPackaged && DEBUG) {
+        try {
+            await splash.loadURL(splashDevServerUrl);
+            splashLoaded = true;
+        } catch (err) {
+            console.error("Failed to load splash URL:", err);
+        }
+    }
+    if (!splashLoaded) {
+        await splash.loadFile(getRendererIndexPath(), {
+            hash: "/editorSplash",
+        });
+    }
+
+    // Wait a brief moment to ensure splash renders
+    await new Promise<void>((resolve) => setTimeout(resolve, 500));
 
     const win = new BrowserWindow({
         width: 1200,
         height: 800,
         backgroundColor: "#00000000",
         title: "Atlas Editor - " + currentProjectPath?.split("/").pop(),
-        frame: true,
-        titleBarStyle: "hiddenInset",
+        resizable: true,
+        minimizable: true,
+        maximizable: true,
+        fullscreenable: false,
+        frame: false,
+        titleBarStyle: "hidden",
+        trafficLightPosition: {x: 12, y: 13},
+        roundedCorners: true,
         transparent: true,
         hasShadow: true,
 
         show: false,
-        ...(windowIcon ? { icon: windowIcon } : {}),
+        ...(windowIcon ? {icon: windowIcon} : {}),
 
         webPreferences: {
             preload: getPreloadPath(),
@@ -223,11 +275,14 @@ export const viewport: WindowMaker<BrowserWindow> = async () => {
             backgroundThrottling: false,
         },
     });
+    if (process.platform === "darwin") {
+        win.setWindowButtonVisibility(true);
+    }
 
     function resizeEditorToWindow(window: BrowserWindow) {
         const [width, height] = window.getContentSize();
         const scale = window.webContents.getZoomFactor();
-        engineBridge.resizeEditor(width, height, scale);
+        applyEditorViewportBounds(width, height, scale);
     }
 
     setMainWindow(win);
@@ -264,7 +319,7 @@ export const viewport: WindowMaker<BrowserWindow> = async () => {
     }
 
     if (!rendererLoaded) {
-        await win.loadFile(getRendererIndexPath(), { hash: "/editorOverlay" });
+        await win.loadFile(getRendererIndexPath(), {hash: "/editorOverlay"});
     }
 
     await new Promise<void>((resolve) => setTimeout(resolve, 50));
@@ -290,6 +345,7 @@ export const viewport: WindowMaker<BrowserWindow> = async () => {
 
     resizeEditorToWindow(win);
     win.show();
+    if (!splash.isDestroyed()) splash.close();
 
     const targetEditorFps = 60;
     frameTimer = setInterval(() => {
@@ -309,7 +365,7 @@ export const viewport: WindowMaker<BrowserWindow> = async () => {
         }
     });
 
-    return { id: "editor", window: win };
+    return {id: "editor", window: win};
 };
 
 export const makerRegistry: Record<string, WindowMaker<BrowserWindow>> = {

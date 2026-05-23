@@ -16,7 +16,7 @@ module.exports = {
         output: isRelease ? "release" : "release-dev",
     },
 
-    files: ["dist/**/*", "dist-electron/**/*", "package.json"],
+    files: ["dist/**/*", "dist-electron/**/*", "build/Release/engine_bridge.node", "package.json"],
 
     mac: {
         icon: path.resolve(

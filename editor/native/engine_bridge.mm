@@ -27,6 +27,17 @@ using RuntimeEditorKeyEventFn = bool (*)(void *runtimeContext, int key,
                                          bool pressed);
 using RuntimeGetSelectedObjectIdFn = int (*)(void *runtimeContext);
 using RuntimeGetSelectedObjectNameFn = const char *(*)(void *runtimeContext);
+using RuntimeGetSceneObjectsFn = const char *(*)(void *runtimeContext);
+using RuntimeSelectObjectFn = bool (*)(void *runtimeContext, int id,
+                                       bool focusCamera);
+using RuntimeRenameObjectFn = bool (*)(void *runtimeContext, int id,
+                                       const char *name);
+using RuntimeSetObjectParentFn = bool (*)(void *runtimeContext, int childId,
+                                          int parentId);
+using RuntimeDeleteObjectFn = bool (*)(void *runtimeContext, int id);
+using RuntimeCreateObjectFn = int (*)(void *runtimeContext, const char *type,
+                                      const char *name);
+using RuntimeSaveCurrentSceneFn = bool (*)(void *runtimeContext);
 using RuntimeStepFn = bool (*)(void *runtimeContext);
 
 struct BridgeState {
@@ -44,12 +55,20 @@ struct BridgeState {
     RuntimeEditorKeyEventFn editorKeyEventFn = nullptr;
     RuntimeGetSelectedObjectIdFn getSelectedObjectIdFn = nullptr;
     RuntimeGetSelectedObjectNameFn getSelectedObjectNameFn = nullptr;
+    RuntimeGetSceneObjectsFn getSceneObjectsFn = nullptr;
+    RuntimeSelectObjectFn selectObjectFn = nullptr;
+    RuntimeRenameObjectFn renameObjectFn = nullptr;
+    RuntimeSetObjectParentFn setObjectParentFn = nullptr;
+    RuntimeDeleteObjectFn deleteObjectFn = nullptr;
+    RuntimeCreateObjectFn createObjectFn = nullptr;
+    RuntimeSaveCurrentSceneFn saveCurrentSceneFn = nullptr;
     RuntimeStepFn stepFn = nullptr;
 
     void *runtimeContext = nullptr;
 
     NSView *hostView = nil;
     NSView *childView = nil;
+    NSView *dragView = nil;
     id scrollMonitor = nil;
 };
 
@@ -181,6 +200,124 @@ static bool sendEditorKeyEvent(NSEvent *event, bool pressed) {
     return true;
 }
 
+static CGFloat editorTitlebarHeight(NSWindow *window, NSView *parentView) {
+    if (!window || !parentView) {
+        return 0.0;
+    }
+
+    NSRect buttonUnion = NSZeroRect;
+    bool hasButton = false;
+    const NSWindowButton buttons[] = {
+        NSWindowCloseButton,
+        NSWindowMiniaturizeButton,
+        NSWindowZoomButton,
+    };
+
+    for (NSWindowButton buttonType : buttons) {
+        NSButton *button = [window standardWindowButton:buttonType];
+        if (!button || [button isHidden]) {
+            continue;
+        }
+
+        NSView *buttonSuperview = [button superview];
+        if (!buttonSuperview) {
+            continue;
+        }
+
+        NSRect frame = [buttonSuperview convertRect:[button frame]
+                                             toView:parentView];
+        buttonUnion = hasButton ? NSUnionRect(buttonUnion, frame) : frame;
+        hasButton = true;
+    }
+
+    if (!hasButton) {
+        NSRect frame = [window frame];
+        NSRect contentLayoutRect = [window contentLayoutRect];
+        CGFloat height = NSHeight(frame) - NSHeight(contentLayoutRect);
+        return height > 0.0 ? height : 0.0;
+    }
+
+    NSRect bounds = [parentView bounds];
+    if ([parentView isFlipped]) {
+        CGFloat topInset = NSMinY(buttonUnion) - NSMinY(bounds);
+        CGFloat height = topInset + NSHeight(buttonUnion) + topInset;
+        if (height > 0.0) {
+            return height;
+        }
+        return NSMaxY(buttonUnion) - NSMinY(bounds);
+    }
+
+    CGFloat topInset = NSMaxY(bounds) - NSMaxY(buttonUnion);
+    CGFloat height = topInset + NSHeight(buttonUnion) + topInset;
+    if (height > 0.0) {
+        return height;
+    }
+
+    return NSMaxY(bounds) - NSMinY(buttonUnion);
+}
+
+static bool pointIsInsideStandardWindowButton(NSView *view, NSPoint point) {
+    NSWindow *window = [view window];
+    if (!window) {
+        return false;
+    }
+
+    NSPoint windowPoint = [view convertPoint:point toView:nil];
+    const NSWindowButton buttons[] = {
+        NSWindowCloseButton,
+        NSWindowMiniaturizeButton,
+        NSWindowZoomButton,
+    };
+
+    for (NSWindowButton buttonType : buttons) {
+        NSButton *button = [window standardWindowButton:buttonType];
+        if (!button || [button isHidden]) {
+            continue;
+        }
+
+        NSPoint buttonPoint = [button convertPoint:windowPoint fromView:nil];
+        if (NSPointInRect(buttonPoint, [button bounds])) {
+            return true;
+        }
+    }
+
+    return false;
+}
+
+@interface AtlasWindowDragView : NSView
+@end
+
+@implementation AtlasWindowDragView
+- (instancetype)initWithFrame:(NSRect)frame {
+    self = [super initWithFrame:frame];
+    if (self) {
+        [self setWantsLayer:YES];
+        [[self layer] setBackgroundColor:[[NSColor clearColor] CGColor]];
+    }
+    return self;
+}
+
+- (BOOL)isOpaque {
+    return NO;
+}
+
+- (BOOL)acceptsFirstMouse:(NSEvent *)event {
+    (void)event;
+    return YES;
+}
+
+- (NSView *)hitTest:(NSPoint)point {
+    if (pointIsInsideStandardWindowButton(self, point)) {
+        return nil;
+    }
+    return [super hitTest:point];
+}
+
+- (void)mouseDown:(NSEvent *)event {
+    [[self window] performWindowDragWithEvent:event];
+}
+@end
+
 @interface AtlasRuntimeView : NSView
 @end
 
@@ -289,6 +426,46 @@ static bool sendEditorKeyEvent(NSEvent *event, bool pressed) {
 }
 @end
 
+static NSRect titlebarDragFrame(NSView *hostView) {
+    NSView *parentView = [hostView superview] ?: hostView;
+    NSRect bounds = [parentView bounds];
+    CGFloat height = editorTitlebarHeight([hostView window], parentView);
+    CGFloat y = [parentView isFlipped] ? NSMinY(bounds)
+                                      : NSMaxY(bounds) - height;
+    return NSMakeRect(NSMinX(bounds), y, NSWidth(bounds), height);
+}
+
+static void installTitlebarDragView(NSView *hostView) {
+    if (!hostView || bridgeState.dragView) {
+        return;
+    }
+
+    NSView *parentView = [hostView superview] ?: hostView;
+    NSView *dragView =
+        [[AtlasWindowDragView alloc] initWithFrame:titlebarDragFrame(hostView)];
+    [dragView setAutoresizingMask:(NSViewWidthSizable | NSViewMinYMargin)];
+
+    if ([hostView superview]) {
+        [parentView addSubview:dragView
+                    positioned:NSWindowAbove
+                    relativeTo:hostView];
+    } else {
+        [hostView addSubview:dragView positioned:NSWindowAbove relativeTo:nil];
+    }
+
+    bridgeState.dragView = dragView;
+    if ([hostView window]) {
+        [[hostView window] setMovableByWindowBackground:YES];
+    }
+}
+
+static void resizeTitlebarDragView() {
+    if (!bridgeState.hostView || !bridgeState.dragView) {
+        return;
+    }
+    [bridgeState.dragView setFrame:titlebarDragFrame(bridgeState.hostView)];
+}
+
 static void unloadEditorIfNeeded() {
     removeScrollMonitor();
 
@@ -304,6 +481,11 @@ static void unloadEditorIfNeeded() {
     if (bridgeState.childView) {
         [bridgeState.childView removeFromSuperview];
         bridgeState.childView = nil;
+    }
+
+    if (bridgeState.dragView) {
+        [bridgeState.dragView removeFromSuperview];
+        bridgeState.dragView = nil;
     }
 
     if (bridgeState.dylibHandle) {
@@ -323,6 +505,13 @@ static void unloadEditorIfNeeded() {
     bridgeState.editorKeyEventFn = nullptr;
     bridgeState.getSelectedObjectIdFn = nullptr;
     bridgeState.getSelectedObjectNameFn = nullptr;
+    bridgeState.getSceneObjectsFn = nullptr;
+    bridgeState.selectObjectFn = nullptr;
+    bridgeState.renameObjectFn = nullptr;
+    bridgeState.setObjectParentFn = nullptr;
+    bridgeState.deleteObjectFn = nullptr;
+    bridgeState.createObjectFn = nullptr;
+    bridgeState.saveCurrentSceneFn = nullptr;
     bridgeState.stepFn = nullptr;
     bridgeState.hostView = nil;
 }
@@ -384,6 +573,21 @@ Napi::Value LoadLibrary(const Napi::CallbackInfo &info) {
     bridgeState.getSelectedObjectNameFn =
         reinterpret_cast<RuntimeGetSelectedObjectNameFn>(
             requireSymbol(handle, "atlas_runtime_get_selected_object_name"));
+    bridgeState.getSceneObjectsFn =
+        reinterpret_cast<RuntimeGetSceneObjectsFn>(
+            requireSymbol(handle, "atlas_runtime_get_scene_objects"));
+    bridgeState.selectObjectFn = reinterpret_cast<RuntimeSelectObjectFn>(
+        requireSymbol(handle, "atlas_runtime_select_object"));
+    bridgeState.renameObjectFn = reinterpret_cast<RuntimeRenameObjectFn>(
+        requireSymbol(handle, "atlas_runtime_rename_object"));
+    bridgeState.setObjectParentFn = reinterpret_cast<RuntimeSetObjectParentFn>(
+        requireSymbol(handle, "atlas_runtime_set_object_parent"));
+    bridgeState.deleteObjectFn = reinterpret_cast<RuntimeDeleteObjectFn>(
+        requireSymbol(handle, "atlas_runtime_delete_object"));
+    bridgeState.createObjectFn = reinterpret_cast<RuntimeCreateObjectFn>(
+        requireSymbol(handle, "atlas_runtime_create_object"));
+    bridgeState.saveCurrentSceneFn = reinterpret_cast<RuntimeSaveCurrentSceneFn>(
+        requireSymbol(handle, "atlas_runtime_save_current_scene"));
     bridgeState.stepFn = reinterpret_cast<RuntimeStepFn>(
         requireSymbol(handle, "atlas_runtime_step_frame"));
 
@@ -435,6 +639,7 @@ Napi::Value AttachToNativeWindow(const Napi::CallbackInfo &info) {
         [hostView addSubview:child positioned:NSWindowBelow relativeTo:nil];
     }
     bridgeState.childView = child;
+    installTitlebarDragView(hostView);
     if ([child window]) {
         [[child window] makeFirstResponder:child];
     }
@@ -483,15 +688,31 @@ Napi::Value AttachToNativeWindow(const Napi::CallbackInfo &info) {
     return env.Undefined();
 }
 
-static void resizeChildView(NSView *childView, int width, int height) {
+static NSRect frameForCssRect(NSView *hostView, NSView *targetSuperview, int x,
+                              int y, int width, int height) {
+    NSView *parentView = targetSuperview ?: ([hostView superview] ?: hostView);
+    NSRect hostFrame = [hostView superview] == parentView ? [hostView frame]
+                                                          : [hostView bounds];
+    CGFloat frameX = NSMinX(hostFrame) + x;
+    CGFloat frameY = [parentView isFlipped]
+                         ? NSMinY(hostFrame) + y
+                         : NSMaxY(hostFrame) - y - height;
+
+    return NSMakeRect(frameX, frameY, width, height);
+}
+
+static void resizeChildView(NSView *childView, int x, int y, int width,
+                            int height) {
     if (!childView) {
         return;
     }
 
     auto resizeBlock = ^{
-      NSRect frame = NSMakeRect(0, 0, width, height);
-      if (bridgeState.hostView && [childView superview] == [bridgeState.hostView superview]) {
-          frame = [bridgeState.hostView frame];
+      NSRect frame = NSMakeRect(x, y, width, height);
+      if (bridgeState.hostView) {
+          frame =
+              frameForCssRect(bridgeState.hostView, [childView superview], x,
+                              y, width, height);
       }
       [childView setFrame:frame];
     };
@@ -514,12 +735,31 @@ Napi::Value Resize(const Napi::CallbackInfo &info) {
     }
 
     if (info.Length() < 3) {
-        throw Napi::TypeError::New(env, "resize(width, height, scale)");
+        throw Napi::TypeError::New(env, "resize([x, y,] width, height, scale)");
     }
 
-    int width = info[0].As<Napi::Number>().Int32Value();
-    int height = info[1].As<Napi::Number>().Int32Value();
-    float scale = info[2].As<Napi::Number>().FloatValue();
+    int x = 0;
+    int y = 0;
+    int width = 0;
+    int height = 0;
+    float scale = 1.0f;
+
+    if (info.Length() >= 5 && info[0].IsNumber() && info[1].IsNumber() &&
+        info[2].IsNumber() && info[3].IsNumber() && info[4].IsNumber()) {
+        x = info[0].As<Napi::Number>().Int32Value();
+        y = info[1].As<Napi::Number>().Int32Value();
+        width = info[2].As<Napi::Number>().Int32Value();
+        height = info[3].As<Napi::Number>().Int32Value();
+        scale = info[4].As<Napi::Number>().FloatValue();
+    } else if (info[0].IsNumber() && info[1].IsNumber() &&
+               info[2].IsNumber()) {
+        width = info[0].As<Napi::Number>().Int32Value();
+        height = info[1].As<Napi::Number>().Int32Value();
+        scale = info[2].As<Napi::Number>().FloatValue();
+    } else {
+        throw Napi::TypeError::New(env, "resize([x, y,] width, height, scale)");
+    }
+
     float effectiveScale = scale > 0.0f ? scale : 1.0f;
 
     if (bridgeState.hostView && [bridgeState.hostView window]) {
@@ -529,7 +769,8 @@ Napi::Value Resize(const Napi::CallbackInfo &info) {
         }
     }
 
-    resizeChildView(bridgeState.childView, width, height);
+    resizeChildView(bridgeState.childView, x, y, width, height);
+    resizeTitlebarDragView();
 
     if (!bridgeState.resizeFn(bridgeState.runtimeContext, width, height,
                               effectiveScale)) {
@@ -672,6 +913,28 @@ Napi::Value EditorPointer(const Napi::CallbackInfo &info) {
     return env.Undefined();
 }
 
+Napi::Value EditorKey(const Napi::CallbackInfo &info) {
+    Napi::Env env = info.Env();
+
+    if (!bridgeState.runtimeContext || !bridgeState.editorKeyEventFn) {
+        return env.Undefined();
+    }
+
+    if (info.Length() < 2 || !info[0].IsNumber() || !info[1].IsBoolean()) {
+        throw Napi::TypeError::New(env, "editorKey(key, pressed)");
+    }
+
+    int key = info[0].As<Napi::Number>().Int32Value();
+    bool pressed = info[1].As<Napi::Boolean>().Value();
+
+    if (!bridgeState.editorKeyEventFn(bridgeState.runtimeContext, key,
+                                      pressed)) {
+        throw Napi::Error::New(env, "atlas_runtime_editor_key_event failed");
+    }
+
+    return env.Undefined();
+}
+
 Napi::Value GetSelectedObjectId(const Napi::CallbackInfo &info) {
     Napi::Env env = info.Env();
 
@@ -693,6 +956,129 @@ Napi::Value GetSelectedObjectName(const Napi::CallbackInfo &info) {
     const char *name =
         bridgeState.getSelectedObjectNameFn(bridgeState.runtimeContext);
     return Napi::String::New(env, name ? name : "");
+}
+
+Napi::Value GetSceneObjects(const Napi::CallbackInfo &info) {
+    Napi::Env env = info.Env();
+
+    if (!bridgeState.runtimeContext || !bridgeState.getSceneObjectsFn) {
+        return Napi::String::New(
+            env, "{\"name\":\"Scene\",\"objects\":[],\"selectedId\":-1}");
+    }
+
+    const char *objects =
+        bridgeState.getSceneObjectsFn(bridgeState.runtimeContext);
+    return Napi::String::New(
+        env,
+        objects ? objects : "{\"name\":\"Scene\",\"objects\":[],\"selectedId\":-1}");
+}
+
+Napi::Value SelectObject(const Napi::CallbackInfo &info) {
+    Napi::Env env = info.Env();
+
+    if (!bridgeState.runtimeContext || !bridgeState.selectObjectFn) {
+        return Napi::Boolean::New(env, false);
+    }
+
+    if (info.Length() < 1 || !info[0].IsNumber()) {
+        throw Napi::TypeError::New(env, "selectObject(id[, focusCamera])");
+    }
+
+    int id = info[0].As<Napi::Number>().Int32Value();
+    bool focusCamera = info.Length() >= 2 && info[1].IsBoolean()
+                           ? info[1].As<Napi::Boolean>().Value()
+                           : false;
+    return Napi::Boolean::New(
+        env,
+        bridgeState.selectObjectFn(bridgeState.runtimeContext, id, focusCamera));
+}
+
+Napi::Value RenameObject(const Napi::CallbackInfo &info) {
+    Napi::Env env = info.Env();
+
+    if (!bridgeState.runtimeContext || !bridgeState.renameObjectFn) {
+        return Napi::Boolean::New(env, false);
+    }
+
+    if (info.Length() < 2 || !info[0].IsNumber() || !info[1].IsString()) {
+        throw Napi::TypeError::New(env, "renameObject(id, name)");
+    }
+
+    int id = info[0].As<Napi::Number>().Int32Value();
+    std::string name = info[1].As<Napi::String>().Utf8Value();
+    return Napi::Boolean::New(
+        env, bridgeState.renameObjectFn(bridgeState.runtimeContext, id,
+                                        name.c_str()));
+}
+
+Napi::Value SetObjectParent(const Napi::CallbackInfo &info) {
+    Napi::Env env = info.Env();
+
+    if (!bridgeState.runtimeContext || !bridgeState.setObjectParentFn) {
+        return Napi::Boolean::New(env, false);
+    }
+
+    if (info.Length() < 2 || !info[0].IsNumber() || !info[1].IsNumber()) {
+        throw Napi::TypeError::New(env, "setObjectParent(childId, parentId)");
+    }
+
+    int childId = info[0].As<Napi::Number>().Int32Value();
+    int parentId = info[1].As<Napi::Number>().Int32Value();
+    return Napi::Boolean::New(
+        env, bridgeState.setObjectParentFn(bridgeState.runtimeContext, childId,
+                                           parentId));
+}
+
+Napi::Value DeleteObject(const Napi::CallbackInfo &info) {
+    Napi::Env env = info.Env();
+
+    if (!bridgeState.runtimeContext || !bridgeState.deleteObjectFn) {
+        return Napi::Boolean::New(env, false);
+    }
+
+    if (info.Length() < 1 || !info[0].IsNumber()) {
+        throw Napi::TypeError::New(env, "deleteObject(id)");
+    }
+
+    int id = info[0].As<Napi::Number>().Int32Value();
+    return Napi::Boolean::New(
+        env, bridgeState.deleteObjectFn(bridgeState.runtimeContext, id));
+}
+
+Napi::Value CreateObject(const Napi::CallbackInfo &info) {
+    Napi::Env env = info.Env();
+
+    if (!bridgeState.runtimeContext || !bridgeState.createObjectFn) {
+        return Napi::Number::New(env, -1);
+    }
+
+    if (info.Length() < 1 || !info[0].IsString()) {
+        throw Napi::TypeError::New(env, "createObject(type[, name])");
+    }
+
+    std::string type = info[0].As<Napi::String>().Utf8Value();
+    std::string name =
+        info.Length() >= 2 && info[1].IsString()
+            ? info[1].As<Napi::String>().Utf8Value()
+            : "";
+    return Napi::Number::New(
+        env,
+        bridgeState.createObjectFn(bridgeState.runtimeContext, type.c_str(),
+                                   name.c_str()));
+}
+
+Napi::Value SaveCurrentScene(const Napi::CallbackInfo &info) {
+    Napi::Env env = info.Env();
+
+    if (!bridgeState.runtimeContext || !bridgeState.saveCurrentSceneFn) {
+        return Napi::Boolean::New(env, false);
+    }
+
+    if (!bridgeState.saveCurrentSceneFn(bridgeState.runtimeContext)) {
+        throw Napi::Error::New(env, "atlas_runtime_save_current_scene failed");
+    }
+
+    return Napi::Boolean::New(env, true);
 }
 
 Napi::Value Step(const Napi::CallbackInfo &info) {
@@ -725,10 +1111,18 @@ Napi::Object Init(Napi::Env env, Napi::Object exports) {
                 Napi::Function::New(env, SetEditorControlMode));
     exports.Set("editorScroll", Napi::Function::New(env, EditorScroll));
     exports.Set("editorPointer", Napi::Function::New(env, EditorPointer));
+    exports.Set("editorKey", Napi::Function::New(env, EditorKey));
     exports.Set("getSelectedObjectId",
                 Napi::Function::New(env, GetSelectedObjectId));
     exports.Set("getSelectedObjectName",
                 Napi::Function::New(env, GetSelectedObjectName));
+    exports.Set("getSceneObjects", Napi::Function::New(env, GetSceneObjects));
+    exports.Set("selectObject", Napi::Function::New(env, SelectObject));
+    exports.Set("renameObject", Napi::Function::New(env, RenameObject));
+    exports.Set("setObjectParent", Napi::Function::New(env, SetObjectParent));
+    exports.Set("deleteObject", Napi::Function::New(env, DeleteObject));
+    exports.Set("createObject", Napi::Function::New(env, CreateObject));
+    exports.Set("saveCurrentScene", Napi::Function::New(env, SaveCurrentScene));
     exports.Set("step", Napi::Function::New(env, Step));
     exports.Set("shutdown", Napi::Function::New(env, Shutdown));
     return exports;

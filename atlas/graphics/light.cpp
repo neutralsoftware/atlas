@@ -37,6 +37,7 @@ void Light::createDebugObject() {
     sphere.createAndAttachProgram(vShader, shader);
     this->debugObject = std::make_shared<CoreObject>(sphere);
     this->debugObject->castsShadows = false;
+    this->debugObject->editorOnly = true;
 }
 
 void Light::setColor(Color newColor) {
@@ -161,6 +162,7 @@ void Spotlight::createDebugObject() {
     pyramid.createAndAttachProgram(vShader, shader);
     this->debugObject = std::make_shared<CoreObject>(pyramid);
     this->debugObject->castsShadows = false;
+    this->debugObject->editorOnly = true;
 }
 
 void Spotlight::setColor(Color newColor) {
@@ -525,6 +527,7 @@ void AreaLight::createDebugObject() {
 
     this->debugObject = std::make_shared<CoreObject>(plane);
     this->debugObject->castsShadows = false;
+    this->debugObject->editorOnly = true;
 }
 
 void AreaLight::addDebugObject(Window &window) {

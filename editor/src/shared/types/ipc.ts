@@ -1,4 +1,4 @@
-import { Project } from "./atlas";
+import { Project, Scene } from "./atlas";
 
 export type AppPlatform =
     | "aix"
@@ -41,6 +41,9 @@ export interface FileDialogOptions {
 export interface WindowApi {
     getAppInfo(): Promise<AppInfo>;
     setTitle(title: string): Promise<void>;
+    minimize(): Promise<void>;
+    toggleMaximize(): Promise<void>;
+    close(): Promise<void>;
     onThemeChanged(callback: (theme: "light" | "dark") => void): () => void;
     showWindow(id: string): void;
     hideWindow(id: string): void;
@@ -102,6 +105,42 @@ export interface GeneralTask {
         style: CreateProjectStyle;
     }): Promise<Project>;
     openProject(payload: { path: string }): Promise<void>;
+    getCurrentProject(): Promise<Project | null>;
+    getObjects(): Promise<Scene>;
+    getDirectoryInformation(payload: {
+        path: string;
+    }): Promise<DirectoryInformation>;
+}
+
+export type FileSystemCreateKind = "scene" | "script" | "material" | "folder";
+
+export interface FileSystemEntryResult {
+    path: string;
+    name: string;
+}
+
+export interface FileSystemApi {
+    getDroppedFilePath(file: unknown): string;
+    createEntry(payload: {
+        directory: string;
+        kind: FileSystemCreateKind;
+        name: string;
+    }): Promise<FileSystemEntryResult>;
+    renameEntry(payload: {
+        path: string;
+        name: string;
+    }): Promise<FileSystemEntryResult>;
+    deleteEntry(payload: { path: string }): Promise<boolean>;
+    copyExternalEntries(payload: {
+        sources: string[];
+        targetDirectory: string;
+    }): Promise<FileSystemEntryResult[]>;
+    moveEntry(payload: {
+        source: string;
+        targetDirectory: string;
+    }): Promise<FileSystemEntryResult>;
+    revealInFinder(payload: { path: string }): Promise<boolean>;
+    openScene(payload: { path: string }): Promise<boolean>;
 }
 
 export interface EditorControlsApi {
@@ -109,6 +148,24 @@ export interface EditorControlsApi {
     setPlaying(playing: boolean): Promise<void>;
     setMode(mode: EditorControlMode): Promise<void>;
     getSelection(): Promise<{ id: number; name: string }>;
+    getSceneObjects(): Promise<Scene>;
+    selectObject(id: number, focus?: boolean): Promise<boolean>;
+    renameObject(id: number, name: string): Promise<boolean>;
+    setObjectParent(childId: number, parentId: number | null): Promise<boolean>;
+    deleteObject(id: number): Promise<boolean>;
+    createObject(type: string, name?: string): Promise<number>;
+    showObjectMenu(payload?: {
+        id?: number;
+        name?: string;
+    }): Promise<
+        | { action: "create"; type: string }
+        | { action: "rename" }
+        | { action: "select" }
+        | { action: "unparent" }
+        | { action: "delete" }
+        | null
+    >;
+    saveCurrentScene(): Promise<boolean>;
 }
 
 export interface EditorInputApi {
@@ -120,6 +177,14 @@ export interface EditorInputApi {
         scale?: number;
     }): Promise<void>;
     scroll(delta: number, scale?: number): Promise<void>;
+    key(key: 0 | 1 | 2 | 3 | 4 | 5, pressed: boolean): Promise<void>;
+    setViewportBounds(bounds: {
+        x: number;
+        y: number;
+        width: number;
+        height: number;
+        scale?: number;
+    }): Promise<void>;
 }
 
 export type WindowHandle<TWindow = unknown> = {
@@ -131,12 +196,47 @@ export type WindowMaker<TWindow = unknown> = () => Promise<
     WindowHandle<TWindow>
 >;
 
+export type FileInformation = {
+    name: string;
+    extension: string;
+    type: "file";
+};
+
+export type DirectoryInformation = {
+    name: string;
+    children: Array<FileInformation | DirectoryInformation>;
+    type: "directory";
+};
+
+export type ContextMenuItem =
+    | {
+          kind: "item";
+          label: string;
+          action: string;
+          enabled?: boolean;
+      }
+    | {
+          kind: "separator";
+      }
+    | {
+          kind: "submenu";
+          label: string;
+          children: ContextMenuItem[];
+      };
+
+export interface ContextMenu {
+    show(items: ContextMenuItem[]): Promise<string | null>;
+    onClick(callback: (action: string) => void): void;
+}
+
 declare global {
     interface Window {
         app: WindowApi;
         startupTask: StartupTask;
         tasks: GeneralTask;
+        fileSystem: FileSystemApi;
         editorControls: EditorControlsApi;
         editorInput: EditorInputApi;
+        contextMenu: ContextMenu;
     }
 }

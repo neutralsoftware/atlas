@@ -18,7 +18,7 @@ const options: ProjectOption[] = [
         name: "PBR (Physically Based Rendering)",
         description:
             "Create a project with a good balance of visual quality and performance, suitable for most applications.",
-        image: "../../../assets/pbr.png",
+        image: "./pbr.png",
         color: "bg-green-500",
     },
     {
@@ -26,7 +26,7 @@ const options: ProjectOption[] = [
         name: "Path Tracing",
         description:
             "Create a project with hyperrealistic lighting that consumes significant computational resources.",
-        image: "../../../assets/pathtracing.png",
+        image: "./pathtracing.png",
         color: "bg-red-500",
     },
     {
@@ -34,7 +34,7 @@ const options: ProjectOption[] = [
         name: "PBR and Global Illumination",
         description:
             "Create a project with enhanced lighting effects that combines PBR with real-time global illumination techniques.",
-        image: "../../../assets/gi.png",
+        image: "./gi.png",
         color: "bg-blue-500",
     },
 ];
@@ -194,22 +194,22 @@ export function CreateProject() {
             <div className="h-screen w-screen overflow-y-auto bg-[#f7f7f8] text-slate-900">
                 <div className="flex min-h-full flex-col px-10 py-10">
                     <div className="flex items-center justify-between gap-4">
-                    <button
-                        className="text-sm font-medium text-slate-500 transition-colors hover:text-slate-800"
-                        onClick={() => {
-                            if (!isCreating) {
-                                setStep(0);
-                                setError(null);
-                            }
-                        }}
-                    >
-                        Back
-                    </button>
-                    <span
-                        className={`rounded-full px-4 py-2 text-[11px] font-semibold text-white ${selectedOption.color}`}
-                    >
-                        {selectedOption.name}
-                    </span>
+                        <button
+                            className="text-sm font-medium text-slate-500 transition-colors hover:text-slate-800"
+                            onClick={() => {
+                                if (!isCreating) {
+                                    setStep(0);
+                                    setError(null);
+                                }
+                            }}
+                        >
+                            Back
+                        </button>
+                        <span
+                            className={`rounded-full px-4 py-2 text-[11px] font-semibold text-white ${selectedOption.color}`}
+                        >
+                            {selectedOption.name}
+                        </span>
                     </div>
 
                     <div className="mt-10">
@@ -248,7 +248,6 @@ export function CreateProject() {
                                         setLocation(event.target.value);
                                         setError(null);
                                     }}
-                                    placeholder="/Users/maxvdec/Projects"
                                     disabled={isCreating}
                                     size="md"
                                     className="min-w-0 flex-1"
@@ -274,7 +273,8 @@ export function CreateProject() {
                             Output path
                         </p>
                         <p className="mt-3 break-all text-sm font-medium leading-7 text-slate-700">
-                            {projectPath || "Select a location and project name"}
+                            {projectPath ||
+                                "Select a location and project name"}
                         </p>
                     </div>
 

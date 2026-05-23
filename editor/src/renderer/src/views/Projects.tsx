@@ -196,14 +196,24 @@ export default function Projects() {
                             <div
                                 key={index}
                                 className="group flex flex-row bg-white rounded-xl border border-gray-200/80 px-4 py-3 gap-4 items-center cursor-pointer hover:border-gray-300 hover:shadow-sm transition-all duration-150"
-                                onClick={() => {
+                                onClick={async () => {
                                     console.log(
                                         "Opening project at path:",
                                         project.path,
                                     );
-                                    window.tasks.openProject({
+                                    await window.tasks.openProject({
                                         path: project.path,
                                     });
+                                    setProjects((prev) =>
+                                        prev.map((candidate) =>
+                                            candidate.id === project.id
+                                                ? {
+                                                      ...candidate,
+                                                      modified: new Date(),
+                                                  }
+                                                : candidate,
+                                        ),
+                                    );
                                     window.app.showWindow("editor");
                                     window.app.destroyWindow("projects");
                                 }}
@@ -298,7 +308,7 @@ export default function Projects() {
                         }}
                     >
                         <img
-                            src="../../assets/atlasBall.png"
+                            src="./atlasBall.png"
                             alt="Atlas Engine Logo"
                             className="w-5 h-5"
                         />
