@@ -112,6 +112,37 @@ export interface GeneralTask {
     }): Promise<DirectoryInformation>;
 }
 
+export type FileSystemCreateKind = "scene" | "script" | "material" | "folder";
+
+export interface FileSystemEntryResult {
+    path: string;
+    name: string;
+}
+
+export interface FileSystemApi {
+    getDroppedFilePath(file: unknown): string;
+    createEntry(payload: {
+        directory: string;
+        kind: FileSystemCreateKind;
+        name: string;
+    }): Promise<FileSystemEntryResult>;
+    renameEntry(payload: {
+        path: string;
+        name: string;
+    }): Promise<FileSystemEntryResult>;
+    deleteEntry(payload: { path: string }): Promise<boolean>;
+    copyExternalEntries(payload: {
+        sources: string[];
+        targetDirectory: string;
+    }): Promise<FileSystemEntryResult[]>;
+    moveEntry(payload: {
+        source: string;
+        targetDirectory: string;
+    }): Promise<FileSystemEntryResult>;
+    revealInFinder(payload: { path: string }): Promise<boolean>;
+    openScene(payload: { path: string }): Promise<boolean>;
+}
+
 export interface EditorControlsApi {
     setEnabled(enabled: boolean): Promise<void>;
     setPlaying(playing: boolean): Promise<void>;
@@ -203,7 +234,9 @@ declare global {
         app: WindowApi;
         startupTask: StartupTask;
         tasks: GeneralTask;
+        fileSystem: FileSystemApi;
         editorControls: EditorControlsApi;
         editorInput: EditorInputApi;
+        contextMenu: ContextMenu;
     }
 }

@@ -1,9 +1,10 @@
-import { contextBridge, ipcRenderer } from "electron";
+import { contextBridge, ipcRenderer, webUtils } from "electron";
 import type {
     ContextMenu,
     ContextMenuItem,
     EditorControlsApi,
     EditorInputApi,
+    FileSystemApi,
     GeneralTask,
     StartupTask,
     StartupTaskUpdate,
@@ -63,6 +64,19 @@ const generalTasks: GeneralTask = {
     getObjects: (): Promise<Scene> => ipcRenderer.invoke("general:get-objects"),
     getDirectoryInformation: (payload) =>
         ipcRenderer.invoke("general:get-directory-information", payload),
+};
+
+const fileSystem: FileSystemApi = {
+    getDroppedFilePath: (file) => webUtils.getPathForFile(file as File),
+    createEntry: (payload) => ipcRenderer.invoke("filesystem:create-entry", payload),
+    renameEntry: (payload) => ipcRenderer.invoke("filesystem:rename-entry", payload),
+    deleteEntry: (payload) => ipcRenderer.invoke("filesystem:delete-entry", payload),
+    copyExternalEntries: (payload) =>
+        ipcRenderer.invoke("filesystem:copy-external-entries", payload),
+    moveEntry: (payload) => ipcRenderer.invoke("filesystem:move-entry", payload),
+    revealInFinder: (payload) =>
+        ipcRenderer.invoke("filesystem:reveal-in-finder", payload),
+    openScene: (payload) => ipcRenderer.invoke("filesystem:open-scene", payload),
 };
 
 const editorControls: EditorControlsApi = {
@@ -126,6 +140,7 @@ const contextMenu: ContextMenu = {
 contextBridge.exposeInMainWorld("app", api);
 contextBridge.exposeInMainWorld("startupTask", startupTask);
 contextBridge.exposeInMainWorld("tasks", generalTasks);
+contextBridge.exposeInMainWorld("fileSystem", fileSystem);
 contextBridge.exposeInMainWorld("editorControls", editorControls);
 contextBridge.exposeInMainWorld("editorInput", editorInput);
 contextBridge.exposeInMainWorld("contextMenu", contextMenu);

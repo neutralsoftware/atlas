@@ -1,5 +1,5 @@
-import {app, BrowserWindow} from "electron";
-import {WindowMaker} from "src/shared/types/ipc";
+import { app, BrowserWindow } from "electron";
+import { WindowMaker } from "src/shared/types/ipc";
 import {
     allWindows,
     engineBridge, getPreloadPath,
@@ -8,8 +8,8 @@ import {
     mainWindow,
     setMainWindow,
 } from "./main";
-import {DEBUG} from "../shared/generated/build";
-import {runtimeLib} from "./tasks/startup";
+import { DEBUG } from "../shared/generated/build";
+import { runtimeLib } from "./tasks/startup";
 import {
     applyEditorViewportBounds,
     clearEditorViewportBounds,

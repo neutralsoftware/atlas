@@ -3,18 +3,21 @@ import {
     BrowserWindow,
     Menu,
     MenuItemConstructorOptions,
+    shell,
 } from "electron";
+import path from "node:path";
 import { BUILDID, DEBUG } from "../shared/generated/build";
 import { tasks } from "./tasks/register";
-import { allWindows, engineBridge } from "./main";
+import { allWindows, engineBridge, mainWindow } from "./main";
 import { makerRegistry } from "./windows";
 import {
     ContextMenuItem,
     EditorControlMode,
+    FileSystemCreateKind,
     WindowMaker,
 } from "src/shared/types/ipc";
 import { createProject } from "./tasks/create-project";
-import { getProjects } from "./tasks/startup";
+import { getProjects, runtimeLib } from "./tasks/startup";
 
 type OnboardingDataPayload = {
     runtimePath: string | null;
@@ -84,6 +87,176 @@ function emptyScene() {
     return { name: "Scene", objects: [], selectedId: -1 };
 }
 
+function requireProjectPath() {
+    if (!currentProjectPath) {
+        throw new Error("No project is open");
+    }
+    return path.resolve(currentProjectPath);
+}
+
+function projectPath(targetPath: string) {
+    if (typeof targetPath !== "string" || targetPath.trim().length === 0) {
+        throw new Error("Invalid path");
+    }
+
+    const projectRoot = requireProjectPath();
+    const resolvedPath = path.resolve(targetPath);
+    const relativePath = path.relative(projectRoot, resolvedPath);
+    if (
+        relativePath === ".." ||
+        relativePath.startsWith(`..${path.sep}`) ||
+        path.isAbsolute(relativePath)
+    ) {
+        throw new Error("Path is outside the current project");
+    }
+
+    return resolvedPath;
+}
+
+function entryName(name: string) {
+    const value = String(name ?? "").trim();
+    if (
+        !value ||
+        value === "." ||
+        value === ".." ||
+        value.includes("/") ||
+        value.includes("\\") ||
+        value.includes("\0")
+    ) {
+        throw new Error("Invalid name");
+    }
+    return value;
+}
+
+function ensureExtension(name: string, extension: string) {
+    return path.extname(name) ? name : `${name}${extension}`;
+}
+
+function createEntryName(kind: FileSystemCreateKind, name: string) {
+    const value = entryName(name);
+    switch (kind) {
+        case "scene":
+            return ensureExtension(value, ".ascene");
+        case "script":
+            return ensureExtension(value, ".ts");
+        case "material":
+            return ensureExtension(value, ".amat");
+        case "folder":
+            return value;
+    }
+}
+
+function sceneTemplate(name: string) {
+    const stem = path.basename(name, path.extname(name));
+    const id = stem
+        .toLowerCase()
+        .replace(/[^a-z0-9]+/g, "_")
+        .replace(/^_+|_+$/g, "");
+
+    return `${JSON.stringify(
+        {
+            name: stem,
+            id: id || "scene",
+            objects: [],
+            lights: [{ type: "ambient", intensity: 0.2 }],
+            camera: {
+                position: [0.0, 0.0, -5.0],
+                target: [0.0, 0.0, 0.0],
+                fov: 60.0,
+            },
+            targets: [
+                {
+                    name: "Main Target",
+                    type: "multisampled",
+                    render: true,
+                    display: true,
+                },
+            ],
+            environment: {
+                automaticAmbient: true,
+                atmosphereSky: true,
+            },
+        },
+        null,
+        4,
+    )}\n`;
+}
+
+function scriptTemplate(name: string) {
+    const stem = path.basename(name, path.extname(name));
+    const className =
+        stem
+            .replace(/[^a-zA-Z0-9]+/g, " ")
+            .trim()
+            .split(/\s+/)
+            .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
+            .join("") || "Script";
+
+    return `export class ${className} {\n    start() {\n    }\n\n    update() {\n    }\n}\n`;
+}
+
+function materialTemplate() {
+    return `${JSON.stringify(
+        {
+            material: {
+                albedo: [1.0, 1.0, 1.0, 1.0],
+                metallic: 0.0,
+                roughness: 0.5,
+                ao: 1.0,
+            },
+        },
+        null,
+        4,
+    )}\n`;
+}
+
+async function uniqueDestination(directory: string, sourcePath: string) {
+    const { stat } = await import("fs/promises");
+    const parsed = path.parse(path.basename(sourcePath));
+    let candidate = path.join(directory, path.basename(sourcePath));
+    let index = 2;
+
+    while (true) {
+        try {
+            await stat(candidate);
+            candidate = path.join(
+                directory,
+                `${parsed.name} ${index}${parsed.ext}`,
+            );
+            index += 1;
+        } catch {
+            return candidate;
+        }
+    }
+}
+
+async function writeProjectMainScene(scenePath: string) {
+    const { readFile, writeFile } = await import("fs/promises");
+    const projectRoot = requireProjectPath();
+    const projectFile = path.join(projectRoot, "project.atlas");
+    const relativeScenePath = path
+        .relative(projectRoot, scenePath)
+        .split(path.sep)
+        .join("/");
+    const content = await readFile(projectFile, "utf-8");
+    const line = `main_scene = ${JSON.stringify(relativeScenePath)}`;
+
+    if (/^main_scene\s*=.*$/m.test(content)) {
+        await writeFile(projectFile, content.replace(/^main_scene\s*=.*$/m, line));
+        return;
+    }
+
+    if (/^\[game\]\s*$/m.test(content)) {
+        await writeFile(
+            projectFile,
+            content.replace(/^\[game\]\s*$/m, `[game]\n${line}`),
+        );
+        return;
+    }
+
+    await writeFile(projectFile, `${content.trimEnd()}\n\n[game]\n${line}\n`);
+}
+
 function getRuntimeSceneObjects() {
     const raw =
         typeof engineBridge.getSceneObjects === "function"
@@ -129,6 +302,7 @@ export function clearEditorViewportBounds() {
 function toElectronMenuItem(
     item: ContextMenuItem,
     sender: Electron.WebContents,
+    select?: (action: string) => void,
 ): MenuItemConstructorOptions {
     if (item.kind === "separator") {
         return { type: "separator" };
@@ -138,7 +312,7 @@ function toElectronMenuItem(
         return {
             label: item.label,
             submenu: item.children.map((child) =>
-                toElectronMenuItem(child, sender),
+                toElectronMenuItem(child, sender, select),
             ),
         };
     }
@@ -147,6 +321,7 @@ function toElectronMenuItem(
         label: item.label,
         enabled: item.enabled ?? true,
         click: () => {
+            select?.(item.action);
             sender.send("context-menu:clicked", item.action);
         },
     };
@@ -601,16 +776,23 @@ export function registerIpcHandlers() {
         async (_event, payload) => {
             const { readdir } = await import("fs/promises");
             const { extname } = await import("path");
+            const directoryPath = projectPath(payload.path);
 
-            const entries = await readdir(payload.path, {
+            const entries = await readdir(directoryPath, {
                 withFileTypes: true,
             });
 
             return {
-                name: payload.path,
+                name: directoryPath,
                 type: "directory",
                 children: entries
                     .filter((entry) => !entry.name.startsWith("."))
+                    .sort((a, b) => {
+                        if (a.isDirectory() !== b.isDirectory()) {
+                            return a.isDirectory() ? -1 : 1;
+                        }
+                        return a.name.localeCompare(b.name);
+                    })
                     .map((entry) => {
                         if (entry.isDirectory()) {
                             return {
@@ -630,20 +812,154 @@ export function registerIpcHandlers() {
         },
     );
 
+    ipcMain.handle("filesystem:create-entry", async (_event, payload) => {
+        const { mkdir, writeFile } = await import("fs/promises");
+        const directory = projectPath(payload.directory);
+        const kind = payload.kind as FileSystemCreateKind;
+        if (!["scene", "script", "material", "folder"].includes(kind)) {
+            throw new Error("Invalid entry type");
+        }
+
+        const name = createEntryName(kind, payload.name);
+        const destination = path.join(directory, name);
+        projectPath(destination);
+
+        if (kind === "folder") {
+            await mkdir(destination);
+        } else if (kind === "scene") {
+            await writeFile(destination, sceneTemplate(name), { flag: "wx" });
+        } else if (kind === "script") {
+            await writeFile(destination, scriptTemplate(name), { flag: "wx" });
+        } else {
+            await writeFile(destination, materialTemplate(), { flag: "wx" });
+        }
+
+        return { path: destination, name };
+    });
+
+    ipcMain.handle("filesystem:rename-entry", async (_event, payload) => {
+        const { rename } = await import("fs/promises");
+        const source = projectPath(payload.path);
+        if (source === requireProjectPath()) {
+            throw new Error("Cannot rename the project root");
+        }
+
+        const name = entryName(payload.name);
+        const destination = path.join(path.dirname(source), name);
+        projectPath(destination);
+        await rename(source, destination);
+        return { path: destination, name };
+    });
+
+    ipcMain.handle("filesystem:delete-entry", async (_event, payload) => {
+        const target = projectPath(payload.path);
+        if (target === requireProjectPath()) {
+            throw new Error("Cannot delete the project root");
+        }
+        await shell.trashItem(target);
+        return true;
+    });
+
+    ipcMain.handle("filesystem:copy-external-entries", async (_event, payload) => {
+        const { cp } = await import("fs/promises");
+        const targetDirectory = projectPath(payload.targetDirectory);
+        const sources = Array.isArray(payload.sources) ? payload.sources : [];
+        const copied = [];
+
+        for (const sourceRaw of sources) {
+            if (typeof sourceRaw !== "string" || !sourceRaw) {
+                continue;
+            }
+
+            const source = path.resolve(sourceRaw);
+            const destination = await uniqueDestination(targetDirectory, source);
+            projectPath(destination);
+            await cp(source, destination, { recursive: true, errorOnExist: true });
+            copied.push({ path: destination, name: path.basename(destination) });
+        }
+
+        return copied;
+    });
+
+    ipcMain.handle("filesystem:move-entry", async (_event, payload) => {
+        const { lstat, rename } = await import("fs/promises");
+        const source = projectPath(payload.source);
+        const targetDirectory = projectPath(payload.targetDirectory);
+        if (source === requireProjectPath()) {
+            throw new Error("Cannot move the project root");
+        }
+        if (path.dirname(source) === targetDirectory) {
+            return { path: source, name: path.basename(source) };
+        }
+
+        const sourceStats = await lstat(source);
+        const relativeTarget = path.relative(source, targetDirectory);
+        if (
+            sourceStats.isDirectory() &&
+            (relativeTarget === "" || !relativeTarget.startsWith(".."))
+        ) {
+            throw new Error("Cannot move a folder into itself");
+        }
+
+        const destination = await uniqueDestination(targetDirectory, source);
+        projectPath(destination);
+        await rename(source, destination);
+        return { path: destination, name: path.basename(destination) };
+    });
+
+    ipcMain.handle("filesystem:reveal-in-finder", async (_event, payload) => {
+        shell.showItemInFolder(projectPath(payload.path));
+        return true;
+    });
+
+    ipcMain.handle("filesystem:open-scene", async (_event, payload) => {
+        const scenePath = projectPath(payload.path);
+        if (path.extname(scenePath).toLowerCase() !== ".ascene") {
+            return false;
+        }
+
+        await writeProjectMainScene(scenePath);
+        if (!runtimeLib || !mainWindow || mainWindow.isDestroyed()) {
+            return true;
+        }
+
+        engineBridge.shutdown();
+        engineBridge.loadLibrary(runtimeLib);
+        engineBridge.attachToNativeWindow(
+            path.join(requireProjectPath(), "project.atlas"),
+            mainWindow.getNativeWindowHandle(),
+        );
+        applyEditorViewportBounds();
+        return true;
+    });
+
     ipcMain.handle(
         "context-menu:show",
         async (event, items: ContextMenuItem[]) => {
             const win = BrowserWindow.fromWebContents(event.sender);
             if (win == null) {
-                return;
+                return null;
             }
 
-            const menu = Menu.buildFromTemplate(
-                items.map((item) => toElectronMenuItem(item, event.sender)),
-            );
+            return new Promise<string | null>((resolve) => {
+                let settled = false;
+                const finish = (action: string | null) => {
+                    if (!settled) {
+                        settled = true;
+                        resolve(action);
+                    }
+                };
 
-            menu.popup({
-                window: win,
+                const menu = Menu.buildFromTemplate(
+                    items.map((item) =>
+                        toElectronMenuItem(item, event.sender, finish),
+                    ),
+                );
+
+                menu.popup({
+                    window: win,
+                    callback: () => finish(null),
+                });
             });
         },
     );
