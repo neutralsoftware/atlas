@@ -1,9 +1,18 @@
-import { ipcMain, BrowserWindow, Menu } from "electron";
+import {
+    ipcMain,
+    BrowserWindow,
+    Menu,
+    MenuItemConstructorOptions,
+} from "electron";
 import { BUILDID, DEBUG } from "../shared/generated/build";
 import { tasks } from "./tasks/register";
 import { allWindows, engineBridge } from "./main";
 import { makerRegistry } from "./windows";
-import { EditorControlMode, WindowMaker } from "src/shared/types/ipc";
+import {
+    ContextMenuItem,
+    EditorControlMode,
+    WindowMaker,
+} from "src/shared/types/ipc";
 import { createProject } from "./tasks/create-project";
 import { getProjects } from "./tasks/startup";
 
@@ -115,6 +124,32 @@ export function applyEditorViewportBounds(
 
 export function clearEditorViewportBounds() {
     editorViewportBounds = null;
+}
+
+function toElectronMenuItem(
+    item: ContextMenuItem,
+    sender: Electron.WebContents,
+): MenuItemConstructorOptions {
+    if (item.kind === "separator") {
+        return { type: "separator" };
+    }
+
+    if (item.kind === "submenu") {
+        return {
+            label: item.label,
+            submenu: item.children.map((child) =>
+                toElectronMenuItem(child, sender),
+            ),
+        };
+    }
+
+    return {
+        label: item.label,
+        enabled: item.enabled ?? true,
+        click: () => {
+            sender.send("context-menu:clicked", item.action);
+        },
+    };
 }
 
 export function registerIpcHandlers() {
@@ -592,6 +627,24 @@ export function registerIpcHandlers() {
                         };
                     }),
             };
+        },
+    );
+
+    ipcMain.handle(
+        "context-menu:show",
+        async (event, items: ContextMenuItem[]) => {
+            const win = BrowserWindow.fromWebContents(event.sender);
+            if (win == null) {
+                return;
+            }
+
+            const menu = Menu.buildFromTemplate(
+                items.map((item) => toElectronMenuItem(item, event.sender)),
+            );
+
+            menu.popup({
+                window: win,
+            });
         },
     );
 }

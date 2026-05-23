@@ -1,5 +1,7 @@
 import { contextBridge, ipcRenderer } from "electron";
 import type {
+    ContextMenu,
+    ContextMenuItem,
     EditorControlsApi,
     EditorInputApi,
     GeneralTask,
@@ -111,8 +113,19 @@ const editorInput: EditorInputApi = {
     },
 };
 
+const contextMenu: ContextMenu = {
+    show: (items: ContextMenuItem[]) =>
+        ipcRenderer.invoke("context-menu:show", items),
+    onClick: (callback: (action: string) => void) => {
+        ipcRenderer.on("context-menu:clicked", (_event, action) => {
+            callback(action);
+        });
+    },
+};
+
 contextBridge.exposeInMainWorld("app", api);
 contextBridge.exposeInMainWorld("startupTask", startupTask);
 contextBridge.exposeInMainWorld("tasks", generalTasks);
 contextBridge.exposeInMainWorld("editorControls", editorControls);
 contextBridge.exposeInMainWorld("editorInput", editorInput);
+contextBridge.exposeInMainWorld("contextMenu", contextMenu);

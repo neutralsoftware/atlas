@@ -177,6 +177,27 @@ export type DirectoryInformation = {
     type: "directory";
 };
 
+export type ContextMenuItem =
+    | {
+          kind: "item";
+          label: string;
+          action: string;
+          enabled?: boolean;
+      }
+    | {
+          kind: "separator";
+      }
+    | {
+          kind: "submenu";
+          label: string;
+          children: ContextMenuItem[];
+      };
+
+export interface ContextMenu {
+    show(items: ContextMenuItem[]): Promise<string | null>;
+    onClick(callback: (action: string) => void): void;
+}
+
 declare global {
     interface Window {
         app: WindowApi;
