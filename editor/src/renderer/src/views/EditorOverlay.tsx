@@ -12,6 +12,9 @@ export default function EditorOverlay() {
     const shellRef = useRef<HTMLElement>(null);
     const viewportRef = useRef<HTMLDivElement>(null);
     const savedSceneSignatureRef = useRef<string | null>(null);
+    const [leftPanelWidth, setLeftPanelWidth] = useState(288);
+    const [rightPanelWidth, setRightPanelWidth] = useState(288);
+    const [explorerHeight, setExplorerHeight] = useState(280);
     const [project, setProject] = useState<Project | null>(null);
     const [sceneDirty, setSceneDirty] = useState(false);
     const [appInfo, setAppInfo] = useState<AppInfo>({
@@ -248,10 +251,79 @@ export default function EditorOverlay() {
         void window.editorInput.scroll(-event.deltaY * 0.12);
     }
 
+    function clamp(value: number, min: number, max: number) {
+        return Math.max(min, Math.min(max, value));
+    }
+
+    function beginHorizontalResize(side: "left" | "right", clientX: number) {
+        const shell = shellRef.current;
+        if (!shell) {
+            return;
+        }
+
+        const rect = shell.getBoundingClientRect();
+        const minPanel = 220;
+        const maxPanel = Math.max(
+            minPanel,
+            rect.width - leftPanelWidth - rightPanelWidth + (side === "left" ? leftPanelWidth : rightPanelWidth) - 360,
+        );
+
+        function handlePointerMove(event: globalThis.PointerEvent) {
+            if (side === "left") {
+                setLeftPanelWidth(
+                    clamp(event.clientX - rect.left, minPanel, maxPanel),
+                );
+            } else {
+                setRightPanelWidth(
+                    clamp(rect.right - event.clientX, minPanel, maxPanel),
+                );
+            }
+        }
+
+        function handlePointerUp() {
+            window.removeEventListener("pointermove", handlePointerMove);
+            window.removeEventListener("pointerup", handlePointerUp);
+        }
+
+        handlePointerMove({ clientX } as globalThis.PointerEvent);
+        window.addEventListener("pointermove", handlePointerMove);
+        window.addEventListener("pointerup", handlePointerUp);
+    }
+
+    function beginExplorerResize(clientY: number) {
+        const shell = shellRef.current;
+        if (!shell) {
+            return;
+        }
+
+        const rect = shell.getBoundingClientRect();
+        const minExplorer = 160;
+        const maxExplorer = Math.max(minExplorer, rect.height - 240);
+
+        function handlePointerMove(event: globalThis.PointerEvent) {
+            setExplorerHeight(
+                clamp(rect.bottom - event.clientY, minExplorer, maxExplorer),
+            );
+        }
+
+        function handlePointerUp() {
+            window.removeEventListener("pointermove", handlePointerMove);
+            window.removeEventListener("pointerup", handlePointerUp);
+        }
+
+        handlePointerMove({ clientY } as globalThis.PointerEvent);
+        window.addEventListener("pointermove", handlePointerMove);
+        window.addEventListener("pointerup", handlePointerUp);
+    }
+
     return (
         <main
             ref={shellRef}
-            className="fixed inset-0 grid grid-cols-[18rem_minmax(0,1fr)_18rem] grid-rows-[32.5rem_minmax(0,1fr)] bg-transparent text-white select-none"
+            className="fixed inset-0 grid bg-transparent text-white select-none"
+            style={{
+                gridTemplateColumns: `${leftPanelWidth}px minmax(320px,1fr) ${rightPanelWidth}px`,
+                gridTemplateRows: `minmax(220px,1fr) ${explorerHeight}px`,
+            }}
         >
             <div className="w-full h-8 bg-white absolute z-50 flex items-center justify-center text-black">
                 <p className="text-xs font-bold">
@@ -277,9 +349,35 @@ export default function EditorOverlay() {
 
                 <TopSelector />
             </section>
+            <button
+                className="absolute top-8 bottom-0 z-50 w-2 cursor-col-resize bg-transparent transition hover:bg-sky-300/40"
+                style={{ left: `${leftPanelWidth - 4}px` }}
+                onPointerDown={(event) => {
+                    event.preventDefault();
+                    beginHorizontalResize("left", event.clientX);
+                }}
+                title="Resize scene tree"
+            />
+            <button
+                className="absolute top-8 bottom-0 z-50 w-2 cursor-col-resize bg-transparent transition hover:bg-sky-300/40"
+                style={{ right: `${rightPanelWidth - 4}px` }}
+                onPointerDown={(event) => {
+                    event.preventDefault();
+                    beginHorizontalResize("right", event.clientX);
+                }}
+                title="Resize inspector"
+            />
+            <button
+                className="absolute right-0 left-0 z-50 h-2 cursor-row-resize bg-transparent transition hover:bg-sky-300/40"
+                style={{ bottom: `${explorerHeight - 4}px` }}
+                onPointerDown={(event) => {
+                    event.preventDefault();
+                    beginExplorerResize(event.clientY);
+                }}
+                title="Resize file explorer"
+            />
             <div className="relative col-span-3 h-full min-w-0">
                 <FileExplorer />
-                <div className="pointer-events-none absolute top-0 right-72 left-72 z-40 h-full shadow-[0_-16px_20px_rgba(15,23,42,0.25)] [clip-path:inset(-3rem_0_0_0)]" />
             </div>
 
             <div className="relative col-start-3 row-start-1 h-full min-h-0">

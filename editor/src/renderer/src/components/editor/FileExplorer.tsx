@@ -1,14 +1,28 @@
 import {
+    ArrowLeft,
+    ArrowRight,
+    ArrowUp,
     Blocks,
     Code,
     File,
+    FilePlus2,
     Folder,
     FolderCode,
+    FolderPlus,
+    Home,
     ImageIcon,
     LandPlot,
     Package,
+    RefreshCw,
 } from "lucide-react";
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import {
+    type ReactNode,
+    useCallback,
+    useEffect,
+    useMemo,
+    useRef,
+    useState,
+} from "react";
 import type {
     ContextMenuItem,
     DirectoryInformation,
@@ -88,9 +102,37 @@ function NameTextArea({
     );
 }
 
+function ToolbarButton({
+    children,
+    disabled,
+    title,
+    onClick,
+}: {
+    children: ReactNode;
+    disabled?: boolean;
+    title: string;
+    onClick(): void;
+}) {
+    return (
+        <button
+            className="flex h-8 w-8 items-center justify-center rounded-lg border border-slate-200 bg-white text-slate-600 shadow-sm transition hover:border-sky-200 hover:bg-sky-50 hover:text-sky-700 disabled:cursor-not-allowed disabled:opacity-35 disabled:hover:border-slate-200 disabled:hover:bg-white disabled:hover:text-slate-600"
+            disabled={disabled}
+            title={title}
+            onClick={(event) => {
+                event.stopPropagation();
+                onClick();
+            }}
+        >
+            {children}
+        </button>
+    );
+}
+
 export default function FileExplorer() {
     const [projectRoot, setProjectRoot] = useState("");
     const [path, setPath] = useState("");
+    const [backStack, setBackStack] = useState<string[]>([]);
+    const [forwardStack, setForwardStack] = useState<string[]>([]);
     const [dirInfo, setDirInfo] = useState<DirectoryInformation | null>(null);
     const [pendingCreate, setPendingCreate] = useState<PendingCreate | null>(
         null,
@@ -215,6 +257,8 @@ export default function FileExplorer() {
             const root = proj?.path ?? "/";
             setProjectRoot(root);
             setPath(root);
+            setBackStack([]);
+            setForwardStack([]);
         });
     }, []);
 
@@ -260,6 +304,84 @@ export default function FileExplorer() {
             );
         };
     }, [refreshDirectory]);
+
+    function navigateTo(nextPath: string) {
+        if (!nextPath || nextPath === path) {
+            return;
+        }
+
+        setBackStack((prev) => [...prev, path]);
+        setForwardStack([]);
+        setPath(nextPath);
+        setPendingCreate(null);
+        setPendingRename(null);
+    }
+
+    function goBack() {
+        setBackStack((prev) => {
+            const next = prev.at(-1);
+            if (!next) {
+                return prev;
+            }
+
+            setForwardStack((forward) => [path, ...forward]);
+            setPath(next);
+            setPendingCreate(null);
+            setPendingRename(null);
+            return prev.slice(0, -1);
+        });
+    }
+
+    function goForward() {
+        setForwardStack((prev) => {
+            const next = prev[0];
+            if (!next) {
+                return prev;
+            }
+
+            setBackStack((back) => [...back, path]);
+            setPath(next);
+            setPendingCreate(null);
+            setPendingRename(null);
+            return prev.slice(1);
+        });
+    }
+
+    function parentPath(currentPath: string) {
+        if (!projectRoot || currentPath === projectRoot) {
+            return null;
+        }
+
+        const normalized = currentPath.replace(/\/$/, "");
+        const parent = normalized.slice(0, normalized.lastIndexOf("/"));
+        if (!parent || parent.length < projectRoot.length) {
+            return projectRoot;
+        }
+        return parent;
+    }
+
+    function goUp() {
+        const parent = parentPath(path);
+        if (parent) {
+            navigateTo(parent);
+        }
+    }
+
+    function relativePathParts() {
+        if (!projectRoot || !path.startsWith(projectRoot)) {
+            return [];
+        }
+
+        return path
+            .slice(projectRoot.length)
+            .split("/")
+            .filter(Boolean);
+    }
+
+    function pathForPart(index: number) {
+        const parts = relativePathParts().slice(0, index + 1);
+        return [projectRoot, ...parts].join("/").replace(/\/+/g, "/");
+    }
 
     function childPath(child: ExplorerChild) {
         return `${path.replace(/\/$/, "")}/${child.name}`;
@@ -481,9 +603,7 @@ export default function FileExplorer() {
 
     function handleChildClick(child: ExplorerChild) {
         if (child.type === "directory") {
-            setPath(childPath(child));
-            setPendingCreate(null);
-            setPendingRename(null);
+            navigateTo(childPath(child));
         }
     }
 
@@ -517,14 +637,91 @@ export default function FileExplorer() {
         );
     }
 
+    const pathParts = relativePathParts();
+    const directoryCount =
+        dirInfo?.children.filter((child) => child.type === "directory").length ??
+        0;
+    const fileCount =
+        dirInfo?.children.filter((child) => child.type === "file").length ?? 0;
+
     return (
-        <div className="h-full w-full border-t border-slate-200 bg-white">
-            <div className="flex h-10 items-center gap-2 px-4 text-sm text-slate-500">
-                {path}
+        <div className="flex h-full w-full flex-col border-t border-slate-200 bg-slate-50 text-slate-950 shadow-[0_-16px_20px_rgba(15,23,42,0.25)] [clip-path:inset(-3rem_0_0_0)]">
+            <div className="flex min-h-16 items-center gap-3 border-b border-slate-200 bg-white px-4">
+                <div className="flex items-center gap-1">
+                    <ToolbarButton
+                        title="Back"
+                        disabled={backStack.length === 0}
+                        onClick={goBack}
+                    >
+                        <ArrowLeft className="h-4 w-4" />
+                    </ToolbarButton>
+                    <ToolbarButton
+                        title="Forward"
+                        disabled={forwardStack.length === 0}
+                        onClick={goForward}
+                    >
+                        <ArrowRight className="h-4 w-4" />
+                    </ToolbarButton>
+                    <ToolbarButton
+                        title="Up"
+                        disabled={!parentPath(path)}
+                        onClick={goUp}
+                    >
+                        <ArrowUp className="h-4 w-4" />
+                    </ToolbarButton>
+                    <ToolbarButton title="Refresh" onClick={refreshDirectory}>
+                        <RefreshCw className="h-4 w-4" />
+                    </ToolbarButton>
+                </div>
+
+                <div className="flex min-w-0 flex-1 items-center gap-1 overflow-hidden rounded-xl border border-slate-200 bg-slate-50 px-2 py-1 shadow-inner">
+                    <button
+                        className="flex h-7 items-center gap-1 rounded-lg px-2 text-xs font-bold text-slate-600 transition hover:bg-white hover:text-sky-700"
+                        onClick={() => navigateTo(projectRoot)}
+                        title={projectRoot}
+                    >
+                        <Home className="h-3.5 w-3.5" />
+                        <span className="max-w-32 truncate">
+                            {basenameFromPath(projectRoot) || "Project"}
+                        </span>
+                    </button>
+                    {pathParts.map((part, index) => (
+                        <button
+                            key={`${part}-${index}`}
+                            className="flex min-w-0 items-center gap-1 rounded-lg px-1.5 py-1 text-xs font-semibold text-slate-500 transition hover:bg-white hover:text-sky-700"
+                            onClick={() => navigateTo(pathForPart(index))}
+                            title={pathForPart(index)}
+                        >
+                            <span className="text-slate-300">/</span>
+                            <span className="truncate">{part}</span>
+                        </button>
+                    ))}
+                </div>
+
+                <div className="hidden shrink-0 items-center gap-2 text-[11px] font-semibold text-slate-400 md:flex">
+                    <span>{directoryCount} folders</span>
+                    <span className="h-1 w-1 rounded-full bg-slate-300" />
+                    <span>{fileCount} files</span>
+                </div>
+
+                <div className="flex items-center gap-1">
+                    <ToolbarButton
+                        title="New Scene"
+                        onClick={() => beginCreate("scene")}
+                    >
+                        <FilePlus2 className="h-4 w-4" />
+                    </ToolbarButton>
+                    <ToolbarButton
+                        title="New Folder"
+                        onClick={() => beginCreate("folder")}
+                    >
+                        <FolderPlus className="h-4 w-4" />
+                    </ToolbarButton>
+                </div>
             </div>
             {dirInfo ? (
                 <div
-                    className="grid h-[calc(100%-2.5rem)] grid-cols-[repeat(auto-fill,minmax(96px,1fr))] content-start gap-3 overflow-auto p-4"
+                    className="grid flex-1 content-start gap-3 overflow-auto p-4 [grid-template-columns:repeat(auto-fill,minmax(118px,1fr))]"
                     onContextMenu={handleBackgroundContextMenu}
                     onDragOver={(event) => handleDragOver(event, path)}
                     onDragLeave={() => setDragOverDirectory(null)}
@@ -549,13 +746,19 @@ export default function FileExplorer() {
                         const targetPath = childPath(child);
                         const isDirectory = child.type === "directory";
                         const isDropTarget = dragOverDirectory === targetPath;
+                        const fileExtension =
+                            child.type === "file"
+                                ? child.extension.replace(".", "").toUpperCase()
+                                : "Folder";
 
                         return (
                             <div
                                 key={child.name}
                                 draggable={!pendingRename}
-                                className={`flex cursor-pointer flex-col items-center rounded-lg p-3 hover:bg-slate-100 ${
-                                    isDropTarget ? "bg-blue-50 ring-2 ring-blue-300" : ""
+                                className={`group flex min-h-28 cursor-pointer flex-col items-center justify-between rounded-xl border p-3 shadow-sm transition ${
+                                    isDropTarget
+                                        ? "border-sky-300 bg-sky-50 ring-2 ring-sky-200"
+                                        : "border-slate-200 bg-white hover:border-sky-200 hover:bg-sky-50/60 hover:shadow-md"
                                 }`}
                                 onClick={() => handleChildClick(child)}
                                 onDoubleClick={() => handleChildDoubleClick(child)}
@@ -594,12 +797,15 @@ export default function FileExplorer() {
                                     ? getIconForDirName(child.name)
                                     : getIconForFileType(child.extension)}
                                 {renderName(child)}
+                                <span className="mt-1 max-w-full truncate rounded-full bg-slate-100 px-2 py-0.5 text-[10px] font-bold uppercase text-slate-400 transition group-hover:bg-white group-hover:text-sky-500">
+                                    {fileExtension || "File"}
+                                </span>
                             </div>
                         );
                     })}
                 </div>
             ) : (
-                <div className="flex h-full w-full items-center justify-center text-sm text-slate-500">
+                <div className="flex flex-1 items-center justify-center text-sm text-slate-500">
                     Loading...
                 </div>
             )}
