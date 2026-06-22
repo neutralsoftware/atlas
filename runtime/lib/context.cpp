@@ -3431,7 +3431,8 @@ createRenderable(Context &context, const json &objectData,
 
 static std::shared_ptr<Context>
 makeContextWithWindowOptions(std::string projectFile, void *metalView,
-                             CoreWindowReference sdlInputWindow) {
+                             CoreWindowReference sdlInputWindow,
+                             bool showHostWindow = true) {
     auto context = std::make_shared<Context>();
 
     if (!std::filesystem::exists(projectFile)) {
@@ -3476,6 +3477,7 @@ makeContextWithWindowOptions(std::string projectFile, void *metalView,
         .metalTargetView = metalView,
         .sdlInputWindow = sdlInputWindow,
         .editorControls = editorControls,
+        .showHostWindow = showHostWindow,
     });
 
     context->projectFile =
@@ -3492,6 +3494,12 @@ makeContextWithWindowOptions(std::string projectFile, void *metalView,
 std::shared_ptr<Context> runtime::makeContext(std::string projectFile) {
     return makeContextWithWindowOptions(std::move(projectFile), nullptr,
                                         nullptr);
+}
+
+std::shared_ptr<Context>
+runtime::makeHiddenContext(std::string projectFile) {
+    return makeContextWithWindowOptions(std::move(projectFile), nullptr,
+                                        nullptr, false);
 }
 
 std::shared_ptr<Context>

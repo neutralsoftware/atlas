@@ -68,6 +68,7 @@ class Context {
     void setAlwaysOnTop(bool enabled);
     void setSamples(int value);
     void setHighPixelDensity(bool enabled);
+    void setHidden(bool enabled);
 
     SDL_Window *makeWindow(int width, int height, const char *title,
                            SDL_DisplayID displayID = 0);
@@ -90,6 +91,7 @@ class Context {
     bool transparent = false;
     bool alwaysOnTop = false;
     bool highPixelDensity = true;
+    bool hidden = false;
     int samples = 0;
 
 #ifdef VULKAN
@@ -179,6 +181,9 @@ class Device {
     std::shared_ptr<Framebuffer> getDefaultFramebuffer();
 
     DeviceInfo getDeviceInfo();
+#ifdef METAL
+    MTL::Device *getMetalDevice() const;
+#endif
 
   private:
     std::shared_ptr<Framebuffer> defaultFramebuffer = nullptr;
@@ -372,6 +377,9 @@ class Texture {
     void setParameters3D(TextureWrapMode wrapS, TextureWrapMode wrapT,
                          TextureWrapMode wrapR, TextureFilterMode minFilter,
                          TextureFilterMode magFilter);
+#ifdef METAL
+    MTL::Texture *getMetalTexture() const;
+#endif
 
     uint textureID = 0;
     TextureType type = TextureType::Texture2D;

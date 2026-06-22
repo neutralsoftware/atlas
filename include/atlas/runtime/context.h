@@ -125,6 +125,7 @@ class Context {
 
 namespace runtime {
 std::shared_ptr<Context> makeContext(std::string projectFile);
+std::shared_ptr<Context> makeHiddenContext(std::string projectFile);
 std::shared_ptr<Context>
 makeContextForMetalView(std::string projectFile, void *metalView,
                         CoreWindowReference sdlInputWindow = nullptr);

@@ -29,6 +29,10 @@ RenderTarget::RenderTarget(Window &window, RenderTargetType type,
               std::to_string(static_cast<int>(type)) + ")");
     int fbWidth, fbHeight;
     atlasGetWindowSizeInPixels(window.windowRef, &fbWidth, &fbHeight);
+    if (fbWidth <= 1 || fbHeight <= 1) {
+        fbWidth = std::max(1, window.width);
+        fbHeight = std::max(1, window.height);
+    }
 
     float targetScale = window.getRenderScale();
     if (type == RenderTargetType::SSAO || type == RenderTargetType::SSAOBlur) {

@@ -919,12 +919,12 @@ Window::Window(const WindowConfiguration &config)
 #ifdef METAL
     this->externalMetalView = config.metalTargetView;
     this->renderToExternalMetalView = this->externalMetalView != nullptr;
-    this->showHostWindow = !this->renderToExternalMetalView;
+    this->showHostWindow = config.showHostWindow && !this->renderToExternalMetalView;
 #else
     (void)config.metalTargetView;
     this->externalMetalView = nullptr;
     this->renderToExternalMetalView = false;
-    this->showHostWindow = true;
+    this->showHostWindow = config.showHostWindow;
 #endif
 
 #ifdef VULKAN
@@ -964,6 +964,7 @@ Window::Window(const WindowConfiguration &config)
     context->setAlwaysOnTop(config.alwaysOnTop);
     context->setSamples(config.multisampling ? 4 : 0);
     context->setHighPixelDensity(true);
+    context->setHidden(!this->showHostWindow);
 
 #ifdef METAL
     if (this->renderToExternalMetalView) {
@@ -1750,6 +1751,19 @@ bool Window::stepFrame() {
         }
     }
 
+    if (!this->renderDefaultFramebuffer) {
+        commandBuffer->commit();
+        commandBuffer->getAndResetDrawCallCount();
+        ResourceTracker::getInstance().createdResources = 0;
+        ResourceTracker::getInstance().loadedResources = 0;
+        ResourceTracker::getInstance().unloadedResources = 0;
+        ResourceTracker::getInstance().totalMemoryMb = 0.0f;
+        if (this->firstFrame) {
+            this->firstFrame = false;
+        }
+        return !this->shouldClose;
+    }
+
     commandBuffer->beginPass(renderPass);
     int fbWidth, fbHeight;
     this->queryDrawableSizeInPixels(&fbWidth, &fbHeight);
@@ -1912,7 +1926,7 @@ void Window::resize(int width, int height, float scale) {
     this->width = clampedWidth;
     this->height = clampedHeight;
 
-    if (this->windowRef != nullptr) {
+    if (this->windowRef != nullptr && this->showHostWindow) {
         SDL_SetWindowSize(this->windowRef, clampedWidth, clampedHeight);
     }
 
@@ -3495,7 +3509,37 @@ void Window::captureMouse() {
 }
 
 void Window::addRenderTarget(RenderTarget *target) {
-    this->renderTargets.push_back(target);
+    if (target != nullptr &&
+        std::find(this->renderTargets.begin(), this->renderTargets.end(),
+                  target) == this->renderTargets.end()) {
+        this->renderTargets.push_back(target);
+    }
+}
+
+void Window::removeRenderTarget(RenderTarget *target) {
+    this->renderTargets.erase(
+        std::remove(this->renderTargets.begin(), this->renderTargets.end(),
+                    target),
+        this->renderTargets.end());
+    if (this->currentRenderTarget == target) {
+        this->currentRenderTarget = nullptr;
+    }
+}
+
+void Window::setHostWindowVisible(bool visible) {
+    this->showHostWindow = visible;
+    if (this->windowRef == nullptr) {
+        return;
+    }
+    if (visible) {
+        SDL_ShowWindow(this->windowRef);
+    } else {
+        SDL_HideWindow(this->windowRef);
+    }
+}
+
+void Window::setDefaultFramebufferRenderingEnabled(bool enabled) {
+    this->renderDefaultFramebuffer = enabled;
 }
 
 void Window::renderLightsToShadowMaps(

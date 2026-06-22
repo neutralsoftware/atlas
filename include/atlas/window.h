@@ -155,6 +155,7 @@ struct WindowConfiguration {
     CoreWindowReference sdlInputWindow = nullptr;
 
     bool editorControls = false;
+    bool showHostWindow = true;
 };
 
 /**
@@ -621,6 +622,9 @@ class Window {
      * @param target The render target to add.
      */
     void addRenderTarget(RenderTarget *target);
+    void removeRenderTarget(RenderTarget *target);
+    void setHostWindowVisible(bool visible);
+    void setDefaultFramebufferRenderingEnabled(bool enabled);
 
     /**
      * @brief Gets the framebuffer size of the window.
@@ -948,6 +952,7 @@ class Window {
     float metalUpscalingRatio = 1.0f;
     bool renderToExternalMetalView = false;
     bool showHostWindow = true;
+    bool renderDefaultFramebuffer = true;
     void *externalMetalView = nullptr;
     unsigned int bloomBlurPasses = 4;
     int ssaoKernelSize = 32;

@@ -1,6 +1,8 @@
 #include <SDL3/SDL.h>
 #include <SDL3/SDL_metal.h>
 
+#include "editor/viewport.h"
+
 #include <Metal/Metal.hpp>
 
 #define IMGUI_IMPL_METAL_CPP
@@ -8,7 +10,23 @@
 #include <imgui_impl_metal.h>
 #include <imgui_impl_sdl3.h>
 
-int main([[maybe_unused]] int argc, [[maybe_unused]] char** argv) {
+#include <exception>
+#include <string>
+
+namespace {
+std::string resolveProjectFile(int argc, char** argv) {
+    if (argc > 1 && argv[1] != nullptr) {
+        return argv[1];
+    }
+#ifdef ATLAS_DEFAULT_PROJECT_FILE
+    return ATLAS_DEFAULT_PROJECT_FILE;
+#else
+    return "tests/simple/project.atlas";
+#endif
+}
+}
+
+int main(int argc, char** argv) {
     NS::AutoreleasePool* pool = NS::AutoreleasePool::alloc()->init();
 
     if (!SDL_Init(SDL_INIT_VIDEO)) {
@@ -37,10 +55,56 @@ int main([[maybe_unused]] int argc, [[maybe_unused]] char** argv) {
         return 1;
     }
 
-    MTL::Device* device = MTL::CreateSystemDefaultDevice();
+    EditorViewport viewport;
+    bool viewportReady = false;
+    try {
+        viewport.initialize(nullptr, resolveProjectFile(argc, argv), window);
+        viewportReady = true;
+    } catch (const std::exception& exception) {
+        SDL_Log("Failed to initialize runtime viewport: %s", exception.what());
+    }
+
+    bool ownsDevice = false;
+    MTL::Device* device = viewportReady ? viewport.getMetalDevice() : nullptr;
+    if (!device) {
+        device = MTL::CreateSystemDefaultDevice();
+        ownsDevice = device != nullptr;
+    }
+    if (!device) {
+        SDL_Log("Failed to create Metal device");
+        viewport.shutdown();
+        SDL_Metal_DestroyView(metalView);
+        SDL_DestroyWindow(window);
+        SDL_Quit();
+        return 1;
+    }
+
     MTL::CommandQueue* commandQueue = device->newCommandQueue();
+    if (!commandQueue) {
+        SDL_Log("Failed to create Metal command queue");
+        if (ownsDevice) {
+            device->release();
+        }
+        viewport.shutdown();
+        SDL_Metal_DestroyView(metalView);
+        SDL_DestroyWindow(window);
+        SDL_Quit();
+        return 1;
+    }
 
     CA::MetalLayer* metalLayer = static_cast<CA::MetalLayer*>(SDL_Metal_GetLayer(metalView));
+    if (!metalLayer) {
+        SDL_Log("Failed to get Metal layer: %s", SDL_GetError());
+        commandQueue->release();
+        if (ownsDevice) {
+            device->release();
+        }
+        viewport.shutdown();
+        SDL_Metal_DestroyView(metalView);
+        SDL_DestroyWindow(window);
+        SDL_Quit();
+        return 1;
+    }
 
     metalLayer->setDevice(device);
     metalLayer->setPixelFormat(MTL::PixelFormatBGRA8Unorm);
@@ -51,7 +115,6 @@ int main([[maybe_unused]] int argc, [[maybe_unused]] char** argv) {
 
     ImGuiIO& io = ImGui::GetIO();
     io.ConfigFlags |= ImGuiConfigFlags_DockingEnable;
-    //io.ConfigFlags |= ImGuiConfigFlags_ViewportsEnable;
 
     ImGui::StyleColorsDark();
 
@@ -80,9 +143,24 @@ int main([[maybe_unused]] int argc, [[maybe_unused]] char** argv) {
             }
         }
 
+        if (SDL_GetWindowFlags(window) & SDL_WINDOW_MINIMIZED) {
+            SDL_Delay(10);
+            framePool->release();
+            continue;
+        }
+
+        int drawableWidth = 0;
+        int drawableHeight = 0;
+        SDL_GetWindowSizeInPixels(window, &drawableWidth, &drawableHeight);
+        metalLayer->setDrawableSize(
+            CGSizeMake(static_cast<double>(drawableWidth),
+                       static_cast<double>(drawableHeight))
+        );
+
         CA::MetalDrawable* drawable = metalLayer->nextDrawable();
         if (!drawable) {
             framePool->release();
+            continue;
         }
 
         MTL::RenderPassDescriptor* descriptor = MTL::RenderPassDescriptor::renderPassDescriptor();
@@ -97,9 +175,6 @@ int main([[maybe_unused]] int argc, [[maybe_unused]] char** argv) {
             MTL::ClearColor(0.08, 0.08, 0.09, 1.0)
         );
 
-        MTL::CommandBuffer* commandBuffer =
-            commandQueue->commandBuffer();
-
         ImGui_ImplMetal_NewFrame(
             descriptor
         );
@@ -109,14 +184,33 @@ int main([[maybe_unused]] int argc, [[maybe_unused]] char** argv) {
 
         ImGui::DockSpaceOverViewport(0, ImGui::GetMainViewport());
 
+        if (viewportReady) {
+            viewport.drawImGui();
+        }
+
         ImGui::Begin("Atlas Editor");
         ImGui::Text("Hello from pure C++ + Metal-cpp + ImGui!");
         ImGui::End();
 
+        if (viewportReady) {
+            viewport.renderRuntime();
+        }
+
         ImGui::Render();
+
+        MTL::CommandBuffer* commandBuffer =
+            commandQueue->commandBuffer();
+        if (!commandBuffer) {
+            framePool->release();
+            continue;
+        }
 
         MTL::RenderCommandEncoder* encoder =
             commandBuffer->renderCommandEncoder(descriptor);
+        if (!encoder) {
+            framePool->release();
+            continue;
+        }
 
         ImGui_ImplMetal_RenderDrawData(
             ImGui::GetDrawData(),
@@ -137,7 +231,10 @@ int main([[maybe_unused]] int argc, [[maybe_unused]] char** argv) {
     ImGui::DestroyContext();
 
     commandQueue->release();
-    device->release();
+    viewport.shutdown();
+    if (ownsDevice) {
+        device->release();
+    }
 
     SDL_Metal_DestroyView(metalView);
     SDL_DestroyWindow(window);

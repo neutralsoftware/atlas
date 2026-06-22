@@ -10,7 +10,7 @@ jobs:
     steps:
       - uses: actions/checkout@v5
         with:
-          submodules: true
+          submodules: recursive
       - name: Install Dependencies
         run: |
           brew install cmake sdl3 glm openal-soft assimp vulkan-loader molten-vk vulkan-validationlayers spirv-cross spirv-headers spirv-tools ninja

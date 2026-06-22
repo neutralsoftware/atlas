@@ -14,7 +14,6 @@
 #include <glm/gtc/quaternion.hpp>
 #include <cmath>
 #include <numbers>
-#include <ostream>
 
 /**
  * @brief Structure representing a position in 3D space with double precision.
@@ -42,21 +41,27 @@ struct Position3d {
     static Position3d back() { return Position3d(0.0f, 0.0f, -1.0f); }
     static Position3d right() { return Position3d(1.0f, 0.0f, 0.0f); }
     static Position3d left() { return Position3d(-1.0f, 0.0f, 0.0f); }
+
     static Position3d invalid() {
         return Position3d(std::nanf(""), std::nanf(""), std::nanf(""));
     }
 
-    Position3d() : x(0.0f), y(0.0f), z(0.0f) {}
-    Position3d(float x, float y, float z) : x(x), y(y), z(z) {}
+    Position3d() : x(0.0f), y(0.0f), z(0.0f) {
+    }
+
+    Position3d(float x, float y, float z) : x(x), y(y), z(z) {
+    }
+
     Position3d(double x, double y, double z)
         : x(static_cast<float>(x)), y(static_cast<float>(y)),
-          z(static_cast<float>(z)) {}
+          z(static_cast<float>(z)) {
+    }
 
-    Position3d operator+(const Position3d &other) const {
+    Position3d operator+(const Position3d& other) const {
         return {x + other.x, y + other.y, z + other.z};
     }
 
-    Position3d operator-(const Position3d &other) const {
+    Position3d operator-(const Position3d& other) const {
         return {x - other.x, y - other.y, z - other.z};
     }
 
@@ -68,27 +73,27 @@ struct Position3d {
         return {x / scalar, y / scalar, z / scalar};
     }
 
-    bool operator==(const Position3d &other) const {
+    bool operator==(const Position3d& other) const {
         return x == other.x && y == other.y && z == other.z;
     }
 
     glm::vec3 toGlm() const { return glm::vec3(x, y, z); }
 
-    Position3d operator+(const glm::vec3 &vec) const {
+    Position3d operator+(const glm::vec3& vec) const {
         return {x + vec.x, y + vec.y, z + vec.z};
     }
 
-    Position3d operator-(const glm::vec3 &vec) const {
+    Position3d operator-(const glm::vec3& vec) const {
         return {x - vec.x, y - vec.y, z - vec.z};
     }
 
-    void operator+=(const Position3d &vec) {
+    void operator+=(const Position3d& vec) {
         x += vec.x;
         y += vec.y;
         z += vec.z;
     }
 
-    void operator-=(const Position3d &vec) {
+    void operator-=(const Position3d& vec) {
         x -= vec.x;
         y -= vec.y;
         z -= vec.z;
@@ -101,14 +106,9 @@ struct Position3d {
         return {x / length, y / length, z / length};
     }
 
-    static Position3d fromGlm(const glm::vec3 &vec) {
+    static Position3d fromGlm(const glm::vec3& vec) {
         return {vec.x, vec.y, vec.z};
     };
-
-    friend std::ostream &operator<<(std::ostream &os, const Position3d &p) {
-        os << "Position3d(" << p.x << ", " << p.y << ", " << p.z << ")";
-        return os;
-    }
 };
 
 /**
@@ -154,22 +154,25 @@ struct BoundingBox {
     /** @brief Maximum corner of the box (inclusive). */
     Position3d max;
 
-    BoundingBox() : min(Position3d::zero()), max(Position3d::zero()) {}
-    BoundingBox(const Position3d &min, const Position3d &max)
-        : min(min), max(max) {}
+    BoundingBox() : min(Position3d::zero()), max(Position3d::zero()) {
+    }
+
+    BoundingBox(const Position3d& min, const Position3d& max)
+        : min(min), max(max) {
+    }
 
     /** @brief Returns true when the point lies inside the bounds. */
-    bool contains(const Position3d &point) const {
+    bool contains(const Position3d& point) const {
         return (point.x >= min.x && point.x <= max.x) &&
-               (point.y >= min.y && point.y <= max.y) &&
-               (point.z >= min.z && point.z <= max.z);
+            (point.y >= min.y && point.y <= max.y) &&
+            (point.z >= min.z && point.z <= max.z);
     }
 
     /** @brief Returns true when two axis-aligned boxes overlap. */
-    bool intersects(const BoundingBox &other) const {
+    bool intersects(const BoundingBox& other) const {
         return (min.x <= other.max.x && max.x >= other.min.x) &&
-               (min.y <= other.max.y && max.y >= other.min.y) &&
-               (min.z <= other.max.z && max.z >= other.min.z);
+            (min.y <= other.max.y && max.y >= other.min.y) &&
+            (min.z <= other.max.z && max.z >= other.min.z);
     }
 };
 
@@ -189,23 +192,26 @@ struct BoundingBox {
  */
 struct Rotation3d {
     float pitch; // Rotation around the X-axis
-    float yaw;   // Rotation around the Y-axis
-    float roll;  // Rotation around the Z-axis
+    float yaw; // Rotation around the Y-axis
+    float roll; // Rotation around the Z-axis
 
-    Rotation3d() : pitch(0.0f), yaw(0.0f), roll(0.0f) {}
+    Rotation3d() : pitch(0.0f), yaw(0.0f), roll(0.0f) {
+    }
 
     Rotation3d(float pitch, float yaw, float roll)
-        : pitch(pitch), yaw(yaw), roll(roll) {}
+        : pitch(pitch), yaw(yaw), roll(roll) {
+    }
 
     Rotation3d(double pitch, double yaw, double roll)
         : pitch(static_cast<float>(pitch)), yaw(static_cast<float>(yaw)),
-          roll(static_cast<float>(roll)) {}
+          roll(static_cast<float>(roll)) {
+    }
 
-    Rotation3d operator+(const Rotation3d &other) const {
+    Rotation3d operator+(const Rotation3d& other) const {
         return {pitch + other.pitch, yaw + other.yaw, roll + other.roll};
     }
 
-    Rotation3d operator-(const Rotation3d &other) const {
+    Rotation3d operator-(const Rotation3d& other) const {
         return {pitch - other.pitch, yaw - other.yaw, roll - other.roll};
     }
 
@@ -213,7 +219,7 @@ struct Rotation3d {
         return {pitch * scalar, yaw * scalar, roll * scalar};
     }
 
-    bool operator==(const Rotation3d &other) const {
+    bool operator==(const Rotation3d& other) const {
         return pitch == other.pitch && yaw == other.yaw && roll == other.roll;
     }
 
@@ -235,7 +241,7 @@ struct Rotation3d {
         return qRoll * qPitch * qYaw;
     }
 
-    static Rotation3d fromGlmQuat(const glm::quat &quat) {
+    static Rotation3d fromGlmQuat(const glm::quat& quat) {
         glm::mat3 m = glm::mat3_cast(quat);
 
         float sPitch = glm::clamp(m[1][2], -1.0f, 1.0f);
@@ -254,11 +260,13 @@ struct Rotation3d {
             rollRad = 0.0f;
         }
 
-        return {glm::degrees(pitchRad), glm::degrees(yawRad),
-                glm::degrees(rollRad)};
+        return {
+            glm::degrees(pitchRad), glm::degrees(yawRad),
+            glm::degrees(rollRad)
+        };
     }
 
-    static Rotation3d fromGlm(const glm::vec3 &vec) {
+    static Rotation3d fromGlm(const glm::vec3& vec) {
         return {vec.x, vec.y, vec.z};
     }
 };
@@ -277,23 +285,17 @@ struct Quaternion {
     glm::quat toGlm() const { return glm::quat(w, x, y, z); }
 
     /** @brief Builds a Quaternion from a GLM quaternion. */
-    static Quaternion fromGlm(const glm::quat &quat) {
+    static Quaternion fromGlm(const glm::quat& quat) {
         return {.x = quat.x, .y = quat.y, .z = quat.z, .w = quat.w};
     }
 
-    friend std::ostream &operator<<(std::ostream &os, const Quaternion &q) {
-        os << "Quaternion(" << q.x << ", " << q.y << ", " << q.z << ", " << q.w
-           << ")";
-        return os;
-    }
-
     /** @brief Converts this quaternion to Euler rotation angles. */
-    static Rotation3d toEuler(const Quaternion &quat) {
+    static Rotation3d toEuler(const Quaternion& quat) {
         return Rotation3d::fromGlmQuat(quat.toGlm());
     }
 
     /** @brief Builds a quaternion from Euler rotation angles. */
-    static Quaternion fromEuler(const Rotation3d &euler) {
+    static Quaternion fromEuler(const Rotation3d& euler) {
         return fromGlm(euler.toGlmQuat());
     }
 };
@@ -321,38 +323,46 @@ struct Color {
     float b = 1.0;
     float a = 1.0;
 
-    Color operator+(const Color &other) const {
-        return {.r = r + other.r,
-                .g = g + other.g,
-                .b = b + other.b,
-                .a = a + other.a};
+    Color operator+(const Color& other) const {
+        return {
+            .r = r + other.r,
+            .g = g + other.g,
+            .b = b + other.b,
+            .a = a + other.a
+        };
     }
 
-    Color operator-(const Color &other) const {
-        return {.r = r - other.r,
-                .g = g - other.g,
-                .b = b - other.b,
-                .a = a - other.a};
+    Color operator-(const Color& other) const {
+        return {
+            .r = r - other.r,
+            .g = g - other.g,
+            .b = b - other.b,
+            .a = a - other.a
+        };
     }
 
     Color operator*(float scalar) const {
         return {
-            .r = r * scalar, .g = g * scalar, .b = b * scalar, .a = a * scalar};
+            .r = r * scalar, .g = g * scalar, .b = b * scalar, .a = a * scalar
+        };
     }
 
-    Color operator*(const Color &other) const {
-        return {.r = r * other.r,
-                .g = g * other.g,
-                .b = b * other.b,
-                .a = a * other.a};
+    Color operator*(const Color& other) const {
+        return {
+            .r = r * other.r,
+            .g = g * other.g,
+            .b = b * other.b,
+            .a = a * other.a
+        };
     }
 
     Color operator/(float scalar) const {
         return {
-            .r = r / scalar, .g = g / scalar, .b = b / scalar, .a = a / scalar};
+            .r = r / scalar, .g = g / scalar, .b = b / scalar, .a = a / scalar
+        };
     }
 
-    bool operator==(const Color &other) const {
+    bool operator==(const Color& other) const {
         return r == other.r && g == other.g && b == other.b && a == other.a;
     }
 
@@ -361,9 +371,11 @@ struct Color {
     static Color red() { return {.r = 1.0, .g = 0.0, .b = 0.0, .a = 1.0}; }
     static Color green() { return {.r = 0.0, .g = 1.0, .b = 0.0, .a = 1.0}; }
     static Color blue() { return {.r = 0.0, .g = 0.0, .b = 1.0, .a = 1.0}; }
+
     static Color transparent() {
         return {.r = 0.0, .g = 0.0, .b = 0.0, .a = 0.0};
     }
+
     static Color yellow() { return {.r = 1.0, .g = 1.0, .b = 0.0, .a = 1.0}; }
     static Color cyan() { return {.r = 0.0, .g = 1.0, .b = 1.0, .a = 1.0}; }
     static Color magenta() { return {.r = 1.0, .g = 0.0, .b = 1.0, .a = 1.0}; }
@@ -447,11 +459,11 @@ struct Position2d {
     /** @brief Y coordinate in 2D space. */
     float y;
 
-    Position2d operator+(const Position2d &other) const {
+    Position2d operator+(const Position2d& other) const {
         return {.x = x + other.x, .y = y + other.y};
     }
 
-    Position2d operator-(const Position2d &other) const {
+    Position2d operator-(const Position2d& other) const {
         return {.x = x - other.x, .y = y - other.y};
     }
 
@@ -503,11 +515,11 @@ using Magnitude2d = Position2d;
 struct Radians {
     float value;
 
-    Radians operator+(const Radians &other) const {
+    Radians operator+(const Radians& other) const {
         return {value + other.value};
     }
 
-    Radians operator-(const Radians &other) const {
+    Radians operator-(const Radians& other) const {
         return {value - other.value};
     }
 
@@ -542,11 +554,11 @@ struct Size2d {
     float width;
     float height;
 
-    Size2d operator+(const Size2d &other) const {
+    Size2d operator+(const Size2d& other) const {
         return {.width = width + other.width, .height = height + other.height};
     }
 
-    Size2d operator-(const Size2d &other) const {
+    Size2d operator-(const Size2d& other) const {
         return {.width = width - other.width, .height = height - other.height};
     }
 
