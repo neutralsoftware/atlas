@@ -1,3 +1,6 @@
 [submodule "extern/quickjs"]
 	path = extern/quickjs
 	url = https://github.com/quickjs-ng/quickjs.git
+[submodule "extern/imgui"]
+	path = extern/imgui
+	url = https://github.com/ocornut/imgui.git
