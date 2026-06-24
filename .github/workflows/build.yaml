@@ -13,10 +13,12 @@ jobs:
           submodules: recursive
       - name: Install Dependencies
         run: |
-          brew install cmake sdl3 glm openal-soft assimp vulkan-loader molten-vk vulkan-validationlayers spirv-cross spirv-headers spirv-tools ninja
+          brew install cmake ninja qt@6 sdl3 glm openal-soft assimp vulkan-loader molten-vk vulkan-validationlayers spirv-cross spirv-headers spirv-tools
+      - name: Configure Qt
+        run: |
+          echo "$(brew --prefix qt@6)/bin" >> "$GITHUB_PATH"
+          echo "CMAKE_PREFIX_PATH=$(brew --prefix qt@6)" >> "$GITHUB_ENV"
       - name: Build
         run: |
-          mkdir build
-          cd build
-          cmake .. -DBACKEND=AUTO -G Ninja
-          ninja -j4
+          cmake -S . -B build -DBACKEND=AUTO -G Ninja
+          cmake --build build --parallel 4
