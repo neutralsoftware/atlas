@@ -15,6 +15,7 @@
 #include "DockManager.h"
 #include "DockWidget.h"
 #include "editor/debug.h"
+#include "editor/views/hierarchyPanel.h"
 
 static ads::CDockWidget* makeDock(const QString& title, QWidget* content) {
     auto* dock = new ads::CDockWidget(title);
@@ -70,9 +71,9 @@ void EditorWindow::setupMenus() {
 
 void EditorWindow::setupDocks() {
     dockManager->addPanel({
-        .id = "debug1",
-        .title = "Debug Panel",
-        .widget = new DebugComponentsView(),
+        .id = "hierarchy",
+        .title = "Hierarchy Panel",
+        .widget = new HierarchyPanel(),
         .area = EditorDockArea::Left,
         .icon = style()->standardIcon(QStyle::SP_DirOpenIcon)
     });
