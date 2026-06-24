@@ -4,7 +4,8 @@
 // Generated from .qss theme files.
 
 // Source: /Users/maxvdec/Coding/Projects/Atlas/editor/styling/dark.qss
-#define DARK_THEME \
+inline constexpr const char* DARK_THEME =
 "QWidget {\n"
 "	color: red;\n"
 "}\n"
+;

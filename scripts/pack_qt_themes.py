@@ -5,7 +5,7 @@ import sys
 import re
 
 
-def macro_name(path: Path) -> str:
+def constant_name(path: Path) -> str:
     name = path.stem.upper()
     name = re.sub(r"[^A-Z0-9]+", "_", name)
     return f"{name}_THEME"
@@ -17,8 +17,7 @@ def cpp_string_literal(text: str) -> str:
     text = text.replace("\r\n", "\n")
     text = text.replace("\r", "\n")
 
-    lines = text.split("\n")
-    return "\n".join(f'"{line}\\n"' for line in lines)
+    return "\n".join(f'"{line}\\n"' for line in text.splitlines())
 
 
 def main() -> int:
@@ -31,20 +30,22 @@ def main() -> int:
 
     output.parent.mkdir(parents=True, exist_ok=True)
 
-    lines = []
-    lines.append("#pragma once")
-    lines.append("")
-    lines.append("// This file is generated. Do not edit manually.")
-    lines.append("// Generated from .qss theme files.")
-    lines.append("")
+    lines: list[str] = [
+        "#pragma once",
+        "",
+        "// This file is generated. Do not edit manually.",
+        "// Generated from .qss theme files.",
+        "",
+    ]
 
     for qss_file in qss_files:
         text = qss_file.read_text(encoding="utf-8")
-        macro = macro_name(qss_file)
+        constant = constant_name(qss_file)
 
         lines.append(f"// Source: {qss_file.as_posix()}")
-        lines.append(f"#define {macro} \\")
+        lines.append(f"inline constexpr const char* {constant} =")
         lines.append(cpp_string_literal(text))
+        lines.append(";")
         lines.append("")
 
     output.write_text("\n".join(lines), encoding="utf-8")
