@@ -448,7 +448,7 @@ QHeaderView::section:hover {
 QTabWidget::pane {
     background-color: #222526;
     border: 1px solid #343B3F;
-    border-radius: 6px;
+    border-radius: 8px;
     top: -1px;
 }
 
@@ -457,6 +457,8 @@ QTabBar::tab {
     color: #9EA9AF;
     border: 1px solid #343B3F;
     border-bottom-color: #343B3F;
+    border-top-left-radius: 7px;
+    border-top-right-radius: 7px;
     padding: 7px 14px;
     min-width: 64px;
 }
@@ -482,7 +484,7 @@ QTabBar::tab:selected {
 }
 
 QMenuBar {
-    background-color: #1B1E1F;
+    background-color: #222526;
     color: #CCD4D8;
     border-bottom: 1px solid #303638;
 }
@@ -568,7 +570,7 @@ ads--CDockContainerWidget ads--CDockSplitter::handle:hover {
 ads--CDockAreaWidget {
     background-color: #222526;
     border: 1px solid #303638;
-    border-radius: 6px;
+    border-radius: 8px;
 }
 
 ads--CDockAreaWidget[focused="true"] {
@@ -576,14 +578,23 @@ ads--CDockAreaWidget[focused="true"] {
 }
 
 ads--CDockAreaTitleBar {
-    background-color: #252A2C;
+    background-color: #222526;
     border-bottom: 1px solid #343B3F;
+    border-top-left-radius: 8px;
+    border-top-right-radius: 8px;
     padding: 0;
 }
 
 ads--CDockAreaWidget[focused="true"] ads--CDockAreaTitleBar {
-    background-color: #2B3032;
+    background-color: #222526;
     border-bottom: 1px solid #6A7479;
+}
+
+ads--CDockAreaTabBar,
+#tabsContainerWidget {
+    background-color: #222526;
+    border-top-left-radius: 8px;
+    border-top-right-radius: 8px;
 }
 
 ads--CTitleBarButton {
@@ -637,7 +648,10 @@ ads--CDockWidgetTab {
     background-color: #252A2C;
     border: none;
     border-right: 1px solid #303638;
-    padding: 0 8px;
+    border-top-left-radius: 7px;
+    border-top-right-radius: 7px;
+    margin: 4px 2px 0 0;
+    padding: 0 10px;
     qproperty-iconSize: 16px 16px;
 }
 
@@ -646,7 +660,7 @@ ads--CDockWidgetTab:hover {
 }
 
 ads--CDockWidgetTab[activeTab="true"] {
-    background-color: #222526;
+    background-color: #303638;
     border-top: 2px solid #AEB8BE;
     border-right: 1px solid #343B3F;
 }
