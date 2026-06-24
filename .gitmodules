@@ -4,3 +4,6 @@
 [submodule "extern/imgui"]
 	path = extern/imgui
 	url = https://github.com/ocornut/imgui.git
+[submodule "extern/QtDockingSystem"]
+	path = extern/QtDockingSystem
+	url = https://github.com/githubuser0xFFFF/Qt-Advanced-Docking-System.git

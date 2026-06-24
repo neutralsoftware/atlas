@@ -11,6 +11,15 @@
 #include <QLabel>
 #include <QMainWindow>
 
+#include "DockManager.h"
+#include "DockWidget.h"
+
+static ads::CDockWidget* makeDock(const QString& title, QWidget* content) {
+    auto* dock = new ads::CDockWidget(title);
+    dock->setWidget(content);
+    return dock;
+}
+
 int main(int argc, char** argv) {
     QApplication app(argc, argv);
 
@@ -18,10 +27,20 @@ int main(int argc, char** argv) {
     window.setWindowTitle("Atlas Engine");
     window.resize(1280, 720);
 
+    auto* dockManager = new ads::CDockManager(&window);
+    window.setCentralWidget(dockManager);
+
     auto* label = new QLabel("Hello, World!");
     label->setAlignment(Qt::AlignCenter);
 
-    window.setCentralWidget(label);
+    auto* anotherLabel = new QLabel("Other Label!");
+
+    auto* labelDock = makeDock("Label", label);
+    auto* anotherDock = makeDock("Another", anotherLabel);
+
+    dockManager->addDockWidget(ads::LeftDockWidgetArea, anotherDock);
+    dockManager->addDockWidget(ads::RightDockWidgetArea, labelDock);
+
     window.show();
 
     return app.exec();

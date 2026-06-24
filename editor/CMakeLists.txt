@@ -7,10 +7,18 @@ find_package(Qt6 REQUIRED COMPONENTS Widgets)
 
 qt_standard_project_setup()
 
+set(BUILD_EXAMPLES OFF CACHE BOOL "" FORCE)
+
+add_subdirectory(
+        "${CMAKE_SOURCE_DIR}/extern/QtDockingSystem"
+        "${CMAKE_BINARY_DIR}/extern/QtDockingSystem"
+)
+
 qt_add_executable(AtlasEditor ${EDITOR_FILES})
 
 target_include_directories(AtlasEditor
         PRIVATE
+        ${CMAKE_SOURCE_DIR}/extern/QtDockingSystem/src
         ${ATLAS_DEP_INCLUDE_DIRS}
 )
 
@@ -45,6 +53,7 @@ target_link_libraries(AtlasEditor
         ${ATLAS_OPENAL_TARGET}
         ${ATLAS_GLM_TARGET}
         Qt6::Widgets
+        ads::qtadvanceddocking-qt6
 )
 
 if (NOT BEZEL_NATIVE)
