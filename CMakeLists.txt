@@ -269,7 +269,7 @@ message(STATUS "Packing shaders for ${BACKEND} backend")
 add_custom_command(
         OUTPUT ${SHADER_OUTPUT_FILE}
         COMMAND ${CMAKE_COMMAND} -E make_directory ${CMAKE_SOURCE_DIR}/include/atlas/core
-        COMMAND ${Python3_EXECUTABLE} ${CMAKE_SOURCE_DIR}/pack_shaders.py
+        COMMAND ${Python3_EXECUTABLE} ${CMAKE_SOURCE_DIR}/scripts/pack_shaders.py
         ${SHADER_INPUT_DIR} ${SHADER_OUTPUT_FILE} ${SHADER_BACKEND_ARG}
         DEPENDS ${SHADER_SOURCES}
         COMMENT "Packing shaders into default_shaders.h"
@@ -281,9 +281,9 @@ add_custom_target(generate_shaders DEPENDS ${SHADER_OUTPUT_FILE})
 add_custom_command(
         OUTPUT ${RUNTIME_SCRIPT_OUTPUT_FILE}
         COMMAND ${CMAKE_COMMAND} -E make_directory ${CMAKE_SOURCE_DIR}/include/atlas/runtime
-        COMMAND ${Python3_EXECUTABLE} ${CMAKE_SOURCE_DIR}/pack_runtime_scripts.py
+        COMMAND ${Python3_EXECUTABLE} ${CMAKE_SOURCE_DIR}/scripts/pack_runtime_scripts.py
         ${RUNTIME_SCRIPT_INPUT_DIR} ${RUNTIME_SCRIPT_OUTPUT_FILE}
-        DEPENDS ${RUNTIME_SCRIPT_SOURCES} ${CMAKE_SOURCE_DIR}/pack_runtime_scripts.py
+        DEPENDS ${RUNTIME_SCRIPT_SOURCES} ${CMAKE_SOURCE_DIR}/scripts/pack_runtime_scripts.py
         COMMENT "Packing runtime scripts into atlasScripts.h"
         VERBATIM
 )

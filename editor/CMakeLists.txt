@@ -1,9 +1,45 @@
 
+# Finding all Editor Files
 file(GLOB_RECURSE EDITOR_FILES CONFIGURE_DEPENDS
         "${CMAKE_SOURCE_DIR}/editor/*"
+        "${CMAKE_SOURCE_DIR}/include/editor/*.h"
 )
 
+file(GLOB_RECURSE ATLAS_QSS_FILES
+        CONFIGURE_DEPENDS
+        "${CMAKE_SOURCE_DIR}/editor/styling/*.qss"
+)
+
+set(ATLAS_GENERATED_THEME_HEADER
+        "${CMAKE_SOURCE_DIR}/include/editor/core/themes.h"
+)
+
+# Find packages
+
 find_package(Qt6 REQUIRED COMPONENTS Widgets)
+find_package(Python3 REQUIRED COMPONENTS Interpreter)
+
+# Compile all Qt themes into one header file
+
+add_custom_command(
+        OUTPUT "${ATLAS_GENERATED_THEME_HEADER}"
+        COMMAND
+        "${Python3_EXECUTABLE}"
+        "${CMAKE_SOURCE_DIR}/scripts/pack_qt_themes.py"
+        "${ATLAS_GENERATED_THEME_HEADER}"
+        ${ATLAS_QSS_FILES}
+        DEPENDS
+        "${CMAKE_SOURCE_DIR}/scripts/pack_qt_themes.py"
+        ${ATLAS_QSS_FILES}
+        COMMENT "Generating embedded QSS theme header"
+        VERBATIM
+)
+
+add_custom_target(generate_atlas_themes
+        DEPENDS "${ATLAS_GENERATED_THEME_HEADER}"
+)
+
+# Setting up the project
 
 qt_standard_project_setup()
 
@@ -15,6 +51,7 @@ add_subdirectory(
 )
 
 qt_add_executable(AtlasEditor ${EDITOR_FILES})
+add_dependencies(AtlasEditor generate_atlas_themes)
 
 target_include_directories(AtlasEditor
         PRIVATE
@@ -26,6 +63,8 @@ target_compile_definitions(AtlasEditor
         PRIVATE
         ATLAS_DEFAULT_PROJECT_FILE="${CMAKE_SOURCE_DIR}/tests/simple/project.atlas"
 )
+
+# Linking libraries
 
 if (NOT BEZEL_NATIVE)
     target_compile_definitions(AtlasEditor PRIVATE
