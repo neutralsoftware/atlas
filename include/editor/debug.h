@@ -26,6 +26,7 @@ private:
     QWidget* createTextSection();
     QWidget* createItemViewsSection();
     QWidget* createTabsSection();
+    QWidget* createCollapsibleSection();
     QWidget* createStatusSection();
 
     QWidget* createSection(const QString& title, QWidget* content);

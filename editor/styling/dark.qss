@@ -295,7 +295,7 @@ QRadioButton::indicator {
 }
 
 QCheckBox::indicator {
-    border-radius: 3px;
+    border-radius: 8px;
 }
 
 QRadioButton::indicator {
@@ -311,6 +311,7 @@ QRadioButton::indicator:hover {
 QCheckBox::indicator:checked {
     background-color: #3D8BFF;
     border-color: #72C7FF;
+    border-radius: 8px;
 }
 
 QRadioButton::indicator:checked {
@@ -477,16 +478,16 @@ QTabBar::tab:hover {
 }
 
 QTabBar::tab:selected {
-    background-color: #222526;
+    background-color: #303638;
     color: #FFFFFF;
-    border-top: 2px solid #AEB8BE;
-    border-bottom-color: #222526;
+    border-top: 1px solid #343B3F;
+    border-bottom-color: #303638;
 }
 
 QMenuBar {
     background-color: #222526;
     color: #CCD4D8;
-    border-bottom: 1px solid #303638;
+    border-bottom: none;
 }
 
 QMenuBar::item {
@@ -569,17 +570,17 @@ ads--CDockContainerWidget ads--CDockSplitter::handle:hover {
 
 ads--CDockAreaWidget {
     background-color: #222526;
-    border: 1px solid #303638;
+    border: none;
     border-radius: 8px;
 }
 
 ads--CDockAreaWidget[focused="true"] {
-    border-color: #6A7479;
+    border: none;
 }
 
 ads--CDockAreaTitleBar {
     background-color: #222526;
-    border-bottom: 1px solid #343B3F;
+    border-bottom: none;
     border-top-left-radius: 8px;
     border-top-right-radius: 8px;
     padding: 0;
@@ -587,7 +588,7 @@ ads--CDockAreaTitleBar {
 
 ads--CDockAreaWidget[focused="true"] ads--CDockAreaTitleBar {
     background-color: #222526;
-    border-bottom: 1px solid #6A7479;
+    border-bottom: none;
 }
 
 ads--CDockAreaTabBar,
@@ -661,13 +662,13 @@ ads--CDockWidgetTab:hover {
 
 ads--CDockWidgetTab[activeTab="true"] {
     background-color: #303638;
-    border-top: 2px solid #AEB8BE;
+    border-top: none;
     border-right: 1px solid #343B3F;
 }
 
 ads--CDockWidgetTab[focused="true"] {
     background-color: #303638;
-    border-top: 2px solid #C8D0D4;
+    border-top: none;
 }
 
 ads--CDockWidgetTab QLabel,
@@ -724,6 +725,41 @@ QScrollArea#dockWidgetScrollArea {
 
 QWidget[dockWidgetContent="true"] {
     background-color: #222526;
+}
+
+QWidget#collapsibleSection {
+    background-color: #222526;
+    border: none;
+    border-radius: 0;
+}
+
+QToolButton#collapsibleHeader {
+    background-color: transparent;
+    border: none;
+    border-radius: 0;
+    padding: 4px 0;
+    color: #E7ECEF;
+    font-weight: 600;
+    text-align: left;
+}
+
+QToolButton#collapsibleHeader:hover {
+    background-color: transparent;
+    color: #FFFFFF;
+}
+
+QToolButton#collapsibleHeader:checked {
+    background-color: transparent;
+}
+
+QToolButton#collapsibleHeader::menu-indicator {
+    image: none;
+}
+
+QWidget#collapsibleBody {
+    background-color: #222526;
+    border: none;
+    border-radius: 0;
 }
 
 #autoHideTitleLabel {

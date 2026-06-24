@@ -71,6 +71,7 @@ DebugComponentsView::DebugComponentsView(QWidget* parent)
     contentLayout->addWidget(createTextSection());
     contentLayout->addWidget(createItemViewsSection());
     contentLayout->addWidget(createTabsSection());
+    contentLayout->addWidget(createCollapsibleSection());
     contentLayout->addWidget(createStatusSection());
 
     contentLayout->addStretch();
@@ -342,6 +343,65 @@ QWidget* DebugComponentsView::createTabsSection() {
     tabs->addTab(console, "Console");
 
     return createSection("Tabs", tabs);
+}
+
+QWidget* DebugComponentsView::createCollapsibleSection() {
+    auto* section = new QWidget(this);
+    section->setObjectName("collapsibleSection");
+
+    auto* layout = new QVBoxLayout(section);
+    layout->setContentsMargins(0, 0, 0, 0);
+    layout->setSpacing(4);
+
+    auto* header = new QToolButton(section);
+    header->setObjectName("collapsibleHeader");
+    header->setText("Transform");
+    header->setCheckable(true);
+    header->setChecked(true);
+    header->setToolButtonStyle(Qt::ToolButtonTextBesideIcon);
+    header->setArrowType(Qt::DownArrow);
+
+    auto* body = new QWidget(section);
+    body->setObjectName("collapsibleBody");
+
+    auto* form = new QFormLayout(body);
+    form->setContentsMargins(18, 4, 0, 0);
+    form->setSpacing(8);
+
+    auto* positionX = new QDoubleSpinBox(body);
+    positionX->setRange(-10000.0, 10000.0);
+    positionX->setValue(12.5);
+
+    auto* positionY = new QDoubleSpinBox(body);
+    positionY->setRange(-10000.0, 10000.0);
+    positionY->setValue(4.0);
+
+    auto* positionZ = new QDoubleSpinBox(body);
+    positionZ->setRange(-10000.0, 10000.0);
+    positionZ->setValue(-2.25);
+
+    auto* visible = new QCheckBox("Visible in scene", body);
+    visible->setChecked(true);
+
+    form->addRow("Position X", positionX);
+    form->addRow("Position Y", positionY);
+    form->addRow("Position Z", positionZ);
+    form->addRow("Visibility", visible);
+
+    QObject::connect(header, &QToolButton::toggled, section, [header, body, section](bool checked) {
+        header->setArrowType(checked ? Qt::DownArrow : Qt::RightArrow);
+        body->setVisible(checked);
+        body->updateGeometry();
+        section->updateGeometry();
+        if (auto* parent = section->parentWidget()) {
+            parent->updateGeometry();
+        }
+    });
+
+    layout->addWidget(header);
+    layout->addWidget(body);
+
+    return section;
 }
 
 QWidget* DebugComponentsView::createStatusSection() {
