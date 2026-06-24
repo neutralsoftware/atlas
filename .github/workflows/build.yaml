@@ -11,6 +11,12 @@ jobs:
       - uses: actions/checkout@v5
         with:
           submodules: recursive
+      - name: Fetch Qt Docking System
+        run: |
+          if [ ! -d extern/QtDockingSystem ]; then
+            git clone https://github.com/githubuser0xFFFF/Qt-Advanced-Docking-System.git extern/QtDockingSystem
+            git -C extern/QtDockingSystem checkout f35d2bd95e7a324433ccce6b79efc57204b53231
+          fi
       - name: Install Dependencies
         run: |
           brew install cmake ninja qt@6 sdl3 glm openal-soft assimp vulkan-loader molten-vk vulkan-validationlayers spirv-cross spirv-headers spirv-tools

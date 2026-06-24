@@ -1,6 +1,7 @@
 
 file(GLOB_RECURSE EDITOR_FILES CONFIGURE_DEPENDS
         "${CMAKE_SOURCE_DIR}/editor/*"
+        "${CMAKE_SOURCE_DIR}/include/editor/*.h"
 )
 
 find_package(Qt6 REQUIRED COMPONENTS Widgets)
