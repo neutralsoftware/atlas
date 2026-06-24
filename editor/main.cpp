@@ -42,6 +42,14 @@ int main(int argc, char** argv) {
         ads::CDockManager::OpaqueSplitterResize,
         true
     );
+    ads::CDockManager::setConfigFlag(
+        ads::CDockManager::FocusHighlighting,
+        true
+    );
+    ads::CDockManager::setConfigFlag(
+        ads::CDockManager::DisableStylesheet,
+        true
+    );
 
     auto* dockManager = new ads::CDockManager(&window);
     window.setCentralWidget(dockManager);
