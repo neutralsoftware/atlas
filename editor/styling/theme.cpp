@@ -10,7 +10,8 @@
 #include <qpalette.h>
 #include <QApplication>
 
-#include "../../include/editor/application/styling.h"
+#include "editor/application/styling.h"
+#include "editor/core/themes.h"
 
 void styling::applyColorPalette(QApplication& app) {
     QPalette p;
@@ -41,4 +42,5 @@ void styling::applyColorPalette(QApplication& app) {
 
 void styling::applyTheme(QApplication& app) {
     applyColorPalette(app);
+    app.setStyleSheet(QString::fromUtf8(DARK_THEME));
 }
