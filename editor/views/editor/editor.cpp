@@ -17,6 +17,7 @@
 #include "editor/debug.h"
 #include "editor/views/fileExplorer.h"
 #include "editor/views/hierarchyPanel.h"
+#include "editor/views/viewport.h"
 
 static ads::CDockWidget* makeDock(const QString& title, QWidget* content) {
     auto* dock = new ads::CDockWidget(title);
@@ -80,12 +81,13 @@ void EditorWindow::setupDocks() {
     });
 
     dockManager->addPanel({
-        .id = "debug2",
-        .title = "Debug Panel",
-        .widget = new DebugComponentsView(),
+        .id = "viewport",
+        .title = "Viewport",
+        .widget = new ViewportPanel(),
         .area = EditorDockArea::Right,
         .icon = style()->standardIcon(QStyle::SP_DirOpenIcon)
     });
+
 
     dockManager->addPanel({
         .id = "fileExplorer",
