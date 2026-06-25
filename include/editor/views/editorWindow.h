@@ -30,8 +30,13 @@ private:
     void setupMenus();
     void setupDocks();
 
+    void saveLayout();
+    void restoreLayout();
+
     EditorDockManager* dockManager = nullptr;
     ads::CDockManager* coreManager = nullptr;
+
+    void closeEvent(QCloseEvent* event) override;
 };
 
 #endif //ATLAS_EDITORWINDOW_H

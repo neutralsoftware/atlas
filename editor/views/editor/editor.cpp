@@ -11,6 +11,7 @@
 
 #include <QMenuBar>
 #include <QStyle>
+#include <QSettings>
 
 #include "DockManager.h"
 #include "DockWidget.h"
@@ -31,6 +32,8 @@ EditorWindow::EditorWindow(QWidget* parent)
     setupWindow();
     setupMenus();
     setupDocks();
+
+    restoreLayout();
 }
 
 void EditorWindow::setupWindow() {
@@ -41,6 +44,9 @@ void EditorWindow::setupWindow() {
     ads::CDockManager::setConfigFlag(ads::CDockManager::OpaqueSplitterResize, true);
     ads::CDockManager::setConfigFlag(ads::CDockManager::FocusHighlighting, true);
     ads::CDockManager::setConfigFlag(ads::CDockManager::DisableStylesheet, true);
+    ads::CDockManager::setConfigFlag(ads::CDockManager::DockAreaHasTabsMenuButton, false);
+    ads::CDockManager::setConfigFlag(ads::CDockManager::DockAreaHasUndockButton, false);
+    ads::CDockManager::setConfigFlag(ads::CDockManager::DockAreaHasCloseButton, false);
 
     coreManager = new ads::CDockManager(this);
     setCentralWidget(coreManager);
@@ -105,4 +111,30 @@ void EditorWindow::setupDocks() {
         .area = EditorDockArea::Bottom,
         .icon = style()->standardIcon(QStyle::SP_DirOpenIcon)
     });
+}
+
+void EditorWindow::saveLayout() {
+    QSettings settings("Neutral Software", "Atlas Engine");
+
+    settings.setValue("window/geometry", saveGeometry());
+    settings.setValue("window/state", saveState());
+    settings.setValue("docking/state", coreManager->saveState());
+}
+
+void EditorWindow::restoreLayout() {
+    QSettings settings("Neutral Software", "Atlas Engine");
+
+    restoreGeometry(settings.value("window/geometry").toByteArray());
+    restoreState(settings.value("window/state").toByteArray());
+
+    const QByteArray dockState = settings.value("docking/state").toByteArray();
+
+    if (!dockState.isEmpty()) {
+        coreManager->restoreState(dockState);
+    }
+}
+
+void EditorWindow::closeEvent(QCloseEvent* event) {
+    saveLayout();
+    QMainWindow::closeEvent(event);
 }
