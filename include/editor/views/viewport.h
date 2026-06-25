@@ -15,10 +15,13 @@
 #include <QWidget>
 
 class Context;
+class QCloseEvent;
+class QHideEvent;
 class QKeyEvent;
 class QMouseEvent;
 class QPaintEngine;
 class QResizeEvent;
+class QSize;
 class QShowEvent;
 class QTimer;
 class QWheelEvent;
@@ -29,10 +32,15 @@ class ViewportPanel : public QWidget {
 public:
     explicit ViewportPanel(QWidget* parent = nullptr);
     ~ViewportPanel() override;
+    QSize sizeHint() const override;
+    QSize minimumSizeHint() const override;
+    void shutdownRuntime();
 
 protected:
     QPaintEngine* paintEngine() const override;
     void showEvent(QShowEvent* event) override;
+    void hideEvent(QHideEvent* event) override;
+    void closeEvent(QCloseEvent* event) override;
     void resizeEvent(QResizeEvent* event) override;
     void mousePressEvent(QMouseEvent* event) override;
     void mouseMoveEvent(QMouseEvent* event) override;
@@ -42,6 +50,7 @@ protected:
     void keyReleaseEvent(QKeyEvent* event) override;
 
 private:
+    void scheduleRuntimeStart();
     void startRuntime();
     void stopRuntime();
     void stepRuntime();
@@ -53,6 +62,8 @@ private:
     int runtimeWidth = 0;
     int runtimeHeight = 0;
     float runtimeScale = 0.0f;
+    bool runtimeStartQueued = false;
+    bool shuttingDown = false;
 };
 
 #endif //ATLAS_VIEWPORT_H

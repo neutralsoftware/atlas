@@ -1,5 +1,5 @@
 * {
-    font-family: "Inter", "SF Pro Text", "Segoe UI", "Helvetica Neue", Arial, sans-serif;
+    font-family: "Helvetica Neue", "Segoe UI", Arial, sans-serif;
     font-size: 13px;
     color: #DCE2E5;
     selection-background-color: #3D8BFF;

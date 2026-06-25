@@ -534,7 +534,10 @@ void CoreObject::render(float dt,
     if (TracerServices::getInstance().isOk()) {
         DebugObjectPacket debugPacket{};
         debugPacket.drawCallsForObject = 1;
-        debugPacket.frameCount = Window::mainWindow->device->frameCount;
+        debugPacket.frameCount =
+            Window::mainWindow != nullptr && Window::mainWindow->device != nullptr
+                ? Window::mainWindow->device->frameCount
+                : 0;
         debugPacket.triangleCount = static_cast<uint32_t>(
             indices.empty() ? vertices.size() / 3 : indices.size() / 3);
         debugPacket.vertexBufferSizeMb =
@@ -1020,7 +1023,10 @@ void CoreObject::update(Window &) {
     physicsEvent.name = "Physics Update";
     physicsEvent.durationMs = static_cast<float>(physicsTime) / 1'000'000.0f;
     physicsEvent.subsystem = TimingEventSubsystem::Physics;
-    physicsEvent.frameNumber = Window::mainWindow->device->frameCount;
+    physicsEvent.frameNumber =
+        Window::mainWindow != nullptr && Window::mainWindow->device != nullptr
+            ? Window::mainWindow->device->frameCount
+            : 0;
     physicsEvent.send();
 }
 

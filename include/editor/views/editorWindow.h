@@ -35,6 +35,7 @@ private:
 
     EditorDockManager* dockManager = nullptr;
     ads::CDockManager* coreManager = nullptr;
+    bool closing = false;
 
     void closeEvent(QCloseEvent* event) override;
 };

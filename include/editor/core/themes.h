@@ -6,7 +6,7 @@
 // Source: /Users/maxvdec/Coding/Projects/Atlas/editor/styling/dark.qss
 inline constexpr const char* DARK_THEME =
 "* {\n"
-"    font-family: \"Inter\", \"SF Pro Text\", \"Segoe UI\", \"Helvetica Neue\", Arial, sans-serif;\n"
+"    font-family: \"Helvetica Neue\", \"Segoe UI\", Arial, sans-serif;\n"
 "    font-size: 13px;\n"
 "    color: #DCE2E5;\n"
 "    selection-background-color: #3D8BFF;\n"

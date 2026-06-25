@@ -3465,19 +3465,22 @@ makeContextWithWindowOptions(std::string projectFile, void *metalView,
         editorControls = (*editorTable)["controls"].value_or(false);
     }
     Logger::getInstance().setConsoleFilter(false, true, true);
+    const bool embedded = metalView != nullptr;
 
     context->window = std::make_unique<Window>(WindowConfiguration{
         .title = "Atlas Runtime",
-        .width = resWidth,
-        .height = resHeight,
+        .width = embedded ? 1 : resWidth,
+        .height = embedded ? 1 : resHeight,
         .renderScale = 1.f,
-        .mouseCaptured = mouseCaptured,
+        .mouseCaptured = embedded ? false : mouseCaptured,
         .multisampling = multisampling,
+        .decorations = !embedded,
+        .resizable = !embedded,
         .ssaoScale = ssaoScale,
         .metalTargetView = metalView,
         .sdlInputWindow = sdlInputWindow,
         .editorControls = editorControls,
-        .showHostWindow = showHostWindow,
+        .showHostWindow = showHostWindow && !embedded,
     });
 
     context->projectFile =
@@ -4352,6 +4355,24 @@ void Context::end() {
     window->endRunLoop();
 }
 
+Context::~Context() {
+    try {
+        end();
+    } catch (...) {
+    }
+    if (context != nullptr) {
+        runtime::scripting::clearSceneBindings(context, scriptHost);
+        JS_SetContextOpaque(context, nullptr);
+        JS_FreeContext(context);
+        context = nullptr;
+    }
+    if (runtime != nullptr) {
+        JS_FreeRuntime(runtime);
+        runtime = nullptr;
+    }
+    scriptHost.context = nullptr;
+}
+
 void Context::loadProject() {
     if (!std::filesystem::exists(projectFile)) {
         throw std::runtime_error("Project file does not exist: " + projectFile);
@@ -4406,33 +4427,36 @@ void Context::loadProject() {
 }
 
 void RuntimeScene::update(Window &window) {
-    if (context == nullptr || context->camera == nullptr ||
-        !context->cameraAutomaticMoving) {
-        if (context != nullptr && context->context != nullptr) {
+    auto runtimeContext = context.lock();
+    if (runtimeContext == nullptr || runtimeContext->camera == nullptr ||
+        !runtimeContext->cameraAutomaticMoving) {
+        if (runtimeContext != nullptr && runtimeContext->context != nullptr) {
             runtime::scripting::dispatchInteractiveFrame(
-                context->context, context->scriptHost, window,
+                runtimeContext->context, runtimeContext->scriptHost, window,
                 window.getDeltaTime());
         }
         return;
     }
 
-    if (context->cameraActions.size() >= 3) {
-        context->camera->updateWithActions(window, context->cameraActions[0],
-                                           context->cameraActions[1],
-                                           context->cameraActions[2]);
+    if (runtimeContext->cameraActions.size() >= 3) {
+        runtimeContext->camera->updateWithActions(window,
+                                                  runtimeContext->cameraActions[0],
+                                                  runtimeContext->cameraActions[1],
+                                                  runtimeContext->cameraActions[2]);
     } else {
-        context->camera->update(window);
+        runtimeContext->camera->update(window);
     }
 
-    if (context->context != nullptr) {
+    if (runtimeContext->context != nullptr) {
         runtime::scripting::dispatchInteractiveFrame(
-            context->context, context->scriptHost, window,
+            runtimeContext->context, runtimeContext->scriptHost, window,
             window.getDeltaTime());
     }
 }
 
 void RuntimeScene::onMouseMove(Window &window, Movement2d movement) {
-    if (context != nullptr && context->context != nullptr) {
+    auto runtimeContext = context.lock();
+    if (runtimeContext != nullptr && runtimeContext->context != nullptr) {
         const auto [x, y] = window.getCursorPosition();
         MousePacket packet;
         packet.xpos = static_cast<float>(x);
@@ -4440,32 +4464,35 @@ void RuntimeScene::onMouseMove(Window &window, Movement2d movement) {
         packet.xoffset = movement.x;
         packet.yoffset = movement.y;
         packet.constrainPitch = true;
-        packet.firstMouse = context->scriptHost.interactiveFirstMouse;
+        packet.firstMouse = runtimeContext->scriptHost.interactiveFirstMouse;
         runtime::scripting::dispatchInteractiveMouseMove(
-            context->context, context->scriptHost, window, packet,
+            runtimeContext->context, runtimeContext->scriptHost, window, packet,
             window.getDeltaTime());
     }
 
-    if (context == nullptr || context->camera == nullptr ||
-        !context->cameraAutomaticMoving || context->cameraActions.size() >= 3) {
+    if (runtimeContext == nullptr || runtimeContext->camera == nullptr ||
+        !runtimeContext->cameraAutomaticMoving ||
+        runtimeContext->cameraActions.size() >= 3) {
         return;
     }
-    context->camera->updateLook(window, movement);
+    runtimeContext->camera->updateLook(window, movement);
 }
 
 void RuntimeScene::onMouseScroll(Window &window, Movement2d offset) {
-    if (context != nullptr && context->context != nullptr) {
+    auto runtimeContext = context.lock();
+    if (runtimeContext != nullptr && runtimeContext->context != nullptr) {
         MouseScrollPacket packet{offset.x, offset.y};
         runtime::scripting::dispatchInteractiveMouseScroll(
-            context->context, context->scriptHost, packet,
+            runtimeContext->context, runtimeContext->scriptHost, packet,
             window.getDeltaTime());
     }
 
-    if (context == nullptr || context->camera == nullptr ||
-        !context->cameraAutomaticMoving || context->cameraActions.size() >= 3) {
+    if (runtimeContext == nullptr || runtimeContext->camera == nullptr ||
+        !runtimeContext->cameraAutomaticMoving ||
+        runtimeContext->cameraActions.size() >= 3) {
         return;
     }
-    context->camera->updateZoom(window, offset);
+    runtimeContext->camera->updateZoom(window, offset);
 }
 
 void Context::loadMainScene(Window &window) {

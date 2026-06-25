@@ -12,6 +12,7 @@
 #include <QMenuBar>
 #include <QStyle>
 #include <QSettings>
+#include <QCloseEvent>
 
 #include "DockManager.h"
 #include "DockWidget.h"
@@ -80,18 +81,18 @@ void EditorWindow::setupMenus() {
 
 void EditorWindow::setupDocks() {
     dockManager->addPanel({
-        .id = "hierarchy",
-        .title = "Hierarchy Panel",
-        .widget = new HierarchyPanel(),
-        .area = EditorDockArea::Left,
+        .id = "viewport",
+        .title = "Viewport",
+        .widget = new ViewportPanel(),
+        .area = EditorDockArea::Center,
         .icon = style()->standardIcon(QStyle::SP_DirOpenIcon)
     });
 
     dockManager->addPanel({
-        .id = "viewport",
-        .title = "Viewport",
-        .widget = new ViewportPanel(),
-        .area = EditorDockArea::Right,
+        .id = "hierarchy",
+        .title = "Hierarchy Panel",
+        .widget = new HierarchyPanel(),
+        .area = EditorDockArea::Left,
         .icon = style()->standardIcon(QStyle::SP_DirOpenIcon)
     });
 
@@ -118,7 +119,7 @@ void EditorWindow::saveLayout() {
 
     settings.setValue("window/geometry", saveGeometry());
     settings.setValue("window/state", saveState());
-    settings.setValue("docking/state", coreManager->saveState());
+    settings.setValue("docking/state/v2", coreManager->saveState(2));
 }
 
 void EditorWindow::restoreLayout() {
@@ -127,14 +128,30 @@ void EditorWindow::restoreLayout() {
     restoreGeometry(settings.value("window/geometry").toByteArray());
     restoreState(settings.value("window/state").toByteArray());
 
-    const QByteArray dockState = settings.value("docking/state").toByteArray();
+    const QByteArray dockState =
+        settings.value("docking/state/v2").toByteArray();
 
     if (!dockState.isEmpty()) {
-        coreManager->restoreState(dockState);
+        coreManager->restoreState(dockState, 2);
     }
 }
 
 void EditorWindow::closeEvent(QCloseEvent* event) {
+    if (closing) {
+        event->accept();
+        return;
+    }
+    closing = true;
     saveLayout();
+    for (auto* viewport : findChildren<ViewportPanel*>()) {
+        viewport->shutdownRuntime();
+    }
+    delete dockManager;
+    dockManager = nullptr;
+    if (coreManager != nullptr) {
+        coreManager->deleteLater();
+        coreManager = nullptr;
+    }
     QMainWindow::closeEvent(event);
+    event->accept();
 }

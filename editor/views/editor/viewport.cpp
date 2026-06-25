@@ -14,11 +14,16 @@
 #include <atlas/runtime/context.h>
 #include <atlas/runtime/scripting.h>
 
+#include <QCloseEvent>
+#include <QCoreApplication>
 #include <QDebug>
+#include <QHideEvent>
 #include <QKeyEvent>
 #include <QMouseEvent>
 #include <QPaintEngine>
 #include <QResizeEvent>
+#include <QSize>
+#include <QSizePolicy>
 #include <QShowEvent>
 #include <QString>
 #include <QTimer>
@@ -115,18 +120,32 @@ ViewportPanel::ViewportPanel(QWidget* parent)
     setFocusPolicy(Qt::StrongFocus);
     setMouseTracking(true);
     setMinimumSize(1, 1);
+    setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Expanding);
 
     frameTimer = new QTimer(this);
     frameTimer->setTimerType(Qt::PreciseTimer);
     connect(frameTimer, &QTimer::timeout, this, [this] {
         stepRuntime();
     });
+    if (auto* app = QCoreApplication::instance()) {
+        connect(app, &QCoreApplication::aboutToQuit, this, [this] {
+            shutdownRuntime();
+        });
+    }
 
     winId();
 }
 
 ViewportPanel::~ViewportPanel() {
-    stopRuntime();
+    shutdownRuntime();
+}
+
+QSize ViewportPanel::sizeHint() const {
+    return QSize(640, 360);
+}
+
+QSize ViewportPanel::minimumSizeHint() const {
+    return QSize(1, 1);
 }
 
 QPaintEngine* ViewportPanel::paintEngine() const {
@@ -135,12 +154,56 @@ QPaintEngine* ViewportPanel::paintEngine() const {
 
 void ViewportPanel::showEvent(QShowEvent* event) {
     QWidget::showEvent(event);
-    startRuntime();
+    if (runtimeContext != nullptr) {
+        frameTimer->start(16);
+        return;
+    }
+    scheduleRuntimeStart();
+}
+
+void ViewportPanel::hideEvent(QHideEvent* event) {
+    if (frameTimer != nullptr) {
+        frameTimer->stop();
+    }
+    QWidget::hideEvent(event);
+}
+
+void ViewportPanel::closeEvent(QCloseEvent* event) {
+    shutdownRuntime();
+    QWidget::closeEvent(event);
 }
 
 void ViewportPanel::resizeEvent(QResizeEvent* event) {
     QWidget::resizeEvent(event);
+    if (runtimeContext == nullptr) {
+        scheduleRuntimeStart();
+        return;
+    }
     resizeRuntime();
+}
+
+void ViewportPanel::scheduleRuntimeStart() {
+    if (shuttingDown || runtimeContext != nullptr || runtimeStartQueued ||
+        !isVisible() || width() <= 1 || height() <= 1) {
+        return;
+    }
+    runtimeStartQueued = true;
+    QTimer::singleShot(0, this, [this] {
+        runtimeStartQueued = false;
+        if (shuttingDown) {
+            return;
+        }
+        if (runtimeContext == nullptr && isVisible() && width() > 1 &&
+            height() > 1) {
+            startRuntime();
+        }
+    });
+}
+
+void ViewportPanel::shutdownRuntime() {
+    shuttingDown = true;
+    runtimeStartQueued = false;
+    stopRuntime();
 }
 
 void ViewportPanel::mousePressEvent(QMouseEvent* event) {
@@ -214,7 +277,8 @@ void ViewportPanel::keyReleaseEvent(QKeyEvent* event) {
 }
 
 void ViewportPanel::startRuntime() {
-    if (runtimeContext != nullptr) {
+    if (shuttingDown || runtimeContext != nullptr || width() <= 1 ||
+        height() <= 1) {
         return;
     }
 #ifdef METAL
@@ -238,7 +302,7 @@ void ViewportPanel::startRuntime() {
         runtimeContext->setEditorSimulationEnabled(false);
         runtimeContext->setEditorControlMode(1);
         resizeRuntime();
-        frameTimer->start(0);
+        frameTimer->start(16);
     } catch (const std::exception& error) {
         qWarning().noquote()
             << QStringLiteral("Failed to start Atlas viewport runtime: %1")
@@ -260,8 +324,9 @@ void ViewportPanel::stopRuntime() {
     if (runtimeContext == nullptr) {
         return;
     }
+    auto context = std::move(runtimeContext);
     try {
-        runtimeContext->end();
+        context->end();
     } catch (const std::exception& error) {
         qWarning().noquote()
             << QStringLiteral("Failed to stop Atlas viewport runtime: %1")
@@ -269,7 +334,9 @@ void ViewportPanel::stopRuntime() {
     } catch (...) {
         qWarning() << "Failed to stop Atlas viewport runtime";
     }
-    runtimeContext.reset();
+    runtimeWidth = 0;
+    runtimeHeight = 0;
+    runtimeScale = 0.0f;
 }
 
 void ViewportPanel::stepRuntime() {
@@ -277,7 +344,6 @@ void ViewportPanel::stepRuntime() {
         return;
     }
     try {
-        resizeRuntime();
         if (!runtimeContext->stepFrame()) {
             stopRuntime();
         }
@@ -300,7 +366,7 @@ void ViewportPanel::resizeRuntime() {
     const int nextHeight = std::max(1, height());
     const float nextScale = widgetScale(this);
     if (nextWidth == runtimeWidth && nextHeight == runtimeHeight &&
-        std::abs(nextScale - runtimeScale) < 0.0001f) {
+        std::abs(nextScale - runtimeScale) <= 0.0001f) {
         return;
     }
     runtimeContext->resize(nextWidth, nextHeight, nextScale);
