@@ -10,6 +10,8 @@
 #ifndef ATLAS_STYLING_H
 #define ATLAS_STYLING_H
 
+#define THEME_ICON(iconName) style()->standardIcon(iconName)
+
 namespace styling {
     void applyColorPalette(QApplication& app);
     void applyTheme(QApplication& app);

@@ -525,7 +525,7 @@ QMenu::separator {
 }
 
 QSplitter::handle {
-    background-color: #151819;
+    background-color: #222526;
 }
 
 QSplitter::handle:horizontal {
@@ -560,7 +560,7 @@ ads--CDockContainerWidget > QSplitter {
 
 ads--CDockSplitter::handle,
 ads--CDockContainerWidget ads--CDockSplitter::handle {
-    background-color: #151819;
+    background-color: #222526;
 }
 
 ads--CDockSplitter::handle:hover,

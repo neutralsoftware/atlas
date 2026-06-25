@@ -19,12 +19,7 @@
 #include "DockWidget.h"
 #include "../include/editor/application/styling.h"
 #include "editor/debug.h"
-
-static ads::CDockWidget* makeDock(const QString& title, QWidget* content) {
-    auto* dock = new ads::CDockWidget(title);
-    dock->setWidget(content);
-    return dock;
-}
+#include "editor/views/editorWindow.h"
 
 int main(int argc, char** argv) {
     QApplication app(argc, argv);
@@ -37,58 +32,7 @@ int main(int argc, char** argv) {
     app.setStyle("Fusion");
     styling::applyTheme(app);
 
-    QMainWindow window;
-    window.setWindowTitle("Atlas Engine");
-    window.resize(1280, 720);
-    window.menuBar()->setNativeMenuBar(false);
-
-    auto* fileMenu = window.menuBar()->addMenu("File");
-    fileMenu->addAction(window.style()->standardIcon(QStyle::SP_FileIcon), "New");
-    fileMenu->addAction(window.style()->standardIcon(QStyle::SP_DialogOpenButton), "Open");
-    fileMenu->addAction(window.style()->standardIcon(QStyle::SP_DialogSaveButton), "Save");
-    fileMenu->addSeparator();
-    fileMenu->addAction(window.style()->standardIcon(QStyle::SP_DialogCloseButton), "Quit", &window, &QWidget::close);
-
-    auto* editMenu = window.menuBar()->addMenu("Edit");
-    editMenu->addAction(window.style()->standardIcon(QStyle::SP_ArrowBack), "Undo");
-    editMenu->addAction(window.style()->standardIcon(QStyle::SP_ArrowForward), "Redo");
-    editMenu->addSeparator();
-    editMenu->addAction("Preferences");
-
-    auto* viewMenu = window.menuBar()->addMenu("View");
-    viewMenu->addAction(window.style()->standardIcon(QStyle::SP_ComputerIcon), "Debug Components");
-    viewMenu->addAction(window.style()->standardIcon(QStyle::SP_FileDialogDetailedView), "Reset Layout");
-
-    auto* windowMenu = window.menuBar()->addMenu("Window");
-    windowMenu->addAction(window.style()->standardIcon(QStyle::SP_TitleBarNormalButton), "Minimize");
-    windowMenu->addAction(window.style()->standardIcon(QStyle::SP_TitleBarMaxButton), "Zoom");
-
-    auto* helpMenu = window.menuBar()->addMenu("Help");
-    helpMenu->addAction(window.style()->standardIcon(QStyle::SP_MessageBoxQuestion), "About Atlas");
-
-    ads::CDockManager::setConfigFlag(
-        ads::CDockManager::OpaqueSplitterResize,
-        true
-    );
-    ads::CDockManager::setConfigFlag(
-        ads::CDockManager::FocusHighlighting,
-        true
-    );
-    ads::CDockManager::setConfigFlag(
-        ads::CDockManager::DisableStylesheet,
-        true
-    );
-
-    auto* dockManager = new ads::CDockManager(&window);
-    window.setCentralWidget(dockManager);
-
-    auto* debugView = new DebugComponentsView();
-    auto* debugDock = makeDock("Debug Component", debugView);
-    debugDock->setIcon(window.style()->standardIcon(QStyle::SP_ComputerIcon));
-
-    dockManager->addDockWidget(ads::RightDockWidgetArea, debugDock);
-
+    EditorWindow window;
     window.show();
-
     return app.exec();
 }
