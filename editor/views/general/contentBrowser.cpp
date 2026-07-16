@@ -175,6 +175,9 @@ ContentBrowserPanel::ContentBrowserPanel(const QString &projectFile,
     createMenu->addAction(style()->standardIcon(QStyle::SP_FileIcon), "Scene",
                           this, &ContentBrowserPanel::createScene);
     createMenu->addAction(style()->standardIcon(QStyle::SP_FileIcon),
+                          "Material", this,
+                          &ContentBrowserPanel::createMaterial);
+    createMenu->addAction(style()->standardIcon(QStyle::SP_FileIcon),
                           "TypeScript Script", this,
                           &ContentBrowserPanel::createScript);
     createButton->setMenu(createMenu);
@@ -302,6 +305,11 @@ void ContentBrowserPanel::openIndex(const QModelIndex &index) {
         navigateTo(info.absoluteFilePath());
         return;
     }
+    const QString suffix = info.suffix().toLower();
+    if (suffix == "amat" || suffix == "material") {
+        emit assetActivated(info.absoluteFilePath());
+        return;
+    }
     QDesktopServices::openUrl(QUrl::fromLocalFile(info.absoluteFilePath()));
 }
 
@@ -384,6 +392,31 @@ void ContentBrowserPanel::createScript() {
                               "}\n";
     if (writeNewFile(path, script)) {
         gridView->setCurrentIndex(model->index(path));
+    }
+}
+
+void ContentBrowserPanel::createMaterial() {
+    const QString path = uniquePath("New Material.amat");
+    const QByteArray material =
+        "{\n"
+        "    \"material\": {\n"
+        "        \"albedo\": [0.8, 0.8, 0.8, 1.0],\n"
+        "        \"metallic\": 0.0,\n"
+        "        \"roughness\": 0.5,\n"
+        "        \"ao\": 1.0,\n"
+        "        \"reflectivity\": 0.5,\n"
+        "        \"emissiveColor\": [0.0, 0.0, 0.0, 1.0],\n"
+        "        \"emissiveIntensity\": 0.0,\n"
+        "        \"normalMapStrength\": 1.0,\n"
+        "        \"useNormalMap\": true,\n"
+        "        \"transmittance\": 0.0,\n"
+        "        \"ior\": 1.45\n"
+        "    }\n"
+        "}\n";
+    if (writeNewFile(path, material)) {
+        const QModelIndex index = model->index(path);
+        gridView->setCurrentIndex(index);
+        emit assetActivated(path);
     }
 }
 

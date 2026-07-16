@@ -315,6 +315,7 @@ void Window::deferredRendering(
         std::shared_ptr<opal::Pipeline> pipeline;
         int width = 0;
         int height = 0;
+        opal::RasterizerMode rasterizerMode = opal::RasterizerMode::Fill;
     };
     static std::unordered_map<Renderable *, ShaderProgram> deferredPrograms;
     static std::unordered_map<Renderable *, DeferredPipelineCacheEntry>
@@ -431,10 +432,12 @@ void Window::deferredRendering(
         const int gbufferHeight = this->gBuffer->getHeight();
         if (pipelineEntry.pipeline == nullptr ||
             pipelineEntry.width != gbufferWidth ||
-            pipelineEntry.height != gbufferHeight) {
+            pipelineEntry.height != gbufferHeight ||
+            pipelineEntry.rasterizerMode != this->rasterizerMode) {
             auto deferredPipeline = opal::Pipeline::create();
             deferredPipeline->setViewport(0, 0, gbufferWidth, gbufferHeight);
             deferredPipeline->setCullMode(this->cullMode);
+            deferredPipeline->setRasterizerMode(this->rasterizerMode);
             deferredPipeline->setFrontFace(this->deferredFrontFace);
             deferredPipeline->enableDepthTest(true);
             deferredPipeline->setDepthCompareOp(opal::CompareOp::Less);
@@ -443,6 +446,7 @@ void Window::deferredRendering(
                 programIt->second.requestPipeline(deferredPipeline);
             pipelineEntry.width = gbufferWidth;
             pipelineEntry.height = gbufferHeight;
+            pipelineEntry.rasterizerMode = this->rasterizerMode;
         }
 
         obj->setViewMatrix(this->camera->calculateViewMatrix());

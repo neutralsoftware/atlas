@@ -157,6 +157,92 @@ QToolButton::menu-indicator {
     image: none;
 }
 
+#viewportToolbar {
+    background-color: #1B1E20;
+    border-bottom: 1px solid #353B3E;
+}
+
+#viewportPlaybackButton,
+#viewportModeButton,
+#viewportOptionButton {
+    min-width: 26px;
+    min-height: 24px;
+    padding: 2px 7px;
+}
+
+#viewportPlaybackButton {
+    border-radius: 12px;
+}
+
+#viewportShadingMode {
+    min-width: 108px;
+    padding-top: 3px;
+    padding-bottom: 3px;
+}
+
+#viewportFpsLabel {
+    color: #9DA8AE;
+    font-variant-numeric: tabular-nums;
+}
+
+#materialEditorHeader {
+    background-color: #1B1E20;
+    border-bottom: 1px solid #363C3F;
+}
+
+#materialEditorTitle {
+    color: #F3F6F7;
+    font-size: 15px;
+    font-weight: 650;
+}
+
+#materialEditorStatus {
+    color: #89959B;
+}
+
+#materialEditorScroll,
+#materialEditorBody {
+    border: none;
+    background-color: #202324;
+}
+
+#materialPreview {
+    background-color: #191C1D;
+    border: 1px solid #3A4144;
+    border-radius: 8px;
+}
+
+#materialEditorEmpty {
+    color: #879299;
+    padding: 40px;
+}
+
+#materialTextureSlot {
+    background-color: #1B1E20;
+    border: 1px solid #343B3E;
+    border-radius: 6px;
+}
+
+#materialTexturePreview {
+    background-color: #25292B;
+    border: 1px solid #41494D;
+    border-radius: 4px;
+    color: #EF8C7B;
+    font-weight: 700;
+    qproperty-alignment: AlignCenter;
+}
+
+#materialTextureLabel {
+    color: #CDD4D8;
+    font-weight: 600;
+}
+
+#materialTexturePath {
+    color: #8F9AA0;
+    padding-top: 3px;
+    padding-bottom: 3px;
+}
+
 QLineEdit,
 QTextEdit,
 QPlainTextEdit,

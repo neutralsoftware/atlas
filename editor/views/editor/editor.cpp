@@ -25,6 +25,7 @@
 #include "editor/views/fileExplorer.h"
 #include "editor/views/hierarchyPanel.h"
 #include "editor/views/inspectorView.h"
+#include "editor/views/materialEditor.h"
 #include "editor/views/viewport.h"
 #include "editor/views/viewportTools.h"
 
@@ -135,6 +136,14 @@ void EditorWindow::setupDocks() {
          .area = EditorDockArea::Bottom,
          .icon = style()->standardIcon(QStyle::SP_DirOpenIcon)});
 
+    auto *materialEditor = new MaterialEditorPanel;
+    dockManager->addPanel(
+        {.id = "materialEditor",
+         .title = "Material Editor",
+         .widget = materialEditor,
+         .area = EditorDockArea::Right,
+         .icon = style()->standardIcon(QStyle::SP_FileDialogContentsView)});
+
     connect(hierarchyPanel, &HierarchyPanel::objectActivated, inspectorPanel,
             &InspectorPanel::inspectRuntimeObject);
     connect(hierarchyPanel, &HierarchyPanel::objectActivated, contentBrowser,
@@ -150,6 +159,8 @@ void EditorWindow::setupDocks() {
                 }
                 this->inspectorPanel->inspectFile(path);
             });
+    connect(contentBrowser, &ContentBrowserPanel::assetActivated,
+            materialEditor, &MaterialEditorPanel::openMaterial);
 }
 
 void EditorWindow::saveLayout() {

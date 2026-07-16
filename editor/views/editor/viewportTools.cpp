@@ -6,6 +6,7 @@
 #include <QComboBox>
 #include <QHBoxLayout>
 #include <QLabel>
+#include <QKeySequence>
 #include <QStyle>
 #include <QToolButton>
 #include <QVBoxLayout>
@@ -39,12 +40,20 @@ ViewportTools::ViewportTools(ViewportPanel *viewport, QWidget *parent)
     stopButton->setObjectName("viewportPlaybackButton");
     stopButton->setIcon(style()->standardIcon(QStyle::SP_MediaStop));
     stopButton->setToolTip("Stop and restore the scene");
+    reloadButton = new QToolButton(toolbar);
+    reloadButton->setObjectName("viewportPlaybackButton");
+    reloadButton->setIcon(style()->standardIcon(QStyle::SP_BrowserReload));
+    reloadButton->setToolTip("Reload runtime");
+    playButton->setShortcut(QKeySequence("Ctrl+P"));
+    pauseButton->setShortcut(QKeySequence("Ctrl+Shift+P"));
+    stepButton->setShortcut(QKeySequence("Ctrl+Alt+P"));
 
     tools->addStretch();
     tools->addWidget(playButton);
     tools->addWidget(pauseButton);
     tools->addWidget(stepButton);
     tools->addWidget(stopButton);
+    tools->addWidget(reloadButton);
     tools->addSpacing(10);
 
     auto *transformGroup = new QActionGroup(toolbar);
@@ -99,6 +108,8 @@ ViewportTools::ViewportTools(ViewportPanel *viewport, QWidget *parent)
             &ViewportPanel::stepRuntimeOnce);
     connect(stopButton, &QToolButton::clicked, viewport,
             &ViewportPanel::stopRuntimePlayback);
+    connect(reloadButton, &QToolButton::clicked, viewport,
+            &ViewportPanel::reloadRuntime);
     connect(transformGroup, &QActionGroup::triggered, this,
             [viewport](QAction *action) {
                 viewport->setRuntimeControlMode(action->data().toInt());
@@ -126,4 +137,5 @@ void ViewportTools::updatePlaybackState(int state) {
     pauseButton->setEnabled(runtimeAvailable && state == 1);
     stepButton->setEnabled(runtimeAvailable && state != 0);
     stopButton->setEnabled(runtimeAvailable && state != 0);
+    reloadButton->setEnabled(runtimeAvailable);
 }
