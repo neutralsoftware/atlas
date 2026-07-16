@@ -951,10 +951,6 @@ ads--CAutoHideDockContainer[sideBarLocation="2"] ads--CResizeHandle {
     color: #F4F7F8;
 }
 
-#projectSidebarArtwork {
-    background: transparent;
-}
-
 #projectSidebarVersion {
     background: transparent;
     color: #697277;
@@ -1104,25 +1100,23 @@ QPushButton[secondary="true"]:hover {
     font-weight: 650;
 }
 
-QPushButton[templateCard="true"] {
+QFrame[templateCard="true"] {
     background-color: #222629;
     border: 1px solid #343A3E;
     border-radius: 10px;
-    padding: 0;
-    text-align: left;
 }
 
-QPushButton[templateCard="true"]:hover {
+QFrame[templateCard="true"]:hover {
     background-color: #282E32;
     border-color: #4B5961;
 }
 
-QPushButton[templateCard="true"]:checked {
+QFrame[templateCard="true"][selected="true"] {
     background-color: #20354A;
     border: 2px solid #4B9EFF;
 }
 
-#templateTitle {
+#templateOption {
     background: transparent;
     color: #F3F6F7;
     font-size: 14px;

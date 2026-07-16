@@ -1,8 +1,6 @@
 #include <editor/views/splashScreen.h>
 
-#include <QApplication>
 #include <QColor>
-#include <QEventLoop>
 #include <QFrame>
 #include <QGraphicsDropShadowEffect>
 #include <QGuiApplication>
@@ -13,8 +11,6 @@
 #include <QScreen>
 #include <QTimer>
 #include <QVBoxLayout>
-
-#include <algorithm>
 
 #ifndef ATLAS_VERSION
 #define ATLAS_VERSION "Alpha 9"
@@ -29,34 +25,27 @@ SplashScreen::SplashScreen(QWidget* parent)
     setAttribute(Qt::WA_TranslucentBackground);
     setModal(true);
     setObjectName("atlasSplash");
-
-#ifdef ATLAS_DEBUG_BUILD
-    resize(980, 360);
-#else
-    resize(900, 300);
-#endif
+    setFixedSize(708, 218);
 
     auto* outerLayout = new QVBoxLayout(this);
-    outerLayout->setContentsMargins(28, 28, 28, 28);
+    outerLayout->setContentsMargins(8, 8, 8, 8);
 
     auto* card = new QFrame(this);
     card->setObjectName("splashCard");
     auto* shadow = new QGraphicsDropShadowEffect(card);
-    shadow->setBlurRadius(32.0);
-    shadow->setOffset(0.0, 12.0);
-    shadow->setColor(QColor(0, 0, 0, 72));
+    shadow->setBlurRadius(20.0);
+    shadow->setOffset(0.0, 5.0);
+    shadow->setColor(QColor(0, 0, 0, 64));
     card->setGraphicsEffect(shadow);
     outerLayout->addWidget(card);
 
-    auto* rootLayout = new QVBoxLayout(card);
-    rootLayout->setContentsMargins(42, 34, 42, 30);
-    rootLayout->setSpacing(18);
+    auto* rootLayout = new QHBoxLayout(card);
+    rootLayout->setContentsMargins(22, 18, 22, 16);
+    rootLayout->setSpacing(20);
 
-    auto* heroLayout = new QHBoxLayout();
-    heroLayout->setSpacing(30);
     auto* icon = new QLabel(card);
     icon->setObjectName("splashIcon");
-    icon->setFixedSize(150, 150);
+    icon->setFixedSize(116, 116);
 #ifdef ATLAS_DEBUG_BUILD
     icon->setPixmap(QPixmap(":/editor/assets/Icon-iOS-Default-1024x1024@1x.png")
                         .scaled(icon->size(), Qt::KeepAspectRatio,
@@ -66,10 +55,10 @@ SplashScreen::SplashScreen(QWidget* parent)
                         .scaled(icon->size(), Qt::KeepAspectRatio,
                                 Qt::SmoothTransformation));
 #endif
-    heroLayout->addWidget(icon, 0, Qt::AlignTop);
+    rootLayout->addWidget(icon, 0, Qt::AlignVCenter);
 
     auto* copyLayout = new QVBoxLayout();
-    copyLayout->setSpacing(8);
+    copyLayout->setSpacing(2);
     auto* title = new QLabel(card);
     title->setObjectName("splashTitle");
 #ifdef ATLAS_DEBUG_BUILD
@@ -77,7 +66,8 @@ SplashScreen::SplashScreen(QWidget* parent)
 #else
     title->setText("Atlas Engine");
 #endif
-    title->setWordWrap(true);
+    title->setWordWrap(false);
+    title->setAlignment(Qt::AlignLeft | Qt::AlignVCenter);
     copyLayout->addWidget(title);
 
     auto* version = new QLabel(card);
@@ -89,36 +79,38 @@ SplashScreen::SplashScreen(QWidget* parent)
 #else
     version->setText(QStringLiteral(ATLAS_VERSION));
 #endif
+    version->setAlignment(Qt::AlignLeft | Qt::AlignVCenter);
     copyLayout->addWidget(version);
 
     auto* company = new QLabel("by neutral software", card);
     company->setObjectName("splashCompany");
+    company->setAlignment(Qt::AlignLeft | Qt::AlignVCenter);
     copyLayout->addWidget(company);
     copyLayout->addStretch();
 
     statusLabel = new QLabel("Loading the engine…", card);
     statusLabel->setObjectName("splashStatus");
-    statusLabel->setAlignment(Qt::AlignCenter);
+    statusLabel->setAlignment(Qt::AlignLeft | Qt::AlignVCenter);
     copyLayout->addWidget(statusLabel);
-    heroLayout->addLayout(copyLayout, 1);
-    rootLayout->addLayout(heroLayout);
 
 #ifdef ATLAS_DEBUG_BUILD
     auto* warning = new QLabel(
-        "This is a development build of Atlas Engine. Features may change or "
-        "behave unexpectedly. For official builds, visit atlasengine.org.",
+        "Development build — features may change. Official builds: "
+        "atlasengine.org",
         card);
     warning->setObjectName("splashWarning");
-    warning->setWordWrap(true);
-    rootLayout->addWidget(warning);
+    warning->setWordWrap(false);
+    warning->setAlignment(Qt::AlignLeft | Qt::AlignVCenter);
+    copyLayout->addWidget(warning);
 #endif
 
     auto* progress = new QProgressBar(card);
     progress->setObjectName("splashProgress");
     progress->setRange(0, 0);
     progress->setTextVisible(false);
-    progress->setFixedHeight(3);
-    rootLayout->addWidget(progress);
+    progress->setFixedHeight(2);
+    copyLayout->addWidget(progress);
+    rootLayout->addLayout(copyLayout, 1);
 
     setStyleSheet(R"(
 #atlasSplash {
@@ -127,34 +119,41 @@ SplashScreen::SplashScreen(QWidget* parent)
 #splashCard {
     background: #FFFFFF;
     border: 1px solid rgba(20, 24, 28, 18);
-    border-radius: 34px;
+    border-radius: 26px;
 }
 #splashTitle {
     background: transparent;
     color: #0B0D0E;
     font-family: "Manrope";
-    font-size: 42px;
+    font-size: 25px;
     font-weight: 700;
 }
 #splashVersion {
     background: transparent;
     color: #A1A5A8;
     font-family: "Manrope";
-    font-size: 23px;
+    font-size: 15px;
     font-weight: 700;
 }
 #splashCompany {
     background: transparent;
     color: #111416;
     font-family: "Manrope";
-    font-size: 17px;
+    font-size: 12px;
     font-weight: 650;
 }
-#splashStatus, #splashWarning {
+#splashStatus {
     background: transparent;
     color: #9A9EA1;
     font-family: "Manrope";
-    font-size: 14px;
+    font-size: 11px;
+    font-weight: 450;
+}
+#splashWarning {
+    background: transparent;
+    color: #A4A8AB;
+    font-family: "Manrope";
+    font-size: 9px;
     font-weight: 450;
 }
 #splashProgress {
@@ -179,12 +178,9 @@ SplashScreen::SplashScreen(QWidget* parent)
 void SplashScreen::start(const QString& statusText, int durationMs) {
     statusLabel->setText(statusText);
     const QRect available = QGuiApplication::primaryScreen()->availableGeometry();
-    const QSize targetSize(std::min(width(), available.width() - 40),
-                           std::min(height(), available.height() - 40));
-    resize(targetSize);
-    move(available.center() - rect().center());
+    move(available.left() + (available.width() - width()) / 2,
+         available.top() + (available.height() - height()) / 2);
     show();
     raise();
-    QApplication::processEvents(QEventLoop::ExcludeUserInputEvents);
-    finishTimer->start(std::max(300, durationMs));
+    finishTimer->start(durationMs < 300 ? 300 : durationMs);
 }

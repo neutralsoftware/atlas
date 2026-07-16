@@ -17,8 +17,10 @@
 #include <QListWidget>
 #include <QMenu>
 #include <QMessageBox>
+#include <QMouseEvent>
 #include <QPixmap>
 #include <QPushButton>
+#include <QRadioButton>
 #include <QScrollBar>
 #include <QStandardPaths>
 #include <QStackedWidget>
@@ -37,30 +39,52 @@ namespace {
 constexpr int ProjectPathRole = Qt::UserRole;
 constexpr int ProjectAvailableRole = Qt::UserRole + 1;
 
-class TemplateCard : public QPushButton {
+class TemplateCard : public QFrame {
 public:
     TemplateCard(const QString& title, const QString& description,
                  QWidget* parent = nullptr)
-        : QPushButton(parent) {
-        setCheckable(true);
+        : QFrame(parent) {
         setProperty("templateCard", true);
+        setProperty("selected", false);
         setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Fixed);
-        setMinimumHeight(126);
+        setMinimumHeight(112);
+        setCursor(Qt::PointingHandCursor);
 
         auto* layout = new QVBoxLayout(this);
-        layout->setContentsMargins(18, 16, 18, 16);
+        layout->setContentsMargins(16, 14, 16, 14);
         layout->setSpacing(8);
-        auto* nameLabel = new QLabel(title, this);
-        nameLabel->setObjectName("templateTitle");
-        nameLabel->setAttribute(Qt::WA_TransparentForMouseEvents);
-        layout->addWidget(nameLabel);
+        option = new QRadioButton(title, this);
+        option->setObjectName("templateOption");
+        option->setCursor(Qt::PointingHandCursor);
+        layout->addWidget(option);
         auto* descriptionLabel = new QLabel(description, this);
         descriptionLabel->setObjectName("templateDescription");
         descriptionLabel->setWordWrap(true);
         descriptionLabel->setAttribute(Qt::WA_TransparentForMouseEvents);
         layout->addWidget(descriptionLabel);
         layout->addStretch();
+        connect(option, &QRadioButton::toggled, this, [this](bool selected) {
+            setProperty("selected", selected);
+            style()->unpolish(this);
+            style()->polish(this);
+            update();
+        });
     }
+
+    QRadioButton* button() const {
+        return option;
+    }
+
+protected:
+    void mousePressEvent(QMouseEvent* event) override {
+        if (event->button() == Qt::LeftButton) {
+            option->setChecked(true);
+        }
+        QFrame::mousePressEvent(event);
+    }
+
+private:
+    QRadioButton* option = nullptr;
 };
 
 class CreateProjectDialog : public QDialog {
@@ -98,14 +122,14 @@ public:
         auto* pathTracing = new TemplateCard(
             "Path Tracing",
             "Progressive ray-traced lighting for high-fidelity scenes.", this);
-        templateGroup->addButton(pbr,
+        templateGroup->addButton(pbr->button(),
                                  static_cast<int>(AtlasProjectTemplate::Pbr));
         templateGroup->addButton(
-            ddgi, static_cast<int>(AtlasProjectTemplate::PbrDdgi));
+            ddgi->button(), static_cast<int>(AtlasProjectTemplate::PbrDdgi));
         templateGroup->addButton(
-            pathTracing,
+            pathTracing->button(),
             static_cast<int>(AtlasProjectTemplate::PathTracing));
-        pbr->setChecked(true);
+        pbr->button()->setChecked(true);
         templateLayout->addWidget(pbr);
         templateLayout->addWidget(ddgi);
         templateLayout->addWidget(pathTracing);
@@ -215,13 +239,6 @@ public:
         layout->setContentsMargins(16, 12, 12, 12);
         layout->setSpacing(14);
 
-        auto* icon = new QLabel(this);
-        icon->setFixedSize(44, 44);
-        icon->setPixmap(QPixmap(":/editor/assets/atlas_ball_bright.png")
-                            .scaled(icon->size(), Qt::KeepAspectRatio,
-                                    Qt::SmoothTransformation));
-        layout->addWidget(icon);
-
         auto* copy = new QVBoxLayout();
         copy->setSpacing(3);
         auto* title = new QLabel(project.name, this);
@@ -308,13 +325,6 @@ void ProjectBrowser::setupUi() {
     sidebarLayout->addWidget(projectsNav);
     sidebarLayout->addStretch();
 
-    auto* artwork = new QLabel(sidebar);
-    artwork->setObjectName("projectSidebarArtwork");
-    artwork->setAlignment(Qt::AlignCenter);
-    artwork->setPixmap(QPixmap(":/editor/assets/landing.png")
-                           .scaled(170, 170, Qt::KeepAspectRatio,
-                                   Qt::SmoothTransformation));
-    sidebarLayout->addWidget(artwork);
     auto* version = new QLabel(QStringLiteral(ATLAS_VERSION), sidebar);
     version->setObjectName("projectSidebarVersion");
     sidebarLayout->addWidget(version);
@@ -368,12 +378,6 @@ void ProjectBrowser::setupUi() {
     auto* emptyLayout = new QVBoxLayout(empty);
     emptyLayout->setContentsMargins(40, 40, 40, 40);
     emptyLayout->addStretch();
-    auto* emptyIcon = new QLabel(empty);
-    emptyIcon->setAlignment(Qt::AlignCenter);
-    emptyIcon->setPixmap(QPixmap(":/editor/assets/atlas_ball_bright.png")
-                             .scaled(92, 92, Qt::KeepAspectRatio,
-                                     Qt::SmoothTransformation));
-    emptyLayout->addWidget(emptyIcon);
     emptyTitle = new QLabel("No projects yet", empty);
     emptyTitle->setObjectName("emptyStateTitle");
     emptyTitle->setAlignment(Qt::AlignCenter);
