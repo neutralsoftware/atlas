@@ -210,6 +210,39 @@ void queryMetalDrawableSizeFromView(void *view, int fallbackWidth,
         *height = resultHeight;
     }
 }
+
+void updateMetalLayerFrameFromView(Device *device, void *view) {
+    if (device == nullptr || view == nullptr) {
+        return;
+    }
+    auto &deviceState = metal::deviceState(device);
+    if (deviceState.context == nullptr) {
+        return;
+    }
+    auto &contextState = metal::contextState(deviceState.context);
+    if (contextState.layer == nullptr) {
+        return;
+    }
+
+    CocoaObj targetView = view;
+    CocoaRect bounds = sendObjCRect(targetView, "bounds");
+    reinterpret_cast<void (*)(CocoaObj, SEL, CocoaRect)>(objc_msgSend)(
+        reinterpret_cast<CocoaObj>(contextState.layer),
+        sel_registerName("setFrame:"), bounds);
+
+    double scale = 1.0;
+    CocoaObj hostWindow = sendObjCId(targetView, "window");
+    if (hostWindow != nullptr) {
+        const double backingScale =
+            sendObjCDouble(hostWindow, "backingScaleFactor");
+        if (backingScale > 0.0) {
+            scale = backingScale;
+        }
+    }
+    reinterpret_cast<void (*)(CocoaObj, SEL, double)>(objc_msgSend)(
+        reinterpret_cast<CocoaObj>(contextState.layer),
+        sel_registerName("setContentsScale:"), scale);
+}
 #endif
 
 void configureColorAttachmentForClear(MTL::RenderPassDescriptor *pass,
@@ -1217,6 +1250,8 @@ void CommandBuffer::beginPass(std::shared_ptr<RenderPass> newRenderPass) {
         queryMetalDrawableSizeFromView(
             deviceState.context->getMetalTargetView(), fbWidth, fbHeight,
             &fbWidth, &fbHeight);
+        updateMetalLayerFrameFromView(
+            device, deviceState.context->getMetalTargetView());
 #endif
         fbWidth = std::max(1, fbWidth);
         fbHeight = std::max(1, fbHeight);

@@ -30,7 +30,7 @@ class Context;
 
 class RuntimeScene : public Scene {
   public:
-    std::shared_ptr<Context> context;
+    std::weak_ptr<Context> context;
 
     void update(Window &window) override;
     void initialize(Window &window) override;
@@ -53,6 +53,7 @@ class ProjectConfig {
 class Context {
   public:
     Context() = default;
+    ~Context();
     std::string projectFile;
     std::string projectDir;
     std::string sceneDir;

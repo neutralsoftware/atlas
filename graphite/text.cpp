@@ -365,7 +365,10 @@ void Text::render(float dt, std::shared_ptr<opal::CommandBuffer> commandBuffer,
     if (TracerServices::getInstance().isOk()) {
         DebugObjectPacket debugPacket{};
         debugPacket.drawCallsForObject = 1;
-        debugPacket.frameCount = Window::mainWindow->device->frameCount;
+        debugPacket.frameCount =
+            Window::mainWindow != nullptr && Window::mainWindow->device != nullptr
+                ? Window::mainWindow->device->frameCount
+                : 0;
         debugPacket.triangleCount = static_cast<unsigned int>(glyphCount) * 2;
         debugPacket.vertexBufferSizeMb =
             static_cast<float>(requiredBytes) / (1024.0f * 1024.0f);

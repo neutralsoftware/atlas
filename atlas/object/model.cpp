@@ -434,7 +434,10 @@ Model::processMesh(aiMesh *mesh, const aiScene *scene,
     info.resourceType = DebugResourceType::Mesh;
     info.callerObject = std::to_string(object.getId());
     info.operation = DebugResourceOperation::Created;
-    info.frameNumber = Window::mainWindow->device->frameCount;
+    info.frameNumber =
+        Window::mainWindow != nullptr && Window::mainWindow->device != nullptr
+            ? Window::mainWindow->device->frameCount
+            : 0;
     info.sizeMb = static_cast<float>((vertices.size() * sizeof(CoreVertex)) +
                                      (indices.size() * sizeof(unsigned int))) /
                   (1024.0f * 1024.0f);

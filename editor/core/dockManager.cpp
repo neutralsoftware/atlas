@@ -8,6 +8,7 @@
 */
 
 #include <editor/application/dockManager.h>
+#include "DockAreaWidget.h"
 #include "DockManager.h"
 
 
@@ -40,6 +41,9 @@ ads::CDockWidget* EditorDockManager::addPanel(const EditorDockPanelDesc& desc) {
 
     if (desc.area == EditorDockArea::Center) {
         centerArea = dockManager->setCentralWidget(dock);
+        if (centerArea != nullptr) {
+            centerArea->setAllowedAreas(ads::OuterDockAreas);
+        }
     } else if (centerArea) {
         dockManager->addDockWidget(toAdsArea(desc.area), dock, centerArea);
     } else {

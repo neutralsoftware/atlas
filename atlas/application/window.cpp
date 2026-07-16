@@ -1242,6 +1242,9 @@ void Window::initializeRunLoop() {
 }
 
 void Window::pollEvents() {
+    if (this->renderToExternalMetalView) {
+        return;
+    }
     SDL_Event event;
     while (SDL_PollEvent(&event)) {
         switch (event.type) {
@@ -1554,22 +1557,38 @@ bool Window::stepFrame() {
 
     renderLightsToShadowMaps(commandBuffer);
 
-    static std::unique_ptr<RenderTarget> modeScreenTarget = nullptr;
     std::vector<RenderTarget *> activeRenderTargets = this->renderTargets;
     bool usesModeScreenTarget = false;
     bool editorControlsRenderedInScenePass = false;
     if (activeRenderTargets.empty() &&
         (this->usePathTracing || this->usesDeferred)) {
-        if (!modeScreenTarget) {
-            modeScreenTarget =
+        int modeTargetFbWidth = 0;
+        int modeTargetFbHeight = 0;
+        this->queryDrawableSizeInPixels(&modeTargetFbWidth,
+                                        &modeTargetFbHeight);
+        const int modeTargetWidth = std::max(
+            1, static_cast<int>(modeTargetFbWidth * this->getRenderScale()));
+        const int modeTargetHeight = std::max(
+            1, static_cast<int>(modeTargetFbHeight * this->getRenderScale()));
+        if (!this->modeScreenTarget ||
+            this->modeScreenTarget->getWidth() != modeTargetWidth ||
+            this->modeScreenTarget->getHeight() != modeTargetHeight) {
+            if (this->modeScreenTarget) {
+                auto *target = this->modeScreenTarget.get();
+                this->preferenceRenderables.erase(
+                    std::remove(this->preferenceRenderables.begin(),
+                                this->preferenceRenderables.end(), target),
+                    this->preferenceRenderables.end());
+            }
+            this->modeScreenTarget =
                 std::make_unique<RenderTarget>(*this, RenderTargetType::Scene);
         }
-        modeScreenTarget->display(*this, 0.0f);
-        modeScreenTarget->show();
-        activeRenderTargets.push_back(modeScreenTarget.get());
+        this->modeScreenTarget->display(*this, 0.0f);
+        this->modeScreenTarget->show();
+        activeRenderTargets.push_back(this->modeScreenTarget.get());
         usesModeScreenTarget = true;
-    } else if (modeScreenTarget) {
-        modeScreenTarget->hide();
+    } else if (this->modeScreenTarget) {
+        this->modeScreenTarget->hide();
     }
 
     for (auto &target : activeRenderTargets) {
@@ -1922,6 +1941,15 @@ void Window::resize(int width, int height, float scale) {
     const int clampedWidth = std::max(1, width);
     const int clampedHeight = std::max(1, height);
     const float clampedScale = scale > 0.0f ? scale : 1.0f;
+    const int pixelWidth =
+        std::max(1, static_cast<int>(std::lround(clampedWidth * clampedScale)));
+    const int pixelHeight = std::max(
+        1, static_cast<int>(std::lround(clampedHeight * clampedScale)));
+    if (this->width == clampedWidth && this->height == clampedHeight &&
+        this->viewportWidth == pixelWidth &&
+        this->viewportHeight == pixelHeight) {
+        return;
+    }
 
     this->width = clampedWidth;
     this->height = clampedHeight;
@@ -1929,11 +1957,6 @@ void Window::resize(int width, int height, float scale) {
     if (this->windowRef != nullptr && this->showHostWindow) {
         SDL_SetWindowSize(this->windowRef, clampedWidth, clampedHeight);
     }
-
-    const int pixelWidth =
-        std::max(1, static_cast<int>(std::lround(clampedWidth * clampedScale)));
-    const int pixelHeight = std::max(
-        1, static_cast<int>(std::lround(clampedHeight * clampedScale)));
 
     if (device == nullptr) {
         return;
@@ -3019,6 +3042,17 @@ void Window::endRunLoop() {
     }
     this->activeCommandBuffer = nullptr;
     this->runLoopRenderPass = nullptr;
+    if (this->modeScreenTarget) {
+        auto *target = this->modeScreenTarget.get();
+        if (this->currentRenderTarget == target) {
+            this->currentRenderTarget = nullptr;
+        }
+        this->preferenceRenderables.erase(
+            std::remove(this->preferenceRenderables.begin(),
+                        this->preferenceRenderables.end(), target),
+            this->preferenceRenderables.end());
+        this->modeScreenTarget.reset();
+    }
     this->runLoopWindowID = 0;
     this->runLoopInitialized = false;
 }
@@ -3227,6 +3261,8 @@ void Window::applyScene(Scene *scene) {
     this->renderables.clear();
     this->pendingObjects.clear();
     this->preferenceRenderables.clear();
+    this->currentRenderTarget = nullptr;
+    this->modeScreenTarget.reset();
     this->firstRenderables.clear();
     this->uiRenderables.clear();
     this->lateForwardRenderables.clear();
@@ -3388,6 +3424,10 @@ std::vector<Monitor> Window::enumerateMonitors() {
 }
 
 Window::~Window() {
+    if (audioEngine != nullptr) {
+        audioEngine->shutdown();
+        audioEngine.reset();
+    }
     this->pingpongFramebuffers.at(0) = nullptr;
     this->pingpongFramebuffers.at(1) = nullptr;
     this->pingpongTextures.at(1) = nullptr;
@@ -3395,7 +3435,9 @@ Window::~Window() {
     this->pingpongWidth = 0;
     this->pingpongHeight = 0;
     closeAllInputDeviceHandles();
-    Window::mainWindow = nullptr;
+    if (Window::mainWindow == this) {
+        Window::mainWindow = nullptr;
+    }
 }
 
 Monitor::Monitor(CoreMonitorReference ref, int id, bool isPrimary)
