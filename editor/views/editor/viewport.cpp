@@ -18,6 +18,9 @@
 #include <QCoreApplication>
 #include <QDebug>
 #include <QHideEvent>
+#include <QJsonArray>
+#include <QJsonDocument>
+#include <QJsonValue>
 #include <QKeyEvent>
 #include <QMouseEvent>
 #include <QPaintEngine>
@@ -387,6 +390,31 @@ bool ViewportPanel::selectRuntimeObject(int id, bool focusCamera) {
 bool ViewportPanel::renameRuntimeObject(int id, const QString &name) {
     if (runtimeContext == nullptr ||
         !runtimeContext->renameObject(id, name.toUtf8().toStdString())) {
+        return false;
+    }
+    refreshSceneSnapshot();
+    return true;
+}
+
+bool ViewportPanel::setRuntimeObjectProperty(
+    int id, const QString &component, int componentIndex,
+    const QString &propertyPath, const QJsonValue &value) {
+    if (runtimeContext == nullptr) {
+        return false;
+    }
+    QJsonArray wrapper;
+    wrapper.append(value);
+    const QByteArray payload =
+        QJsonDocument(wrapper).toJson(QJsonDocument::Compact);
+    try {
+        const json parsed = json::parse(payload.constData());
+        if (!parsed.is_array() || parsed.empty() ||
+            !runtimeContext->setObjectProperty(
+                id, component.toStdString(), componentIndex,
+                propertyPath.toStdString(), parsed.front())) {
+            return false;
+        }
+    } catch (const json::exception &) {
         return false;
     }
     refreshSceneSnapshot();

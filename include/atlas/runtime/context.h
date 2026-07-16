@@ -87,6 +87,8 @@ class Context {
     std::unordered_map<int, std::string> objectSceneSolidTypes;
     std::unordered_map<int, std::string> objectParentReferences;
     std::unordered_map<int, int> objectParents;
+    std::unordered_map<int, json> editorObjectSourceData;
+    std::unordered_map<int, json> editorComponentData;
     std::unordered_map<int, Light *> editorPointLights;
     std::unordered_map<int, Spotlight *> editorSpotlights;
     std::unordered_map<int, AreaLight *> editorAreaLights;
@@ -111,6 +113,9 @@ class Context {
     std::string sceneObjectsJson() const;
     bool selectObject(int id, bool focusCamera);
     bool renameObject(int id, const std::string &name);
+    bool setObjectProperty(int id, const std::string &component,
+                           int componentIndex, const std::string &propertyPath,
+                           const json &value);
     bool setObjectParent(int childId, int parentId);
     bool deleteObject(int id);
     int createObject(const std::string &type, const std::string &name);

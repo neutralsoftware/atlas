@@ -65,6 +65,11 @@ bool atlas_runtime_select_object(void *runtimeContext, int id,
                                  bool focusCamera);
 bool atlas_runtime_rename_object(void *runtimeContext, int id,
                                  const char *name);
+bool atlas_runtime_set_object_property(void *runtimeContext, int id,
+                                       const char *component,
+                                       int componentIndex,
+                                       const char *propertyPath,
+                                       const char *jsonValue);
 bool atlas_runtime_set_object_parent(void *runtimeContext, int childId,
                                      int parentId);
 bool atlas_runtime_delete_object(void *runtimeContext, int id);
