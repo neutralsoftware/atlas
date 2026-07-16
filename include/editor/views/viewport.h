@@ -51,11 +51,20 @@ class ViewportPanel : public QWidget {
     bool deleteRuntimeObject(int id);
     int createRuntimeObject(const QString &type, const QString &name = {});
     bool saveRuntimeScene();
+    void playRuntime();
+    void pauseRuntime();
+    void stepRuntimeOnce();
+    void stopRuntimePlayback();
+    void reloadRuntime();
+    void setRuntimeShadingMode(int mode);
+    void setRuntimeControlMode(int mode);
 
   signals:
     void sceneSnapshotChanged(const QString &snapshot);
     void runtimeAvailabilityChanged(bool available);
     void runtimeObjectActivated(int id);
+    void playbackStateChanged(int state);
+    void frameRateChanged(float framesPerSecond);
 
   protected:
     QPaintEngine *paintEngine() const override;
@@ -88,6 +97,8 @@ class ViewportPanel : public QWidget {
     QString lastSceneSnapshot;
     bool runtimeStartQueued = false;
     bool shuttingDown = false;
+    int playbackState = 0;
+    int shadingMode = 0;
 };
 
 #endif // ATLAS_VIEWPORT_H

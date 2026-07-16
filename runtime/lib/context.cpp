@@ -3975,6 +3975,21 @@ bool Context::setEditorControlMode(int mode) {
     return true;
 }
 
+bool Context::setEditorShadingMode(int mode) {
+    if (window == nullptr) {
+        throw std::runtime_error("Window is not initialized");
+    }
+    if (mode < 0 || mode > 2) {
+        return false;
+    }
+    window->setEditorShadingMode(static_cast<EditorShadingMode>(mode));
+    return true;
+}
+
+float Context::frameRate() const {
+    return window != nullptr ? window->getFramesPerSecond() : 0.0f;
+}
+
 bool Context::editorPointerEvent(int action, float x, float y, int button,
                                  float scale) {
     if (window == nullptr) {

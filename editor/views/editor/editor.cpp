@@ -26,6 +26,7 @@
 #include "editor/views/hierarchyPanel.h"
 #include "editor/views/inspectorView.h"
 #include "editor/views/viewport.h"
+#include "editor/views/viewportTools.h"
 
 EditorWindow::EditorWindow(const QString &projectFile, QWidget *parent)
     : QMainWindow(parent), projectFile(projectFile) {
@@ -102,10 +103,11 @@ void EditorWindow::setupMenus() {
 
 void EditorWindow::setupDocks() {
     viewportPanel = new ViewportPanel(projectFile);
+    auto *viewportTools = new ViewportTools(viewportPanel);
     dockManager->addPanel(
         {.id = "viewport",
          .title = "Viewport",
-         .widget = viewportPanel,
+         .widget = viewportTools,
          .area = EditorDockArea::Center,
          .icon = style()->standardIcon(QStyle::SP_DirOpenIcon)});
 

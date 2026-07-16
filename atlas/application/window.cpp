@@ -2000,6 +2000,17 @@ void Window::setEditorControlMode(EditorControlMode mode) {
     editorActiveGizmoAxis = 0;
 }
 
+void Window::setEditorShadingMode(EditorShadingMode mode) {
+    editorShadingMode = mode;
+    opal::RasterizerMode nextMode = opal::RasterizerMode::Fill;
+    if (mode == EditorShadingMode::Wireframe) {
+        nextMode = opal::RasterizerMode::Line;
+    } else if (mode == EditorShadingMode::Points) {
+        nextMode = opal::RasterizerMode::Point;
+    }
+    updatePipelineStateField(rasterizerMode, nextMode);
+}
+
 unsigned int Window::getSelectedEditorObjectId() const {
     return selectedEditorObject != nullptr ? selectedEditorObject->getId() : 0;
 }
