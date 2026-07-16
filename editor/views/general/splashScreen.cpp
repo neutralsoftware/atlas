@@ -1,16 +1,14 @@
 #include <editor/views/splashScreen.h>
 
 #include <QColor>
+#include <QFont>
 #include <QFrame>
 #include <QGraphicsDropShadowEffect>
 #include <QGuiApplication>
-#include <QHBoxLayout>
 #include <QLabel>
 #include <QPixmap>
-#include <QProgressBar>
 #include <QScreen>
 #include <QTimer>
-#include <QVBoxLayout>
 
 #ifndef ATLAS_VERSION
 #define ATLAS_VERSION "Alpha 9"
@@ -20,58 +18,55 @@
 #define ATLAS_BUILD_STRING ""
 #endif
 
-SplashScreen::SplashScreen(QWidget* parent)
+SplashScreen::SplashScreen(QWidget *parent)
     : QDialog(parent, Qt::SplashScreen | Qt::FramelessWindowHint) {
     setAttribute(Qt::WA_TranslucentBackground);
     setModal(true);
     setObjectName("atlasSplash");
     setFixedSize(708, 218);
 
-    auto* outerLayout = new QVBoxLayout(this);
-    outerLayout->setContentsMargins(8, 8, 8, 8);
-
-    auto* card = new QFrame(this);
+    auto *card = new QFrame(this);
     card->setObjectName("splashCard");
-    auto* shadow = new QGraphicsDropShadowEffect(card);
+    card->setGeometry(0, 0, 708, 218);
+    auto *shadow = new QGraphicsDropShadowEffect(card);
     shadow->setBlurRadius(20.0);
     shadow->setOffset(0.0, 5.0);
     shadow->setColor(QColor(0, 0, 0, 64));
     card->setGraphicsEffect(shadow);
-    outerLayout->addWidget(card);
 
-    auto* rootLayout = new QHBoxLayout(card);
-    rootLayout->setContentsMargins(22, 18, 22, 16);
-    rootLayout->setSpacing(20);
-
-    auto* icon = new QLabel(card);
+    auto *icon = new QLabel(card);
     icon->setObjectName("splashIcon");
-    icon->setFixedSize(116, 116);
+    icon->setGeometry(28, 32, 110, 110);
 #ifdef ATLAS_DEBUG_BUILD
     icon->setPixmap(QPixmap(":/editor/assets/Icon-iOS-Default-1024x1024@1x.png")
                         .scaled(icon->size(), Qt::KeepAspectRatio,
                                 Qt::SmoothTransformation));
 #else
-    icon->setPixmap(QPixmap(":/editor/assets/iconFile-iOS-Dark-1024x1024@1x.png")
-                        .scaled(icon->size(), Qt::KeepAspectRatio,
-                                Qt::SmoothTransformation));
+    icon->setPixmap(
+        QPixmap(":/editor/assets/iconFile-iOS-Dark-1024x1024@1x.png")
+            .scaled(icon->size(), Qt::KeepAspectRatio,
+                    Qt::SmoothTransformation));
 #endif
-    rootLayout->addWidget(icon, 0, Qt::AlignVCenter);
 
-    auto* copyLayout = new QVBoxLayout();
-    copyLayout->setSpacing(2);
-    auto* title = new QLabel(card);
+    auto *title = new QLabel(card);
     title->setObjectName("splashTitle");
+    title->setGeometry(162, 42, 530, 44);
+
+    QFont titleFont = title->font();
+    titleFont.setLetterSpacing(QFont::AbsoluteSpacing, -0.3);
+    titleFont.setKerning(true);
 #ifdef ATLAS_DEBUG_BUILD
     title->setText("Atlas Engine (Development)");
+    title->setFont(titleFont);
 #else
     title->setText("Atlas Engine");
 #endif
     title->setWordWrap(false);
     title->setAlignment(Qt::AlignLeft | Qt::AlignVCenter);
-    copyLayout->addWidget(title);
 
-    auto* version = new QLabel(card);
+    auto *version = new QLabel(card);
     version->setObjectName("splashVersion");
+    version->setGeometry(162, 85, 500, 32);
 #ifdef ATLAS_DEBUG_BUILD
     version->setText(QStringLiteral("%1 (build %2)")
                          .arg(QStringLiteral(ATLAS_VERSION),
@@ -80,37 +75,31 @@ SplashScreen::SplashScreen(QWidget* parent)
     version->setText(QStringLiteral(ATLAS_VERSION));
 #endif
     version->setAlignment(Qt::AlignLeft | Qt::AlignVCenter);
-    copyLayout->addWidget(version);
 
-    auto* company = new QLabel("by neutral software", card);
+    auto *company = new QLabel("by neutral software", card);
     company->setObjectName("splashCompany");
+    company->setGeometry(162, 116, 400, 23);
     company->setAlignment(Qt::AlignLeft | Qt::AlignVCenter);
-    copyLayout->addWidget(company);
-    copyLayout->addStretch();
 
     statusLabel = new QLabel("Loading the engine…", card);
     statusLabel->setObjectName("splashStatus");
-    statusLabel->setAlignment(Qt::AlignLeft | Qt::AlignVCenter);
-    copyLayout->addWidget(statusLabel);
+    statusLabel->setGeometry(0, 136, 708, 22);
+    statusLabel->setAlignment(Qt::AlignCenter);
 
 #ifdef ATLAS_DEBUG_BUILD
-    auto* warning = new QLabel(
-        "Development build — features may change. Official builds: "
-        "atlasengine.org",
+    auto *warning = new QLabel(
+        "As this software is in its development version issues may be found "
+        "with the experience. If you meant to use the traditional version "
+        "please access: https://atlasengine.org to get the official builds. "
+        "In development versions, the engine may require you to have a "
+        "runtime already installed therefore, make sure that you have an "
+        "appropriate runtime in your system that works with this version.",
         card);
     warning->setObjectName("splashWarning");
-    warning->setWordWrap(false);
-    warning->setAlignment(Qt::AlignLeft | Qt::AlignVCenter);
-    copyLayout->addWidget(warning);
+    warning->setGeometry(40, 161, 628, 48);
+    warning->setWordWrap(true);
+    warning->setAlignment(Qt::AlignLeft | Qt::AlignTop);
 #endif
-
-    auto* progress = new QProgressBar(card);
-    progress->setObjectName("splashProgress");
-    progress->setRange(0, 0);
-    progress->setTextVisible(false);
-    progress->setFixedHeight(2);
-    copyLayout->addWidget(progress);
-    rootLayout->addLayout(copyLayout, 1);
 
     setStyleSheet(R"(
 #atlasSplash {
@@ -119,20 +108,18 @@ SplashScreen::SplashScreen(QWidget* parent)
 #splashCard {
     background: #FFFFFF;
     border: 1px solid rgba(20, 24, 28, 18);
-    border-radius: 26px;
+    border-radius: 40px;
 }
 #splashTitle {
     background: transparent;
     color: #0B0D0E;
-    font-family: "Manrope";
-    font-size: 25px;
+    font-size: 40px;
     font-weight: 700;
 }
 #splashVersion {
     background: transparent;
     color: #A1A5A8;
-    font-family: "Manrope";
-    font-size: 15px;
+    font-size: 18px;
     font-weight: 700;
 }
 #splashCompany {
@@ -145,25 +132,14 @@ SplashScreen::SplashScreen(QWidget* parent)
 #splashStatus {
     background: transparent;
     color: #9A9EA1;
-    font-family: "Manrope";
-    font-size: 11px;
+    font-size: 9px;
     font-weight: 450;
 }
 #splashWarning {
     background: transparent;
     color: #A4A8AB;
-    font-family: "Manrope";
     font-size: 9px;
     font-weight: 450;
-}
-#splashProgress {
-    background: #ECEFF1;
-    border: none;
-    border-radius: 1px;
-}
-#splashProgress::chunk {
-    background: #4B9EFF;
-    border-radius: 1px;
 }
 )");
 
@@ -175,9 +151,12 @@ SplashScreen::SplashScreen(QWidget* parent)
     });
 }
 
-void SplashScreen::start(const QString& statusText, int durationMs) {
-    statusLabel->setText(statusText);
-    const QRect available = QGuiApplication::primaryScreen()->availableGeometry();
+void SplashScreen::start(const QString &statusText, int durationMs) {
+    QString displayStatus = statusText;
+    displayStatus.replace(QChar(0x2026), "...");
+    statusLabel->setText(displayStatus);
+    const QRect available =
+        QGuiApplication::primaryScreen()->availableGeometry();
     move(available.left() + (available.width() - width()) / 2,
          available.top() + (available.height() - height()) / 2);
     show();
