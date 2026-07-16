@@ -27,6 +27,7 @@ class QResizeEvent;
 class QSize;
 class QShowEvent;
 class QTimer;
+class QUndoStack;
 class QWheelEvent;
 
 class ViewportPanel : public QWidget {
@@ -41,10 +42,15 @@ class ViewportPanel : public QWidget {
     void shutdownRuntime();
     bool selectRuntimeObject(int id, bool focusCamera = true);
     bool renameRuntimeObject(int id, const QString &name);
+    bool renameRuntimeObjectDirect(int id, const QString &name);
     bool setRuntimeObjectProperty(int id, const QString &component,
                                   int componentIndex,
                                   const QString &propertyPath,
                                   const QJsonValue &value);
+    bool applyRuntimeObjectProperty(int id, const QString &component,
+                                    int componentIndex,
+                                    const QString &propertyPath,
+                                    const QJsonValue &value);
     int addRuntimeObjectComponent(int id, const QString &type,
                                   const QJsonObject &properties);
     bool setRuntimeObjectParent(int childId, int parentId);
@@ -53,6 +59,9 @@ class ViewportPanel : public QWidget {
     bool saveRuntimeScene();
     int selectedRuntimeObjectId() const;
     bool applyRuntimeMaterial(int id, const QString &path);
+    bool applyRuntimeMaterialDirect(int id, const QString &path);
+    void undo();
+    void redo();
     void playRuntime();
     void pauseRuntime();
     void stepRuntimeOnce();
@@ -89,8 +98,12 @@ class ViewportPanel : public QWidget {
     void resizeRuntime();
     void sendPointerEvent(int action, float x, float y, int button);
     void refreshSceneSnapshot();
+    QJsonValue runtimeObjectProperty(int id, const QString &component,
+                                     int componentIndex,
+                                     const QString &propertyPath) const;
 
     QTimer *frameTimer = nullptr;
+    QUndoStack *undoStack = nullptr;
     QString projectFile;
     std::shared_ptr<Context> runtimeContext;
     int runtimeWidth = 0;

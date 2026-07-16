@@ -148,6 +148,11 @@ class MaterialPreviewWidget : public QWidget {
         update();
     }
 
+    void setEnvironmentMode(int mode) {
+        environmentMode = mode;
+        update();
+    }
+
   protected:
     void paintEvent(QPaintEvent *) override {
         const qreal scale = devicePixelRatioF();
@@ -188,14 +193,14 @@ class MaterialPreviewWidget : public QWidget {
         for (int y = 0; y < heightPixels; ++y) {
             QRgb *line = reinterpret_cast<QRgb *>(rendered.scanLine(y));
             for (int x = 0; x < widthPixels; ++x) {
-                const int checker = ((x / 20) + (y / 20)) & 1;
-                const double background = checker ? 0.105 : 0.135;
+                const QColor background = environmentAt(
+                    (static_cast<double>(x) / widthPixels) * 2.0 - 1.0,
+                    1.0 - (static_cast<double>(y) / heightPixels) * 2.0);
                 const double px = (x - cx) / radius;
                 const double py = (cy - y) / radius;
                 const double rr = px * px + py * py;
                 if (rr > 1.0) {
-                    const int c = static_cast<int>(background * 255.0);
-                    line[x] = qRgba(c, c, c, 255);
+                    line[x] = background.rgba();
                     continue;
                 }
 
@@ -249,27 +254,43 @@ class MaterialPreviewWidget : public QWidget {
                                      diffuse * (0.83 - localMetallic * 0.38);
                 const double edgeTransmission =
                     transmission * (0.2 + fresnel * 0.55);
+                const double rx = 2.0 * nx * nz;
+                const double ry = 2.0 * ny * nz;
+                const QColor reflected = environmentAt(rx, ry);
+                const double reflectionWeight = std::clamp(
+                    reflectivity * (0.12 + localMetallic * 0.88) *
+                            (1.0 - localRoughness * 0.72) +
+                        fresnel * 0.24,
+                    0.0, 0.92);
                 auto output = [&](double base, double texture,
-                                  double emitted) {
-                    const double surface = base * texture * light + specular +
-                                           fresnel * reflectivity * 0.18;
+                                  double emitted, double environment,
+                                  double behind) {
+                    double surface = base * texture * light + specular +
+                                     fresnel * reflectivity * 0.18;
+                    surface = surface * (1.0 - reflectionWeight) +
+                              environment * reflectionWeight;
                     return std::clamp(surface * (1.0 - edgeTransmission) +
-                                          background * edgeTransmission +
+                                          behind * edgeTransmission +
                                           emitted * emissionStrength,
                                       0.0, 1.0);
                 };
                 line[x] = qRgba(
                     static_cast<int>(output(albedo.redF(),
                                             sampledAlbedo.redF(),
-                                            emission.redF()) *
+                                            emission.redF(), reflected.redF(),
+                                            background.redF()) *
                                      255.0),
                     static_cast<int>(output(albedo.greenF(),
                                             sampledAlbedo.greenF(),
-                                            emission.greenF()) *
+                                            emission.greenF(),
+                                            reflected.greenF(),
+                                            background.greenF()) *
                                      255.0),
                     static_cast<int>(output(albedo.blueF(),
                                             sampledAlbedo.blueF(),
-                                            emission.blueF()) *
+                                            emission.blueF(),
+                                            reflected.blueF(),
+                                            background.blueF()) *
                                      255.0),
                     255);
             }
@@ -281,6 +302,34 @@ class MaterialPreviewWidget : public QWidget {
     }
 
   private:
+    QColor environmentAt(double x, double y) const {
+        const double horizon = std::clamp((y + 1.0) * 0.5, 0.0, 1.0);
+        if (environmentMode == 1) {
+            const double sun = std::pow(
+                std::max(0.0, 1.0 - std::hypot(x + 0.38, y - 0.08)), 12.0);
+            return QColor::fromRgbF(
+                std::clamp(0.16 + horizon * 0.58 + sun, 0.0, 1.0),
+                std::clamp(0.07 + horizon * 0.27 + sun * 0.55, 0.0, 1.0),
+                std::clamp(0.12 + horizon * 0.24 + sun * 0.18, 0.0, 1.0));
+        }
+        if (environmentMode == 2) {
+            const double cloud =
+                std::pow(std::max(0.0, std::sin(x * 8.0 + y * 3.0)), 6.0) *
+                0.22;
+            return QColor::fromRgbF(
+                std::clamp(0.12 + horizon * 0.3 + cloud, 0.0, 1.0),
+                std::clamp(0.24 + horizon * 0.42 + cloud, 0.0, 1.0),
+                std::clamp(0.39 + horizon * 0.48 + cloud, 0.0, 1.0));
+        }
+        const double strip = std::pow(std::max(0.0, 1.0 - std::abs(y)), 24.0);
+        const double panel =
+            std::pow(std::max(0.0, std::cos(x * 5.5)), 18.0) * 0.58;
+        const double value = 0.055 + horizon * 0.12 + strip * (0.34 + panel);
+        return QColor::fromRgbF(std::clamp(value * 0.92, 0.0, 1.0),
+                                std::clamp(value * 0.98, 0.0, 1.0),
+                                std::clamp(value, 0.0, 1.0));
+    }
+
     QJsonObject material;
     QString baseDir;
     QImage albedoImage;
@@ -288,6 +337,7 @@ class MaterialPreviewWidget : public QWidget {
     QImage metallicImage;
     QImage roughnessImage;
     QImage aoImage;
+    int environmentMode = 0;
 };
 
 MaterialEditorPanel::MaterialEditorPanel(ViewportPanel *viewport,
@@ -392,6 +442,8 @@ void MaterialEditorPanel::openMaterial(const QString &path) {
     }
     materialPath = QFileInfo(path).absoluteFilePath();
     assignedObjectId = -1;
+    undoHistory.clear();
+    redoHistory.clear();
     const QJsonObject root = document.object();
     material = normalizedMaterial(root.value("material").isObject()
                                       ? root.value("material").toObject()
@@ -430,7 +482,19 @@ void MaterialEditorPanel::showMaterial() {
 
     preview = new MaterialPreviewWidget(body);
     preview->setMaterial(material, QFileInfo(materialPath).absolutePath());
+    auto *previewOptions = new QWidget(body);
+    auto *previewOptionsLayout = new QHBoxLayout(previewOptions);
+    previewOptionsLayout->setContentsMargins(0, 0, 0, 0);
+    auto *previewLabel = new QLabel("Preview Environment", previewOptions);
+    auto *environment = new QComboBox(previewOptions);
+    environment->addItems({"Studio", "Sunset", "Open Sky"});
+    previewOptionsLayout->addWidget(previewLabel);
+    previewOptionsLayout->addStretch();
+    previewOptionsLayout->addWidget(environment);
+    bodyLayout->addWidget(previewOptions);
     bodyLayout->addWidget(preview);
+    connect(environment, &QComboBox::currentIndexChanged, preview,
+            &MaterialPreviewWidget::setEnvironmentMode);
 
     auto *surface = new QGroupBox("Surface", body);
     auto *surfaceForm = new QFormLayout(surface);
@@ -558,9 +622,11 @@ void MaterialEditorPanel::setColor(const QString &key, QPushButton *button) {
         initial, this, "Choose Material Color", QColorDialog::ShowAlphaChannel);
     if (!color.isValid())
         return;
+    const QJsonObject previous = material;
     displayColor(button, color);
     material.insert(key, colorJson(color));
-    materialChanged();
+    recordHistory(previous);
+    refreshEditedMaterial();
 }
 
 void MaterialEditorPanel::chooseTexture(const QString &key) {
@@ -569,18 +635,22 @@ void MaterialEditorPanel::chooseTexture(const QString &key) {
         "Images (*.png *.jpg *.jpeg *.tga *.bmp *.hdr *.exr);;All Files (*)");
     if (selected.isEmpty())
         return;
+    const QJsonObject previous = material;
     const QDir materialDir(QFileInfo(materialPath).absolutePath());
     material.insert(key, materialDir.relativeFilePath(selected));
     updateTextureField(key);
-    materialChanged();
+    recordHistory(previous);
+    refreshEditedMaterial();
 }
 
 void MaterialEditorPanel::clearTexture(const QString &key) {
     if (!material.contains(key))
         return;
+    const QJsonObject previous = material;
     material.remove(key);
     updateTextureField(key);
-    materialChanged();
+    recordHistory(previous);
+    refreshEditedMaterial();
 }
 
 void MaterialEditorPanel::updateTextureField(const QString &key) {
@@ -605,6 +675,7 @@ void MaterialEditorPanel::updateTextureField(const QString &key) {
 void MaterialEditorPanel::materialChanged() {
     if (loading || materialPath.isEmpty())
         return;
+    const QJsonObject previous = material;
     material.insert("metallic", metallicField->value());
     material.insert("roughness", roughnessField->value());
     material.insert("ao", aoField->value());
@@ -614,9 +685,25 @@ void MaterialEditorPanel::materialChanged() {
     material.insert("useNormalMap", normalMapField->isChecked());
     material.insert("transmittance", transmittanceField->value());
     material.insert("ior", iorField->value());
+    if (material == previous)
+        return;
+    recordHistory(previous);
+    refreshEditedMaterial();
+}
+
+void MaterialEditorPanel::refreshEditedMaterial() {
     preview->setMaterial(material, QFileInfo(materialPath).absolutePath());
     statusLabel->setText("Saving…");
     saveTimer->start();
+}
+
+void MaterialEditorPanel::recordHistory(const QJsonObject &previous) {
+    if (previous == material)
+        return;
+    undoHistory.append(previous);
+    while (undoHistory.size() > 100)
+        undoHistory.removeFirst();
+    redoHistory.clear();
 }
 
 void MaterialEditorPanel::saveMaterial() {
@@ -662,4 +749,22 @@ void MaterialEditorPanel::assignToSelectedObject() {
     }
     assignedObjectId = objectId;
     statusLabel->setText("Assigned · live updates enabled");
+}
+
+void MaterialEditorPanel::undo() {
+    if (undoHistory.isEmpty() || materialPath.isEmpty())
+        return;
+    redoHistory.append(material);
+    material = undoHistory.takeLast();
+    showMaterial();
+    saveMaterial();
+}
+
+void MaterialEditorPanel::redo() {
+    if (redoHistory.isEmpty() || materialPath.isEmpty())
+        return;
+    undoHistory.append(material);
+    material = redoHistory.takeLast();
+    showMaterial();
+    saveMaterial();
 }

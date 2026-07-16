@@ -4936,11 +4936,22 @@ Context::~Context() {
     }
     if (context != nullptr) {
         runtime::scripting::clearSceneBindings(context, scriptHost);
+        editorRuntimeComponents.clear();
+        objects.clear();
+        renderTargets.clear();
+        directionalLights.clear();
+        pointLights.clear();
+        spotlights.clear();
+        areaLights.clear();
+        if (runtime != nullptr) {
+            JS_RunGC(runtime);
+        }
         JS_SetContextOpaque(context, nullptr);
         JS_FreeContext(context);
         context = nullptr;
     }
     if (runtime != nullptr) {
+        JS_RunGC(runtime);
         JS_FreeRuntime(runtime);
         runtime = nullptr;
     }

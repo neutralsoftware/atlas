@@ -3,6 +3,7 @@
 
 #include <QHash>
 #include <QJsonObject>
+#include <QList>
 #include <QString>
 #include <QWidget>
 
@@ -26,6 +27,9 @@ class MaterialEditorPanel : public QWidget {
 
   public slots:
     void openMaterial(const QString &path);
+    void saveMaterial();
+    void undo();
+    void redo();
 
   signals:
     void materialSaved(const QString &path);
@@ -39,7 +43,8 @@ class MaterialEditorPanel : public QWidget {
     void clearTexture(const QString &key);
     void updateTextureField(const QString &key);
     void materialChanged();
-    void saveMaterial();
+    void refreshEditedMaterial();
+    void recordHistory(const QJsonObject &previous);
     void assignToSelectedObject();
     QJsonObject normalizedMaterial(const QJsonObject &source) const;
 
@@ -65,6 +70,8 @@ class MaterialEditorPanel : public QWidget {
     ViewportPanel *viewport = nullptr;
     QString materialPath;
     QJsonObject material;
+    QList<QJsonObject> undoHistory;
+    QList<QJsonObject> redoHistory;
     int assignedObjectId = -1;
     bool loading = false;
 };
