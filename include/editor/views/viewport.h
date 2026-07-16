@@ -19,6 +19,7 @@ class Context;
 class QCloseEvent;
 class QHideEvent;
 class QKeyEvent;
+class QJsonObject;
 class QJsonValue;
 class QMouseEvent;
 class QPaintEngine;
@@ -44,6 +45,8 @@ class ViewportPanel : public QWidget {
                                   int componentIndex,
                                   const QString &propertyPath,
                                   const QJsonValue &value);
+    int addRuntimeObjectComponent(int id, const QString &type,
+                                  const QJsonObject &properties);
     bool setRuntimeObjectParent(int childId, int parentId);
     bool deleteRuntimeObject(int id);
     int createRuntimeObject(const QString &type, const QString &name = {});

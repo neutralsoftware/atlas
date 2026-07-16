@@ -70,6 +70,8 @@ bool atlas_runtime_set_object_property(void *runtimeContext, int id,
                                        int componentIndex,
                                        const char *propertyPath,
                                        const char *jsonValue);
+int atlas_runtime_add_object_component(void *runtimeContext, int id,
+                                       const char *jsonComponent);
 bool atlas_runtime_set_object_parent(void *runtimeContext, int childId,
                                      int parentId);
 bool atlas_runtime_delete_object(void *runtimeContext, int id);

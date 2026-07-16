@@ -20,6 +20,7 @@
 #include <QHideEvent>
 #include <QJsonArray>
 #include <QJsonDocument>
+#include <QJsonObject>
 #include <QJsonValue>
 #include <QKeyEvent>
 #include <QMouseEvent>
@@ -424,6 +425,27 @@ bool ViewportPanel::setRuntimeObjectProperty(
     }
     refreshSceneSnapshot();
     return true;
+}
+
+int ViewportPanel::addRuntimeObjectComponent(
+    int id, const QString &type, const QJsonObject &properties) {
+    if (runtimeContext == nullptr || type.isEmpty()) {
+        return -1;
+    }
+    QJsonObject definition = properties;
+    definition.insert("type", type);
+    const QByteArray payload =
+        QJsonDocument(definition).toJson(QJsonDocument::Compact);
+    try {
+        const json parsed = json::parse(payload.constData());
+        const int index = runtimeContext->addObjectComponent(id, parsed);
+        if (index >= 0) {
+            refreshSceneSnapshot();
+        }
+        return index;
+    } catch (const json::exception &) {
+        return -1;
+    }
 }
 
 bool ViewportPanel::setRuntimeObjectParent(int childId, int parentId) {

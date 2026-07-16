@@ -89,6 +89,9 @@ class Context {
     std::unordered_map<int, int> objectParents;
     std::unordered_map<int, json> editorObjectSourceData;
     std::unordered_map<int, json> editorComponentData;
+    std::unordered_map<int, std::vector<std::string>> editorComponentBaseDirs;
+    std::unordered_map<int, std::vector<std::weak_ptr<Component>>>
+        editorRuntimeComponents;
     std::unordered_map<int, Light *> editorPointLights;
     std::unordered_map<int, Spotlight *> editorSpotlights;
     std::unordered_map<int, AreaLight *> editorAreaLights;
@@ -116,6 +119,7 @@ class Context {
     bool setObjectProperty(int id, const std::string &component,
                            int componentIndex, const std::string &propertyPath,
                            const json &value);
+    int addObjectComponent(int id, const json &component);
     bool setObjectParent(int childId, int parentId);
     bool deleteObject(int id);
     int createObject(const std::string &type, const std::string &name);

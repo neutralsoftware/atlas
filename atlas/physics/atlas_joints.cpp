@@ -17,9 +17,8 @@
 #include <variant>
 
 void FixedJoint::beforePhysics() {
-    bool isFirstFrame = Window::mainWindow->firstFrame;
-    if (isFirstFrame) {
-        joint = std::make_shared<bezel::FixedJoint>();
+    if (!joint) {
+        auto nextJoint = std::make_shared<bezel::FixedJoint>();
         if (std::holds_alternative<GameObject *>(parent)) {
             GameObject *parentObject = *std::get_if<GameObject *>(&parent);
             if (!parentObject || !parentObject->rigidbody ||
@@ -28,9 +27,9 @@ void FixedJoint::beforePhysics() {
                     "FixedJoint parent GameObject has no Rigidbody component.");
                 return;
             }
-            joint->parent = parentObject->rigidbody->body.get();
+            nextJoint->parent = parentObject->rigidbody->body.get();
         } else {
-            joint->parent = bezel::WorldBody{};
+            nextJoint->parent = bezel::WorldBody{};
         }
 
         if (std::holds_alternative<GameObject *>(child)) {
@@ -41,9 +40,9 @@ void FixedJoint::beforePhysics() {
                     "FixedJoint child GameObject has no Rigidbody component.");
                 return;
             }
-            joint->child = childObject->rigidbody->body.get();
+            nextJoint->child = childObject->rigidbody->body.get();
         } else {
-            joint->child = bezel::WorldBody{};
+            nextJoint->child = bezel::WorldBody{};
         }
 
         if (std::holds_alternative<WorldBody>(parent) &&
@@ -54,25 +53,30 @@ void FixedJoint::beforePhysics() {
         }
         switch (space) {
         case Space::Global:
-            joint->space = bezel::Space::Global;
+            nextJoint->space = bezel::Space::Global;
             break;
         case Space::Local:
-            joint->space = bezel::Space::Local;
+            nextJoint->space = bezel::Space::Local;
             break;
         }
-        joint->anchor = anchor;
-        joint->breakForce = breakForce;
-        joint->breakTorque = breakTorque;
-        joint->create(Window::mainWindow->physicsWorld);
+        nextJoint->anchor = anchor;
+        nextJoint->breakForce = breakForce;
+        nextJoint->breakTorque = breakTorque;
+        nextJoint->create(Window::mainWindow->physicsWorld);
+        joint = std::move(nextJoint);
     }
 }
 
-void FixedJoint::breakJoint() { joint->breakJoint(); }
+void FixedJoint::breakJoint() {
+    if (joint) {
+        joint->breakJoint();
+        joint.reset();
+    }
+}
 
 void HingeJoint::beforePhysics() {
-    bool isFirstFrame = Window::mainWindow->firstFrame;
-    if (isFirstFrame) {
-        joint = std::make_shared<bezel::HingeJoint>();
+    if (!joint) {
+        auto nextJoint = std::make_shared<bezel::HingeJoint>();
         if (std::holds_alternative<GameObject *>(parent)) {
             GameObject *parentObject = *std::get_if<GameObject *>(&parent);
             if (!parentObject || !parentObject->rigidbody ||
@@ -81,9 +85,9 @@ void HingeJoint::beforePhysics() {
                     "HingeJoint parent GameObject has no Rigidbody component.");
                 return;
             }
-            joint->parent = parentObject->rigidbody->body.get();
+            nextJoint->parent = parentObject->rigidbody->body.get();
         } else {
-            joint->parent = bezel::WorldBody{};
+            nextJoint->parent = bezel::WorldBody{};
         }
 
         if (std::holds_alternative<GameObject *>(child)) {
@@ -94,9 +98,9 @@ void HingeJoint::beforePhysics() {
                     "HingeJoint child GameObject has no Rigidbody component.");
                 return;
             }
-            joint->child = childObject->rigidbody->body.get();
+            nextJoint->child = childObject->rigidbody->body.get();
         } else {
-            joint->child = bezel::WorldBody{};
+            nextJoint->child = bezel::WorldBody{};
         }
 
         if (std::holds_alternative<WorldBody>(parent) &&
@@ -107,36 +111,41 @@ void HingeJoint::beforePhysics() {
         }
         switch (space) {
         case Space::Global:
-            joint->space = bezel::Space::Global;
+            nextJoint->space = bezel::Space::Global;
             break;
         case Space::Local:
-            joint->space = bezel::Space::Local;
+            nextJoint->space = bezel::Space::Local;
             break;
         }
-        joint->anchor = anchor;
-        joint->breakForce = breakForce;
-        joint->breakTorque = breakTorque;
+        nextJoint->anchor = anchor;
+        nextJoint->breakForce = breakForce;
+        nextJoint->breakTorque = breakTorque;
 
-        joint->axis1 = axis1;
-        joint->axis2 = axis2;
-        joint->limits.enabled = limits.enabled;
-        joint->limits.minAngle =
+        nextJoint->axis1 = axis1;
+        nextJoint->axis2 = axis2;
+        nextJoint->limits.enabled = limits.enabled;
+        nextJoint->limits.minAngle =
             limits.minAngle * (std::numbers::pi_v<float> / 180.0f);
-        joint->limits.maxAngle =
+        nextJoint->limits.maxAngle =
             limits.maxAngle * (std::numbers::pi_v<float> / 180.0f);
-        joint->motor.enabled = motor.enabled;
-        joint->motor.maxForce = motor.maxForce;
-        joint->motor.maxTorque = motor.maxTorque;
-        joint->create(Window::mainWindow->physicsWorld);
+        nextJoint->motor.enabled = motor.enabled;
+        nextJoint->motor.maxForce = motor.maxForce;
+        nextJoint->motor.maxTorque = motor.maxTorque;
+        nextJoint->create(Window::mainWindow->physicsWorld);
+        joint = std::move(nextJoint);
     }
 }
 
-void HingeJoint::breakJoint() { joint->breakJoint(); }
+void HingeJoint::breakJoint() {
+    if (joint) {
+        joint->breakJoint();
+        joint.reset();
+    }
+}
 
 void SpringJoint::beforePhysics() {
-    bool isFirstFrame = Window::mainWindow->firstFrame;
-    if (isFirstFrame) {
-        joint = std::make_shared<bezel::SpringJoint>();
+    if (!joint) {
+        auto nextJoint = std::make_shared<bezel::SpringJoint>();
         if (std::holds_alternative<GameObject *>(parent)) {
             GameObject *parentObject = *std::get_if<GameObject *>(&parent);
             if (!parentObject || !parentObject->rigidbody ||
@@ -145,9 +154,9 @@ void SpringJoint::beforePhysics() {
                             "component.");
                 return;
             }
-            joint->parent = parentObject->rigidbody->body.get();
+            nextJoint->parent = parentObject->rigidbody->body.get();
         } else {
-            joint->parent = bezel::WorldBody{};
+            nextJoint->parent = bezel::WorldBody{};
         }
 
         if (std::holds_alternative<GameObject *>(child)) {
@@ -158,9 +167,9 @@ void SpringJoint::beforePhysics() {
                     "SpringJoint child GameObject has no Rigidbody component.");
                 return;
             }
-            joint->child = childObject->rigidbody->body.get();
+            nextJoint->child = childObject->rigidbody->body.get();
         } else {
-            joint->child = bezel::WorldBody{};
+            nextJoint->child = bezel::WorldBody{};
         }
 
         if (std::holds_alternative<WorldBody>(parent) &&
@@ -171,29 +180,35 @@ void SpringJoint::beforePhysics() {
         }
         switch (space) {
         case Space::Global:
-            joint->space = bezel::Space::Global;
+            nextJoint->space = bezel::Space::Global;
             break;
         case Space::Local:
-            joint->space = bezel::Space::Local;
+            nextJoint->space = bezel::Space::Local;
             break;
         }
-        joint->anchor = anchor;
-        joint->breakForce = breakForce;
-        joint->breakTorque = breakTorque;
+        nextJoint->anchor = anchor;
+        nextJoint->breakForce = breakForce;
+        nextJoint->breakTorque = breakTorque;
 
-        joint->restLength = restLength;
-        joint->useLimits = useLimits;
-        joint->minLength = minLength;
-        joint->maxLength = maxLength;
-        joint->spring.damping = spring.damping;
-        joint->spring.enabled = spring.enabled;
-        joint->spring.mode = static_cast<bezel::SpringMode>(spring.mode);
-        joint->spring.frequencyHz = spring.frequencyHz;
-        joint->spring.dampingRatio = spring.dampingRatio;
-        joint->spring.stiffness = spring.stiffness;
-        joint->spring.damping = spring.damping;
-        joint->create(Window::mainWindow->physicsWorld);
+        nextJoint->restLength = restLength;
+        nextJoint->useLimits = useLimits;
+        nextJoint->minLength = minLength;
+        nextJoint->maxLength = maxLength;
+        nextJoint->spring.damping = spring.damping;
+        nextJoint->spring.enabled = spring.enabled;
+        nextJoint->spring.mode = static_cast<bezel::SpringMode>(spring.mode);
+        nextJoint->spring.frequencyHz = spring.frequencyHz;
+        nextJoint->spring.dampingRatio = spring.dampingRatio;
+        nextJoint->spring.stiffness = spring.stiffness;
+        nextJoint->spring.damping = spring.damping;
+        nextJoint->create(Window::mainWindow->physicsWorld);
+        joint = std::move(nextJoint);
     }
 }
 
-void SpringJoint::breakJoint() { joint->breakJoint(); }
+void SpringJoint::breakJoint() {
+    if (joint) {
+        joint->breakJoint();
+        joint.reset();
+    }
+}

@@ -26,6 +26,9 @@
 #include <QJsonDocument>
 #include <QLabel>
 #include <QLineEdit>
+#include <QList>
+#include <QMenu>
+#include <QPair>
 #include <QMessageBox>
 #include <QPointer>
 #include <QPushButton>
@@ -301,6 +304,37 @@ QJsonObject componentValues(const QString &type, const QJsonObject &raw) {
     return values;
 }
 
+QString jsonShape(const QJsonValue &value) {
+    if (value.isObject()) {
+        QString result = "{";
+        const QJsonObject object = value.toObject();
+        for (auto iterator = object.begin(); iterator != object.end();
+             ++iterator) {
+            result += iterator.key() + ':' + jsonShape(iterator.value()) + ';';
+        }
+        return result + '}';
+    }
+    if (value.isArray()) {
+        QString result = "[";
+        const QJsonArray array = value.toArray();
+        for (const QJsonValue &entry : array) {
+            result += jsonShape(entry) + ';';
+        }
+        return result + ']';
+    }
+    return "v";
+}
+
+QString componentShape(const QJsonArray &components) {
+    QString result;
+    for (const QJsonValue &entry : components) {
+        const QJsonObject component = entry.toObject();
+        const QString type = component.value("type").toString();
+        result += type + jsonShape(componentValues(type, component));
+    }
+    return result;
+}
+
 QStringList choicesFor(const QString &path) {
     const QString key = path.section('/', -1).toLower();
     if (key == "motiontype")
@@ -325,8 +359,22 @@ QDoubleSpinBox *numberField(double value, QWidget *parent) {
     field->setDecimals(4);
     field->setSingleStep(0.1);
     field->setValue(value);
-    field->setKeyboardTracking(false);
+    field->setKeyboardTracking(true);
     return field;
+}
+
+void connectLiveText(QLineEdit *field, const std::function<void()> &commit) {
+    auto *timer = new QTimer(field);
+    timer->setSingleShot(true);
+    timer->setInterval(160);
+    QObject::connect(field, &QLineEdit::textEdited, timer,
+                     [timer] { timer->start(); });
+    QObject::connect(timer, &QTimer::timeout, field, commit);
+    QObject::connect(field, &QLineEdit::editingFinished, field,
+                     [timer, commit] {
+                         timer->stop();
+                         commit();
+                     });
 }
 
 QWidget *vectorField(const QJsonArray &value, const PropertyChanged &changed,
@@ -356,7 +404,8 @@ QWidget *vectorField(const QJsonArray &value, const PropertyChanged &changed,
                                  boxes.at(2)->value()});
     };
     for (QDoubleSpinBox *box : boxes) {
-        QObject::connect(box, &QDoubleSpinBox::editingFinished, field, commit);
+        QObject::connect(box, &QDoubleSpinBox::valueChanged, field,
+                         [commit](double) { commit(); });
     }
     return field;
 }
@@ -449,9 +498,10 @@ QWidget *primitiveField(const QString &name, const QString &path,
     }
     if (value.isDouble()) {
         auto *field = numberField(value.toDouble(), parent);
-        QObject::connect(
-            field, &QDoubleSpinBox::editingFinished, parent,
-            [field, changed, path] { changed(path, field->value()); });
+        QObject::connect(field, &QDoubleSpinBox::valueChanged, parent,
+                         [field, changed, path](double) {
+                             changed(path, field->value());
+                         });
         return field;
     }
     if (value.isArray()) {
@@ -471,22 +521,20 @@ QWidget *primitiveField(const QString &name, const QString &path,
         }
         field->setText(entries.join(", "));
         field->setPlaceholderText("No items");
-        QObject::connect(
-            field, &QLineEdit::editingFinished, parent,
-            [field, array, changed, path] {
-                QJsonArray result;
-                for (const QString &entry :
-                     field->text().split(',', Qt::SkipEmptyParts)) {
-                    const QString value = entry.trimmed();
-                    bool numeric = false;
-                    const double number = value.toDouble(&numeric);
-                    result.append(!array.isEmpty() &&
-                                          array.first().isDouble() && numeric
-                                      ? QJsonValue(number)
-                                      : QJsonValue(value));
-                }
-                changed(path, result);
-            });
+        connectLiveText(field, [field, array, changed, path] {
+            QJsonArray result;
+            for (const QString &entry :
+                 field->text().split(',', Qt::SkipEmptyParts)) {
+                const QString value = entry.trimmed();
+                bool numeric = false;
+                const double number = value.toDouble(&numeric);
+                result.append(!array.isEmpty() && array.first().isDouble() &&
+                                      numeric
+                                  ? QJsonValue(number)
+                                  : QJsonValue(value));
+            }
+            changed(path, result);
+        });
         return field;
     }
     const QStringList choices = choicesFor(path);
@@ -500,8 +548,8 @@ QWidget *primitiveField(const QString &name, const QString &path,
         return field;
     }
     auto *field = new QLineEdit(value.toString(), parent);
-    QObject::connect(field, &QLineEdit::editingFinished, parent,
-                     [field, changed, path] { changed(path, field->text()); });
+    connectLiveText(field,
+                    [field, changed, path] { changed(path, field->text()); });
     return field;
 }
 
@@ -700,9 +748,8 @@ void InspectorPanel::applySceneSnapshot(const QString &snapshot) {
         const QJsonObject updated = findObject(inspectedObjectId);
         const bool contentChanged =
             updated.value("name") != inspectedObject.value("name") ||
-            updated.value("properties") !=
-                inspectedObject.value("properties") ||
-            updated.value("components") != inspectedObject.value("components");
+            componentShape(updated.value("components").toArray()) !=
+                componentShape(inspectedObject.value("components").toArray());
         inspectedObject = updated;
         if (contentChanged) {
             showObject(inspectedObject);
@@ -835,6 +882,42 @@ void InspectorPanel::showObject(const QJsonObject &object) {
             },
             content));
     }
+    auto *addComponent = new QToolButton(content);
+    addComponent->setObjectName("inspectorAddComponentButton");
+    addComponent->setText("+ Add Component");
+    addComponent->setPopupMode(QToolButton::InstantPopup);
+    auto *componentMenu = new QMenu(addComponent);
+    const QList<QPair<QString, QString>> componentTypes{
+        {"Rigidbody", "rigidbody"},
+        {"Audio Player", "audio_player"},
+        {"Fixed Joint", "fixed_joint"},
+        {"Hinge Joint", "hinge_joint"},
+        {"Spring Joint", "spring_joint"},
+        {"Vehicle", "vehicle"},
+        {"Script", "script"},
+        {"Trait Script", "trait_script"},
+    };
+    for (const auto &[label, componentType] : componentTypes) {
+        componentMenu->addAction(label, this, [this, componentType, objectId] {
+            QPointer<ViewportPanel> runtime(viewport);
+            QPointer<InspectorPanel> inspector(this);
+            QTimer::singleShot(0, [runtime, inspector, componentType, objectId] {
+                if (runtime == nullptr || inspector == nullptr) {
+                    return;
+                }
+                if (runtime->addRuntimeObjectComponent(
+                        objectId, componentType,
+                        componentSchema(componentType)) < 0) {
+                    QMessageBox::information(
+                        inspector.data(), "Add Component",
+                        "This component is already attached or cannot be added "
+                        "to the selected object.");
+                }
+            });
+        });
+    }
+    addComponent->setMenu(componentMenu);
+    contentLayout->addWidget(addComponent);
     contentLayout->addStretch();
 }
 
