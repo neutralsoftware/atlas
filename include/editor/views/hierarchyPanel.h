@@ -29,6 +29,9 @@ class HierarchyPanel : public QWidget {
   public:
     explicit HierarchyPanel(ViewportPanel *viewport, QWidget *parent = nullptr);
 
+  signals:
+    void objectActivated(int id);
+
   private:
     void applySceneSnapshot(const QString &snapshot);
     void rebuildScene(const QString &sceneName, const QJsonArray &objects,

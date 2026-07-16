@@ -106,26 +106,34 @@ void EditorWindow::setupDocks() {
          .area = EditorDockArea::Center,
          .icon = style()->standardIcon(QStyle::SP_DirOpenIcon)});
 
+    auto *hierarchyPanel = new HierarchyPanel(viewportPanel);
     dockManager->addPanel(
         {.id = "hierarchy",
          .title = "Hierarchy Panel",
-         .widget = new HierarchyPanel(viewportPanel),
+         .widget = hierarchyPanel,
          .area = EditorDockArea::Left,
          .icon = style()->standardIcon(QStyle::SP_DirOpenIcon)});
 
+    auto *inspectorPanel = new InspectorPanel(viewportPanel);
     dockManager->addPanel(
         {.id = "inspector",
          .title = "Inspector",
-         .widget = new InspectorPanel(),
+         .widget = inspectorPanel,
          .area = EditorDockArea::Right,
          .icon = style()->standardIcon(QStyle::SP_DirOpenIcon)});
 
+    auto *contentBrowser = new ContentBrowserPanel(projectFile);
     dockManager->addPanel(
         {.id = "fileExplorer",
          .title = "Content Browser",
-         .widget = new ContentBrowserPanel(projectFile),
+         .widget = contentBrowser,
          .area = EditorDockArea::Bottom,
          .icon = style()->standardIcon(QStyle::SP_DirOpenIcon)});
+
+    connect(hierarchyPanel, &HierarchyPanel::objectActivated, inspectorPanel,
+            &InspectorPanel::inspectRuntimeObject);
+    connect(contentBrowser, &ContentBrowserPanel::selectionChanged,
+            inspectorPanel, &InspectorPanel::inspectFile);
 }
 
 void EditorWindow::saveLayout() {

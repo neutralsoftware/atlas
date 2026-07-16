@@ -29,6 +29,9 @@ class ContentBrowserPanel : public QWidget {
 
     void setRootPath(const QString &path);
 
+  signals:
+    void selectionChanged(const QString &path);
+
   private:
     void navigateTo(const QString &path, bool recordHistory = true);
     void openIndex(const QModelIndex &index);

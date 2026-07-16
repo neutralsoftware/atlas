@@ -4002,7 +4002,7 @@ bool Context::setObjectProperty(int id, const std::string &component,
         } else {
             return false;
         }
-        editorObjectSourceData[id][propertyPath] = value;
+        setJsonProperty(editorObjectSourceData[id], "/" + property, value);
         syncEditorLightObject(*this, *object);
         return true;
     }
