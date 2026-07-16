@@ -66,7 +66,12 @@ bool writeNewFile(const QString &path, const QByteArray &contents) {
     return file.open(QIODevice::WriteOnly) &&
            file.write(contents) == contents.size() && file.commit();
 }
-} // namespace
+
+bool isValidEntryName(const QString &name) {
+    return !name.isEmpty() && name != "." && name != ".." &&
+           !name.contains('/') && !name.contains('\\');
+}
+}
 
 ContentBrowserPanel::ContentBrowserPanel(const QString &projectFile,
                                          QWidget *parent)
@@ -142,6 +147,7 @@ ContentBrowserPanel::ContentBrowserPanel(const QString &projectFile,
     model->setFilter(QDir::AllDirs | QDir::Files | QDir::NoDotAndDotDot);
     model->setReadOnly(false);
     model->setRootPath(projectRoot);
+    model->sort(0, Qt::AscendingOrder);
 
     gridView = new QListView(this);
     gridView->setObjectName("contentGrid");
@@ -158,6 +164,7 @@ ContentBrowserPanel::ContentBrowserPanel(const QString &projectFile,
     gridView->setSelectionMode(QAbstractItemView::ExtendedSelection);
     gridView->setContextMenuPolicy(Qt::CustomContextMenu);
     gridView->setUniformItemSizes(true);
+    gridView->setSpacing(4);
     layout->addWidget(gridView, 1);
 
     auto *createMenu = new QMenu(createButton);
@@ -332,8 +339,17 @@ void ContentBrowserPanel::createFolder() {
     const QString name =
         QInputDialog::getText(this, "New Folder", "Folder name",
                               QLineEdit::Normal, "New Folder", &accepted);
-    if (accepted && !name.trimmed().isEmpty()) {
-        QDir(currentPath).mkdir(name.trimmed());
+    const QString entryName = name.trimmed();
+    if (!accepted) {
+        return;
+    }
+    if (!isValidEntryName(entryName)) {
+        QMessageBox::warning(this, "New Folder", "Enter a valid folder name.");
+        return;
+    }
+    if (!QDir(currentPath).mkdir(entryName)) {
+        QMessageBox::warning(this, "New Folder",
+                             "The folder could not be created.");
     }
 }
 
@@ -365,10 +381,20 @@ void ContentBrowserPanel::renameSelection() {
     bool accepted = false;
     const QString name = QInputDialog::getText(
         this, "Rename", "Name", QLineEdit::Normal, info.fileName(), &accepted);
-    if (!accepted || name.trimmed().isEmpty() || name == info.fileName()) {
+    const QString entryName = name.trimmed();
+    if (!accepted || entryName == info.fileName()) {
         return;
     }
-    QDir(info.absolutePath()).rename(info.fileName(), name.trimmed());
+    if (!isValidEntryName(entryName)) {
+        QMessageBox::warning(this, "Rename", "Enter a valid file name.");
+        return;
+    }
+    if (!QDir(info.absolutePath()).rename(info.fileName(), entryName)) {
+        QMessageBox::warning(this, "Rename", "The item could not be renamed.");
+        return;
+    }
+    gridView->setCurrentIndex(
+        model->index(QDir(info.absolutePath()).filePath(entryName)));
 }
 
 void ContentBrowserPanel::deleteSelection() {
@@ -390,7 +416,9 @@ void ContentBrowserPanel::deleteSelection() {
     }
     for (const QModelIndex &index : selected) {
         const QFileInfo info = model->fileInfo(index);
-        if (info.isDir()) {
+        if (info.isSymLink()) {
+            QFile::remove(info.absoluteFilePath());
+        } else if (info.isDir()) {
             QDir(info.absoluteFilePath()).removeRecursively();
         } else {
             QFile::remove(info.absoluteFilePath());

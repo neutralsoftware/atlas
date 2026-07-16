@@ -11,6 +11,7 @@
 
 #include <editor/project/projectStore.h>
 
+#include <QAction>
 #include <QMenuBar>
 #include <QStyle>
 #include <QSettings>
@@ -63,8 +64,13 @@ void EditorWindow::setupMenus() {
     fileMenu->addAction(style()->standardIcon(QStyle::SP_FileIcon), "New");
     fileMenu->addAction(style()->standardIcon(QStyle::SP_DialogOpenButton),
                         "Open");
-    fileMenu->addAction(style()->standardIcon(QStyle::SP_DialogSaveButton),
-                        "Save");
+    auto *saveAction = fileMenu->addAction(
+        style()->standardIcon(QStyle::SP_DialogSaveButton), "Save Scene");
+    connect(saveAction, &QAction::triggered, this, [this] {
+        if (viewportPanel != nullptr) {
+            viewportPanel->saveRuntimeScene();
+        }
+    });
     fileMenu->addSeparator();
     fileMenu->addAction(style()->standardIcon(QStyle::SP_DialogCloseButton),
                         "Quit", this, &QWidget::close);
@@ -92,18 +98,18 @@ void EditorWindow::setupMenus() {
 }
 
 void EditorWindow::setupDocks() {
-    auto *viewport = new ViewportPanel(projectFile);
+    viewportPanel = new ViewportPanel(projectFile);
     dockManager->addPanel(
         {.id = "viewport",
          .title = "Viewport",
-         .widget = viewport,
+         .widget = viewportPanel,
          .area = EditorDockArea::Center,
          .icon = style()->standardIcon(QStyle::SP_DirOpenIcon)});
 
     dockManager->addPanel(
         {.id = "hierarchy",
          .title = "Hierarchy Panel",
-         .widget = new HierarchyPanel(viewport),
+         .widget = new HierarchyPanel(viewportPanel),
          .area = EditorDockArea::Left,
          .icon = style()->standardIcon(QStyle::SP_DirOpenIcon)});
 

@@ -104,7 +104,7 @@ float widgetScale(QWidget *widget) {
     const qreal scale = widget != nullptr ? widget->devicePixelRatioF() : 1.0;
     return scale > 0.0 ? static_cast<float>(scale) : 1.0f;
 }
-} // namespace
+}
 
 ViewportPanel::ViewportPanel(const QString &projectFile, QWidget *parent)
     : QWidget(parent), projectFile(projectFile) {

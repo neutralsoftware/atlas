@@ -11,14 +11,18 @@
 
 #include <QAction>
 #include <QAbstractItemView>
+#include <QIcon>
 #include <QInputDialog>
 #include <QItemSelectionModel>
 #include <QJsonArray>
 #include <QJsonDocument>
 #include <QJsonObject>
+#include <QKeySequence>
 #include <QLineEdit>
+#include <QList>
 #include <QMenu>
 #include <QMessageBox>
+#include <QPair>
 #include <QSignalBlocker>
 #include <QStandardItem>
 #include <QStandardItemModel>
@@ -83,7 +87,7 @@ QString objectSignature(const QJsonArray &objects) {
     }
     return signature;
 }
-} // namespace
+}
 
 HierarchyPanel::HierarchyPanel(ViewportPanel *viewport, QWidget *parent)
     : QWidget(parent), viewport(viewport) {
@@ -231,10 +235,13 @@ void HierarchyPanel::applySceneSnapshot(const QString &snapshot) {
     applyingSnapshot = true;
     const QSignalBlocker blocker(treeView->selectionModel());
     treeView->clearSelection();
+    treeView->setCurrentIndex(QModelIndex());
     if (itemsById.contains(selectedId)) {
         const QModelIndex index = itemsById.value(selectedId)->index();
         treeView->setCurrentIndex(index);
         treeView->scrollTo(index, QAbstractItemView::EnsureVisible);
+    } else {
+        treeView->setCurrentIndex(QModelIndex());
     }
     applyingSnapshot = false;
 }
