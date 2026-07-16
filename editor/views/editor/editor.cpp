@@ -57,7 +57,7 @@ void EditorWindow::setupWindow() {
     ads::CDockManager::setConfigFlag(
         ads::CDockManager::DockAreaHasTabsMenuButton, false);
     ads::CDockManager::setConfigFlag(ads::CDockManager::DockAreaHasUndockButton,
-                                     false);
+                                     true);
     ads::CDockManager::setConfigFlag(ads::CDockManager::DockAreaHasCloseButton,
                                      false);
 
@@ -208,7 +208,7 @@ void EditorWindow::saveLayout() {
 
     settings.setValue("window/geometry", saveGeometry());
     settings.setValue("window/state", saveState());
-    settings.setValue("docking/state/v3", coreManager->saveState(3));
+    settings.setValue("docking/state/v4", coreManager->saveState(4));
     if (inspectorPanel != nullptr) {
         settings.setValue("panels/inspector/width", inspectorPanel->width());
     }
@@ -232,10 +232,10 @@ void EditorWindow::restoreLayout() {
     restoreState(settings.value("window/state").toByteArray());
 
     const QByteArray dockState =
-        settings.value("docking/state/v3").toByteArray();
+        settings.value("docking/state/v4").toByteArray();
 
     if (!dockState.isEmpty()) {
-        coreManager->restoreState(dockState, 3);
+        coreManager->restoreState(dockState, 4);
     }
 
     const int inspectorWidth =
