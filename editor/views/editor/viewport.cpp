@@ -1,11 +1,11 @@
 /*
-* viewport.cpp
-* As part of the Atlas project
-* Created by Max Van den Eynde in 2026
-* --------------------------------------
-* Description: Viewport definitions
-* Copyright (c) 2026 Max Van den Eynde
-*/
+ * viewport.cpp
+ * As part of the Atlas project
+ * Created by Max Van den Eynde in 2026
+ * --------------------------------------
+ * Description: Viewport definitions
+ * Copyright (c) 2026 Max Van den Eynde
+ */
 
 #include <editor/views/viewport.h>
 
@@ -100,13 +100,13 @@ int editorCameraKey(int key) {
     }
 }
 
-float widgetScale(QWidget* widget) {
+float widgetScale(QWidget *widget) {
     const qreal scale = widget != nullptr ? widget->devicePixelRatioF() : 1.0;
     return scale > 0.0 ? static_cast<float>(scale) : 1.0f;
 }
 }
 
-ViewportPanel::ViewportPanel(const QString& projectFile, QWidget* parent)
+ViewportPanel::ViewportPanel(const QString &projectFile, QWidget *parent)
     : QWidget(parent), projectFile(projectFile) {
     setAttribute(Qt::WA_NativeWindow);
     setAttribute(Qt::WA_NoSystemBackground);
@@ -120,35 +120,24 @@ ViewportPanel::ViewportPanel(const QString& projectFile, QWidget* parent)
 
     frameTimer = new QTimer(this);
     frameTimer->setTimerType(Qt::PreciseTimer);
-    connect(frameTimer, &QTimer::timeout, this, [this] {
-        stepRuntime();
-    });
-    if (auto* app = QCoreApplication::instance()) {
-        connect(app, &QCoreApplication::aboutToQuit, this, [this] {
-            shutdownRuntime();
-        });
+    connect(frameTimer, &QTimer::timeout, this, [this] { stepRuntime(); });
+    if (auto *app = QCoreApplication::instance()) {
+        connect(app, &QCoreApplication::aboutToQuit, this,
+                [this] { shutdownRuntime(); });
     }
 
     winId();
 }
 
-ViewportPanel::~ViewportPanel() {
-    shutdownRuntime();
-}
+ViewportPanel::~ViewportPanel() { shutdownRuntime(); }
 
-QSize ViewportPanel::sizeHint() const {
-    return QSize(640, 360);
-}
+QSize ViewportPanel::sizeHint() const { return QSize(640, 360); }
 
-QSize ViewportPanel::minimumSizeHint() const {
-    return QSize(1, 1);
-}
+QSize ViewportPanel::minimumSizeHint() const { return QSize(1, 1); }
 
-QPaintEngine* ViewportPanel::paintEngine() const {
-    return nullptr;
-}
+QPaintEngine *ViewportPanel::paintEngine() const { return nullptr; }
 
-void ViewportPanel::showEvent(QShowEvent* event) {
+void ViewportPanel::showEvent(QShowEvent *event) {
     QWidget::showEvent(event);
     if (runtimeContext != nullptr) {
         frameTimer->start(16);
@@ -157,19 +146,19 @@ void ViewportPanel::showEvent(QShowEvent* event) {
     scheduleRuntimeStart();
 }
 
-void ViewportPanel::hideEvent(QHideEvent* event) {
+void ViewportPanel::hideEvent(QHideEvent *event) {
     if (frameTimer != nullptr) {
         frameTimer->stop();
     }
     QWidget::hideEvent(event);
 }
 
-void ViewportPanel::closeEvent(QCloseEvent* event) {
+void ViewportPanel::closeEvent(QCloseEvent *event) {
     shutdownRuntime();
     QWidget::closeEvent(event);
 }
 
-void ViewportPanel::resizeEvent(QResizeEvent* event) {
+void ViewportPanel::resizeEvent(QResizeEvent *event) {
     QWidget::resizeEvent(event);
     if (runtimeContext == nullptr) {
         scheduleRuntimeStart();
@@ -202,7 +191,7 @@ void ViewportPanel::shutdownRuntime() {
     stopRuntime();
 }
 
-void ViewportPanel::mousePressEvent(QMouseEvent* event) {
+void ViewportPanel::mousePressEvent(QMouseEvent *event) {
     setFocus(Qt::MouseFocusReason);
     sendPointerEvent(0, static_cast<float>(event->position().x()),
                      static_cast<float>(event->position().y()),
@@ -210,21 +199,21 @@ void ViewportPanel::mousePressEvent(QMouseEvent* event) {
     event->accept();
 }
 
-void ViewportPanel::mouseMoveEvent(QMouseEvent* event) {
+void ViewportPanel::mouseMoveEvent(QMouseEvent *event) {
     sendPointerEvent(1, static_cast<float>(event->position().x()),
                      static_cast<float>(event->position().y()),
                      activeRuntimeMouseButton(event->buttons()));
     event->accept();
 }
 
-void ViewportPanel::mouseReleaseEvent(QMouseEvent* event) {
+void ViewportPanel::mouseReleaseEvent(QMouseEvent *event) {
     sendPointerEvent(2, static_cast<float>(event->position().x()),
                      static_cast<float>(event->position().y()),
                      runtimeMouseButton(event->button()));
     event->accept();
 }
 
-void ViewportPanel::wheelEvent(QWheelEvent* event) {
+void ViewportPanel::wheelEvent(QWheelEvent *event) {
     if (runtimeContext == nullptr) {
         QWidget::wheelEvent(event);
         return;
@@ -236,7 +225,7 @@ void ViewportPanel::wheelEvent(QWheelEvent* event) {
     event->accept();
 }
 
-void ViewportPanel::keyPressEvent(QKeyEvent* event) {
+void ViewportPanel::keyPressEvent(QKeyEvent *event) {
     const int key = editorCameraKey(event->key());
     if (event->isAutoRepeat()) {
         if (key >= 0) {
@@ -254,7 +243,7 @@ void ViewportPanel::keyPressEvent(QKeyEvent* event) {
     QWidget::keyPressEvent(event);
 }
 
-void ViewportPanel::keyReleaseEvent(QKeyEvent* event) {
+void ViewportPanel::keyReleaseEvent(QKeyEvent *event) {
     const int key = editorCameraKey(event->key());
     if (event->isAutoRepeat()) {
         if (key >= 0) {
@@ -284,23 +273,23 @@ void ViewportPanel::startRuntime() {
         return;
     }
 
-    void* metalView =
-        reinterpret_cast<void*>(static_cast<quintptr>(winId()));
+    void *metalView = reinterpret_cast<void *>(static_cast<quintptr>(winId()));
     if (metalView == nullptr) {
         qWarning() << "Atlas viewport could not resolve a native Metal view";
         return;
     }
 
     try {
-        runtimeContext =
-            runtime::makeContextForMetalViewNonBlocking(runtimeProjectFile,
-                                                        metalView);
+        runtimeContext = runtime::makeContextForMetalViewNonBlocking(
+            runtimeProjectFile, metalView);
         runtimeContext->setEditorControlsEnabled(true);
         runtimeContext->setEditorSimulationEnabled(false);
         runtimeContext->setEditorControlMode(1);
         resizeRuntime();
+        refreshSceneSnapshot();
+        emit runtimeAvailabilityChanged(true);
         frameTimer->start(16);
-    } catch (const std::exception& error) {
+    } catch (const std::exception &error) {
         qWarning().noquote()
             << QStringLiteral("Failed to start Atlas viewport runtime: %1")
                    .arg(QString::fromUtf8(error.what()));
@@ -322,9 +311,11 @@ void ViewportPanel::stopRuntime() {
         return;
     }
     auto context = std::move(runtimeContext);
+    lastSceneSnapshot.clear();
+    emit runtimeAvailabilityChanged(false);
     try {
         context->end();
-    } catch (const std::exception& error) {
+    } catch (const std::exception &error) {
         qWarning().noquote()
             << QStringLiteral("Failed to stop Atlas viewport runtime: %1")
                    .arg(QString::fromUtf8(error.what()));
@@ -343,8 +334,10 @@ void ViewportPanel::stepRuntime() {
     try {
         if (!runtimeContext->stepFrame()) {
             stopRuntime();
+            return;
         }
-    } catch (const std::exception& error) {
+        refreshSceneSnapshot();
+    } catch (const std::exception &error) {
         qWarning().noquote()
             << QStringLiteral("Atlas viewport runtime frame failed: %1")
                    .arg(QString::fromUtf8(error.what()));
@@ -379,4 +372,70 @@ void ViewportPanel::sendPointerEvent(int action, float x, float y, int button) {
     const float flippedY = static_cast<float>(height()) - y;
     runtimeContext->editorPointerEvent(action, x, flippedY, button,
                                        widgetScale(this));
+}
+
+bool ViewportPanel::selectRuntimeObject(int id, bool focusCamera) {
+    if (runtimeContext == nullptr ||
+        !runtimeContext->selectObject(id, focusCamera)) {
+        return false;
+    }
+    refreshSceneSnapshot();
+    setFocus(Qt::OtherFocusReason);
+    return true;
+}
+
+bool ViewportPanel::renameRuntimeObject(int id, const QString &name) {
+    if (runtimeContext == nullptr ||
+        !runtimeContext->renameObject(id, name.toUtf8().toStdString())) {
+        return false;
+    }
+    refreshSceneSnapshot();
+    return true;
+}
+
+bool ViewportPanel::setRuntimeObjectParent(int childId, int parentId) {
+    if (runtimeContext == nullptr ||
+        !runtimeContext->setObjectParent(childId, parentId)) {
+        return false;
+    }
+    refreshSceneSnapshot();
+    return true;
+}
+
+bool ViewportPanel::deleteRuntimeObject(int id) {
+    if (runtimeContext == nullptr || !runtimeContext->deleteObject(id)) {
+        return false;
+    }
+    refreshSceneSnapshot();
+    return true;
+}
+
+int ViewportPanel::createRuntimeObject(const QString &type,
+                                       const QString &name) {
+    if (runtimeContext == nullptr) {
+        return -1;
+    }
+    const int id = runtimeContext->createObject(type.toUtf8().toStdString(),
+                                                name.toUtf8().toStdString());
+    if (id >= 0) {
+        refreshSceneSnapshot();
+    }
+    return id;
+}
+
+bool ViewportPanel::saveRuntimeScene() {
+    return runtimeContext != nullptr && runtimeContext->saveCurrentScene();
+}
+
+void ViewportPanel::refreshSceneSnapshot() {
+    if (runtimeContext == nullptr) {
+        return;
+    }
+    const QString snapshot =
+        QString::fromStdString(runtimeContext->sceneObjectsJson());
+    if (snapshot == lastSceneSnapshot) {
+        return;
+    }
+    lastSceneSnapshot = snapshot;
+    emit sceneSnapshotChanged(snapshot);
 }

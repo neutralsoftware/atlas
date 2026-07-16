@@ -20,6 +20,8 @@ namespace ads {
     class CDockWidget;
 }
 
+class ViewportPanel;
+
 class EditorWindow : public QMainWindow {
     Q_OBJECT
 
@@ -37,6 +39,7 @@ private:
 
     EditorDockManager* dockManager = nullptr;
     ads::CDockManager* coreManager = nullptr;
+    ViewportPanel* viewportPanel = nullptr;
     QString projectFile;
     bool closing = false;
 
