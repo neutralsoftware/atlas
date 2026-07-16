@@ -3942,6 +3942,10 @@ bool Context::selectObject(int id, bool focusCamera) {
     if (window == nullptr) {
         return false;
     }
+    if (id < 0) {
+        window->selectEditorObject(nullptr, false);
+        return true;
+    }
     GameObject *object = findContextObject(*this, id);
     if (object == nullptr) {
         return false;

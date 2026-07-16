@@ -543,22 +543,65 @@ void addPropertyRows(QVBoxLayout *layout, const QJsonObject &properties,
         }
         if (iterator.value().isArray()) {
             const QJsonArray array = iterator.value().toArray();
-            if (!array.isEmpty() && array.first().isObject()) {
+            const bool structuredArray =
+                (!array.isEmpty() && array.first().isObject()) ||
+                key.compare("wheels", Qt::CaseInsensitive) == 0 ||
+                key.compare("differentials", Qt::CaseInsensitive) == 0;
+            if (structuredArray) {
                 auto *group = new QFrame(parent);
                 group->setObjectName("inspectorNestedGroup");
                 auto *groupLayout = new QVBoxLayout(group);
                 groupLayout->setContentsMargins(8, 6, 8, 7);
                 groupLayout->setSpacing(3);
-                auto *title = new QLabel(humanize(key), group);
+                auto *heading = new QWidget(group);
+                auto *headingLayout = new QHBoxLayout(heading);
+                headingLayout->setContentsMargins(0, 0, 0, 0);
+                headingLayout->setSpacing(4);
+                auto *title = new QLabel(humanize(key), heading);
                 title->setObjectName("inspectorNestedTitle");
-                groupLayout->addWidget(title);
+                auto *add = new QToolButton(heading);
+                add->setObjectName("inspectorArrayButton");
+                add->setText("+");
+                add->setToolTip(QStringLiteral("Add %1").arg(humanize(key)));
+                headingLayout->addWidget(title, 1);
+                headingLayout->addWidget(add);
+                groupLayout->addWidget(heading);
+                QObject::connect(
+                    add, &QToolButton::clicked, group,
+                    [array, key, nextPath, changed] {
+                        QJsonArray result = array;
+                        result.append(
+                            key.compare("wheels", Qt::CaseInsensitive) == 0
+                                ? vehicleWheelSchema()
+                                : vehicleDifferentialSchema());
+                        changed(nextPath, result);
+                    });
                 for (int index = 0; index < array.size(); ++index) {
-                    auto *itemTitle = new QLabel(QStringLiteral("%1 %2")
-                                                     .arg(humanize(key))
-                                                     .arg(index + 1),
-                                                 group);
+                    auto *itemHeading = new QWidget(group);
+                    auto *itemHeadingLayout = new QHBoxLayout(itemHeading);
+                    itemHeadingLayout->setContentsMargins(0, 0, 0, 0);
+                    itemHeadingLayout->setSpacing(4);
+                    auto *itemTitle = new QLabel(
+                        QStringLiteral("%1 %2")
+                            .arg(key.compare("wheels", Qt::CaseInsensitive) == 0
+                                     ? "Wheel"
+                                     : "Differential")
+                            .arg(index + 1),
+                        itemHeading);
                     itemTitle->setObjectName("inspectorArrayTitle");
-                    groupLayout->addWidget(itemTitle);
+                    auto *remove = new QToolButton(itemHeading);
+                    remove->setObjectName("inspectorArrayButton");
+                    remove->setText("−");
+                    remove->setToolTip("Remove");
+                    itemHeadingLayout->addWidget(itemTitle, 1);
+                    itemHeadingLayout->addWidget(remove);
+                    groupLayout->addWidget(itemHeading);
+                    QObject::connect(remove, &QToolButton::clicked, group,
+                                     [array, index, nextPath, changed] {
+                                         QJsonArray result = array;
+                                         result.removeAt(index);
+                                         changed(nextPath, result);
+                                     });
                     addPropertyRows(groupLayout, array.at(index).toObject(),
                                     nextPath + '/' + QString::number(index),
                                     changed, group);

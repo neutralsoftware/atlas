@@ -52,6 +52,7 @@ class ViewportPanel : public QWidget {
   signals:
     void sceneSnapshotChanged(const QString &snapshot);
     void runtimeAvailabilityChanged(bool available);
+    void runtimeObjectActivated(int id);
 
   protected:
     QPaintEngine *paintEngine() const override;

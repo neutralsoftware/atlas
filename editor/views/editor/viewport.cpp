@@ -199,6 +199,9 @@ void ViewportPanel::mousePressEvent(QMouseEvent *event) {
     sendPointerEvent(0, static_cast<float>(event->position().x()),
                      static_cast<float>(event->position().y()),
                      runtimeMouseButton(event->button()));
+    if (event->button() == Qt::LeftButton && runtimeContext != nullptr) {
+        emit runtimeObjectActivated(runtimeContext->selectedObjectId());
+    }
     event->accept();
 }
 
@@ -383,7 +386,9 @@ bool ViewportPanel::selectRuntimeObject(int id, bool focusCamera) {
         return false;
     }
     refreshSceneSnapshot();
-    setFocus(Qt::OtherFocusReason);
+    if (id >= 0) {
+        setFocus(Qt::OtherFocusReason);
+    }
     return true;
 }
 

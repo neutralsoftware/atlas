@@ -132,8 +132,19 @@ void EditorWindow::setupDocks() {
 
     connect(hierarchyPanel, &HierarchyPanel::objectActivated, inspectorPanel,
             &InspectorPanel::inspectRuntimeObject);
-    connect(contentBrowser, &ContentBrowserPanel::selectionChanged,
-            inspectorPanel, &InspectorPanel::inspectFile);
+    connect(hierarchyPanel, &HierarchyPanel::objectActivated, contentBrowser,
+            &ContentBrowserPanel::clearSelection);
+    connect(viewportPanel, &ViewportPanel::runtimeObjectActivated,
+            inspectorPanel, &InspectorPanel::inspectRuntimeObject);
+    connect(viewportPanel, &ViewportPanel::runtimeObjectActivated,
+            contentBrowser, &ContentBrowserPanel::clearSelection);
+    connect(contentBrowser, &ContentBrowserPanel::selectionChanged, this,
+            [this, inspectorPanel](const QString &path) {
+                if (!path.isEmpty()) {
+                    viewportPanel->selectRuntimeObject(-1, false);
+                }
+                inspectorPanel->inspectFile(path);
+            });
 }
 
 void EditorWindow::saveLayout() {
