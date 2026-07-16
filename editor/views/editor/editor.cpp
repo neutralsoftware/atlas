@@ -19,6 +19,7 @@
 #include <QTimer>
 #include <QVariantList>
 #include <QCloseEvent>
+#include <QFileInfo>
 
 #include "DockManager.h"
 #include "editor/debug.h"
@@ -136,8 +137,8 @@ void EditorWindow::setupDocks() {
          .area = EditorDockArea::Bottom,
          .icon = style()->standardIcon(QStyle::SP_DirOpenIcon)});
 
-    auto *materialEditor = new MaterialEditorPanel;
-    dockManager->addPanel(
+    auto *materialEditor = new MaterialEditorPanel(viewportPanel);
+    auto *materialDock = dockManager->addPanel(
         {.id = "materialEditor",
          .title = "Material Editor",
          .widget = materialEditor,
@@ -154,13 +155,19 @@ void EditorWindow::setupDocks() {
             contentBrowser, &ContentBrowserPanel::clearSelection);
     connect(contentBrowser, &ContentBrowserPanel::selectionChanged, this,
             [this](const QString &path) {
-                if (!path.isEmpty()) {
+                const QString suffix = QFileInfo(path).suffix().toLower();
+                if (!path.isEmpty() && suffix != "amat" &&
+                    suffix != "material") {
                     viewportPanel->selectRuntimeObject(-1, false);
                 }
                 this->inspectorPanel->inspectFile(path);
             });
-    connect(contentBrowser, &ContentBrowserPanel::assetActivated,
-            materialEditor, &MaterialEditorPanel::openMaterial);
+    connect(contentBrowser, &ContentBrowserPanel::assetActivated, this,
+            [materialEditor, materialDock](const QString &path) {
+                materialEditor->openMaterial(path);
+                materialDock->toggleView(true);
+                materialDock->raise();
+            });
 }
 
 void EditorWindow::saveLayout() {

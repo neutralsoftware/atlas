@@ -51,6 +51,8 @@ class ViewportPanel : public QWidget {
     bool deleteRuntimeObject(int id);
     int createRuntimeObject(const QString &type, const QString &name = {});
     bool saveRuntimeScene();
+    int selectedRuntimeObjectId() const;
+    bool applyRuntimeMaterial(int id, const QString &path);
     void playRuntime();
     void pauseRuntime();
     void stepRuntimeOnce();

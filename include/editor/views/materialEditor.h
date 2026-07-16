@@ -14,12 +14,14 @@ class QPushButton;
 class QTimer;
 class QVBoxLayout;
 class MaterialPreviewWidget;
+class ViewportPanel;
 
 class MaterialEditorPanel : public QWidget {
     Q_OBJECT
 
   public:
-    explicit MaterialEditorPanel(QWidget *parent = nullptr);
+    explicit MaterialEditorPanel(ViewportPanel *viewport,
+                                 QWidget *parent = nullptr);
     ~MaterialEditorPanel() override;
 
   public slots:
@@ -38,6 +40,7 @@ class MaterialEditorPanel : public QWidget {
     void updateTextureField(const QString &key);
     void materialChanged();
     void saveMaterial();
+    void assignToSelectedObject();
     QJsonObject normalizedMaterial(const QJsonObject &source) const;
 
     QWidget *body = nullptr;
@@ -59,8 +62,10 @@ class MaterialEditorPanel : public QWidget {
     QHash<QString, QLineEdit *> textureFields;
     QHash<QString, QLabel *> texturePreviews;
     QTimer *saveTimer = nullptr;
+    ViewportPanel *viewport = nullptr;
     QString materialPath;
     QJsonObject material;
+    int assignedObjectId = -1;
     bool loading = false;
 };
 

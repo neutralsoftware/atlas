@@ -158,10 +158,10 @@ ContentBrowserPanel::ContentBrowserPanel(const QString &projectFile,
     gridView->setWrapping(true);
     gridView->setResizeMode(QListView::Adjust);
     gridView->setMovement(QListView::Static);
-    gridView->setGridSize(QSize(112, 104));
-    gridView->setIconSize(QSize(56, 56));
+    gridView->setGridSize(QSize(176, 142));
+    gridView->setIconSize(QSize(64, 64));
     gridView->setWordWrap(true);
-    gridView->setTextElideMode(Qt::ElideMiddle);
+    gridView->setTextElideMode(Qt::ElideNone);
     gridView->setSelectionMode(QAbstractItemView::ExtendedSelection);
     gridView->setContextMenuPolicy(Qt::CustomContextMenu);
     gridView->setUniformItemSizes(true);

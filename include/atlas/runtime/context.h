@@ -121,6 +121,7 @@ class Context {
     bool setObjectProperty(int id, const std::string &component,
                            int componentIndex, const std::string &propertyPath,
                            const json &value);
+    bool setObjectMaterial(int id, const std::string &path);
     int addObjectComponent(int id, const json &component);
     bool setObjectParent(int childId, int parentId);
     bool deleteObject(int id);

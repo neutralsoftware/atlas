@@ -1,5 +1,7 @@
 #include <editor/views/materialEditor.h>
 
+#include <editor/views/viewport.h>
+
 #include <QCheckBox>
 #include <QColorDialog>
 #include <QDoubleSpinBox>
@@ -93,6 +95,11 @@ QString resolvedTexturePath(const QString &baseDir, const QJsonValue &value) {
     return QDir(baseDir).absoluteFilePath(path);
 }
 
+QImage loadTextureImage(const QString &baseDir, const QJsonValue &value) {
+    const QString path = resolvedTexturePath(baseDir, value);
+    return path.isEmpty() ? QImage() : QImage(path);
+}
+
 double channelAt(const QImage &image, double u, double v) {
     if (image.isNull()) {
         return 1.0;
@@ -129,16 +136,15 @@ class MaterialPreviewWidget : public QWidget {
     void setMaterial(const QJsonObject &next, const QString &nextBaseDir) {
         material = next;
         baseDir = nextBaseDir;
-        albedoImage = QImage(resolvedTexturePath(
-            baseDir, material.value("albedoTexture")));
-        normalImage = QImage(resolvedTexturePath(
-            baseDir, material.value("normalTexture")));
-        metallicImage = QImage(resolvedTexturePath(
-            baseDir, material.value("metallicTexture")));
-        roughnessImage = QImage(resolvedTexturePath(
-            baseDir, material.value("roughnessTexture")));
-        aoImage = QImage(
-            resolvedTexturePath(baseDir, material.value("aoTexture")));
+        albedoImage =
+            loadTextureImage(baseDir, material.value("albedoTexture"));
+        normalImage =
+            loadTextureImage(baseDir, material.value("normalTexture"));
+        metallicImage =
+            loadTextureImage(baseDir, material.value("metallicTexture"));
+        roughnessImage =
+            loadTextureImage(baseDir, material.value("roughnessTexture"));
+        aoImage = loadTextureImage(baseDir, material.value("aoTexture"));
         update();
     }
 
@@ -284,7 +290,9 @@ class MaterialPreviewWidget : public QWidget {
     QImage aoImage;
 };
 
-MaterialEditorPanel::MaterialEditorPanel(QWidget *parent) : QWidget(parent) {
+MaterialEditorPanel::MaterialEditorPanel(ViewportPanel *viewport,
+                                         QWidget *parent)
+    : QWidget(parent), viewport(viewport) {
     setObjectName("materialEditorPanel");
     auto *layout = new QVBoxLayout(this);
     layout->setContentsMargins(0, 0, 0, 0);
@@ -300,8 +308,11 @@ MaterialEditorPanel::MaterialEditorPanel(QWidget *parent) : QWidget(parent) {
     statusLabel->setObjectName("materialEditorStatus");
     auto *saveButton = new QPushButton("Save", header);
     saveButton->setObjectName("materialSaveButton");
+    auto *assignButton = new QPushButton("Assign to Selected", header);
+    assignButton->setObjectName("materialAssignButton");
     headerLayout->addWidget(titleLabel, 1);
     headerLayout->addWidget(statusLabel);
+    headerLayout->addWidget(assignButton);
     headerLayout->addWidget(saveButton);
     layout->addWidget(header);
 
@@ -323,6 +334,8 @@ MaterialEditorPanel::MaterialEditorPanel(QWidget *parent) : QWidget(parent) {
             &MaterialEditorPanel::saveMaterial);
     connect(saveButton, &QPushButton::clicked, this,
             &MaterialEditorPanel::saveMaterial);
+    connect(assignButton, &QPushButton::clicked, this,
+            &MaterialEditorPanel::assignToSelectedObject);
     showEmptyState();
 }
 
@@ -378,6 +391,7 @@ void MaterialEditorPanel::openMaterial(const QString &path) {
         return;
     }
     materialPath = QFileInfo(path).absoluteFilePath();
+    assignedObjectId = -1;
     const QJsonObject root = document.object();
     material = normalizedMaterial(root.value("material").isObject()
                                       ? root.value("material").toObject()
@@ -576,8 +590,8 @@ void MaterialEditorPanel::updateTextureField(const QString &key) {
         return;
     const QString path = texturePath(material.value(key));
     field->setText(path);
-    const QImage image(resolvedTexturePath(
-        QFileInfo(materialPath).absolutePath(), material.value(key)));
+    const QImage image = loadTextureImage(
+        QFileInfo(materialPath).absolutePath(), material.value(key));
     if (image.isNull()) {
         thumbnail->setPixmap(QPixmap());
         thumbnail->setText(path.isEmpty() ? "" : "!");
@@ -622,5 +636,30 @@ void MaterialEditorPanel::saveMaterial() {
         return;
     }
     statusLabel->setText("Saved");
+    if (assignedObjectId >= 0 && viewport != nullptr) {
+        viewport->applyRuntimeMaterial(assignedObjectId, materialPath);
+    }
     emit materialSaved(materialPath);
+}
+
+void MaterialEditorPanel::assignToSelectedObject() {
+    if (materialPath.isEmpty() || viewport == nullptr) {
+        return;
+    }
+    const int objectId = viewport->selectedRuntimeObjectId();
+    if (objectId < 0) {
+        QMessageBox::information(
+            this, "Assign Material",
+            "Select a renderable object in the Hierarchy or Viewport first.");
+        return;
+    }
+    saveMaterial();
+    if (!viewport->applyRuntimeMaterial(objectId, materialPath)) {
+        QMessageBox::warning(
+            this, "Assign Material",
+            "This material can only be assigned to a solid or model object.");
+        return;
+    }
+    assignedObjectId = objectId;
+    statusLabel->setText("Assigned · live updates enabled");
 }

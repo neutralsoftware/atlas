@@ -130,7 +130,6 @@ ViewportPanel::ViewportPanel(const QString &projectFile, QWidget *parent)
                 [this] { shutdownRuntime(); });
     }
 
-    winId();
 }
 
 ViewportPanel::~ViewportPanel() { shutdownRuntime(); }
@@ -486,6 +485,19 @@ int ViewportPanel::createRuntimeObject(const QString &type,
 
 bool ViewportPanel::saveRuntimeScene() {
     return runtimeContext != nullptr && runtimeContext->saveCurrentScene();
+}
+
+int ViewportPanel::selectedRuntimeObjectId() const {
+    return runtimeContext != nullptr ? runtimeContext->selectedObjectId() : -1;
+}
+
+bool ViewportPanel::applyRuntimeMaterial(int id, const QString &path) {
+    if (runtimeContext == nullptr || id < 0 || path.isEmpty() ||
+        !runtimeContext->setObjectMaterial(id, path.toStdString())) {
+        return false;
+    }
+    refreshSceneSnapshot();
+    return true;
 }
 
 void ViewportPanel::playRuntime() {
