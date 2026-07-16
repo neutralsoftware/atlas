@@ -9,27 +9,22 @@
 
 #include <editor/views/editorWindow.h>
 
+#include <editor/project/projectStore.h>
+
 #include <QMenuBar>
 #include <QStyle>
 #include <QSettings>
 #include <QCloseEvent>
 
 #include "DockManager.h"
-#include "DockWidget.h"
 #include "editor/debug.h"
 #include "editor/views/fileExplorer.h"
 #include "editor/views/hierarchyPanel.h"
 #include "editor/views/inspectorView.h"
 #include "editor/views/viewport.h"
 
-static ads::CDockWidget* makeDock(const QString& title, QWidget* content) {
-    auto* dock = new ads::CDockWidget(title);
-    dock->setWidget(content);
-    return dock;
-}
-
-EditorWindow::EditorWindow(QWidget* parent)
-    : QMainWindow(parent) {
+EditorWindow::EditorWindow(const QString& projectFile, QWidget* parent)
+    : QMainWindow(parent), projectFile(projectFile) {
     setupWindow();
     setupMenus();
     setupDocks();
@@ -38,7 +33,10 @@ EditorWindow::EditorWindow(QWidget* parent)
 }
 
 void EditorWindow::setupWindow() {
-    setWindowTitle("Atlas Engine");
+    const auto project = ProjectStore::projectInfo(projectFile);
+    setWindowTitle(project.has_value()
+                       ? QStringLiteral("%1 — Atlas Engine").arg(project->name)
+                       : QStringLiteral("Atlas Engine"));
     resize(1280, 720);
     menuBar()->setNativeMenuBar(false);
 
@@ -83,7 +81,7 @@ void EditorWindow::setupDocks() {
     dockManager->addPanel({
         .id = "viewport",
         .title = "Viewport",
-        .widget = new ViewportPanel(),
+        .widget = new ViewportPanel(projectFile),
         .area = EditorDockArea::Center,
         .icon = style()->standardIcon(QStyle::SP_DirOpenIcon)
     });

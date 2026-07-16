@@ -12,6 +12,7 @@
 
 #include <memory>
 
+#include <QString>
 #include <QWidget>
 
 class Context;
@@ -30,7 +31,8 @@ class ViewportPanel : public QWidget {
     Q_OBJECT
 
 public:
-    explicit ViewportPanel(QWidget* parent = nullptr);
+    explicit ViewportPanel(const QString& projectFile,
+                           QWidget* parent = nullptr);
     ~ViewportPanel() override;
     QSize sizeHint() const override;
     QSize minimumSizeHint() const override;
@@ -58,6 +60,7 @@ private:
     void sendPointerEvent(int action, float x, float y, int button);
 
     QTimer* frameTimer = nullptr;
+    QString projectFile;
     std::shared_ptr<Context> runtimeContext;
     int runtimeWidth = 0;
     int runtimeHeight = 0;

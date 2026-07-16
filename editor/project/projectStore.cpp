@@ -72,13 +72,16 @@ QString projectConfig(const QString& name,
     stream << "[window]\n";
     stream << "dimensions = [1280, 720]\n";
     stream << "mouse_capture = false\n";
-    stream << "multisampling = true\n";
+    stream << "multisampling = "
+           << (projectTemplate == AtlasProjectTemplate::PathTracing ? "false"
+                                                                    : "true")
+           << "\n";
     stream << "ssaoScale = 0.5\n";
     return config;
 }
 
-QByteArray starterScene() {
-    return QByteArrayLiteral(R"({
+QByteArray starterScene(AtlasProjectTemplate projectTemplate) {
+    QByteArray scene = QByteArrayLiteral(R"({
     "name": "Main Scene",
     "id": "main_scene",
     "objects": [
@@ -107,7 +110,7 @@ QByteArray starterScene() {
     "targets": [
         {
             "name": "Main Target",
-            "type": "multisampled",
+            "type": "%RENDER_TARGET_TYPE%",
             "render": true,
             "display": true
         }
@@ -118,6 +121,11 @@ QByteArray starterScene() {
     }
 }
 )");
+    scene.replace("%RENDER_TARGET_TYPE%",
+                  projectTemplate == AtlasProjectTemplate::PathTracing
+                      ? "scene"
+                      : "multisampled");
+    return scene;
 }
 
 QString capture(const QString& contents, const QString& pattern) {
@@ -241,7 +249,7 @@ QString ProjectStore::createProject(const QString& name,
                   &writeError);
     const bool wroteScene =
         wroteProject && writeFile(projectDirectory + "/main.ascene",
-                                  starterScene(), &writeError);
+                                  starterScene(projectTemplate), &writeError);
     if (!wroteProject || !wroteScene) {
         QDir(projectDirectory).removeRecursively();
         if (errorMessage != nullptr) {

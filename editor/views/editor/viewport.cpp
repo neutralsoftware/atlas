@@ -35,10 +35,6 @@
 #include <exception>
 #include <string>
 
-#ifndef ATLAS_DEFAULT_PROJECT_FILE
-#define ATLAS_DEFAULT_PROJECT_FILE ""
-#endif
-
 namespace {
 constexpr int RuntimeEditorCameraKeyForward = 0;
 constexpr int RuntimeEditorCameraKeyBackward = 1;
@@ -110,8 +106,8 @@ float widgetScale(QWidget* widget) {
 }
 }
 
-ViewportPanel::ViewportPanel(QWidget* parent)
-    : QWidget(parent) {
+ViewportPanel::ViewportPanel(const QString& projectFile, QWidget* parent)
+    : QWidget(parent), projectFile(projectFile) {
     setAttribute(Qt::WA_NativeWindow);
     setAttribute(Qt::WA_NoSystemBackground);
     setAttribute(Qt::WA_OpaquePaintEvent);
@@ -282,8 +278,8 @@ void ViewportPanel::startRuntime() {
         return;
     }
 #ifdef METAL
-    const std::string projectFile = ATLAS_DEFAULT_PROJECT_FILE;
-    if (projectFile.empty()) {
+    const std::string runtimeProjectFile = projectFile.toUtf8().toStdString();
+    if (runtimeProjectFile.empty()) {
         qWarning() << "Atlas viewport runtime project file is not configured";
         return;
     }
@@ -297,7 +293,8 @@ void ViewportPanel::startRuntime() {
 
     try {
         runtimeContext =
-            runtime::makeContextForMetalViewNonBlocking(projectFile, metalView);
+            runtime::makeContextForMetalViewNonBlocking(runtimeProjectFile,
+                                                        metalView);
         runtimeContext->setEditorControlsEnabled(true);
         runtimeContext->setEditorSimulationEnabled(false);
         runtimeContext->setEditorControlMode(1);
