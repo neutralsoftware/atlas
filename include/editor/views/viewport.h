@@ -19,6 +19,8 @@ class Context;
 class QCloseEvent;
 class QHideEvent;
 class QKeyEvent;
+class QJsonObject;
+class QJsonValue;
 class QMouseEvent;
 class QPaintEngine;
 class QResizeEvent;
@@ -39,6 +41,12 @@ class ViewportPanel : public QWidget {
     void shutdownRuntime();
     bool selectRuntimeObject(int id, bool focusCamera = true);
     bool renameRuntimeObject(int id, const QString &name);
+    bool setRuntimeObjectProperty(int id, const QString &component,
+                                  int componentIndex,
+                                  const QString &propertyPath,
+                                  const QJsonValue &value);
+    int addRuntimeObjectComponent(int id, const QString &type,
+                                  const QJsonObject &properties);
     bool setRuntimeObjectParent(int childId, int parentId);
     bool deleteRuntimeObject(int id);
     int createRuntimeObject(const QString &type, const QString &name = {});
@@ -47,6 +55,7 @@ class ViewportPanel : public QWidget {
   signals:
     void sceneSnapshotChanged(const QString &snapshot);
     void runtimeAvailabilityChanged(bool available);
+    void runtimeObjectActivated(int id);
 
   protected:
     QPaintEngine *paintEngine() const override;

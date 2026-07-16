@@ -90,6 +90,7 @@ struct PendingComponent {
     std::string objectType;
     std::string baseDir;
     json data;
+    int componentIndex = -1;
 };
 
 struct RuntimeEnvironmentDefinition {
@@ -1418,6 +1419,7 @@ void registerGameObject(Context &context, GameObject &object,
     context.objectNames[object.getId()] = name;
     context.objectSceneReferences[object.getId()] = name;
     context.objectSceneTypes[object.getId()] = objectType;
+    context.editorObjectSourceData[object.getId()] = objectData;
     if (objectType == "solid") {
         std::string solidType;
         tryReadStringAny(objectData, {"solid_type", "solidType"}, solidType);
@@ -1695,6 +1697,20 @@ bool updateObjectNode(json &node, const Context &context, GameObject &object) {
     const std::string name = serializableObjectName(context, object);
     const std::string reference = serializableObjectReference(context, object);
     if (objectNodeMatches(node, name, reference)) {
+        if (auto source = context.editorObjectSourceData.find(object.getId());
+            source != context.editorObjectSourceData.end() &&
+            source->second.is_object()) {
+            for (const auto &[key, value] : source->second.items()) {
+                if (key != "objects") {
+                    node[key] = value;
+                }
+            }
+        }
+        if (auto components =
+                context.editorComponentData.find(object.getId());
+            components != context.editorComponentData.end()) {
+            node["components"] = components->second;
+        }
         writeObjectTransform(node, context, object);
         return true;
     }
@@ -1741,6 +1757,11 @@ bool removeObjectNode(json &nodes, const std::string &name,
 
 json serializeNewObject(const Context &context, GameObject &object) {
     json node = json::object();
+    if (auto source = context.editorObjectSourceData.find(object.getId());
+        source != context.editorObjectSourceData.end() &&
+        source->second.is_object()) {
+        node = source->second;
+    }
     const std::string name = serializableObjectName(context, object);
     if (!name.empty()) {
         node["name"] = name;
@@ -1758,6 +1779,10 @@ json serializeNewObject(const Context &context, GameObject &object) {
                                  : "cube";
     }
     writeObjectTransform(node, context, object);
+    if (auto components = context.editorComponentData.find(object.getId());
+        components != context.editorComponentData.end()) {
+        node["components"] = components->second;
+    }
     return node;
 }
 
@@ -1939,13 +1964,16 @@ int registerEditorLightObject(Context &context,
     return id;
 }
 
-void collectPendingComponents(GameObject &object, const json &objectData,
+void collectPendingComponents(Context &context, GameObject &object,
+                              const json &objectData,
                               const std::string &baseDir,
                               std::vector<PendingComponent> &rigidbodies,
                               std::vector<PendingComponent> &standard,
                               std::vector<PendingComponent> &joints) {
     const json *componentsField = findField(objectData, {"components"});
     if (componentsField == nullptr) {
+        context.editorComponentData[object.getId()] = json::array();
+        context.editorComponentBaseDirs[object.getId()] = {};
         return;
     }
 
@@ -1964,14 +1992,22 @@ void collectPendingComponents(GameObject &object, const json &objectData,
     }
 
     if (componentEntries.empty()) {
+        context.editorComponentData[object.getId()] = json::array();
+        context.editorComponentBaseDirs[object.getId()] = {};
         return;
     }
+
+    context.editorComponentData[object.getId()] = componentEntries;
+    context.editorComponentBaseDirs[object.getId()] =
+        std::vector<std::string>(componentEntries.size(), definition.baseDir);
 
     std::string objectType;
     tryReadStringAny(objectData, {"type"}, objectType);
     objectType = normalizeToken(objectType);
 
-    for (const auto &componentData : componentEntries) {
+    for (std::size_t componentIndex = 0;
+         componentIndex < componentEntries.size(); ++componentIndex) {
+        const json &componentData = componentEntries[componentIndex];
         if (!componentData.is_object()) {
             continue;
         }
@@ -1988,6 +2024,7 @@ void collectPendingComponents(GameObject &object, const json &objectData,
             .objectType = objectType,
             .baseDir = definition.baseDir,
             .data = componentData,
+            .componentIndex = static_cast<int>(componentIndex),
         };
 
         if (normalizedType == "rigidbody") {
@@ -2406,14 +2443,29 @@ void configureVehicleSettings(bezel::VehicleSettings &settings,
     }
 }
 
-void attachComponent(Context &context, const PendingComponent &pending) {
+std::shared_ptr<Component> attachComponent(Context &context,
+                                           const PendingComponent &pending) {
     if (pending.object == nullptr || !pending.data.is_object()) {
-        return;
+        return nullptr;
     }
 
     std::string type;
     tryReadStringAny(pending.data, {"type"}, type);
     const std::string token = normalizeToken(type);
+    auto finish = [&](const std::shared_ptr<Component> &component) {
+        if (component != nullptr && pending.componentIndex >= 0) {
+            auto &components =
+                context.editorRuntimeComponents[pending.object->getId()];
+            if (components.size() <=
+                static_cast<std::size_t>(pending.componentIndex)) {
+                components.resize(
+                    static_cast<std::size_t>(pending.componentIndex) + 1);
+            }
+            components[static_cast<std::size_t>(pending.componentIndex)] =
+                component;
+        }
+        return component;
+    };
 
     if (token == "script" || token == "traitscript") {
         auto component = std::make_shared<RuntimeScriptComponent>();
@@ -2491,7 +2543,7 @@ void attachComponent(Context &context, const PendingComponent &pending) {
         }
 
         pending.object->addComponent(component);
-        return;
+        return finish(component);
     }
 
     if (token == "rigidbody") {
@@ -2550,7 +2602,7 @@ void attachComponent(Context &context, const PendingComponent &pending) {
             context.context, context.scriptHost, pending.object->getId(),
             rigidbody);
 
-        return;
+        return finish(rigidbody);
     }
 
     if (token == "audioplayer") {
@@ -2586,7 +2638,7 @@ void attachComponent(Context &context, const PendingComponent &pending) {
             component->play();
         }
 
-        return;
+        return finish(component);
     }
 
     if (token == "joint" || token == "fixedjoint") {
@@ -2596,7 +2648,7 @@ void attachComponent(Context &context, const PendingComponent &pending) {
         runtime::scripting::registerNativeFixedJoint(
             context.context, context.scriptHost, pending.object->getId(),
             component);
-        return;
+        return finish(component);
     }
 
     if (token == "hingejoint") {
@@ -2632,7 +2684,7 @@ void attachComponent(Context &context, const PendingComponent &pending) {
             context.context, context.scriptHost, pending.object->getId(),
             component);
 
-        return;
+        return finish(component);
     }
 
     if (token == "springjoint") {
@@ -2667,7 +2719,7 @@ void attachComponent(Context &context, const PendingComponent &pending) {
             context.context, context.scriptHost, pending.object->getId(),
             component);
 
-        return;
+        return finish(component);
     }
 
     if (token == "vehicle") {
@@ -2677,10 +2729,269 @@ void attachComponent(Context &context, const PendingComponent &pending) {
         runtime::scripting::registerNativeVehicle(
             context.context, context.scriptHost, pending.object->getId(),
             component);
-        return;
+        return finish(component);
     }
 
     throw std::runtime_error("Unknown component type: " + type);
+}
+
+bool updateAttachedComponent(Context &context, GameObject &object,
+                             const std::shared_ptr<Component> &component,
+                             const json &data, const std::string &baseDir,
+                             const std::string &propertyPath) {
+    if (component == nullptr || !data.is_object()) {
+        return false;
+    }
+
+    if (auto script =
+            std::dynamic_pointer_cast<RuntimeScriptComponent>(component);
+        script != nullptr) {
+        if (const json *variables = findField(data, {"variables"});
+            variables != nullptr) {
+            script->variables = *variables;
+            if (script->instance != nullptr) {
+                const std::string serialized = variables->dump();
+                JSValue parsed = JS_ParseJSON(
+                    context.context, serialized.c_str(), serialized.size(),
+                    "<atlas:variables>");
+                if (!JS_IsException(parsed)) {
+                    JS_SetPropertyStr(context.context,
+                                      script->instance->instance, "variables",
+                                      parsed);
+                } else {
+                    runtime::scripting::dumpExecution(context.context);
+                    JS_FreeValue(context.context, parsed);
+                }
+            }
+        }
+        tryReadStringAny(data, {"traitedType"}, script->traitedType);
+        if (!propertyPath.starts_with("/variables")) {
+            tryReadStringAny(data, {"name", "class", "className"},
+                             script->className);
+            std::string source;
+            if (tryReadStringAny(data, {"source"}, source) &&
+                !source.empty()) {
+                const std::string resolvedSource =
+                    resolveRuntimePath(baseDir, source);
+                std::string extension =
+                    std::filesystem::path(resolvedSource).extension().string();
+                std::transform(extension.begin(), extension.end(),
+                               extension.begin(), [](unsigned char value) {
+                                   return static_cast<char>(
+                                       std::tolower(value));
+                               });
+                if (extension == ".js" || extension == ".mjs") {
+                    script->entryModuleName =
+                        context.registerScriptModule(resolvedSource);
+                    script->source.clear();
+                } else {
+                    script->entryModuleName = context.scriptBundleModuleName;
+                    script->source =
+                        context.toProjectScriptPath(resolvedSource);
+                }
+                if (script->className.empty()) {
+                    script->className = inferScriptClassName(resolvedSource);
+                }
+            }
+            if (script->className.empty() ||
+                script->entryModuleName.empty()) {
+                throw std::runtime_error(
+                    "Script component is missing a valid class or source");
+            }
+            const int objectId = static_cast<int>(object.getId());
+            if (script->isTrait && !script->traitedType.empty() &&
+                context.objectSceneTypes.contains(objectId) &&
+                normalizeToken(script->traitedType) !=
+                    normalizeToken(context.objectSceneTypes[objectId])) {
+                throw std::runtime_error(
+                    "Trait script is incompatible with the object type");
+            }
+            script->instance.reset();
+            script->initialized = false;
+            script->atAttach();
+            script->init();
+        }
+        return true;
+    }
+
+    if (auto rigidbody = std::dynamic_pointer_cast<Rigidbody>(component);
+        rigidbody != nullptr) {
+        tryReadStringAny(data, {"sendSignal", "signal"},
+                         rigidbody->sendSignal);
+        tryReadBoolAny(data, {"isSensor"}, rigidbody->isSensor);
+        if (rigidbody->body != nullptr) {
+            rigidbody->body->sensorSignal = rigidbody->sendSignal;
+            rigidbody->body->isSensor = rigidbody->isSensor;
+        }
+        if (propertyPath.starts_with("/collider")) {
+            if (const json *collider = findField(data, {"collider"});
+                collider != nullptr) {
+                configureRigidbodyCollider(rigidbody, object, *collider);
+            }
+        }
+        float value = 0.0f;
+        if (tryReadFloatAny(data, {"friction"}, value)) {
+            rigidbody->setFriction(value);
+        }
+        if (tryReadFloatAny(data, {"mass"}, value)) {
+            rigidbody->setMass(value);
+        }
+        if (tryReadFloatAny(data, {"restitution", "restituition"}, value)) {
+            rigidbody->setRestitution(value);
+        }
+        if (const json *damping = findField(data, {"damping"});
+            damping != nullptr && damping->is_object()) {
+            float linear = 0.0f;
+            float angular = 0.0f;
+            tryReadFloatAny(*damping, {"linear"}, linear);
+            tryReadFloatAny(*damping, {"angular"}, angular);
+            rigidbody->setDamping(linear, angular);
+        }
+        if (propertyPath.starts_with("/tags") && rigidbody->body != nullptr) {
+            rigidbody->body->tags.clear();
+            if (const json *tags = findField(data, {"tags"});
+                tags != nullptr && tags->is_array()) {
+                for (const auto &tag : *tags) {
+                    if (tag.is_string()) {
+                        rigidbody->addTag(tag.get<std::string>());
+                    }
+                }
+            }
+        }
+        std::string motionType;
+        if (tryReadStringAny(data, {"motionType"}, motionType)) {
+            rigidbody->setMotionType(parseMotionType(motionType));
+        }
+        if (rigidbody->body != nullptr &&
+            rigidbody->body->collider != nullptr &&
+            Window::mainWindow != nullptr &&
+            Window::mainWindow->physicsWorld != nullptr) {
+            rigidbody->body->position = object.getPosition();
+            rigidbody->body->rotation = object.getRotation();
+            rigidbody->body->create(Window::mainWindow->physicsWorld);
+            auto attached =
+                context.editorRuntimeComponents.find(object.getId());
+            if (attached != context.editorRuntimeComponents.end()) {
+                for (const auto &entry : attached->second) {
+                    const std::shared_ptr<Component> related = entry.lock();
+                    if (auto joint =
+                            std::dynamic_pointer_cast<Joint>(related);
+                        joint != nullptr) {
+                        joint->breakJoint();
+                    }
+                    if (auto vehicle =
+                            std::dynamic_pointer_cast<Vehicle>(related);
+                        vehicle != nullptr) {
+                        vehicle->requestRecreate();
+                    }
+                }
+            }
+        }
+        return true;
+    }
+
+    if (auto audio = std::dynamic_pointer_cast<AudioPlayer>(component);
+        audio != nullptr) {
+        if (propertyPath == "/source") {
+            std::string source;
+            if (tryReadStringAny(data, {"source"}, source) &&
+                !source.empty()) {
+                audio->setSource(createRuntimeResource(
+                    baseDir, source, ResourceType::Audio, "runtime-audio"));
+            }
+        }
+        bool spatialization = false;
+        if (tryReadBoolAny(data, {"useSpatialization"}, spatialization)) {
+            if (spatialization) {
+                audio->useSpatialization();
+            } else {
+                audio->disableSpatialization();
+            }
+        }
+        Position3d position;
+        if (tryReadVec3Any(data, {"position"}, position)) {
+            audio->setPosition(position);
+        }
+        if (propertyPath == "/autoplay" || propertyPath == "/playOnStart") {
+            bool autoPlay = false;
+            tryReadBoolAny(data, {"autoplay", "autoPlay", "playOnStart"},
+                           autoPlay);
+            if (autoPlay) {
+                audio->play();
+            } else {
+                audio->stop();
+            }
+        }
+        return true;
+    }
+
+    if (auto joint = std::dynamic_pointer_cast<Joint>(component);
+        joint != nullptr) {
+        joint->breakJoint();
+        configureJointBase(*joint, context, object, data);
+        if (auto hinge = std::dynamic_pointer_cast<HingeJoint>(component);
+            hinge != nullptr) {
+            Position3d axis;
+            if (tryReadVec3Any(data, {"axis1"}, axis)) {
+                hinge->axis1 = normalizeVector(axis, {0.0f, 1.0f, 0.0f});
+            }
+            if (tryReadVec3Any(data, {"axis2"}, axis)) {
+                hinge->axis2 = normalizeVector(axis, {0.0f, 1.0f, 0.0f});
+            }
+            if (const json *limits = findField(data, {"limits"});
+                limits != nullptr && limits->is_object()) {
+                tryReadBoolAny(*limits, {"isEnabled", "enabled"},
+                               hinge->limits.enabled);
+                tryReadFloatAny(*limits, {"minAngle"},
+                                hinge->limits.minAngle);
+                tryReadFloatAny(*limits, {"maxAngle"},
+                                hinge->limits.maxAngle);
+            }
+            if (const json *motor = findField(data, {"motor"});
+                motor != nullptr && motor->is_object()) {
+                tryReadBoolAny(*motor, {"isEnabled", "enabled"},
+                               hinge->motor.enabled);
+                tryReadFloatAny(*motor, {"maxForce"}, hinge->motor.maxForce);
+                tryReadFloatAny(*motor, {"maxTorque"},
+                                hinge->motor.maxTorque);
+            }
+        }
+        if (auto spring = std::dynamic_pointer_cast<SpringJoint>(component);
+            spring != nullptr) {
+            tryReadVec3Any(data, {"anchorB"}, spring->anchorB);
+            tryReadFloatAny(data, {"restLength"}, spring->restLength);
+            tryReadBoolAny(data, {"useLimits"}, spring->useLimits);
+            tryReadFloatAny(data, {"minLength"}, spring->minLength);
+            tryReadFloatAny(data, {"maxLength"}, spring->maxLength);
+            if (const json *settings = findField(data, {"spring"});
+                settings != nullptr && settings->is_object()) {
+                tryReadBoolAny(*settings, {"enabled", "isEnabled"},
+                               spring->spring.enabled);
+                std::string mode;
+                if (tryReadStringAny(*settings, {"mode"}, mode)) {
+                    spring->spring.mode = parseSpringMode(mode);
+                }
+                tryReadFloatAny(*settings, {"frequencyHz"},
+                                spring->spring.frequencyHz);
+                tryReadFloatAny(*settings, {"dampingRatio"},
+                                spring->spring.dampingRatio);
+                tryReadFloatAny(*settings, {"stiffness"},
+                                spring->spring.stiffness);
+                tryReadFloatAny(*settings, {"damping"},
+                                spring->spring.damping);
+            }
+        }
+        return true;
+    }
+
+    if (auto vehicle = std::dynamic_pointer_cast<Vehicle>(component);
+        vehicle != nullptr) {
+        configureVehicleSettings(vehicle->settings, data);
+        vehicle->requestRecreate();
+        return true;
+    }
+
+    return false;
 }
 
 Key parseKeyString(const std::string &value) {
@@ -3192,7 +3503,7 @@ createRenderable(Context &context, const json &objectData,
         }
 
         applyTransform(*object, objectData);
-        collectPendingComponents(*object, objectData, baseDir, rigidbodies,
+        collectPendingComponents(context, *object, objectData, baseDir, rigidbodies,
                                  standard, joints);
         return object;
     }
@@ -3205,7 +3516,7 @@ createRenderable(Context &context, const json &objectData,
                            generatedIndex);
         context.objects.push_back(object);
         applyTransform(*object, objectData);
-        collectPendingComponents(*object, objectData, baseDir, rigidbodies,
+        collectPendingComponents(context, *object, objectData, baseDir, rigidbodies,
                                  standard, joints);
         return object;
     }
@@ -3237,7 +3548,7 @@ createRenderable(Context &context, const json &objectData,
         }
 
         applyTransform(*object, objectData);
-        collectPendingComponents(*object, objectData, baseDir, rigidbodies,
+        collectPendingComponents(context, *object, objectData, baseDir, rigidbodies,
                                  standard, joints);
         return object;
     }
@@ -3264,7 +3575,7 @@ createRenderable(Context &context, const json &objectData,
         }
 
         applyTransform(*object, objectData);
-        collectPendingComponents(*object, objectData, baseDir, rigidbodies,
+        collectPendingComponents(context, *object, objectData, baseDir, rigidbodies,
                                  standard, joints);
         return object;
     }
@@ -3348,7 +3659,7 @@ createRenderable(Context &context, const json &objectData,
             object->setParticleSettings(settings);
         }
 
-        collectPendingComponents(*object, objectData, baseDir, rigidbodies,
+        collectPendingComponents(context, *object, objectData, baseDir, rigidbodies,
                                  standard, joints);
         return object;
     }
@@ -3407,7 +3718,7 @@ createRenderable(Context &context, const json &objectData,
         }
 
         applyTransform(*object, objectData);
-        collectPendingComponents(*object, objectData, baseDir, rigidbodies,
+        collectPendingComponents(context, *object, objectData, baseDir, rigidbodies,
                                  standard, joints);
         return object;
     }
@@ -3726,6 +4037,28 @@ GameObject *findContextObject(const Context &context, int id) {
     return nullptr;
 }
 
+bool setJsonProperty(json &target, const std::string &propertyPath,
+                     const json &value) {
+    if (propertyPath.empty()) {
+        return false;
+    }
+    try {
+        const std::string pointerPath = propertyPath.front() == '/'
+                                            ? propertyPath
+                                            : '/' + propertyPath;
+        target[json::json_pointer(pointerPath)] = value;
+        return true;
+    } catch (const json::exception &) {
+        return false;
+    }
+}
+
+bool readEditorVec3(const json &value, Position3d &result) {
+    json wrapper = json::object();
+    wrapper["value"] = value;
+    return tryReadVec3Any(wrapper, {"value"}, result);
+}
+
 std::string editorObjectName(const Context &context, GameObject &object) {
     if (!object.name.empty()) {
         return object.name;
@@ -3786,6 +4119,21 @@ json editorObjectJson(const Context &context, GameObject &object,
     node["position"] = vec3ToJson(object.getPosition());
     node["rotation"] = rotationToJson(object.getRotation());
     node["scale"] = vec3ToJson(object.getScale());
+    if (auto light = context.editorLightSourceData.find(id);
+        light != context.editorLightSourceData.end()) {
+        node["properties"] = light->second;
+    } else if (auto source = context.editorObjectSourceData.find(id);
+               source != context.editorObjectSourceData.end()) {
+        node["properties"] = source->second;
+    } else {
+        node["properties"] = json::object();
+    }
+    if (auto components = context.editorComponentData.find(id);
+        components != context.editorComponentData.end()) {
+        node["components"] = components->second;
+    } else {
+        node["components"] = json::array();
+    }
 
     if (visiting.contains(id)) {
         return node;
@@ -3876,6 +4224,10 @@ bool Context::selectObject(int id, bool focusCamera) {
     if (window == nullptr) {
         return false;
     }
+    if (id < 0) {
+        window->selectEditorObject(nullptr, false);
+        return true;
+    }
     GameObject *object = findContextObject(*this, id);
     if (object == nullptr) {
         return false;
@@ -3902,9 +4254,168 @@ bool Context::renameObject(int id, const std::string &name) {
 
     object->name = name;
     objectNames[id] = name;
+    editorObjectSourceData[id]["name"] = name;
+    if (editorLightSourceData.contains(id)) {
+        editorLightSourceData[id]["name"] = name;
+    }
     registerObjectReference(*this, name, object);
     registerObjectReference(*this, std::to_string(id), object);
     return true;
+}
+
+bool Context::setObjectProperty(int id, const std::string &component,
+                                int componentIndex,
+                                const std::string &propertyPath,
+                                const json &value) {
+    GameObject *object = findContextObject(*this, id);
+    if (object == nullptr) {
+        return false;
+    }
+
+    const std::string normalizedComponent = normalizeToken(component);
+    if (normalizedComponent == "transform") {
+        Position3d vector;
+        if (!readEditorVec3(value, vector)) {
+            return false;
+        }
+        const std::string property = normalizeToken(propertyPath);
+        if (property == "position") {
+            object->setPosition(vector);
+        } else if (property == "rotation") {
+            object->setRotation(Rotation3d{vector.x, vector.y, vector.z});
+        } else if (property == "scale") {
+            object->setScale(vector);
+        } else {
+            return false;
+        }
+        setJsonProperty(editorObjectSourceData[id], "/" + property, value);
+        syncEditorLightObject(*this, *object);
+        return true;
+    }
+
+    if (normalizedComponent == "object") {
+        json &source = editorLightSourceData.contains(id)
+                           ? editorLightSourceData[id]
+                           : editorObjectSourceData[id];
+        return setJsonProperty(source, propertyPath, value);
+    }
+
+    auto components = editorComponentData.find(id);
+    if (components == editorComponentData.end() ||
+        !components->second.is_array() || componentIndex < 0 ||
+        componentIndex >= static_cast<int>(components->second.size())) {
+        return false;
+    }
+    json &componentData = components->second[componentIndex];
+    if (!componentData.is_object()) {
+        return false;
+    }
+    std::string storedType;
+    tryReadStringAny(componentData, {"type"}, storedType);
+    if (normalizeToken(storedType) != normalizedComponent) {
+        return false;
+    }
+    if (!setJsonProperty(componentData, propertyPath, value)) {
+        return false;
+    }
+
+    std::shared_ptr<Component> runtimeComponent;
+    auto runtimeComponents = editorRuntimeComponents.find(id);
+    if (runtimeComponents != editorRuntimeComponents.end() &&
+        componentIndex < static_cast<int>(runtimeComponents->second.size())) {
+        runtimeComponent =
+            runtimeComponents->second[static_cast<std::size_t>(componentIndex)]
+                .lock();
+    }
+
+    std::string componentBaseDir = sceneDir;
+    auto baseDirs = editorComponentBaseDirs.find(id);
+    if (baseDirs != editorComponentBaseDirs.end() &&
+        componentIndex < static_cast<int>(baseDirs->second.size())) {
+        componentBaseDir =
+            baseDirs->second[static_cast<std::size_t>(componentIndex)];
+    }
+    PendingComponent pending{
+        .object = object,
+        .objectType = objectSceneTypes.contains(id) ? objectSceneTypes[id] : "",
+        .baseDir = componentBaseDir,
+        .data = componentData,
+        .componentIndex = componentIndex,
+    };
+    try {
+        if (runtimeComponent == nullptr) {
+            runtimeComponent = attachComponent(*this, pending);
+            if (runtimeComponent != nullptr) {
+                runtimeComponent->init();
+            }
+        } else {
+            updateAttachedComponent(*this, *object, runtimeComponent,
+                                    componentData, componentBaseDir,
+                                    propertyPath);
+        }
+    } catch (const std::exception &error) {
+        RUNTIME_LOG("Component update is waiting for valid values: " +
+                    std::string(error.what()));
+    }
+    return true;
+}
+
+int Context::addObjectComponent(int id, const json &component) {
+    GameObject *object = findContextObject(*this, id);
+    if (object == nullptr || !component.is_object()) {
+        return -1;
+    }
+    std::string type;
+    if (!tryReadStringAny(component, {"type"}, type) || type.empty()) {
+        return -1;
+    }
+    const std::string normalizedType = normalizeToken(type);
+    static const std::unordered_set<std::string> supported{
+        "script",      "traitscript", "rigidbody", "audioplayer",
+        "joint",       "fixedjoint",  "hingejoint", "springjoint",
+        "vehicle",
+    };
+    if (!supported.contains(normalizedType)) {
+        return -1;
+    }
+
+    json &components = editorComponentData[id];
+    if (!components.is_array()) {
+        components = json::array();
+        editorComponentBaseDirs[id].clear();
+        editorRuntimeComponents[id].clear();
+    }
+    if (normalizedType != "script" && normalizedType != "traitscript") {
+        for (const auto &existing : components) {
+            std::string existingType;
+            tryReadStringAny(existing, {"type"}, existingType);
+            if (normalizeToken(existingType) == normalizedType) {
+                return -1;
+            }
+        }
+    }
+
+    const int index = static_cast<int>(components.size());
+    components.push_back(component);
+    editorComponentBaseDirs[id].resize(static_cast<std::size_t>(index));
+    editorComponentBaseDirs[id].push_back(sceneDir);
+    PendingComponent pending{
+        .object = object,
+        .objectType = objectSceneTypes.contains(id) ? objectSceneTypes[id] : "",
+        .baseDir = sceneDir,
+        .data = component,
+        .componentIndex = index,
+    };
+    try {
+        std::shared_ptr<Component> attached = attachComponent(*this, pending);
+        if (attached != nullptr) {
+            attached->init();
+        }
+    } catch (const std::exception &error) {
+        RUNTIME_LOG("Component added and waiting for valid values: " +
+                    std::string(error.what()));
+    }
+    return index;
 }
 
 bool Context::setObjectParent(int childId, int parentId) {
@@ -3936,6 +4447,7 @@ bool Context::setObjectParent(int childId, int parentId) {
     if (parentId < 0) {
         objectParents.erase(childId);
         objectParentReferences.erase(childId);
+        editorObjectSourceData[childId].erase("parent");
         if (window != nullptr) {
             window->setEditorObjectParent(child, nullptr);
         }
@@ -3944,6 +4456,9 @@ bool Context::setObjectParent(int childId, int parentId) {
 
     objectParents[childId] = parentId;
     objectParentReferences[childId] = std::to_string(parentId);
+    editorObjectSourceData[childId]["parent"] =
+        objectNames.contains(parentId) ? objectNames[parentId]
+                                       : std::to_string(parentId);
     if (window != nullptr) {
         window->setEditorObjectParent(child, parent);
     }
@@ -4053,6 +4568,10 @@ bool Context::deleteObject(int id) {
         editorDirectionalLights.erase(it);
     }
     editorLightSourceData.erase(id);
+    editorObjectSourceData.erase(id);
+    editorComponentData.erase(id);
+    editorComponentBaseDirs.erase(id);
+    editorRuntimeComponents.erase(id);
     objectNames.erase(id);
     objectSceneReferences.erase(id);
     objectSceneTypes.erase(id);
@@ -4277,6 +4796,19 @@ int Context::createObject(const std::string &type, const std::string &name) {
     }
     registerObjectReference(*this, displayName, object.get());
     registerObjectReference(*this, std::to_string(id), object.get());
+
+    editorObjectSourceData[id] = json::object(
+        {{"id", id},
+         {"name", displayName},
+         {"type", sceneType},
+         {"position", vec3ToJson(position)},
+         {"rotation", rotationToJson(object->getRotation())},
+         {"scale", vec3ToJson(object->getScale())}});
+    if (!solidType.empty()) {
+        editorObjectSourceData[id]["solid_type"] = solidType;
+    }
+    editorComponentData[id] = json::array();
+    editorComponentBaseDirs[id] = {};
 
     objects.push_back(object);
     window->addObject(object.get());
@@ -4556,6 +5088,10 @@ void Context::loadScene(Window &window, const json &sceneData) {
     objectSceneSolidTypes.clear();
     objectParentReferences.clear();
     objectParents.clear();
+    editorObjectSourceData.clear();
+    editorComponentData.clear();
+    editorComponentBaseDirs.clear();
+    editorRuntimeComponents.clear();
     editorPointLights.clear();
     editorSpotlights.clear();
     editorAreaLights.clear();

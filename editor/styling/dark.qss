@@ -508,6 +508,190 @@ QListView#contentGrid::item:selected {
     color: #FFFFFF;
 }
 
+QScrollArea#inspectorScroll {
+    background-color: #1B1F20;
+    border: none;
+    border-radius: 0;
+}
+
+#inspectorContent {
+    background-color: #1B1F20;
+}
+
+#inspectorHeader {
+    background-color: #24292B;
+    border: 1px solid #353D41;
+    border-radius: 8px;
+}
+
+#inspectorObjectIcon {
+    background-color: #1C2022;
+    border: 1px solid #3B4449;
+    border-radius: 9px;
+    padding: 2px;
+}
+
+#inspectorNameField {
+    background-color: transparent;
+    border: 1px solid transparent;
+    border-radius: 4px;
+    color: #F4F7F8;
+    font-size: 15px;
+    font-weight: 650;
+    padding: 2px 4px;
+    min-height: 20px;
+}
+
+#inspectorNameField:hover {
+    background-color: #1D2123;
+    border-color: #3C464B;
+}
+
+#inspectorNameField:focus {
+    background-color: #171A1B;
+    border-color: #5FB3FF;
+}
+
+#inspectorTypeLabel {
+    color: #879299;
+    padding-left: 5px;
+    font-size: 11px;
+}
+
+#inspectorComponent {
+    background-color: #23282A;
+    border: 1px solid #363E42;
+    border-radius: 7px;
+}
+
+#inspectorComponentHeader {
+    background-color: #2A3033;
+    border: none;
+    border-bottom: 1px solid #343D41;
+    border-radius: 6px;
+    padding: 7px 9px;
+    color: #EEF2F4;
+    font-weight: 650;
+    text-align: left;
+}
+
+#inspectorComponentHeader:hover {
+    background-color: #30373A;
+}
+
+#inspectorComponentBody {
+    background-color: transparent;
+}
+
+#inspectorPropertyRow {
+    background-color: transparent;
+    border: none;
+}
+
+#inspectorPropertyLabel {
+    color: #ABB5BA;
+    font-size: 12px;
+}
+
+#inspectorVectorField,
+#inspectorColorField {
+    background-color: #191C1D;
+    border: 1px solid #363D41;
+    border-radius: 5px;
+}
+
+#inspectorAxisLabel {
+    color: #748088;
+    font-size: 10px;
+    font-weight: 700;
+    min-width: 10px;
+}
+
+#inspectorVectorField QDoubleSpinBox {
+    background-color: transparent;
+    border: none;
+    border-radius: 0;
+    padding: 4px 2px;
+}
+
+#inspectorColorSwatch {
+    border: 1px solid #566167;
+    border-radius: 4px;
+    padding: 0;
+    min-height: 18px;
+}
+
+#inspectorColorText {
+    background-color: transparent;
+    border: none;
+    padding: 3px;
+}
+
+#inspectorNestedGroup {
+    background-color: #202426;
+    border-top: 1px solid #30373A;
+    border-bottom: 1px solid #30373A;
+}
+
+#inspectorNestedTitle {
+    color: #D1D8DC;
+    font-weight: 650;
+    padding: 2px 1px 4px 1px;
+}
+
+#inspectorArrayTitle {
+    color: #7FB9EC;
+    font-size: 11px;
+    font-weight: 650;
+    padding: 5px 2px 1px 2px;
+}
+
+#inspectorArrayButton {
+    background-color: transparent;
+    border: 1px solid transparent;
+    border-radius: 4px;
+    color: #AEB8BE;
+    min-width: 20px;
+    min-height: 18px;
+    padding: 1px 4px;
+}
+
+#inspectorArrayButton:hover {
+    background-color: #30373A;
+    border-color: #465157;
+    color: #FFFFFF;
+}
+
+#inspectorEmptyTitle {
+    color: #DDE3E6;
+    font-size: 15px;
+    font-weight: 650;
+}
+
+#inspectorEmptyHint {
+    color: #77838A;
+    font-size: 12px;
+}
+
+#inspectorOpenAssetButton {
+    min-height: 24px;
+}
+
+#inspectorAddComponentButton {
+    background-color: #2B3235;
+    border: 1px solid #465158;
+    border-radius: 6px;
+    color: #E9EEF0;
+    font-weight: 600;
+    min-height: 25px;
+    padding: 6px 12px;
+}
+
+#inspectorAddComponentButton:hover {
+    background-color: #343C40;
+    border-color: #5B6970;
+}
+
 QHeaderView {
     background-color: #252A2C;
     border: none;

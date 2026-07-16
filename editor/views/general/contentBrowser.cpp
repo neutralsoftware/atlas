@@ -28,6 +28,7 @@
 #include <QMessageBox>
 #include <QProcess>
 #include <QSaveFile>
+#include <QSignalBlocker>
 #include <QSize>
 #include <QStyle>
 #include <QToolButton>
@@ -71,7 +72,7 @@ bool isValidEntryName(const QString &name) {
     return !name.isEmpty() && name != "." && name != ".." &&
            !name.contains('/') && !name.contains('\\');
 }
-}
+} // namespace
 
 ContentBrowserPanel::ContentBrowserPanel(const QString &projectFile,
                                          QWidget *parent)
@@ -222,7 +223,10 @@ ContentBrowserPanel::ContentBrowserPanel(const QString &projectFile,
                 model->setNameFilterDisables(false);
             });
     connect(gridView->selectionModel(), &QItemSelectionModel::selectionChanged,
-            this, [this] { updateNavigationState(); });
+            this, [this] {
+                updateNavigationState();
+                emit selectionChanged(selectedPath());
+            });
 
     auto *deleteAction = new QAction(this);
     deleteAction->setShortcut(QKeySequence::Delete);
@@ -255,6 +259,16 @@ void ContentBrowserPanel::setRootPath(const QString &path) {
     navigateTo(projectRoot);
 }
 
+void ContentBrowserPanel::clearSelection() {
+    if (gridView->selectionModel()->selectedIndexes().isEmpty()) {
+        return;
+    }
+    const QSignalBlocker blocker(gridView->selectionModel());
+    gridView->clearSelection();
+    gridView->setCurrentIndex(QModelIndex());
+    updateNavigationState();
+}
+
 void ContentBrowserPanel::navigateTo(const QString &path, bool recordHistory) {
     const QFileInfo info(path);
     const QString target = info.canonicalFilePath().isEmpty()
@@ -279,6 +293,7 @@ void ContentBrowserPanel::navigateTo(const QString &path, bool recordHistory) {
         historyIndex = history.size() - 1;
     }
     updateNavigationState();
+    emit selectionChanged(QString());
 }
 
 void ContentBrowserPanel::openIndex(const QModelIndex &index) {
@@ -449,7 +464,9 @@ void ContentBrowserPanel::copySelectionPath() const {
 
 QString ContentBrowserPanel::selectedPath() const {
     const QModelIndex index = gridView->currentIndex();
-    return index.isValid() ? model->filePath(index) : QString();
+    return index.isValid() && gridView->selectionModel()->isSelected(index)
+               ? model->filePath(index)
+               : QString();
 }
 
 QString ContentBrowserPanel::uniquePath(const QString &baseName) const {

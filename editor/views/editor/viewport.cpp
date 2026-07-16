@@ -18,6 +18,10 @@
 #include <QCoreApplication>
 #include <QDebug>
 #include <QHideEvent>
+#include <QJsonArray>
+#include <QJsonDocument>
+#include <QJsonObject>
+#include <QJsonValue>
 #include <QKeyEvent>
 #include <QMouseEvent>
 #include <QPaintEngine>
@@ -196,6 +200,9 @@ void ViewportPanel::mousePressEvent(QMouseEvent *event) {
     sendPointerEvent(0, static_cast<float>(event->position().x()),
                      static_cast<float>(event->position().y()),
                      runtimeMouseButton(event->button()));
+    if (event->button() == Qt::LeftButton && runtimeContext != nullptr) {
+        emit runtimeObjectActivated(runtimeContext->selectedObjectId());
+    }
     event->accept();
 }
 
@@ -380,7 +387,9 @@ bool ViewportPanel::selectRuntimeObject(int id, bool focusCamera) {
         return false;
     }
     refreshSceneSnapshot();
-    setFocus(Qt::OtherFocusReason);
+    if (id >= 0) {
+        setFocus(Qt::OtherFocusReason);
+    }
     return true;
 }
 
@@ -391,6 +400,52 @@ bool ViewportPanel::renameRuntimeObject(int id, const QString &name) {
     }
     refreshSceneSnapshot();
     return true;
+}
+
+bool ViewportPanel::setRuntimeObjectProperty(
+    int id, const QString &component, int componentIndex,
+    const QString &propertyPath, const QJsonValue &value) {
+    if (runtimeContext == nullptr) {
+        return false;
+    }
+    QJsonArray wrapper;
+    wrapper.append(value);
+    const QByteArray payload =
+        QJsonDocument(wrapper).toJson(QJsonDocument::Compact);
+    try {
+        const json parsed = json::parse(payload.constData());
+        if (!parsed.is_array() || parsed.empty() ||
+            !runtimeContext->setObjectProperty(
+                id, component.toStdString(), componentIndex,
+                propertyPath.toStdString(), parsed.front())) {
+            return false;
+        }
+    } catch (const json::exception &) {
+        return false;
+    }
+    refreshSceneSnapshot();
+    return true;
+}
+
+int ViewportPanel::addRuntimeObjectComponent(
+    int id, const QString &type, const QJsonObject &properties) {
+    if (runtimeContext == nullptr || type.isEmpty()) {
+        return -1;
+    }
+    QJsonObject definition = properties;
+    definition.insert("type", type);
+    const QByteArray payload =
+        QJsonDocument(definition).toJson(QJsonDocument::Compact);
+    try {
+        const json parsed = json::parse(payload.constData());
+        const int index = runtimeContext->addObjectComponent(id, parsed);
+        if (index >= 0) {
+            refreshSceneSnapshot();
+        }
+        return index;
+    } catch (const json::exception &) {
+        return -1;
+    }
 }
 
 bool ViewportPanel::setRuntimeObjectParent(int childId, int parentId) {

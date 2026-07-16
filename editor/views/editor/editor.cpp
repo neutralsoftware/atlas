@@ -12,9 +12,12 @@
 #include <editor/project/projectStore.h>
 
 #include <QAction>
+#include <QList>
 #include <QMenuBar>
 #include <QStyle>
 #include <QSettings>
+#include <QTimer>
+#include <QVariantList>
 #include <QCloseEvent>
 
 #include "DockManager.h"
@@ -106,26 +109,45 @@ void EditorWindow::setupDocks() {
          .area = EditorDockArea::Center,
          .icon = style()->standardIcon(QStyle::SP_DirOpenIcon)});
 
+    auto *hierarchyPanel = new HierarchyPanel(viewportPanel);
     dockManager->addPanel(
         {.id = "hierarchy",
          .title = "Hierarchy Panel",
-         .widget = new HierarchyPanel(viewportPanel),
+         .widget = hierarchyPanel,
          .area = EditorDockArea::Left,
          .icon = style()->standardIcon(QStyle::SP_DirOpenIcon)});
 
+    inspectorPanel = new InspectorPanel(viewportPanel);
     dockManager->addPanel(
         {.id = "inspector",
          .title = "Inspector",
-         .widget = new InspectorPanel(),
+         .widget = inspectorPanel,
          .area = EditorDockArea::Right,
          .icon = style()->standardIcon(QStyle::SP_DirOpenIcon)});
 
+    auto *contentBrowser = new ContentBrowserPanel(projectFile);
     dockManager->addPanel(
         {.id = "fileExplorer",
          .title = "Content Browser",
-         .widget = new ContentBrowserPanel(projectFile),
+         .widget = contentBrowser,
          .area = EditorDockArea::Bottom,
          .icon = style()->standardIcon(QStyle::SP_DirOpenIcon)});
+
+    connect(hierarchyPanel, &HierarchyPanel::objectActivated, inspectorPanel,
+            &InspectorPanel::inspectRuntimeObject);
+    connect(hierarchyPanel, &HierarchyPanel::objectActivated, contentBrowser,
+            &ContentBrowserPanel::clearSelection);
+    connect(viewportPanel, &ViewportPanel::runtimeObjectActivated,
+            inspectorPanel, &InspectorPanel::inspectRuntimeObject);
+    connect(viewportPanel, &ViewportPanel::runtimeObjectActivated,
+            contentBrowser, &ContentBrowserPanel::clearSelection);
+    connect(contentBrowser, &ContentBrowserPanel::selectionChanged, this,
+            [this](const QString &path) {
+                if (!path.isEmpty()) {
+                    viewportPanel->selectRuntimeObject(-1, false);
+                }
+                this->inspectorPanel->inspectFile(path);
+            });
 }
 
 void EditorWindow::saveLayout() {
@@ -134,6 +156,20 @@ void EditorWindow::saveLayout() {
     settings.setValue("window/geometry", saveGeometry());
     settings.setValue("window/state", saveState());
     settings.setValue("docking/state/v2", coreManager->saveState(2));
+    if (inspectorPanel != nullptr) {
+        settings.setValue("panels/inspector/width", inspectorPanel->width());
+    }
+    if (dockManager != nullptr) {
+        auto *dock = dockManager->panel("inspector");
+        if (dock != nullptr && dock->dockAreaWidget() != nullptr) {
+            QVariantList sizes;
+            for (int size :
+                 coreManager->splitterSizes(dock->dockAreaWidget())) {
+                sizes.append(size);
+            }
+            settings.setValue("panels/inspector/splitterSizes", sizes);
+        }
+    }
 }
 
 void EditorWindow::restoreLayout() {
@@ -148,6 +184,34 @@ void EditorWindow::restoreLayout() {
     if (!dockState.isEmpty()) {
         coreManager->restoreState(dockState, 2);
     }
+
+    const int inspectorWidth =
+        settings.value("panels/inspector/width", 320).toInt();
+    const QVariantList storedSizes =
+        settings.value("panels/inspector/splitterSizes").toList();
+    QTimer::singleShot(0, this,
+                       [this, inspectorWidth, storedSizes] {
+                           if (inspectorPanel != nullptr &&
+                               inspectorWidth > 0) {
+                               inspectorPanel->resize(
+                                   inspectorWidth, inspectorPanel->height());
+                           }
+                           if (dockManager == nullptr ||
+                               storedSizes.isEmpty()) {
+                               return;
+                           }
+                           auto *dock = dockManager->panel("inspector");
+                           if (dock == nullptr ||
+                               dock->dockAreaWidget() == nullptr) {
+                               return;
+                           }
+                           QList<int> sizes;
+                           for (const QVariant &size : storedSizes) {
+                               sizes.append(size.toInt());
+                           }
+                           coreManager->setSplitterSizes(
+                               dock->dockAreaWidget(), sizes);
+                       });
 }
 
 void EditorWindow::closeEvent(QCloseEvent *event) {

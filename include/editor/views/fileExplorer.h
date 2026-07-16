@@ -28,6 +28,10 @@ class ContentBrowserPanel : public QWidget {
                                  QWidget *parent = nullptr);
 
     void setRootPath(const QString &path);
+    void clearSelection();
+
+  signals:
+    void selectionChanged(const QString &path);
 
   private:
     void navigateTo(const QString &path, bool recordHistory = true);

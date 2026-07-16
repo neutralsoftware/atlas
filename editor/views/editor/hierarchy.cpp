@@ -87,7 +87,7 @@ QString objectSignature(const QJsonArray &objects) {
     }
     return signature;
 }
-}
+} // namespace
 
 HierarchyPanel::HierarchyPanel(ViewportPanel *viewport, QWidget *parent)
     : QWidget(parent), viewport(viewport) {
@@ -366,6 +366,7 @@ void HierarchyPanel::focusSelectedObject() {
     const int id = selectedObjectId();
     if (id >= 0) {
         viewport->selectRuntimeObject(id, true);
+        emit objectActivated(id);
     }
 }
 

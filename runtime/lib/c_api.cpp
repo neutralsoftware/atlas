@@ -301,6 +301,49 @@ bool atlas_runtime_rename_object(void *runtimeContext, int id,
     }
 }
 
+bool atlas_runtime_set_object_property(void *runtimeContext, int id,
+                                       const char *component,
+                                       int componentIndex,
+                                       const char *propertyPath,
+                                       const char *jsonValue) {
+    if (runtimeContext == nullptr || component == nullptr ||
+        propertyPath == nullptr || jsonValue == nullptr) {
+        return false;
+    }
+    try {
+        auto *handle = reinterpret_cast<RuntimeContextHandle *>(runtimeContext);
+        if (*handle == nullptr) {
+            return false;
+        }
+        return (*handle)->setObjectProperty(
+            id, component, componentIndex, propertyPath,
+            nlohmann::json::parse(jsonValue));
+    } catch (const std::exception &) {
+        return false;
+    } catch (...) {
+        return false;
+    }
+}
+
+int atlas_runtime_add_object_component(void *runtimeContext, int id,
+                                       const char *jsonComponent) {
+    if (runtimeContext == nullptr || jsonComponent == nullptr) {
+        return -1;
+    }
+    try {
+        auto *handle = reinterpret_cast<RuntimeContextHandle *>(runtimeContext);
+        if (*handle == nullptr) {
+            return -1;
+        }
+        return (*handle)->addObjectComponent(
+            id, nlohmann::json::parse(jsonComponent));
+    } catch (const std::exception &) {
+        return -1;
+    } catch (...) {
+        return -1;
+    }
+}
+
 bool atlas_runtime_set_object_parent(void *runtimeContext, int childId,
                                      int parentId) {
     if (runtimeContext == nullptr) {
