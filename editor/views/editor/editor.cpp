@@ -142,11 +142,11 @@ void EditorWindow::setupDocks() {
     connect(viewportPanel, &ViewportPanel::runtimeObjectActivated,
             contentBrowser, &ContentBrowserPanel::clearSelection);
     connect(contentBrowser, &ContentBrowserPanel::selectionChanged, this,
-            [this, inspectorPanel](const QString &path) {
+            [this](const QString &path) {
                 if (!path.isEmpty()) {
                     viewportPanel->selectRuntimeObject(-1, false);
                 }
-                inspectorPanel->inspectFile(path);
+                this->inspectorPanel->inspectFile(path);
             });
 }
 
