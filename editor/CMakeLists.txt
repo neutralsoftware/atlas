@@ -53,15 +53,29 @@ add_subdirectory(
 qt_add_executable(AtlasEditor ${EDITOR_FILES})
 add_dependencies(AtlasEditor generate_atlas_themes)
 
+qt_add_resources(AtlasEditor "atlas_editor_assets"
+        PREFIX "/editor"
+        BASE "${CMAKE_SOURCE_DIR}/editor"
+        FILES
+        "${CMAKE_SOURCE_DIR}/editor/assets/Icon-iOS-Default-1024x1024@1x.png"
+        "${CMAKE_SOURCE_DIR}/editor/assets/atlas_ball_bright.png"
+        "${CMAKE_SOURCE_DIR}/editor/assets/iconFile-iOS-Dark-1024x1024@1x.png"
+        "${CMAKE_SOURCE_DIR}/editor/assets/iconFile-iOS-Default-1024x1024@1x.png"
+        "${CMAKE_SOURCE_DIR}/editor/assets/landing.png"
+        "${CMAKE_SOURCE_DIR}/editor/assets/Manrope-VariableFont_wght.ttf"
+)
+
 target_include_directories(AtlasEditor
         PRIVATE
         ${CMAKE_SOURCE_DIR}/extern/QtDockingSystem/src
         ${ATLAS_DEP_INCLUDE_DIRS}
 )
 
-target_compile_definitions(AtlasEditor
-        PRIVATE
-        ATLAS_DEFAULT_PROJECT_FILE="${CMAKE_SOURCE_DIR}/tests/simple/project.atlas"
+string(TIMESTAMP ATLAS_EDITOR_BUILD_DATE "%Y%m%d")
+
+target_compile_definitions(AtlasEditor PRIVATE
+        "$<$<CONFIG:Debug>:ATLAS_DEBUG_BUILD>"
+        "$<$<CONFIG:Debug>:ATLAS_BUILD_STRING=\"${ATLAS_EDITOR_BUILD_DATE}\">"
 )
 
 # Linking libraries
