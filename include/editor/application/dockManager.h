@@ -10,7 +10,7 @@
 #ifndef ATLAS_DOCKMANAGER_H
 #define ATLAS_DOCKMANAGER_H
 
-#include "DockManager.h"
+#include <DockManager.h>
 #include "DockWidget.h"
 
 class QWidget;

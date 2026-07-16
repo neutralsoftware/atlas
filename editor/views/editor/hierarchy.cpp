@@ -171,8 +171,8 @@ HierarchyPanel::HierarchyPanel(ViewportPanel *viewport, QWidget *parent)
                         &HierarchyPanel::moveSelectedObjectToRoot);
     moreMenu->addSeparator();
     moreMenu->addAction("Save Scene", this, [this] {
-        if (viewport != nullptr) {
-            viewport->saveRuntimeScene();
+        if (this->viewport != nullptr) {
+            this->viewport->saveRuntimeScene();
         }
     });
     moreButton->setMenu(moreMenu);
