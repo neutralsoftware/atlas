@@ -11,6 +11,7 @@
 #define ATLAS_EDITORWINDOW_H
 
 #include <QMainWindow>
+#include <QString>
 
 #include "editor/application/dockManager.h"
 
@@ -23,7 +24,8 @@ class EditorWindow : public QMainWindow {
     Q_OBJECT
 
 public:
-    explicit EditorWindow(QWidget* parent = nullptr);
+    explicit EditorWindow(const QString& projectFile,
+                          QWidget* parent = nullptr);
 
 private:
     void setupWindow();
@@ -35,6 +37,7 @@ private:
 
     EditorDockManager* dockManager = nullptr;
     ads::CDockManager* coreManager = nullptr;
+    QString projectFile;
     bool closing = false;
 
     void closeEvent(QCloseEvent* event) override;

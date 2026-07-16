@@ -916,3 +916,230 @@ ads--CAutoHideDockContainer[sideBarLocation="2"] ads--CResizeHandle {
     border: 1px solid rgba(114, 199, 255, 190);
     border-radius: 6px;
 }
+
+#projectBrowserRoot,
+#projectBrowserContent,
+#createProjectDialog {
+    background-color: #181B1D;
+    font-family: "Manrope", "Helvetica Neue", sans-serif;
+}
+
+#projectSidebar {
+    background-color: #111315;
+    border-right: 1px solid #2A2E31;
+}
+
+#projectBrand {
+    background: transparent;
+    color: #F4F7F8;
+    font-size: 22px;
+    font-weight: 700;
+}
+
+#projectNavSelected {
+    background-color: #252A2D;
+    border: 1px solid #32383C;
+    border-radius: 8px;
+    color: #F4F7F8;
+    padding: 9px 12px;
+    text-align: left;
+}
+
+#projectNavSelected:disabled {
+    background-color: #252A2D;
+    border-color: #32383C;
+    color: #F4F7F8;
+}
+
+#projectSidebarVersion {
+    background: transparent;
+    color: #697277;
+    font-size: 11px;
+}
+
+#projectBrowserTitle,
+#dialogTitle {
+    background: transparent;
+    color: #F7F9FA;
+    font-size: 28px;
+    font-weight: 700;
+}
+
+#projectBrowserSubtitle,
+#dialogSubtitle,
+#emptyStateSubtitle {
+    background: transparent;
+    color: #889197;
+    font-size: 13px;
+}
+
+#primaryAction {
+    background-color: #2F85F5;
+    border: 1px solid #55A0FF;
+    border-radius: 7px;
+    color: #FFFFFF;
+    font-weight: 600;
+    padding: 8px 14px;
+}
+
+#primaryAction:hover {
+    background-color: #3B91FF;
+    border-color: #72B1FF;
+}
+
+#primaryAction:pressed {
+    background-color: #2876DA;
+}
+
+#primaryAction:disabled {
+    background-color: #2A3034;
+    border-color: #363D41;
+    color: #697277;
+}
+
+QPushButton[secondary="true"] {
+    background-color: #252A2D;
+    border: 1px solid #3A4145;
+    border-radius: 7px;
+    color: #DDE3E6;
+    padding: 8px 14px;
+}
+
+QPushButton[secondary="true"]:hover {
+    background-color: #2D3337;
+    border-color: #4A5358;
+}
+
+#projectSearch {
+    background-color: #222629;
+    border: 1px solid #343A3E;
+    border-radius: 8px;
+    color: #EEF2F4;
+    padding: 9px 12px;
+}
+
+#projectSearch:focus {
+    border-color: #4B9EFF;
+}
+
+#projectList {
+    background: transparent;
+    border: none;
+    outline: none;
+}
+
+#projectList::item {
+    background: transparent;
+    border: none;
+}
+
+#projectRow {
+    background-color: #222629;
+    border: 1px solid #30363A;
+    border-radius: 10px;
+}
+
+#projectRow:hover {
+    background-color: #282D31;
+    border-color: #465057;
+}
+
+#projectRow[available="false"] {
+    background-color: #1D2022;
+    border-color: #532F34;
+}
+
+#projectName {
+    background: transparent;
+    color: #F0F4F5;
+    font-size: 14px;
+    font-weight: 650;
+}
+
+#projectPath,
+#projectDate {
+    background: transparent;
+    color: #788187;
+    font-size: 11px;
+}
+
+#rendererBadge {
+    background-color: #243B51;
+    border: 1px solid #31536E;
+    border-radius: 9px;
+    color: #9ED1FF;
+    font-size: 10px;
+    font-weight: 600;
+    padding: 3px 8px;
+}
+
+#projectMoreButton {
+    background: transparent;
+    border: none;
+    color: #98A2A8;
+    font-size: 14px;
+    padding: 6px;
+}
+
+#projectMoreButton:hover {
+    background-color: #363D41;
+    border-radius: 6px;
+    color: #FFFFFF;
+}
+
+#projectEmptyState {
+    background-color: #1D2022;
+    border: 1px dashed #343A3E;
+    border-radius: 12px;
+}
+
+#emptyStateTitle {
+    background: transparent;
+    color: #E9EEF0;
+    font-size: 17px;
+    font-weight: 650;
+}
+
+QFrame[templateCard="true"] {
+    background-color: #222629;
+    border: 1px solid #343A3E;
+    border-radius: 10px;
+}
+
+QFrame[templateCard="true"]:hover {
+    background-color: #282E32;
+    border-color: #4B5961;
+}
+
+QFrame[templateCard="true"][selected="true"] {
+    background-color: #20354A;
+    border: 2px solid #4B9EFF;
+}
+
+#templateOption {
+    background: transparent;
+    color: #F3F6F7;
+    font-size: 14px;
+    font-weight: 650;
+}
+
+#templateDescription {
+    background: transparent;
+    color: #879096;
+    font-size: 11px;
+}
+
+#fieldLabel {
+    background: transparent;
+    color: #B3BCC1;
+    font-size: 11px;
+    font-weight: 600;
+}
+
+#dialogError {
+    background-color: #41262A;
+    border: 1px solid #704048;
+    border-radius: 7px;
+    color: #FFB4BE;
+    padding: 8px 10px;
+}
