@@ -182,7 +182,6 @@ QToolButton::menu-indicator {
 
 #viewportFpsLabel {
     color: #9DA8AE;
-    font-variant-numeric: tabular-nums;
 }
 
 #materialEditorHeader {

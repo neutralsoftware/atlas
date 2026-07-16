@@ -189,7 +189,6 @@ inline constexpr const char* DARK_THEME =
 "\n"
 "#viewportFpsLabel {\n"
 "    color: #9DA8AE;\n"
-"    font-variant-numeric: tabular-nums;\n"
 "}\n"
 "\n"
 "#materialEditorHeader {\n"
