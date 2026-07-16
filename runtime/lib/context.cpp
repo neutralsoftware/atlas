@@ -1907,6 +1907,7 @@ void applyMaterial(GameObject &object, const MaterialDefinition &material) {
     if (auto *coreObject = dynamic_cast<CoreObject *>(&object);
         coreObject != nullptr) {
         coreObject->material = material.material;
+        coreObject->textures.clear();
         for (const auto &texture : material.textures) {
             coreObject->attachTexture(texture);
         }
@@ -1918,6 +1919,7 @@ void applyMaterial(GameObject &object, const MaterialDefinition &material) {
         for (auto &mesh : model->getObjects()) {
             if (mesh != nullptr) {
                 mesh->material = material.material;
+                mesh->textures.clear();
             }
         }
         for (const auto &texture : material.textures) {
@@ -3975,6 +3977,21 @@ bool Context::setEditorControlMode(int mode) {
     return true;
 }
 
+bool Context::setEditorShadingMode(int mode) {
+    if (window == nullptr) {
+        throw std::runtime_error("Window is not initialized");
+    }
+    if (mode < 0 || mode > 2) {
+        return false;
+    }
+    window->setEditorShadingMode(static_cast<EditorShadingMode>(mode));
+    return true;
+}
+
+float Context::frameRate() const {
+    return window != nullptr ? window->getFramesPerSecond() : 0.0f;
+}
+
 bool Context::editorPointerEvent(int action, float x, float y, int button,
                                  float scale) {
     if (window == nullptr) {
@@ -4357,6 +4374,31 @@ bool Context::setObjectProperty(int id, const std::string &component,
         RUNTIME_LOG("Component update is waiting for valid values: " +
                     std::string(error.what()));
     }
+    return true;
+}
+
+bool Context::setObjectMaterial(int id, const std::string &path) {
+    GameObject *object = findContextObject(*this, id);
+    if (object == nullptr || path.empty() ||
+        (dynamic_cast<CoreObject *>(object) == nullptr &&
+         dynamic_cast<Model *>(object) == nullptr)) {
+        return false;
+    }
+    try {
+        applyMaterial(*object, loadMaterialDefinition(path, sceneDir));
+    } catch (const std::exception &error) {
+        RUNTIME_LOG("Material could not be applied: " +
+                    std::string(error.what()));
+        return false;
+    }
+    std::string storedPath = path;
+    std::error_code error;
+    const std::filesystem::path relative =
+        std::filesystem::relative(path, sceneDir, error);
+    if (!error && !relative.empty()) {
+        storedPath = relative.generic_string();
+    }
+    editorObjectSourceData[id]["material"] = storedPath;
     return true;
 }
 

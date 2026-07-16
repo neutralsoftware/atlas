@@ -19,13 +19,16 @@
 #include <QTimer>
 #include <QVariantList>
 #include <QCloseEvent>
+#include <QFileInfo>
 
 #include "DockManager.h"
 #include "editor/debug.h"
 #include "editor/views/fileExplorer.h"
 #include "editor/views/hierarchyPanel.h"
 #include "editor/views/inspectorView.h"
+#include "editor/views/materialEditor.h"
 #include "editor/views/viewport.h"
+#include "editor/views/viewportTools.h"
 
 EditorWindow::EditorWindow(const QString &projectFile, QWidget *parent)
     : QMainWindow(parent), projectFile(projectFile) {
@@ -102,10 +105,11 @@ void EditorWindow::setupMenus() {
 
 void EditorWindow::setupDocks() {
     viewportPanel = new ViewportPanel(projectFile);
+    auto *viewportTools = new ViewportTools(viewportPanel);
     dockManager->addPanel(
         {.id = "viewport",
          .title = "Viewport",
-         .widget = viewportPanel,
+         .widget = viewportTools,
          .area = EditorDockArea::Center,
          .icon = style()->standardIcon(QStyle::SP_DirOpenIcon)});
 
@@ -133,6 +137,14 @@ void EditorWindow::setupDocks() {
          .area = EditorDockArea::Bottom,
          .icon = style()->standardIcon(QStyle::SP_DirOpenIcon)});
 
+    auto *materialEditor = new MaterialEditorPanel(viewportPanel);
+    auto *materialDock = dockManager->addPanel(
+        {.id = "materialEditor",
+         .title = "Material Editor",
+         .widget = materialEditor,
+         .area = EditorDockArea::Right,
+         .icon = style()->standardIcon(QStyle::SP_FileDialogContentsView)});
+
     connect(hierarchyPanel, &HierarchyPanel::objectActivated, inspectorPanel,
             &InspectorPanel::inspectRuntimeObject);
     connect(hierarchyPanel, &HierarchyPanel::objectActivated, contentBrowser,
@@ -143,10 +155,18 @@ void EditorWindow::setupDocks() {
             contentBrowser, &ContentBrowserPanel::clearSelection);
     connect(contentBrowser, &ContentBrowserPanel::selectionChanged, this,
             [this](const QString &path) {
-                if (!path.isEmpty()) {
+                const QString suffix = QFileInfo(path).suffix().toLower();
+                if (!path.isEmpty() && suffix != "amat" &&
+                    suffix != "material") {
                     viewportPanel->selectRuntimeObject(-1, false);
                 }
                 this->inspectorPanel->inspectFile(path);
+            });
+    connect(contentBrowser, &ContentBrowserPanel::assetActivated, this,
+            [materialEditor, materialDock](const QString &path) {
+                materialEditor->openMaterial(path);
+                materialDock->toggleView(true);
+                materialDock->raise();
             });
 }
 

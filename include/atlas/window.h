@@ -47,6 +47,12 @@ enum class EditorControlMode {
     Scale = 3,
 };
 
+enum class EditorShadingMode {
+    Lit = 0,
+    Wireframe = 1,
+    Points = 2,
+};
+
 /**
  * @brief Structure representing the configuration options for creating a
  * window.
@@ -438,6 +444,8 @@ class Window {
     bool isEditorSimulationEnabled() const { return editorSimulationEnabled; }
     void setEditorControlMode(EditorControlMode mode);
     EditorControlMode getEditorControlMode() const { return editorControlMode; }
+    void setEditorShadingMode(EditorShadingMode mode);
+    EditorShadingMode getEditorShadingMode() const { return editorShadingMode; }
     void editorPointerEvent(int action, float x, float y, int button,
                             float scale = 1.0f);
     void editorScrollEvent(float delta, float scale = 1.0f);
@@ -980,6 +988,7 @@ class Window {
     bool editorControlsEnabled = false;
     bool editorSimulationEnabled = true;
     EditorControlMode editorControlMode = EditorControlMode::None;
+    EditorShadingMode editorShadingMode = EditorShadingMode::Lit;
     GameObject *selectedEditorObject = nullptr;
     bool editorDragging = false;
     bool editorCameraDragging = false;

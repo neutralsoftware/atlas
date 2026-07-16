@@ -32,6 +32,7 @@ class ContentBrowserPanel : public QWidget {
 
   signals:
     void selectionChanged(const QString &path);
+    void assetActivated(const QString &path);
 
   private:
     void navigateTo(const QString &path, bool recordHistory = true);
@@ -41,6 +42,7 @@ class ContentBrowserPanel : public QWidget {
     void createFolder();
     void createScene();
     void createScript();
+    void createMaterial();
     void renameSelection();
     void deleteSelection();
     void revealSelection() const;

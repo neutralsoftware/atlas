@@ -130,7 +130,6 @@ ViewportPanel::ViewportPanel(const QString &projectFile, QWidget *parent)
                 [this] { shutdownRuntime(); });
     }
 
-    winId();
 }
 
 ViewportPanel::~ViewportPanel() { shutdownRuntime(); }
@@ -292,9 +291,12 @@ void ViewportPanel::startRuntime() {
         runtimeContext->setEditorControlsEnabled(true);
         runtimeContext->setEditorSimulationEnabled(false);
         runtimeContext->setEditorControlMode(1);
+        runtimeContext->setEditorShadingMode(shadingMode);
         resizeRuntime();
         refreshSceneSnapshot();
         emit runtimeAvailabilityChanged(true);
+        playbackState = 0;
+        emit playbackStateChanged(playbackState);
         frameTimer->start(16);
     } catch (const std::exception &error) {
         qWarning().noquote()
@@ -320,6 +322,8 @@ void ViewportPanel::stopRuntime() {
     auto context = std::move(runtimeContext);
     lastSceneSnapshot.clear();
     emit runtimeAvailabilityChanged(false);
+    playbackState = 0;
+    emit playbackStateChanged(playbackState);
     try {
         context->end();
     } catch (const std::exception &error) {
@@ -344,6 +348,7 @@ void ViewportPanel::stepRuntime() {
             return;
         }
         refreshSceneSnapshot();
+        emit frameRateChanged(runtimeContext->frameRate());
     } catch (const std::exception &error) {
         qWarning().noquote()
             << QStringLiteral("Atlas viewport runtime frame failed: %1")
@@ -480,6 +485,82 @@ int ViewportPanel::createRuntimeObject(const QString &type,
 
 bool ViewportPanel::saveRuntimeScene() {
     return runtimeContext != nullptr && runtimeContext->saveCurrentScene();
+}
+
+int ViewportPanel::selectedRuntimeObjectId() const {
+    return runtimeContext != nullptr ? runtimeContext->selectedObjectId() : -1;
+}
+
+bool ViewportPanel::applyRuntimeMaterial(int id, const QString &path) {
+    if (runtimeContext == nullptr || id < 0 || path.isEmpty() ||
+        !runtimeContext->setObjectMaterial(id, path.toStdString())) {
+        return false;
+    }
+    refreshSceneSnapshot();
+    return true;
+}
+
+void ViewportPanel::playRuntime() {
+    if (runtimeContext == nullptr) {
+        return;
+    }
+    runtimeContext->setEditorSimulationEnabled(true);
+    playbackState = 1;
+    emit playbackStateChanged(playbackState);
+}
+
+void ViewportPanel::pauseRuntime() {
+    if (runtimeContext == nullptr || playbackState == 0) {
+        return;
+    }
+    runtimeContext->setEditorSimulationEnabled(false);
+    playbackState = 2;
+    emit playbackStateChanged(playbackState);
+}
+
+void ViewportPanel::stepRuntimeOnce() {
+    if (runtimeContext == nullptr || playbackState == 0) {
+        return;
+    }
+    runtimeContext->setEditorSimulationEnabled(true);
+    stepRuntime();
+    if (runtimeContext != nullptr) {
+        runtimeContext->setEditorSimulationEnabled(false);
+        playbackState = 2;
+        emit playbackStateChanged(playbackState);
+    }
+}
+
+void ViewportPanel::stopRuntimePlayback() {
+    if (runtimeContext == nullptr || playbackState == 0) {
+        return;
+    }
+    reloadRuntime();
+}
+
+void ViewportPanel::reloadRuntime() {
+    if (shuttingDown) {
+        return;
+    }
+    stopRuntime();
+    scheduleRuntimeStart();
+}
+
+void ViewportPanel::setRuntimeShadingMode(int mode) {
+    if (mode < 0 || mode > 2) {
+        return;
+    }
+    shadingMode = mode;
+    if (runtimeContext != nullptr) {
+        runtimeContext->setEditorShadingMode(mode);
+    }
+}
+
+void ViewportPanel::setRuntimeControlMode(int mode) {
+    if (mode < 0 || mode > 3 || runtimeContext == nullptr) {
+        return;
+    }
+    runtimeContext->setEditorControlMode(mode);
 }
 
 void ViewportPanel::refreshSceneSnapshot() {
