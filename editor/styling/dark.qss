@@ -426,6 +426,88 @@ QTableWidget::item:selected {
     color: #FFFFFF;
 }
 
+#panelToolbar {
+    background-color: #222526;
+    border: none;
+}
+
+#panelAddButton {
+    background-color: #2C3235;
+    border-color: #414A4F;
+    padding: 4px 10px;
+    min-height: 22px;
+    font-weight: 600;
+}
+
+#panelMoreButton,
+#browserRevealButton,
+#browserNavigationButton {
+    background-color: transparent;
+    border-color: transparent;
+    padding: 4px;
+    min-width: 24px;
+    min-height: 22px;
+}
+
+#panelMoreButton:hover,
+#browserRevealButton:hover,
+#browserNavigationButton:hover {
+    background-color: #30373A;
+    border-color: #424B50;
+}
+
+#contentPathField {
+    background-color: #191D1F;
+    border-color: #30373B;
+    color: #AEB8BE;
+    padding: 4px 8px;
+    min-height: 22px;
+}
+
+#contentSearchField {
+    padding: 4px 8px;
+    min-height: 22px;
+}
+
+QTreeView#hierarchyTree {
+    background-color: #1B1F20;
+    border: none;
+    border-radius: 4px;
+    padding: 3px;
+    show-decoration-selected: 1;
+}
+
+QTreeView#hierarchyTree::item {
+    min-height: 23px;
+    padding: 3px 5px;
+}
+
+QListView#contentGrid {
+    background-color: #1B1F20;
+    border: none;
+    border-radius: 4px;
+    padding: 8px;
+}
+
+QListView#contentGrid::item {
+    min-height: 88px;
+    padding: 6px;
+    margin: 2px;
+    border: 1px solid transparent;
+    border-radius: 7px;
+}
+
+QListView#contentGrid::item:hover {
+    background-color: #272E31;
+    border-color: #353F44;
+}
+
+QListView#contentGrid::item:selected {
+    background-color: #284E73;
+    border-color: #579FE3;
+    color: #FFFFFF;
+}
+
 QHeaderView {
     background-color: #252A2C;
     border: none;
