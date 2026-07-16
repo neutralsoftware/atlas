@@ -474,11 +474,11 @@ void MaterialEditorPanel::showMaterial() {
 
     auto *textures = new QGroupBox("Texture Slots", body);
     auto *textureLayout = new QVBoxLayout(textures);
-    const QList<QPair<QString, QString>> slots{
+    const QList<QPair<QString, QString>> materialSlots{
         {"Base Color", "albedoTexture"}, {"Normal", "normalTexture"},
         {"Metallic", "metallicTexture"}, {"Roughness", "roughnessTexture"},
         {"Ambient Occlusion", "aoTexture"}, {"Opacity", "opacityTexture"}};
-    for (const auto &[label, key] : slots) {
+    for (const auto &[label, key] : materialSlots) {
         auto *row = new QWidget(textures);
         row->setObjectName("materialTextureSlot");
         auto *rowLayout = new QHBoxLayout(row);
