@@ -3,7 +3,7 @@
 // This file is generated. Do not edit manually.
 // Generated from .qss theme files.
 
-// Source: editor/styling/dark.qss
+// Source: /Users/maxvdec/Coding/Projects/Atlas/editor/styling/dark.qss
 inline constexpr const char* DARK_THEME =
 "* {\n"
 "    font-family: \"Helvetica Neue\", \"Segoe UI\", Arial, sans-serif;\n"
