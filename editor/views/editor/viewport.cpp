@@ -17,6 +17,9 @@
 #include <QCloseEvent>
 #include <QCoreApplication>
 #include <QDebug>
+#include <QDragEnterEvent>
+#include <QDropEvent>
+#include <QFileInfo>
 #include <QHideEvent>
 #include <QJsonArray>
 #include <QJsonDocument>
@@ -24,6 +27,7 @@
 #include <QJsonValue>
 #include <QKeyEvent>
 #include <QMouseEvent>
+#include <QMimeData>
 #include <QPaintEngine>
 #include <QPointer>
 #include <QResizeEvent>
@@ -222,6 +226,7 @@ class RuntimeRenameCommand : public QUndoCommand {
 
 ViewportPanel::ViewportPanel(const QString &projectFile, QWidget *parent)
     : QWidget(parent), projectFile(projectFile) {
+    setAcceptDrops(true);
     setAttribute(Qt::WA_DontCreateNativeAncestors);
     setAttribute(Qt::WA_NativeWindow);
     setAttribute(Qt::WA_NoSystemBackground);
@@ -271,6 +276,34 @@ void ViewportPanel::hideEvent(QHideEvent *event) {
 void ViewportPanel::closeEvent(QCloseEvent *event) {
     shutdownRuntime();
     QWidget::closeEvent(event);
+}
+
+void ViewportPanel::dragEnterEvent(QDragEnterEvent *event) {
+    if (selectedRuntimeObjectId() >= 0 && event->mimeData()->hasUrls()) {
+        const QString suffix =
+            QFileInfo(event->mimeData()->urls().constFirst().toLocalFile())
+                .suffix()
+                .toLower();
+        if (suffix == "amat" || suffix == "material" || suffix == "ts" ||
+            suffix == "js") {
+            event->acceptProposedAction();
+            return;
+        }
+    }
+    event->ignore();
+}
+
+void ViewportPanel::dropEvent(QDropEvent *event) {
+    const int objectId = selectedRuntimeObjectId();
+    if (objectId >= 0 && event->mimeData()->hasUrls() &&
+        attachRuntimeAsset(
+            objectId,
+            event->mimeData()->urls().constFirst().toLocalFile())) {
+        event->acceptProposedAction();
+        emit runtimeObjectActivated(objectId);
+        return;
+    }
+    event->ignore();
 }
 
 void ViewportPanel::resizeEvent(QResizeEvent *event) {
@@ -650,6 +683,22 @@ bool ViewportPanel::applyRuntimeMaterialDirect(int id, const QString &path) {
     return true;
 }
 
+bool ViewportPanel::attachRuntimeAsset(int id, const QString &path) {
+    const QFileInfo info(path);
+    const QString suffix = info.suffix().toLower();
+    if (suffix == "amat" || suffix == "material") {
+        return applyRuntimeMaterial(id, info.absoluteFilePath());
+    }
+    if (suffix == "ts" || suffix == "js") {
+        return addRuntimeObjectComponent(
+                   id, "script",
+                   QJsonObject{{"name", info.completeBaseName()},
+                               {"source", info.absoluteFilePath()},
+                               {"variables", QJsonObject{}}}) >= 0;
+    }
+    return false;
+}
+
 void ViewportPanel::undo() {
     if (undoStack != nullptr) {
         undoStack->undo();
@@ -701,7 +750,9 @@ void ViewportPanel::pauseRuntime() {
     if (runtimeContext == nullptr || playbackState == 0) {
         return;
     }
+    saveRuntimeScene();
     runtimeContext->setEditorSimulationEnabled(false);
+    refreshSceneSnapshot();
     playbackState = 2;
     emit playbackStateChanged(playbackState);
 }
@@ -713,6 +764,7 @@ void ViewportPanel::stepRuntimeOnce() {
     runtimeContext->setEditorSimulationEnabled(true);
     stepRuntime();
     if (runtimeContext != nullptr) {
+        saveRuntimeScene();
         runtimeContext->setEditorSimulationEnabled(false);
         playbackState = 2;
         emit playbackStateChanged(playbackState);

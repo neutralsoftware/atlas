@@ -9,13 +9,17 @@
 
 #include <editor/views/inspectorView.h>
 
+#include <QAction>
 #include <QCheckBox>
 #include <QAbstractSpinBox>
 #include <QColorDialog>
 #include <QComboBox>
 #include <QDateTime>
 #include <QDesktopServices>
+#include <QDirIterator>
 #include <QDoubleSpinBox>
+#include <QDragEnterEvent>
+#include <QDropEvent>
 #include <QFile>
 #include <QFileInfo>
 #include <QDir>
@@ -30,6 +34,7 @@
 #include <QMenu>
 #include <QPair>
 #include <QMessageBox>
+#include <QMimeData>
 #include <QPointer>
 #include <QPushButton>
 #include <QScrollArea>
@@ -39,6 +44,7 @@
 #include <QToolButton>
 #include <QUrl>
 #include <QVBoxLayout>
+#include <QWidgetAction>
 
 #include <algorithm>
 #include <cmath>
@@ -709,9 +715,13 @@ QJsonObject findObjectInArray(const QJsonArray &objects, int id) {
 }
 } // namespace
 
-InspectorPanel::InspectorPanel(ViewportPanel *viewport, QWidget *parent)
+InspectorPanel::InspectorPanel(ViewportPanel *viewport,
+                               const QString &projectFile, QWidget *parent)
     : QWidget(parent), viewport(viewport) {
     setObjectName("inspectorPanel");
+    setAcceptDrops(true);
+    const QFileInfo projectInfo(projectFile);
+    projectRoot = projectInfo.absoluteDir().absolutePath();
     auto *layout = new QVBoxLayout(this);
     layout->setContentsMargins(0, 0, 0, 0);
     scrollArea = new QScrollArea(this);
@@ -748,6 +758,9 @@ void InspectorPanel::applySceneSnapshot(const QString &snapshot) {
         const QJsonObject updated = findObject(inspectedObjectId);
         const bool contentChanged =
             updated.value("name") != inspectedObject.value("name") ||
+            updated.value("properties").toObject().value("material") !=
+                inspectedObject.value("properties").toObject().value(
+                    "material") ||
             componentShape(updated.value("components").toArray()) !=
                 componentShape(inspectedObject.value("components").toArray());
         inspectedObject = updated;
@@ -855,6 +868,8 @@ void InspectorPanel::showObject(const QJsonObject &object) {
         content));
 
     QJsonObject objectProperties = object.value("properties").toObject();
+    const QString materialPath = objectProperties.value("material").toString();
+    objectProperties.remove("material");
     const QStringList hidden{"id",       "name",       "type",
                              "position", "rotation",   "scale",
                              "parent",   "components", "objects"};
@@ -865,6 +880,18 @@ void InspectorPanel::showObject(const QJsonObject &object) {
             componentTitle(type), objectProperties, QString(),
             [update](const QString &path, const QJsonValue &value) {
                 update("object", -1, path, value);
+            },
+            content));
+    }
+
+    if (!materialPath.isEmpty()) {
+        contentLayout->addWidget(componentCard(
+            "Material", QJsonObject{{"source", materialPath}}, QString(),
+            [this, objectId](const QString &path, const QJsonValue &value) {
+                if (path == "/source" && value.isString() &&
+                    viewport != nullptr) {
+                    viewport->applyRuntimeMaterial(objectId, value.toString());
+                }
             },
             content));
     }
@@ -887,6 +914,15 @@ void InspectorPanel::showObject(const QJsonObject &object) {
     addComponent->setText("+ Add Component");
     addComponent->setPopupMode(QToolButton::InstantPopup);
     auto *componentMenu = new QMenu(addComponent);
+    auto *searchAction = new QWidgetAction(componentMenu);
+    auto *componentSearch = new QLineEdit(componentMenu);
+    componentSearch->setPlaceholderText("Search components, scripts, materials");
+    componentSearch->setClearButtonEnabled(true);
+    componentSearch->setMinimumWidth(280);
+    searchAction->setDefaultWidget(componentSearch);
+    componentMenu->addAction(searchAction);
+    componentMenu->addSeparator();
+    QList<QAction *> searchableActions;
     const QList<QPair<QString, QString>> componentTypes{
         {"Rigidbody", "rigidbody"},
         {"Audio Player", "audio_player"},
@@ -898,27 +934,94 @@ void InspectorPanel::showObject(const QJsonObject &object) {
         {"Trait Script", "trait_script"},
     };
     for (const auto &[label, componentType] : componentTypes) {
-        componentMenu->addAction(label, this, [this, componentType, objectId] {
-            QPointer<ViewportPanel> runtime(viewport);
-            QPointer<InspectorPanel> inspector(this);
-            QTimer::singleShot(0, [runtime, inspector, componentType, objectId] {
-                if (runtime == nullptr || inspector == nullptr) {
-                    return;
-                }
-                if (runtime->addRuntimeObjectComponent(
-                        objectId, componentType,
-                        componentSchema(componentType)) < 0) {
-                    QMessageBox::information(
-                        inspector.data(), "Add Component",
-                        "This component is already attached or cannot be added "
-                        "to the selected object.");
+        QAction *action = componentMenu->addAction(
+            label, this, [this, componentType, objectId] {
+                QPointer<ViewportPanel> runtime(viewport);
+                QPointer<InspectorPanel> inspector(this);
+                QTimer::singleShot(
+                    0, [runtime, inspector, componentType, objectId] {
+                        if (runtime == nullptr || inspector == nullptr) {
+                            return;
+                        }
+                        if (runtime->addRuntimeObjectComponent(
+                                objectId, componentType,
+                                componentSchema(componentType)) < 0) {
+                            QMessageBox::information(
+                                inspector.data(), "Add Component",
+                                "This component is already attached or cannot "
+                                "be added to the selected object.");
+                        }
+                    });
+            });
+        action->setProperty("searchText", label.toLower());
+        searchableActions.append(action);
+    }
+    QDirIterator assets(projectRoot,
+                        {"*.ts", "*.js", "*.amat", "*.material"},
+                        QDir::Files, QDirIterator::Subdirectories);
+    while (assets.hasNext()) {
+        const QFileInfo info(assets.next());
+        const QString suffix = info.suffix().toLower();
+        const bool material = suffix == "amat" || suffix == "material";
+        const QString label =
+            QStringLiteral("%1 · %2")
+                .arg(material ? "Material" : "Script", info.completeBaseName());
+        QAction *action = componentMenu->addAction(
+            label, this, [this, objectId, path = info.absoluteFilePath()] {
+                attachAsset(path, objectId);
+            });
+        action->setIcon(inspectorIcon(this, material ? "material" : "script"));
+        action->setProperty("searchText",
+                            (label + ' ' + info.absoluteFilePath()).toLower());
+        searchableActions.append(action);
+    }
+    connect(componentSearch, &QLineEdit::textChanged, componentMenu,
+            [searchableActions](const QString &text) {
+                const QString query = text.trimmed().toLower();
+                for (QAction *action : searchableActions) {
+                    action->setVisible(
+                        query.isEmpty() ||
+                        action->property("searchText").toString().contains(query));
                 }
             });
-        });
-    }
+    connect(componentMenu, &QMenu::aboutToShow, componentSearch,
+            [componentSearch] {
+                componentSearch->clear();
+                componentSearch->setFocus();
+            });
     addComponent->setMenu(componentMenu);
     contentLayout->addWidget(addComponent);
     contentLayout->addStretch();
+}
+
+bool InspectorPanel::attachAsset(const QString &path, int objectId) {
+    return viewport != nullptr && objectId >= 0 &&
+           viewport->attachRuntimeAsset(objectId, path);
+}
+
+void InspectorPanel::dragEnterEvent(QDragEnterEvent *event) {
+    if (inspectedObjectId >= 0 && event->mimeData()->hasUrls()) {
+        const QString suffix =
+            QFileInfo(event->mimeData()->urls().constFirst().toLocalFile())
+                .suffix()
+                .toLower();
+        if (suffix == "amat" || suffix == "material" || suffix == "ts" ||
+            suffix == "js") {
+            event->acceptProposedAction();
+            return;
+        }
+    }
+    event->ignore();
+}
+
+void InspectorPanel::dropEvent(QDropEvent *event) {
+    if (event->mimeData()->hasUrls() && inspectedObjectId >= 0 &&
+        attachAsset(event->mimeData()->urls().constFirst().toLocalFile(),
+                    inspectedObjectId)) {
+        event->acceptProposedAction();
+        return;
+    }
+    event->ignore();
 }
 
 void InspectorPanel::showFile() {

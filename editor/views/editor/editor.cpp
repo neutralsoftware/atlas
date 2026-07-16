@@ -151,7 +151,7 @@ void EditorWindow::setupDocks() {
          .area = EditorDockArea::Left,
          .icon = style()->standardIcon(QStyle::SP_DirOpenIcon)});
 
-    inspectorPanel = new InspectorPanel(viewportPanel);
+    inspectorPanel = new InspectorPanel(viewportPanel, projectFile);
     dockManager->addPanel(
         {.id = "inspector",
          .title = "Inspector",

@@ -17,6 +17,8 @@
 
 class Context;
 class QCloseEvent;
+class QDragEnterEvent;
+class QDropEvent;
 class QHideEvent;
 class QKeyEvent;
 class QJsonObject;
@@ -60,6 +62,7 @@ class ViewportPanel : public QWidget {
     int selectedRuntimeObjectId() const;
     bool applyRuntimeMaterial(int id, const QString &path);
     bool applyRuntimeMaterialDirect(int id, const QString &path);
+    bool attachRuntimeAsset(int id, const QString &path);
     void undo();
     void redo();
     void playRuntime();
@@ -82,6 +85,8 @@ class ViewportPanel : public QWidget {
     void showEvent(QShowEvent *event) override;
     void hideEvent(QHideEvent *event) override;
     void closeEvent(QCloseEvent *event) override;
+    void dragEnterEvent(QDragEnterEvent *event) override;
+    void dropEvent(QDropEvent *event) override;
     void resizeEvent(QResizeEvent *event) override;
     void mousePressEvent(QMouseEvent *event) override;
     void mouseMoveEvent(QMouseEvent *event) override;

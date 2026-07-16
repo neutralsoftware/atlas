@@ -27,6 +27,7 @@
 #include <QSaveFile>
 #include <QScrollArea>
 #include <QSignalBlocker>
+#include <QSplitter>
 #include <QTimer>
 #include <QToolButton>
 #include <QVBoxLayout>
@@ -370,6 +371,7 @@ MaterialEditorPanel::MaterialEditorPanel(ViewportPanel *viewport,
     auto *scroll = new QScrollArea(this);
     scroll->setObjectName("materialEditorScroll");
     scroll->setWidgetResizable(true);
+    scroll->setHorizontalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
     body = new QWidget(scroll);
     body->setObjectName("materialEditorBody");
     bodyLayout = new QVBoxLayout(body);
@@ -481,9 +483,16 @@ void MaterialEditorPanel::showMaterial() {
     titleLabel->setText(QFileInfo(materialPath).completeBaseName());
     statusLabel->setText("Ready");
 
-    preview = new MaterialPreviewWidget(body);
+    auto *splitter = new QSplitter(Qt::Horizontal, body);
+    splitter->setChildrenCollapsible(false);
+    auto *previewPane = new QWidget(splitter);
+    previewPane->setMinimumWidth(300);
+    auto *previewLayout = new QVBoxLayout(previewPane);
+    previewLayout->setContentsMargins(0, 0, 5, 0);
+    previewLayout->setSpacing(8);
+    preview = new MaterialPreviewWidget(previewPane);
     preview->setMaterial(material, QFileInfo(materialPath).absolutePath());
-    auto *previewOptions = new QWidget(body);
+    auto *previewOptions = new QWidget(previewPane);
     auto *previewOptionsLayout = new QHBoxLayout(previewOptions);
     previewOptionsLayout->setContentsMargins(0, 0, 0, 0);
     auto *previewLabel = new QLabel("Preview Environment", previewOptions);
@@ -492,12 +501,28 @@ void MaterialEditorPanel::showMaterial() {
     previewOptionsLayout->addWidget(previewLabel);
     previewOptionsLayout->addStretch();
     previewOptionsLayout->addWidget(environment);
-    bodyLayout->addWidget(previewOptions);
-    bodyLayout->addWidget(preview);
+    previewLayout->addWidget(preview, 1);
+    previewLayout->addWidget(previewOptions);
     connect(environment, &QComboBox::currentIndexChanged, preview,
             &MaterialPreviewWidget::setEnvironmentMode);
 
-    auto *surface = new QGroupBox("Surface", body);
+    auto *propertiesScroll = new QScrollArea(splitter);
+    propertiesScroll->setObjectName("materialPropertiesScroll");
+    propertiesScroll->setWidgetResizable(true);
+    propertiesScroll->setHorizontalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
+    auto *properties = new QWidget(propertiesScroll);
+    properties->setMinimumWidth(340);
+    auto *propertiesLayout = new QVBoxLayout(properties);
+    propertiesLayout->setContentsMargins(5, 0, 0, 0);
+    propertiesLayout->setSpacing(9);
+    propertiesScroll->setWidget(properties);
+    splitter->addWidget(previewPane);
+    splitter->addWidget(propertiesScroll);
+    splitter->setStretchFactor(0, 3);
+    splitter->setStretchFactor(1, 2);
+    bodyLayout->addWidget(splitter, 1);
+
+    auto *surface = new QGroupBox("Surface", properties);
     auto *surfaceForm = new QFormLayout(surface);
     albedoButton = new QPushButton(surface);
     displayColor(albedoButton,
@@ -515,9 +540,9 @@ void MaterialEditorPanel::showMaterial() {
     surfaceForm->addRow("Roughness", roughnessField);
     surfaceForm->addRow("Ambient Occlusion", aoField);
     surfaceForm->addRow("Reflectivity", reflectivityField);
-    bodyLayout->addWidget(surface);
+    propertiesLayout->addWidget(surface);
 
-    auto *emission = new QGroupBox("Emission", body);
+    auto *emission = new QGroupBox("Emission", properties);
     auto *emissionForm = new QFormLayout(emission);
     emissiveButton = new QPushButton(emission);
     displayColor(emissiveButton,
@@ -527,9 +552,9 @@ void MaterialEditorPanel::showMaterial() {
         material.value("emissiveIntensity").toDouble());
     emissionForm->addRow("Color", emissiveButton);
     emissionForm->addRow("Strength", emissiveIntensityField);
-    bodyLayout->addWidget(emission);
+    propertiesLayout->addWidget(emission);
 
-    auto *volume = new QGroupBox("Transmission", body);
+    auto *volume = new QGroupBox("Transmission", properties);
     auto *volumeForm = new QFormLayout(volume);
     transmittanceField = scalarField(0.0, 1.0, 0.01, volume);
     iorField = scalarField(1.0, 3.0, 0.01, volume);
@@ -538,9 +563,9 @@ void MaterialEditorPanel::showMaterial() {
     iorField->setValue(material.value("ior").toDouble());
     volumeForm->addRow("Weight", transmittanceField);
     volumeForm->addRow("IOR", iorField);
-    bodyLayout->addWidget(volume);
+    propertiesLayout->addWidget(volume);
 
-    auto *normal = new QGroupBox("Normal", body);
+    auto *normal = new QGroupBox("Normal", properties);
     auto *normalForm = new QFormLayout(normal);
     normalMapField = new QCheckBox(normal);
     normalMapField->setChecked(material.value("useNormalMap").toBool());
@@ -549,9 +574,9 @@ void MaterialEditorPanel::showMaterial() {
         material.value("normalMapStrength").toDouble());
     normalForm->addRow("Use Normal Map", normalMapField);
     normalForm->addRow("Strength", normalStrengthField);
-    bodyLayout->addWidget(normal);
+    propertiesLayout->addWidget(normal);
 
-    auto *textures = new QGroupBox("Texture Slots", body);
+    auto *textures = new QGroupBox("Texture Slots", properties);
     auto *textureLayout = new QVBoxLayout(textures);
     const QList<QPair<QString, QString>> materialSlots{
         {"Base Color", "albedoTexture"}, {"Normal", "normalTexture"},
@@ -596,8 +621,8 @@ void MaterialEditorPanel::showMaterial() {
                 [this, key] { clearTexture(key); });
         updateTextureField(key);
     }
-    bodyLayout->addWidget(textures);
-    bodyLayout->addStretch();
+    propertiesLayout->addWidget(textures);
+    propertiesLayout->addStretch();
 
     connect(albedoButton, &QPushButton::clicked, this,
             [this] { setColor("albedo", albedoButton); });

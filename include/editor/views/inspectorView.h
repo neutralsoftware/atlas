@@ -16,6 +16,8 @@
 
 class QLabel;
 class QLineEdit;
+class QDragEnterEvent;
+class QDropEvent;
 class QScrollArea;
 class QVBoxLayout;
 class ViewportPanel;
@@ -24,12 +26,17 @@ class InspectorPanel : public QWidget {
     Q_OBJECT
 
   public:
-    explicit InspectorPanel(ViewportPanel *viewport, QWidget *parent = nullptr);
+    explicit InspectorPanel(ViewportPanel *viewport, const QString &projectFile,
+                            QWidget *parent = nullptr);
 
   public slots:
     void applySceneSnapshot(const QString &snapshot);
     void inspectRuntimeObject(int id);
     void inspectFile(const QString &path);
+
+  protected:
+    void dragEnterEvent(QDragEnterEvent *event) override;
+    void dropEvent(QDropEvent *event) override;
 
   private:
     void showEmptyState();
@@ -38,6 +45,7 @@ class InspectorPanel : public QWidget {
     void rebuildBody();
     void commitHeaderName();
     QJsonObject findObject(int id) const;
+    bool attachAsset(const QString &path, int objectId);
 
     ViewportPanel *viewport = nullptr;
     QScrollArea *scrollArea = nullptr;
@@ -49,6 +57,7 @@ class InspectorPanel : public QWidget {
     QJsonObject scene;
     QJsonObject inspectedObject;
     QString inspectedFile;
+    QString projectRoot;
     int inspectedObjectId = -1;
     int lastRuntimeSelection = -1;
     bool fileTarget = false;

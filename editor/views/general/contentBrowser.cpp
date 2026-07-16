@@ -163,6 +163,9 @@ ContentBrowserPanel::ContentBrowserPanel(const QString &projectFile,
     gridView->setWordWrap(true);
     gridView->setTextElideMode(Qt::ElideNone);
     gridView->setSelectionMode(QAbstractItemView::ExtendedSelection);
+    gridView->setDragEnabled(true);
+    gridView->setDragDropMode(QAbstractItemView::DragOnly);
+    gridView->setDefaultDropAction(Qt::CopyAction);
     gridView->setContextMenuPolicy(Qt::CustomContextMenu);
     gridView->setUniformItemSizes(true);
     gridView->setSpacing(4);
