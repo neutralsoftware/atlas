@@ -7,6 +7,7 @@
 #include <QHBoxLayout>
 #include <QLabel>
 #include <QKeySequence>
+#include <QList>
 #include <QStyle>
 #include <QToolButton>
 #include <QVBoxLayout>
@@ -21,8 +22,8 @@ ViewportTools::ViewportTools(ViewportPanel *viewport, QWidget *parent)
     auto *toolbar = new QWidget(this);
     toolbar->setObjectName("viewportToolbar");
     auto *tools = new QHBoxLayout(toolbar);
-    tools->setContentsMargins(7, 5, 7, 5);
-    tools->setSpacing(4);
+    tools->setContentsMargins(5, 3, 5, 3);
+    tools->setSpacing(2);
 
     playButton = new QToolButton(toolbar);
     playButton->setObjectName("viewportPlaybackButton");
@@ -59,11 +60,13 @@ ViewportTools::ViewportTools(ViewportPanel *viewport, QWidget *parent)
     auto *transformGroup = new QActionGroup(toolbar);
     transformGroup->setExclusive(true);
     const QStringList transformNames{"Move", "Rotate", "Scale"};
-    const QStringList transformLabels{"Move", "Rotate", "Scale"};
+    const QList<QStyle::StandardPixmap> transformIcons{
+        QStyle::SP_ArrowRight, QStyle::SP_BrowserReload,
+        QStyle::SP_TitleBarMaxButton};
     for (int index = 0; index < transformNames.size(); ++index) {
         auto *button = new QToolButton(toolbar);
         button->setObjectName("viewportModeButton");
-        button->setText(transformLabels.at(index));
+        button->setIcon(style()->standardIcon(transformIcons.at(index)));
         button->setToolTip(transformNames.at(index) + " tool");
         button->setCheckable(true);
         auto *action = new QAction(transformNames.at(index), button);
@@ -86,7 +89,9 @@ ViewportTools::ViewportTools(ViewportPanel *viewport, QWidget *parent)
 
     auto *fpsButton = new QToolButton(toolbar);
     fpsButton->setObjectName("viewportOptionButton");
+    fpsButton->setIcon(style()->standardIcon(QStyle::SP_ComputerIcon));
     fpsButton->setText("FPS");
+    fpsButton->setToolButtonStyle(Qt::ToolButtonTextBesideIcon);
     fpsButton->setCheckable(true);
     fpsButton->setChecked(true);
     fpsButton->setToolTip("Show frame rate");

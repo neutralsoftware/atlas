@@ -17,6 +17,7 @@
 #include <QPushButton>
 #include <QScrollArea>
 #include <QSpinBox>
+#include <QStyle>
 #include <QTimer>
 #include <QToolButton>
 #include <QVBoxLayout>
@@ -94,17 +95,23 @@ PostProcessingPanel::PostProcessingPanel(ViewportPanel *viewport,
     auto *toolbar = new QWidget(this);
     toolbar->setObjectName("postProcessingToolbar");
     auto *toolbarLayout = new QHBoxLayout(toolbar);
-    toolbarLayout->setContentsMargins(10, 7, 10, 7);
-    toolbarLayout->setSpacing(6);
+    toolbarLayout->setContentsMargins(8, 4, 8, 4);
+    toolbarLayout->setSpacing(4);
     auto *title = new QLabel("Post Processing", toolbar);
     title->setObjectName("postProcessingTitle");
     targetSelector = new QComboBox(toolbar);
     targetSelector->setMinimumWidth(180);
     auto *addTargetButton = new QToolButton(toolbar);
-    addTargetButton->setText("+ Target");
+    addTargetButton->setIcon(
+        style()->standardIcon(QStyle::SP_FileDialogNewFolder));
+    addTargetButton->setText("Target");
+    addTargetButton->setToolButtonStyle(Qt::ToolButtonTextBesideIcon);
     removeTargetButton = new QToolButton(toolbar);
     removeTargetButton->setText("Remove");
+    removeTargetButton->setIcon(
+        style()->standardIcon(QStyle::SP_DialogDiscardButton));
     auto *applyButton = new QPushButton("Apply to Preview", toolbar);
+    applyButton->setIcon(style()->standardIcon(QStyle::SP_BrowserReload));
     statusLabel = new QLabel(toolbar);
     statusLabel->setObjectName("postProcessingStatus");
     toolbarLayout->addWidget(title);
@@ -234,7 +241,10 @@ void PostProcessingPanel::rebuildEditor() {
     auto *effectsTitle = new QLabel("Effect Stack", effectsHeading);
     effectsTitle->setObjectName("postProcessingSectionTitle");
     auto *addEffectButton = new QToolButton(effectsHeading);
-    addEffectButton->setText("+ Add Effect");
+    addEffectButton->setIcon(
+        style()->standardIcon(QStyle::SP_FileDialogNewFolder));
+    addEffectButton->setText("Add Effect");
+    addEffectButton->setToolButtonStyle(Qt::ToolButtonTextBesideIcon);
     addEffectButton->setPopupMode(QToolButton::InstantPopup);
     auto *effectMenu = new QMenu(addEffectButton);
     const QStringList effects{

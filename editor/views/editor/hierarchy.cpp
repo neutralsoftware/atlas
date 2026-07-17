@@ -107,14 +107,18 @@ HierarchyPanel::HierarchyPanel(ViewportPanel *viewport, QWidget *parent)
 
     addButton = new QToolButton(toolbar);
     addButton->setObjectName("panelAddButton");
-    addButton->setText("+ Add Object");
+    addButton->setIcon(style()->standardIcon(QStyle::SP_FileDialogNewFolder));
+    addButton->setText("Add");
     addButton->setToolButtonStyle(Qt::ToolButtonTextBesideIcon);
     addButton->setPopupMode(QToolButton::InstantPopup);
+    addButton->setToolTip("Add Object");
 
     moreButton = new QToolButton(toolbar);
     moreButton->setObjectName("panelMoreButton");
-    moreButton->setText("•••");
+    moreButton->setIcon(
+        style()->standardIcon(QStyle::SP_ToolBarHorizontalExtensionButton));
     moreButton->setPopupMode(QToolButton::InstantPopup);
+    moreButton->setToolTip("Hierarchy actions");
 
     toolbarLayout->addWidget(addButton);
     toolbarLayout->addStretch();

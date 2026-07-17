@@ -265,7 +265,8 @@ public:
 
         moreButton = new QToolButton(this);
         moreButton->setObjectName("projectMoreButton");
-        moreButton->setText("•••");
+        moreButton->setIcon(
+            style()->standardIcon(QStyle::SP_ToolBarHorizontalExtensionButton));
         moreButton->setToolTip("Project options");
         layout->addWidget(moreButton);
     }

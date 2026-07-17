@@ -26,6 +26,7 @@
 #include <QPair>
 #include <QSaveFile>
 #include <QScrollArea>
+#include <QStyle>
 #include <QSignalBlocker>
 #include <QSplitter>
 #include <QTimer>
@@ -353,15 +354,17 @@ MaterialEditorPanel::MaterialEditorPanel(ViewportPanel *viewport,
     auto *header = new QWidget(this);
     header->setObjectName("materialEditorHeader");
     auto *headerLayout = new QHBoxLayout(header);
-    headerLayout->setContentsMargins(10, 7, 10, 7);
+    headerLayout->setContentsMargins(8, 4, 8, 4);
     titleLabel = new QLabel("Material Editor", header);
     titleLabel->setObjectName("materialEditorTitle");
     statusLabel = new QLabel(header);
     statusLabel->setObjectName("materialEditorStatus");
     auto *saveButton = new QPushButton("Save", header);
     saveButton->setObjectName("materialSaveButton");
+    saveButton->setIcon(style()->standardIcon(QStyle::SP_DialogSaveButton));
     auto *assignButton = new QPushButton("Assign to Selected", header);
     assignButton->setObjectName("materialAssignButton");
+    assignButton->setIcon(style()->standardIcon(QStyle::SP_ArrowRight));
     headerLayout->addWidget(titleLabel, 1);
     headerLayout->addWidget(statusLabel);
     headerLayout->addWidget(assignButton);

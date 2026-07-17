@@ -978,9 +978,16 @@ void InspectorPanel::showObject(const QJsonObject &object) {
             controlsLayout->setContentsMargins(8, 4, 8, 6);
             controlsLayout->setSpacing(5);
             const QStringList audioActions{"Play", "Pause", "Stop"};
-            for (const QString &action : audioActions) {
+            const QList<QStyle::StandardPixmap> audioIcons{
+                QStyle::SP_MediaPlay, QStyle::SP_MediaPause,
+                QStyle::SP_MediaStop};
+            for (int actionIndex = 0; actionIndex < audioActions.size();
+                 ++actionIndex) {
+                const QString &action = audioActions.at(actionIndex);
                 auto *button = new QToolButton(controls);
-                button->setText(action);
+                button->setIcon(
+                    style()->standardIcon(audioIcons.at(actionIndex)));
+                button->setToolTip(action);
                 controlsLayout->addWidget(button);
                 connect(button, &QToolButton::clicked, this,
                         [this, objectId, index, action] {
@@ -996,7 +1003,10 @@ void InspectorPanel::showObject(const QJsonObject &object) {
     }
     auto *addComponent = new QToolButton(content);
     addComponent->setObjectName("inspectorAddComponentButton");
-    addComponent->setText("+ Add Component");
+    addComponent->setIcon(
+        style()->standardIcon(QStyle::SP_FileDialogNewFolder));
+    addComponent->setText("Add Component");
+    addComponent->setToolButtonStyle(Qt::ToolButtonTextBesideIcon);
     addComponent->setPopupMode(QToolButton::InstantPopup);
     auto *componentMenu = new QMenu(addComponent);
     auto *searchAction = new QWidgetAction(componentMenu);

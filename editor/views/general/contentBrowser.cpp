@@ -119,20 +119,23 @@ ContentBrowserPanel::ContentBrowserPanel(const QString &projectFile,
 
     createButton = new QToolButton(toolbar);
     createButton->setObjectName("panelAddButton");
-    createButton->setText("+ Create");
+    createButton->setIcon(
+        style()->standardIcon(QStyle::SP_FileDialogNewFolder));
+    createButton->setText("Create");
+    createButton->setToolButtonStyle(Qt::ToolButtonTextBesideIcon);
     createButton->setPopupMode(QToolButton::InstantPopup);
 
     revealButton = new QToolButton(toolbar);
     revealButton->setObjectName("browserRevealButton");
     revealButton->setIcon(style()->standardIcon(QStyle::SP_DirOpenIcon));
-    revealButton->setText("Reveal");
-    revealButton->setToolButtonStyle(Qt::ToolButtonTextBesideIcon);
     revealButton->setToolTip("Reveal in Finder");
 
     moreButton = new QToolButton(toolbar);
     moreButton->setObjectName("panelMoreButton");
-    moreButton->setText("•••");
+    moreButton->setIcon(
+        style()->standardIcon(QStyle::SP_ToolBarHorizontalExtensionButton));
     moreButton->setPopupMode(QToolButton::InstantPopup);
+    moreButton->setToolTip("Content actions");
 
     toolbarLayout->addWidget(backButton);
     toolbarLayout->addWidget(forwardButton);
