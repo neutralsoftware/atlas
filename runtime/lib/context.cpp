@@ -1637,10 +1637,14 @@ void syncEditorLightObject(Context &context, GameObject &object) {
         context.scene->setAmbientIntensity(intensity * 4.0f);
     }
     if (source != nullptr) {
-        Color color = object.material.albedo;
+        auto *coreObject = dynamic_cast<CoreObject *>(&object);
+        if (coreObject == nullptr) {
+            return;
+        }
+        Color color = coreObject->material.albedo;
         if (tryReadColorAny(*source, {"color"}, color)) {
-            object.material.albedo = color;
-            object.material.emissiveColor = color;
+            coreObject->material.albedo = color;
+            coreObject->material.emissiveColor = color;
         }
     }
 }
