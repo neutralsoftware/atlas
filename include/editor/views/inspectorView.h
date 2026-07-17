@@ -32,6 +32,7 @@ class InspectorPanel : public QWidget {
   public slots:
     void applySceneSnapshot(const QString &snapshot);
     void inspectRuntimeObject(int id);
+    void inspectCamera();
     void inspectFile(const QString &path);
 
   protected:
@@ -41,6 +42,7 @@ class InspectorPanel : public QWidget {
   private:
     void showEmptyState();
     void showObject(const QJsonObject &object);
+    void showCamera();
     void showFile();
     void rebuildBody();
     void commitHeaderName();
@@ -56,11 +58,13 @@ class InspectorPanel : public QWidget {
     QLineEdit *nameField = nullptr;
     QJsonObject scene;
     QJsonObject inspectedObject;
+    QJsonObject inspectedCamera;
     QString inspectedFile;
     QString projectRoot;
     int inspectedObjectId = -1;
     int lastRuntimeSelection = -1;
     bool fileTarget = false;
+    bool cameraTarget = false;
     bool rebuilding = false;
 };
 

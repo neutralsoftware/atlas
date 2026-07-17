@@ -289,7 +289,6 @@ void HierarchyPanel::rebuildScene(const QString &sceneName,
     mainCamera->setData("camera", ObjectTypeRole);
     mainCamera->setToolTip("Scene camera");
     mainCamera->setEditable(false);
-    mainCamera->setSelectable(false);
     cameras->appendRow(mainCamera);
     appendObjects(cameras, cameraObjects);
     root->appendRow(cameras);
@@ -326,8 +325,11 @@ bool HierarchyPanel::eventFilter(QObject *watched, QEvent *event) {
                 QFileInfo(drop->mimeData()->urls().constFirst().toLocalFile())
                     .suffix()
                     .toLower();
-            const bool supported = suffix == "amat" || suffix == "material" ||
-                                   suffix == "ts" || suffix == "js";
+            const bool supported =
+                suffix == "amat" || suffix == "material" || suffix == "ts" ||
+                suffix == "js" || suffix == "wav" || suffix == "mp3" ||
+                suffix == "ogg" || suffix == "flac" || suffix == "m4a" ||
+                suffix == "aac";
             if (supported && event->type() == QEvent::Drop &&
                 viewport != nullptr &&
                 viewport->attachRuntimeAsset(
@@ -449,6 +451,10 @@ void HierarchyPanel::focusSelectedObject() {
     if (id >= 0) {
         viewport->selectRuntimeObject(id, true);
         emit objectActivated(id);
+    } else if (treeView->currentIndex().data(ObjectTypeRole).toString() ==
+               "camera") {
+        viewport->selectRuntimeObject(-1, false);
+        emit cameraActivated();
     }
 }
 

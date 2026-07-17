@@ -28,6 +28,7 @@
 #include "editor/views/hierarchyPanel.h"
 #include "editor/views/inspectorView.h"
 #include "editor/views/materialEditor.h"
+#include "editor/views/postProcessing.h"
 #include "editor/views/viewport.h"
 #include "editor/views/viewportTools.h"
 
@@ -176,10 +177,22 @@ void EditorWindow::setupDocks() {
          .icon = style()->standardIcon(QStyle::SP_FileDialogContentsView)});
     coreManager->addDockWidgetTabToArea(materialDock,
                                         viewportDock->dockAreaWidget());
+
+    postProcessingPanel = new PostProcessingPanel(viewportPanel);
+    auto *postProcessingDock = dockManager->addPanel(
+        {.id = "postProcessing",
+         .title = "Post Processing",
+         .widget = postProcessingPanel,
+         .area = EditorDockArea::Right,
+         .icon = style()->standardIcon(QStyle::SP_ComputerIcon)});
+    coreManager->addDockWidgetTabToArea(postProcessingDock,
+                                        viewportDock->dockAreaWidget());
     viewportDock->setAsCurrentTab();
 
     connect(hierarchyPanel, &HierarchyPanel::objectActivated, inspectorPanel,
             &InspectorPanel::inspectRuntimeObject);
+    connect(hierarchyPanel, &HierarchyPanel::cameraActivated, inspectorPanel,
+            &InspectorPanel::inspectCamera);
     connect(hierarchyPanel, &HierarchyPanel::objectActivated, contentBrowser,
             &ContentBrowserPanel::clearSelection);
     connect(viewportPanel, &ViewportPanel::runtimeObjectActivated,

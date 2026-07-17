@@ -49,12 +49,17 @@ class ViewportPanel : public QWidget {
                                   int componentIndex,
                                   const QString &propertyPath,
                                   const QJsonValue &value);
+    bool setRuntimeSceneProperty(const QString &section, int index,
+                                 const QString &propertyPath,
+                                 const QJsonValue &value);
     bool applyRuntimeObjectProperty(int id, const QString &component,
                                     int componentIndex,
                                     const QString &propertyPath,
                                     const QJsonValue &value);
     int addRuntimeObjectComponent(int id, const QString &type,
                                   const QJsonObject &properties);
+    bool controlRuntimeAudio(int id, int componentIndex,
+                             const QString &action);
     bool setRuntimeObjectParent(int childId, int parentId);
     bool deleteRuntimeObject(int id);
     int createRuntimeObject(const QString &type, const QString &name = {});

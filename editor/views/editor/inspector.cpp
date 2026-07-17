@@ -106,6 +106,11 @@ QIcon inspectorIcon(QWidget *widget, const QString &type) {
     } else if (normalized.contains("particle")) {
         fallback = QStyle::SP_BrowserReload;
         themeName = "weather-showers-scattered";
+    } else if (normalized.contains("audio") || normalized == "wav" ||
+               normalized == "mp3" || normalized == "ogg" ||
+               normalized == "flac") {
+        fallback = QStyle::SP_MediaVolume;
+        themeName = "audio-x-generic";
     } else if (normalized == "model") {
         fallback = QStyle::SP_FileDialogContentsView;
         themeName = "model";
@@ -210,8 +215,9 @@ QJsonObject componentSchema(const QString &type) {
     }
     if (normalized == "audioplayer") {
         return {{"source", ""},
-                {"position", QJsonArray{0.0, 0.0, 0.0}},
                 {"useSpatialization", true},
+                {"volume", 1.0},
+                {"loop", false},
                 {"autoplay", false}};
     }
     QJsonObject joint{
@@ -276,6 +282,38 @@ QJsonObject componentSchema(const QString &type) {
                       {"differentialLimitedSlipRatio", 0.0}}}}}};
     }
     return {};
+}
+
+QJsonObject lightSchema(const QString &type) {
+    const QString normalized = type.toLower().remove('_').remove('-');
+    QJsonObject common{{"color", QJsonArray{1.0, 1.0, 1.0, 1.0}},
+                       {"intensity", 1.0}};
+    if (normalized == "ambientlight" || normalized == "ambient") {
+        common.insert("intensity", 0.5);
+        return common;
+    }
+    common.insert("shineColor", QJsonArray{1.0, 1.0, 1.0, 1.0});
+    common.insert("castsShadows", false);
+    common.insert("shadowResolution", 2048);
+    if (normalized == "directionallight" || normalized == "sun") {
+        common.insert("direction", QJsonArray{0.0, -1.0, 0.0});
+        common.insert("shadowResolution", 4096);
+    } else if (normalized == "pointlight") {
+        common.insert("distance", 50.0);
+    } else if (normalized == "spotlight") {
+        common.insert("direction", QJsonArray{0.0, -1.0, 0.0});
+        common.insert("range", 50.0);
+        common.insert("cutoff", 35.0);
+        common.insert("outerCutoff", 40.0);
+    } else if (normalized == "arealight") {
+        common.insert("right", QJsonArray{1.0, 0.0, 0.0});
+        common.insert("up", QJsonArray{0.0, 1.0, 0.0});
+        common.insert("size", QJsonArray{1.0, 1.0});
+        common.insert("range", 50.0);
+        common.insert("angle", 90.0);
+        common.insert("castsBothSides", false);
+    }
+    return common;
 }
 
 QJsonObject componentValues(const QString &type, const QJsonObject &raw) {
@@ -391,11 +429,12 @@ QWidget *vectorField(const QJsonArray &value, const PropertyChanged &changed,
     layout->setContentsMargins(3, 0, 3, 0);
     layout->setSpacing(2);
     auto values = value;
-    while (values.size() < 3)
+    const int dimensions = std::clamp(static_cast<int>(value.size()), 2, 3);
+    while (values.size() < dimensions)
         values.append(0.0);
     const QStringList axes{"X", "Y", "Z"};
     QList<QDoubleSpinBox *> boxes;
-    for (int index = 0; index < 3; ++index) {
+    for (int index = 0; index < dimensions; ++index) {
         auto *axis = new QLabel(axes.at(index), field);
         axis->setObjectName("inspectorAxisLabel");
         auto *box = numberField(values.at(index).toDouble(), field);
@@ -406,8 +445,10 @@ QWidget *vectorField(const QJsonArray &value, const PropertyChanged &changed,
         layout->addWidget(box, 1);
     }
     auto commit = [boxes, changed, path] {
-        changed(path, QJsonArray{boxes.at(0)->value(), boxes.at(1)->value(),
-                                 boxes.at(2)->value()});
+        QJsonArray result;
+        for (QDoubleSpinBox *box : boxes)
+            result.append(box->value());
+        changed(path, result);
     };
     for (QDoubleSpinBox *box : boxes) {
         QObject::connect(box, &QDoubleSpinBox::valueChanged, field,
@@ -515,7 +556,8 @@ QWidget *primitiveField(const QString &name, const QString &path,
         if (isColorProperty(name, array)) {
             return colorField(array, changed, path, parent);
         }
-        if (array.size() == 3 && isNumericArray(array)) {
+        if ((array.size() == 2 || array.size() == 3) &&
+            isNumericArray(array)) {
             return vectorField(array, changed, path, parent);
         }
         auto *field = new QLineEdit(parent);
@@ -749,6 +791,10 @@ void InspectorPanel::applySceneSnapshot(const QString &snapshot) {
     if (error.error != QJsonParseError::NoError || !document.isObject())
         return;
     scene = document.object();
+    if (cameraTarget) {
+        inspectedCamera = scene.value("camera").toObject();
+        return;
+    }
     const int selected = scene.value("selectedId").toInt(-1);
     const bool selectionChanged = selected != lastRuntimeSelection;
     lastRuntimeSelection = selected;
@@ -772,7 +818,9 @@ void InspectorPanel::applySceneSnapshot(const QString &snapshot) {
 
 void InspectorPanel::inspectRuntimeObject(int id) {
     fileTarget = false;
+    cameraTarget = false;
     inspectedFile.clear();
+    inspectedCamera = {};
     inspectedObjectId = id;
     inspectedObject = findObject(id);
     if (inspectedObject.isEmpty()) {
@@ -782,6 +830,16 @@ void InspectorPanel::inspectRuntimeObject(int id) {
     }
 }
 
+void InspectorPanel::inspectCamera() {
+    fileTarget = false;
+    cameraTarget = true;
+    inspectedFile.clear();
+    inspectedObjectId = -1;
+    inspectedObject = {};
+    inspectedCamera = scene.value("camera").toObject();
+    showCamera();
+}
+
 void InspectorPanel::inspectFile(const QString &path) {
     if (path.isEmpty()) {
         fileTarget = false;
@@ -789,6 +847,7 @@ void InspectorPanel::inspectFile(const QString &path) {
         return;
     }
     fileTarget = true;
+    cameraTarget = false;
     inspectedObjectId = -1;
     inspectedObject = {};
     inspectedFile = path;
@@ -868,6 +927,10 @@ void InspectorPanel::showObject(const QJsonObject &object) {
         content));
 
     QJsonObject objectProperties = object.value("properties").toObject();
+    if (type.contains("light", Qt::CaseInsensitive) ||
+        type.compare("sun", Qt::CaseInsensitive) == 0) {
+        objectProperties = mergeObjects(lightSchema(type), objectProperties);
+    }
     const QString materialPath = objectProperties.value("material").toString();
     objectProperties.remove("material");
     const QStringList hidden{"id",       "name",       "type",
@@ -908,6 +971,28 @@ void InspectorPanel::showObject(const QJsonObject &object) {
                 update(componentType, index, path, value);
             },
             content));
+        if (componentType.toLower().remove('_').remove('-') == "audioplayer") {
+            auto *controls = new QFrame(content);
+            controls->setObjectName("inspectorAudioControls");
+            auto *controlsLayout = new QHBoxLayout(controls);
+            controlsLayout->setContentsMargins(8, 4, 8, 6);
+            controlsLayout->setSpacing(5);
+            const QStringList audioActions{"Play", "Pause", "Stop"};
+            for (const QString &action : audioActions) {
+                auto *button = new QToolButton(controls);
+                button->setText(action);
+                controlsLayout->addWidget(button);
+                connect(button, &QToolButton::clicked, this,
+                        [this, objectId, index, action] {
+                            if (viewport != nullptr) {
+                                viewport->controlRuntimeAudio(
+                                    objectId, index, action.toLower());
+                            }
+                        });
+            }
+            controlsLayout->addStretch();
+            contentLayout->addWidget(controls);
+        }
     }
     auto *addComponent = new QToolButton(content);
     addComponent->setObjectName("inspectorAddComponentButton");
@@ -957,20 +1042,27 @@ void InspectorPanel::showObject(const QJsonObject &object) {
         searchableActions.append(action);
     }
     QDirIterator assets(projectRoot,
-                        {"*.ts", "*.js", "*.amat", "*.material"},
+                        {"*.ts",   "*.js",  "*.amat", "*.material",
+                         "*.wav",  "*.mp3", "*.ogg",  "*.flac",
+                         "*.m4a",  "*.aac"},
                         QDir::Files, QDirIterator::Subdirectories);
     while (assets.hasNext()) {
         const QFileInfo info(assets.next());
         const QString suffix = info.suffix().toLower();
         const bool material = suffix == "amat" || suffix == "material";
+        const bool audio = suffix == "wav" || suffix == "mp3" ||
+                           suffix == "ogg" || suffix == "flac" ||
+                           suffix == "m4a" || suffix == "aac";
         const QString label =
             QStringLiteral("%1 · %2")
-                .arg(material ? "Material" : "Script", info.completeBaseName());
+                .arg(material ? "Material" : audio ? "Audio" : "Script",
+                     info.completeBaseName());
         QAction *action = componentMenu->addAction(
             label, this, [this, objectId, path = info.absoluteFilePath()] {
                 attachAsset(path, objectId);
             });
-        action->setIcon(inspectorIcon(this, material ? "material" : "script"));
+        action->setIcon(inspectorIcon(
+            this, material ? "material" : audio ? "audio" : "script"));
         action->setProperty("searchText",
                             (label + ' ' + info.absoluteFilePath()).toLower());
         searchableActions.append(action);
@@ -994,6 +1086,74 @@ void InspectorPanel::showObject(const QJsonObject &object) {
     contentLayout->addStretch();
 }
 
+void InspectorPanel::showCamera() {
+    rebuildBody();
+    auto *header = new QFrame(content);
+    header->setObjectName("inspectorHeader");
+    auto *headerLayout = new QHBoxLayout(header);
+    headerLayout->setContentsMargins(10, 10, 10, 10);
+    headerLayout->setSpacing(10);
+    auto *cameraIcon = new QLabel(header);
+    cameraIcon->setObjectName("inspectorObjectIcon");
+    cameraIcon->setPixmap(inspectorIcon(this, "camera").pixmap(42, 42));
+    cameraIcon->setFixedSize(46, 46);
+    auto *identity = new QWidget(header);
+    auto *identityLayout = new QVBoxLayout(identity);
+    identityLayout->setContentsMargins(0, 0, 0, 0);
+    identityLayout->setSpacing(2);
+    auto *title = new QLabel("Main Camera", identity);
+    title->setObjectName("inspectorCameraTitle");
+    auto *kind = new QLabel("Scene Camera", identity);
+    kind->setObjectName("inspectorTypeLabel");
+    identityLayout->addWidget(title);
+    identityLayout->addWidget(kind);
+    headerLayout->addWidget(cameraIcon);
+    headerLayout->addWidget(identity, 1);
+    contentLayout->addWidget(header);
+
+    auto update = [this](const QString &path, const QJsonValue &value) {
+        if (viewport != nullptr) {
+            viewport->setRuntimeSceneProperty("camera", -1, path, value);
+        }
+    };
+    QJsonObject transform{{"position", inspectedCamera.value("position")},
+                          {"target", inspectedCamera.value("target")}};
+    QJsonObject projection{
+        {"orthographic", inspectedCamera.value("orthographic")},
+        {"fieldOfView", inspectedCamera.value("fov")},
+        {"orthographicSize", inspectedCamera.value("orthoSize")},
+        {"nearClip", inspectedCamera.value("nearClip")},
+        {"farClip", inspectedCamera.value("farClip")}};
+    QJsonObject focus{{"focusDepth", inspectedCamera.value("focusDepth")},
+                      {"focusRange", inspectedCamera.value("focusRange")}};
+    QJsonObject controls{
+        {"movementSpeed", inspectedCamera.value("movementSpeed")},
+        {"mouseSensitivity", inspectedCamera.value("mouseSensitivity")},
+        {"controllerLookSensitivity",
+         inspectedCamera.value("controllerLookSensitivity")},
+        {"lookSmoothness", inspectedCamera.value("lookSmoothness")},
+        {"automaticMoving", inspectedCamera.value("automaticMoving")},
+        {"actions", inspectedCamera.value("actions")}};
+    contentLayout->addWidget(componentCard("Transform", transform, QString(),
+                                           update, content));
+    contentLayout->addWidget(componentCard(
+        "Projection", projection, QString(),
+        [update](const QString &path, const QJsonValue &value) {
+            QString runtimePath = path;
+            if (path == "/fieldOfView")
+                runtimePath = "/fov";
+            else if (path == "/orthographicSize")
+                runtimePath = "/orthoSize";
+            update(runtimePath, value);
+        },
+        content));
+    contentLayout->addWidget(
+        componentCard("Depth of Field", focus, QString(), update, content));
+    contentLayout->addWidget(
+        componentCard("Camera Controls", controls, QString(), update, content));
+    contentLayout->addStretch();
+}
+
 bool InspectorPanel::attachAsset(const QString &path, int objectId) {
     return viewport != nullptr && objectId >= 0 &&
            viewport->attachRuntimeAsset(objectId, path);
@@ -1006,7 +1166,9 @@ void InspectorPanel::dragEnterEvent(QDragEnterEvent *event) {
                 .suffix()
                 .toLower();
         if (suffix == "amat" || suffix == "material" || suffix == "ts" ||
-            suffix == "js") {
+            suffix == "js" || suffix == "wav" || suffix == "mp3" ||
+            suffix == "ogg" || suffix == "flac" || suffix == "m4a" ||
+            suffix == "aac") {
             event->acceptProposedAction();
             return;
         }

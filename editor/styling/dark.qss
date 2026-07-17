@@ -216,6 +216,34 @@ QToolButton::menu-indicator {
     padding: 40px;
 }
 
+#postProcessingToolbar {
+    background-color: #1B1E20;
+    border-bottom: 1px solid #363C3F;
+}
+
+#postProcessingTitle,
+#postProcessingSectionTitle,
+#inspectorCameraTitle {
+    color: #F3F6F7;
+    font-size: 15px;
+    font-weight: 650;
+}
+
+#postProcessingStatus {
+    color: #89959B;
+}
+
+#postProcessingScroll,
+#postProcessingBody {
+    border: none;
+    background-color: #202324;
+}
+
+#postProcessingEmpty {
+    color: #879299;
+    padding: 40px;
+}
+
 #materialTextureSlot {
     background-color: #1B1E20;
     border: 1px solid #343B3E;
@@ -775,6 +803,14 @@ QScrollArea#inspectorScroll {
 #inspectorAddComponentButton:hover {
     background-color: #343C40;
     border-color: #5B6970;
+}
+
+#inspectorAudioControls {
+    background-color: #202426;
+    border: 1px solid #343D41;
+    border-top: none;
+    border-bottom-left-radius: 7px;
+    border-bottom-right-radius: 7px;
 }
 
 QHeaderView {

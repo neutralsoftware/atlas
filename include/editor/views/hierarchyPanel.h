@@ -32,6 +32,7 @@ class HierarchyPanel : public QWidget {
 
   signals:
     void objectActivated(int id);
+    void cameraActivated();
 
   protected:
     bool eventFilter(QObject *watched, QEvent *event) override;

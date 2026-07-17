@@ -98,6 +98,9 @@ class Context {
     std::unordered_map<int, AreaLight *> editorAreaLights;
     std::unordered_map<int, DirectionalLight *> editorDirectionalLights;
     std::unordered_map<int, json> editorLightSourceData;
+    json editorCameraData = json::object();
+    json editorTargetData = json::array();
+    json editorEnvironmentData = json::object();
     std::vector<std::pair<std::string, std::string>> deletedObjectReferences;
 
     ProjectConfig config;
@@ -122,8 +125,12 @@ class Context {
     bool setObjectProperty(int id, const std::string &component,
                            int componentIndex, const std::string &propertyPath,
                            const json &value);
+    bool setSceneProperty(const std::string &section, int index,
+                          const std::string &propertyPath, const json &value);
     bool setObjectMaterial(int id, const std::string &path);
     int addObjectComponent(int id, const json &component);
+    bool controlObjectAudio(int id, int componentIndex,
+                            const std::string &action);
     bool setObjectParent(int childId, int parentId);
     bool deleteObject(int id);
     int createObject(const std::string &type, const std::string &name);

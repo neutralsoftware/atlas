@@ -23,6 +23,7 @@ namespace ads {
 class ViewportPanel;
 class InspectorPanel;
 class MaterialEditorPanel;
+class PostProcessingPanel;
 
 class EditorWindow : public QMainWindow {
     Q_OBJECT
@@ -44,6 +45,7 @@ private:
     ViewportPanel* viewportPanel = nullptr;
     InspectorPanel* inspectorPanel = nullptr;
     MaterialEditorPanel* materialEditorPanel = nullptr;
+    PostProcessingPanel* postProcessingPanel = nullptr;
     QString projectFile;
     bool closing = false;
 

@@ -1514,25 +1514,195 @@ bool isEditorLightObject(const Context &context, GameObject &object) {
 
 void syncEditorLightObject(Context &context, GameObject &object) {
     const int id = static_cast<int>(object.getId());
+    const auto sourceIt = context.editorLightSourceData.find(id);
+    const json *source =
+        sourceIt != context.editorLightSourceData.end() ? &sourceIt->second
+                                                        : nullptr;
     if (auto it = context.editorPointLights.find(id);
         it != context.editorPointLights.end() && it->second != nullptr) {
         it->second->position = object.getPosition();
+        if (source != nullptr) {
+            tryReadColorAny(*source, {"color"}, it->second->color);
+            tryReadColorAny(*source, {"shineColor"}, it->second->shineColor);
+            tryReadFloatAny(*source, {"intensity"}, it->second->intensity);
+            tryReadFloatAny(*source, {"distance", "range"},
+                            it->second->distance);
+            bool castsShadows = false;
+            int resolution = 2048;
+            tryReadBoolAny(*source, {"castsShadows"}, castsShadows);
+            tryReadIntAny(*source, {"shadowResolution"}, resolution);
+            if (castsShadows && it->second->shadowRenderTarget == nullptr &&
+                context.window != nullptr) {
+                it->second->castShadows(*context.window, resolution);
+            }
+        }
     }
     if (auto it = context.editorSpotlights.find(id);
         it != context.editorSpotlights.end() && it->second != nullptr) {
         it->second->position = object.getPosition();
         it->second->direction = editorForwardDirection(object);
+        if (source != nullptr) {
+            Position3d direction;
+            if (tryReadVec3Any(*source, {"direction"}, direction)) {
+                it->second->direction = direction.normalized();
+            }
+            tryReadColorAny(*source, {"color"}, it->second->color);
+            tryReadColorAny(*source, {"shineColor"}, it->second->shineColor);
+            tryReadFloatAny(*source, {"intensity"}, it->second->intensity);
+            tryReadFloatAny(*source, {"range", "distance"}, it->second->range);
+            float cutoff =
+                glm::degrees(std::acos(std::clamp(it->second->cutOff, -1.0f,
+                                                  1.0f)));
+            float outerCutoff = glm::degrees(std::acos(
+                std::clamp(it->second->outerCutoff, -1.0f, 1.0f)));
+            tryReadFloatAny(*source, {"cutoff"}, cutoff);
+            tryReadFloatAny(*source, {"outerCutoff"}, outerCutoff);
+            it->second->cutOff = glm::cos(glm::radians(cutoff));
+            it->second->outerCutoff = glm::cos(glm::radians(outerCutoff));
+            bool castsShadows = false;
+            int resolution = 2048;
+            tryReadBoolAny(*source, {"castsShadows"}, castsShadows);
+            tryReadIntAny(*source, {"shadowResolution"}, resolution);
+            if (castsShadows && it->second->shadowRenderTarget == nullptr &&
+                context.window != nullptr) {
+                it->second->castShadows(*context.window, resolution);
+            }
+        }
         it->second->updateDebugObjectRotation();
     }
     if (auto it = context.editorAreaLights.find(id);
         it != context.editorAreaLights.end() && it->second != nullptr) {
         it->second->position = object.getPosition();
         it->second->setRotation(object.getRotation());
+        if (source != nullptr) {
+            Position3d axis;
+            if (tryReadVec3Any(*source, {"right"}, axis)) {
+                it->second->right = axis.normalized();
+            }
+            if (tryReadVec3Any(*source, {"up"}, axis)) {
+                it->second->up = axis.normalized();
+            }
+            Position2d size;
+            if (tryReadVec2Any(*source, {"size"}, size)) {
+                it->second->size = Size2d{size.x, size.y};
+            }
+            tryReadColorAny(*source, {"color"}, it->second->color);
+            tryReadColorAny(*source, {"shineColor"}, it->second->shineColor);
+            tryReadFloatAny(*source, {"intensity"}, it->second->intensity);
+            tryReadFloatAny(*source, {"range", "distance"}, it->second->range);
+            tryReadFloatAny(*source, {"angle"}, it->second->angle);
+            tryReadBoolAny(*source, {"castsBothSides"},
+                           it->second->castsBothSides);
+            bool castsShadows = false;
+            int resolution = 2048;
+            tryReadBoolAny(*source, {"castsShadows"}, castsShadows);
+            tryReadIntAny(*source, {"shadowResolution"}, resolution);
+            if (castsShadows && it->second->shadowRenderTarget == nullptr &&
+                context.window != nullptr) {
+                it->second->castShadows(*context.window, resolution);
+            }
+        }
     }
     if (auto it = context.editorDirectionalLights.find(id);
         it != context.editorDirectionalLights.end() && it->second != nullptr) {
         it->second->direction = editorForwardDirection(object);
+        if (source != nullptr) {
+            Position3d direction;
+            if (tryReadVec3Any(*source, {"direction"}, direction)) {
+                it->second->direction = direction.normalized();
+            }
+            tryReadColorAny(*source, {"color"}, it->second->color);
+            tryReadColorAny(*source, {"shineColor"}, it->second->shineColor);
+            tryReadFloatAny(*source, {"intensity"}, it->second->intensity);
+            bool castsShadows = false;
+            int resolution = 4096;
+            tryReadBoolAny(*source, {"castsShadows"}, castsShadows);
+            tryReadIntAny(*source, {"shadowResolution"}, resolution);
+            if (castsShadows && it->second->shadowRenderTarget == nullptr &&
+                context.window != nullptr) {
+                it->second->castShadows(*context.window, resolution);
+            }
+        }
     }
+    if (source != nullptr && context.scene != nullptr &&
+        !context.editorPointLights.contains(id) &&
+        !context.editorSpotlights.contains(id) &&
+        !context.editorAreaLights.contains(id) &&
+        !context.editorDirectionalLights.contains(id)) {
+        Color color = context.scene->getAmbientColor();
+        float intensity = context.scene->getAmbientIntensity() / 4.0f;
+        tryReadColorAny(*source, {"color"}, color);
+        tryReadFloatAny(*source, {"intensity"}, intensity);
+        context.scene->setAmbientColor(color);
+        context.scene->setAmbientIntensity(intensity * 4.0f);
+    }
+    if (source != nullptr) {
+        Color color = object.material.albedo;
+        if (tryReadColorAny(*source, {"color"}, color)) {
+            object.material.albedo = color;
+            object.material.emissiveColor = color;
+        }
+    }
+}
+
+void applyEditorCameraData(Context &context) {
+    if (context.camera == nullptr || !context.editorCameraData.is_object()) {
+        return;
+    }
+    tryReadVec3Any(context.editorCameraData, {"position"},
+                   context.camera->position);
+    Position3d target = context.camera->target;
+    if (tryReadVec3Any(context.editorCameraData, {"target"}, target)) {
+        context.camera->lookAt(target);
+    }
+    tryReadFloatAny(context.editorCameraData, {"fov"}, context.camera->fov);
+    tryReadFloatAny(context.editorCameraData, {"nearClip"},
+                    context.camera->nearClip);
+    tryReadFloatAny(context.editorCameraData, {"farClip"},
+                    context.camera->farClip);
+    tryReadFloatAny(context.editorCameraData, {"orthoSize"},
+                    context.camera->orthographicSize);
+    tryReadFloatAny(context.editorCameraData, {"movementSpeed"},
+                    context.camera->movementSpeed);
+    tryReadFloatAny(context.editorCameraData, {"mouseSensitivity"},
+                    context.camera->mouseSensitivity);
+    tryReadFloatAny(context.editorCameraData, {"controllerLookSensitivity"},
+                    context.camera->controllerLookSensitivity);
+    tryReadFloatAny(context.editorCameraData, {"lookSmoothness"},
+                    context.camera->lookSmoothness);
+    tryReadBoolAny(context.editorCameraData, {"orthographic"},
+                   context.camera->useOrthographic);
+    tryReadFloatAny(context.editorCameraData, {"focusDepth"},
+                    context.camera->focusDepth);
+    tryReadFloatAny(context.editorCameraData, {"focusRange"},
+                    context.camera->focusRange);
+    tryReadBoolAny(context.editorCameraData, {"automaticMoving"},
+                   context.cameraAutomaticMoving);
+}
+
+json serializedEditorCamera(const Context &context) {
+    json result = context.editorCameraData.is_object()
+                      ? context.editorCameraData
+                      : json::object();
+    if (context.camera == nullptr) {
+        return result;
+    }
+    result["position"] = vec3ToJson(context.camera->position);
+    result["target"] = vec3ToJson(context.camera->target);
+    result["fov"] = context.camera->fov;
+    result["nearClip"] = context.camera->nearClip;
+    result["farClip"] = context.camera->farClip;
+    result["orthoSize"] = context.camera->orthographicSize;
+    result["movementSpeed"] = context.camera->movementSpeed;
+    result["mouseSensitivity"] = context.camera->mouseSensitivity;
+    result["controllerLookSensitivity"] =
+        context.camera->controllerLookSensitivity;
+    result["lookSmoothness"] = context.camera->lookSmoothness;
+    result["orthographic"] = context.camera->useOrthographic;
+    result["focusDepth"] = context.camera->focusDepth;
+    result["focusRange"] = context.camera->focusRange;
+    result["automaticMoving"] = context.cameraAutomaticMoving;
+    return result;
 }
 
 json serializeEditorLightObject(Context &context, GameObject &object) {
@@ -2634,6 +2804,15 @@ std::shared_ptr<Component> attachComponent(Context &context,
             component->setPosition(position);
         }
 
+        float volume = 1.0f;
+        if (tryReadFloatAny(pending.data, {"volume"}, volume)) {
+            component->setVolume(volume);
+        }
+        bool loop = false;
+        if (tryReadBoolAny(pending.data, {"loop", "looping"}, loop)) {
+            component->setLoop(loop);
+        }
+
         bool autoPlay = false;
         if (tryReadBoolAny(pending.data,
                            {"autoplay", "autoPlay", "playOnStart"}, autoPlay) &&
@@ -2914,6 +3093,14 @@ bool updateAttachedComponent(Context &context, GameObject &object,
         Position3d position;
         if (tryReadVec3Any(data, {"position"}, position)) {
             audio->setPosition(position);
+        }
+        float volume = 1.0f;
+        if (tryReadFloatAny(data, {"volume"}, volume)) {
+            audio->setVolume(volume);
+        }
+        bool loop = false;
+        if (tryReadBoolAny(data, {"loop", "looping"}, loop)) {
+            audio->setLoop(loop);
         }
         if (propertyPath == "/autoplay" || propertyPath == "/playOnStart") {
             bool autoPlay = false;
@@ -4224,6 +4411,9 @@ std::string Context::sceneObjectsJson() const {
             : currentSceneName;
     snapshot["selectedId"] = selectedObjectId();
     snapshot["objects"] = json::array();
+    snapshot["camera"] = serializedEditorCamera(*this);
+    snapshot["targets"] = editorTargetData;
+    snapshot["environment"] = editorEnvironmentData;
 
     std::unordered_map<int, std::vector<int>> children;
     for (const auto &[childId, parentId] : objectParents) {
@@ -4324,7 +4514,11 @@ bool Context::setObjectProperty(int id, const std::string &component,
         json &source = editorLightSourceData.contains(id)
                            ? editorLightSourceData[id]
                            : editorObjectSourceData[id];
-        return setJsonProperty(source, propertyPath, value);
+        if (!setJsonProperty(source, propertyPath, value)) {
+            return false;
+        }
+        syncEditorLightObject(*this, *object);
+        return true;
     }
 
     auto components = editorComponentData.find(id);
@@ -4385,6 +4579,35 @@ bool Context::setObjectProperty(int id, const std::string &component,
                     std::string(error.what()));
     }
     return true;
+}
+
+bool Context::setSceneProperty(const std::string &section, int index,
+                               const std::string &propertyPath,
+                               const json &value) {
+    const std::string normalizedSection = normalizeToken(section);
+    if (normalizedSection == "camera") {
+        if (!setJsonProperty(editorCameraData, propertyPath, value)) {
+            return false;
+        }
+        applyEditorCameraData(*this);
+        return true;
+    }
+    if (normalizedSection == "environment") {
+        return setJsonProperty(editorEnvironmentData, propertyPath, value);
+    }
+    if (normalizedSection == "target" || normalizedSection == "targets") {
+        if (index < 0 && propertyPath.empty() && value.is_array()) {
+            editorTargetData = value;
+            return true;
+        }
+        if (!editorTargetData.is_array() || index < 0 ||
+            index >= static_cast<int>(editorTargetData.size()) ||
+            !editorTargetData[index].is_object()) {
+            return false;
+        }
+        return setJsonProperty(editorTargetData[index], propertyPath, value);
+    }
+    return false;
 }
 
 bool Context::setObjectMaterial(int id, const std::string &path) {
@@ -4468,6 +4691,31 @@ int Context::addObjectComponent(int id, const json &component) {
                     std::string(error.what()));
     }
     return index;
+}
+
+bool Context::controlObjectAudio(int id, int componentIndex,
+                                 const std::string &action) {
+    auto components = editorRuntimeComponents.find(id);
+    if (components == editorRuntimeComponents.end() || componentIndex < 0 ||
+        componentIndex >= static_cast<int>(components->second.size())) {
+        return false;
+    }
+    auto component = components->second[componentIndex].lock();
+    auto audio = std::dynamic_pointer_cast<AudioPlayer>(component);
+    if (audio == nullptr) {
+        return false;
+    }
+    const std::string normalizedAction = normalizeToken(action);
+    if (normalizedAction == "play") {
+        audio->play();
+    } else if (normalizedAction == "pause") {
+        audio->pause();
+    } else if (normalizedAction == "stop") {
+        audio->stop();
+    } else {
+        return false;
+    }
+    return true;
 }
 
 bool Context::setObjectParent(int childId, int parentId) {
@@ -4921,6 +5169,11 @@ bool Context::saveCurrentScene() {
         }
     }
     sceneData["lights"] = serializedLights;
+    sceneData["camera"] = serializedEditorCamera(*this);
+    sceneData["targets"] = editorTargetData;
+    if (!editorEnvironmentData.empty()) {
+        sceneData["environment"] = editorEnvironmentData;
+    }
 
     std::ofstream output(currentSceneFile, std::ios::trunc);
     if (!output.is_open()) {
@@ -5113,6 +5366,19 @@ void Context::loadScene(Window &window, const json &sceneData) {
     if (sceneNameIt != sceneData.end() && sceneNameIt->is_string()) {
         currentSceneName = sceneNameIt->get<std::string>();
     }
+    editorCameraData =
+        sceneData.contains("camera") && sceneData["camera"].is_object()
+            ? sceneData["camera"]
+            : json::object();
+    editorTargetData =
+        sceneData.contains("targets") && sceneData["targets"].is_array()
+            ? sceneData["targets"]
+            : json::array();
+    editorEnvironmentData =
+        sceneData.contains("environment") &&
+                sceneData["environment"].is_object()
+            ? sceneData["environment"]
+            : json::object();
 
     scene->atmosphere.resetRuntimeState();
     scene->setUseAtmosphereSkybox(false);
@@ -5293,6 +5559,8 @@ void Context::loadScene(Window &window, const json &sceneData) {
             }
         }
     }
+
+    applyEditorCameraData(*this);
 
     window.setCamera(camera.get());
 

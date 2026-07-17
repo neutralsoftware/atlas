@@ -285,7 +285,9 @@ void ViewportPanel::dragEnterEvent(QDragEnterEvent *event) {
                 .suffix()
                 .toLower();
         if (suffix == "amat" || suffix == "material" || suffix == "ts" ||
-            suffix == "js") {
+            suffix == "js" || suffix == "wav" || suffix == "mp3" ||
+            suffix == "ogg" || suffix == "flac" || suffix == "m4a" ||
+            suffix == "aac") {
             event->acceptProposedAction();
             return;
         }
@@ -586,6 +588,32 @@ bool ViewportPanel::setRuntimeObjectProperty(
     return true;
 }
 
+bool ViewportPanel::setRuntimeSceneProperty(
+    const QString &section, int index, const QString &propertyPath,
+    const QJsonValue &value) {
+    if (runtimeContext == nullptr || section.isEmpty()) {
+        return false;
+    }
+    QJsonArray wrapper;
+    wrapper.append(value);
+    const QByteArray payload =
+        QJsonDocument(wrapper).toJson(QJsonDocument::Compact);
+    try {
+        const json parsed = json::parse(payload.constData());
+        if (!parsed.is_array() || parsed.empty() ||
+            !runtimeContext->setSceneProperty(
+                section.toStdString(), index, propertyPath.toStdString(),
+                parsed.front())) {
+            return false;
+        }
+    } catch (const json::exception &) {
+        return false;
+    }
+    runtimeContext->saveCurrentScene();
+    refreshSceneSnapshot();
+    return true;
+}
+
 bool ViewportPanel::applyRuntimeObjectProperty(
     int id, const QString &component, int componentIndex,
     const QString &propertyPath, const QJsonValue &value) {
@@ -632,11 +660,19 @@ int ViewportPanel::addRuntimeObjectComponent(
     }
 }
 
+bool ViewportPanel::controlRuntimeAudio(int id, int componentIndex,
+                                        const QString &action) {
+    return runtimeContext != nullptr &&
+           runtimeContext->controlObjectAudio(id, componentIndex,
+                                              action.toStdString());
+}
+
 bool ViewportPanel::setRuntimeObjectParent(int childId, int parentId) {
     if (runtimeContext == nullptr ||
         !runtimeContext->setObjectParent(childId, parentId)) {
         return false;
     }
+    runtimeContext->saveCurrentScene();
     refreshSceneSnapshot();
     return true;
 }
@@ -664,6 +700,7 @@ int ViewportPanel::createRuntimeObject(const QString &type,
     const int id = runtimeContext->createObject(type.toUtf8().toStdString(),
                                                 name.toUtf8().toStdString());
     if (id >= 0) {
+        runtimeContext->saveCurrentScene();
         refreshSceneSnapshot();
     }
     return id;
@@ -702,6 +739,16 @@ bool ViewportPanel::attachRuntimeAsset(int id, const QString &path) {
                    QJsonObject{{"name", info.completeBaseName()},
                                {"source", info.absoluteFilePath()},
                                {"variables", QJsonObject{}}}) >= 0;
+    }
+    if (suffix == "wav" || suffix == "mp3" || suffix == "ogg" ||
+        suffix == "flac" || suffix == "m4a" || suffix == "aac") {
+        return addRuntimeObjectComponent(
+                   id, "audio_player",
+                   QJsonObject{{"source", info.absoluteFilePath()},
+                               {"useSpatialization", true},
+                               {"volume", 1.0},
+                               {"loop", false},
+                               {"autoplay", false}}) >= 0;
     }
     return false;
 }
