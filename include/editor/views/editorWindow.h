@@ -11,6 +11,7 @@
 #define ATLAS_EDITORWINDOW_H
 
 #include <QMainWindow>
+#include <QByteArray>
 #include <QString>
 
 #include "editor/application/dockManager.h"
@@ -24,6 +25,7 @@ class ViewportPanel;
 class InspectorPanel;
 class MaterialEditorPanel;
 class PostProcessingPanel;
+class QMenu;
 
 class EditorWindow : public QMainWindow {
     Q_OBJECT
@@ -46,6 +48,9 @@ private:
     InspectorPanel* inspectorPanel = nullptr;
     MaterialEditorPanel* materialEditorPanel = nullptr;
     PostProcessingPanel* postProcessingPanel = nullptr;
+    QMenu* viewMenu = nullptr;
+    QMenu* windowMenu = nullptr;
+    QByteArray defaultDockState;
     QString projectFile;
     bool closing = false;
 

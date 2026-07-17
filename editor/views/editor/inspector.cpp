@@ -1133,7 +1133,9 @@ void InspectorPanel::showCamera() {
          inspectedCamera.value("controllerLookSensitivity")},
         {"lookSmoothness", inspectedCamera.value("lookSmoothness")},
         {"automaticMoving", inspectedCamera.value("automaticMoving")},
-        {"actions", inspectedCamera.value("actions")}};
+        {"actions", inspectedCamera.value("actions").isArray()
+                        ? inspectedCamera.value("actions")
+                        : QJsonValue(QJsonArray{})}};
     contentLayout->addWidget(componentCard("Transform", transform, QString(),
                                            update, content));
     contentLayout->addWidget(componentCard(

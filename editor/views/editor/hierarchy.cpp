@@ -132,7 +132,10 @@ HierarchyPanel::HierarchyPanel(ViewportPanel *viewport, QWidget *parent)
     treeView->setContextMenuPolicy(Qt::CustomContextMenu);
     treeView->setUniformRowHeights(true);
     treeView->setAcceptDrops(true);
-    treeView->setDragDropMode(QAbstractItemView::DropOnly);
+    treeView->setDragEnabled(true);
+    treeView->setDragDropMode(QAbstractItemView::DragDrop);
+    treeView->setDefaultDropAction(Qt::MoveAction);
+    treeView->setDropIndicatorShown(true);
     treeView->viewport()->setAcceptDrops(true);
     treeView->viewport()->installEventFilter(this);
     layout->addWidget(treeView);
@@ -192,7 +195,9 @@ HierarchyPanel::HierarchyPanel(ViewportPanel *viewport, QWidget *parent)
             &HierarchyPanel::showContextMenu);
 
     auto *deleteAction = new QAction(this);
-    deleteAction->setShortcut(QKeySequence::Delete);
+    deleteAction->setShortcuts(
+        {QKeySequence::Delete,
+         QKeySequence(Qt::META | Qt::Key_Backspace)});
     deleteAction->setShortcutContext(Qt::WidgetWithChildrenShortcut);
     connect(deleteAction, &QAction::triggered, this,
             &HierarchyPanel::deleteSelectedObject);
@@ -204,6 +209,21 @@ HierarchyPanel::HierarchyPanel(ViewportPanel *viewport, QWidget *parent)
     connect(renameAction, &QAction::triggered, this,
             &HierarchyPanel::renameSelectedObject);
     addAction(renameAction);
+
+    auto *focusAction = new QAction(this);
+    focusAction->setShortcut(Qt::Key_F);
+    focusAction->setShortcutContext(Qt::WidgetWithChildrenShortcut);
+    connect(focusAction, &QAction::triggered, this,
+            &HierarchyPanel::focusSelectedObject);
+    addAction(focusAction);
+
+    auto *createEmptyAction = new QAction(this);
+    createEmptyAction->setShortcut(
+        QKeySequence(Qt::META | Qt::SHIFT | Qt::Key_N));
+    createEmptyAction->setShortcutContext(Qt::WidgetWithChildrenShortcut);
+    connect(createEmptyAction, &QAction::triggered, this,
+            [this] { createObject("group", "Empty Object"); });
+    addAction(createEmptyAction);
 
     if (viewport != nullptr) {
         addButton->setEnabled(false);
@@ -343,6 +363,23 @@ bool HierarchyPanel::eventFilter(QObject *watched, QEvent *event) {
             }
             if (supported && event->type() != QEvent::Drop) {
                 drop->acceptProposedAction();
+                return true;
+            }
+        }
+        if (drop->mimeData()->hasFormat(
+                "application/x-qstandarditemmodeldatalist")) {
+            const int childId = selectedObjectId();
+            const int parentId = index.isValid() ? objectId : -1;
+            const bool valid = childId >= 0 && childId != parentId;
+            if (valid && event->type() == QEvent::Drop && viewport != nullptr) {
+                if (viewport->setRuntimeObjectParent(childId, parentId)) {
+                    drop->setDropAction(Qt::MoveAction);
+                    drop->accept();
+                    return true;
+                }
+            } else if (valid && event->type() != QEvent::Drop) {
+                drop->setDropAction(Qt::MoveAction);
+                drop->accept();
                 return true;
             }
         }

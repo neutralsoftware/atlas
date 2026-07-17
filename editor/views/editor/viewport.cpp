@@ -567,6 +567,7 @@ bool ViewportPanel::renameRuntimeObjectDirect(int id, const QString &name) {
         !runtimeContext->renameObject(id, name.toUtf8().toStdString())) {
         return false;
     }
+    runtimeContext->saveCurrentScene();
     refreshSceneSnapshot();
     return true;
 }
@@ -635,6 +636,7 @@ bool ViewportPanel::applyRuntimeObjectProperty(
     } catch (const json::exception &) {
         return false;
     }
+    runtimeContext->saveCurrentScene();
     refreshSceneSnapshot();
     return true;
 }
@@ -652,6 +654,7 @@ int ViewportPanel::addRuntimeObjectComponent(
         const json parsed = json::parse(payload.constData());
         const int index = runtimeContext->addObjectComponent(id, parsed);
         if (index >= 0) {
+            runtimeContext->saveCurrentScene();
             refreshSceneSnapshot();
         }
         return index;
@@ -723,6 +726,7 @@ bool ViewportPanel::applyRuntimeMaterialDirect(int id, const QString &path) {
         !runtimeContext->setObjectMaterial(id, path.toStdString())) {
         return false;
     }
+    runtimeContext->saveCurrentScene();
     refreshSceneSnapshot();
     return true;
 }

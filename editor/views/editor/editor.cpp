@@ -118,16 +118,25 @@ void EditorWindow::setupMenus() {
     editMenu->addSeparator();
     editMenu->addAction("Preferences");
 
-    auto *viewMenu = menuBar()->addMenu("View");
-    viewMenu->addAction(
+    viewMenu = menuBar()->addMenu("View");
+    auto *resetLayoutAction = viewMenu->addAction(
         style()->standardIcon(QStyle::SP_FileDialogDetailedView),
         "Reset Layout");
+    connect(resetLayoutAction, &QAction::triggered, this, [this] {
+        if (coreManager != nullptr && !defaultDockState.isEmpty()) {
+            coreManager->restoreState(defaultDockState, 5);
+            if (auto *dock = dockManager->panel("viewport"))
+                dock->setAsCurrentTab();
+        }
+    });
 
-    auto *windowMenu = menuBar()->addMenu("Window");
+    windowMenu = menuBar()->addMenu("Window");
     windowMenu->addAction(
-        style()->standardIcon(QStyle::SP_TitleBarNormalButton), "Minimize");
-    windowMenu->addAction(style()->standardIcon(QStyle::SP_TitleBarMaxButton),
-                          "Zoom");
+        style()->standardIcon(QStyle::SP_TitleBarNormalButton), "Minimize",
+        this, &QWidget::showMinimized);
+    windowMenu->addAction(
+        style()->standardIcon(QStyle::SP_TitleBarMaxButton), "Zoom", this,
+        [this] { isMaximized() ? showNormal() : showMaximized(); });
 
     auto *helpMenu = menuBar()->addMenu("Help");
     helpMenu->addAction(style()->standardIcon(QStyle::SP_MessageBoxQuestion),
@@ -145,7 +154,7 @@ void EditorWindow::setupDocks() {
          .icon = style()->standardIcon(QStyle::SP_DirOpenIcon)});
 
     auto *hierarchyPanel = new HierarchyPanel(viewportPanel);
-    dockManager->addPanel(
+    auto *hierarchyDock = dockManager->addPanel(
         {.id = "hierarchy",
          .title = "Hierarchy Panel",
          .widget = hierarchyPanel,
@@ -153,7 +162,7 @@ void EditorWindow::setupDocks() {
          .icon = style()->standardIcon(QStyle::SP_DirOpenIcon)});
 
     inspectorPanel = new InspectorPanel(viewportPanel, projectFile);
-    dockManager->addPanel(
+    auto *inspectorDock = dockManager->addPanel(
         {.id = "inspector",
          .title = "Inspector",
          .widget = inspectorPanel,
@@ -161,7 +170,7 @@ void EditorWindow::setupDocks() {
          .icon = style()->standardIcon(QStyle::SP_DirOpenIcon)});
 
     auto *contentBrowser = new ContentBrowserPanel(projectFile);
-    dockManager->addPanel(
+    auto *contentDock = dockManager->addPanel(
         {.id = "fileExplorer",
          .title = "Content Browser",
          .widget = contentBrowser,
@@ -188,6 +197,36 @@ void EditorWindow::setupDocks() {
     coreManager->addDockWidgetTabToArea(postProcessingDock,
                                         viewportDock->dockAreaWidget());
     viewportDock->setAsCurrentTab();
+    defaultDockState = coreManager->saveState(5);
+
+    if (windowMenu != nullptr) {
+        windowMenu->addSeparator();
+        const QList<ads::CDockWidget *> docks{
+            viewportDock, hierarchyDock, inspectorDock,
+            contentDock,  materialDock,  postProcessingDock};
+        for (ads::CDockWidget *dock : docks)
+            windowMenu->addAction(dock->toggleViewAction());
+        windowMenu->addSeparator();
+        const QList<QPair<QString, ads::CDockWidget *>> workspaces{
+            {"Viewport", viewportDock},
+            {"Material Editor", materialDock},
+            {"Post Processing", postProcessingDock},
+            {"Hierarchy", hierarchyDock},
+            {"Inspector", inspectorDock},
+            {"Content Browser", contentDock}};
+        for (int index = 0; index < workspaces.size(); ++index) {
+            const auto &[name, dock] = workspaces.at(index);
+            auto *action = windowMenu->addAction(
+                QStringLiteral("Focus %1").arg(name), this, [dock] {
+                    dock->toggleView(true);
+                    dock->setAsCurrentTab();
+                    dock->raise();
+                });
+            action->setShortcut(QKeySequence(
+                QStringLiteral("Meta+%1").arg(index + 1)));
+            action->setShortcutContext(Qt::ApplicationShortcut);
+        }
+    }
 
     connect(hierarchyPanel, &HierarchyPanel::objectActivated, inspectorPanel,
             &InspectorPanel::inspectRuntimeObject);
@@ -221,7 +260,7 @@ void EditorWindow::saveLayout() {
 
     settings.setValue("window/geometry", saveGeometry());
     settings.setValue("window/state", saveState());
-    settings.setValue("docking/state/v4", coreManager->saveState(4));
+    settings.setValue("docking/state/v5", coreManager->saveState(5));
     if (inspectorPanel != nullptr) {
         settings.setValue("panels/inspector/width", inspectorPanel->width());
     }
@@ -245,10 +284,10 @@ void EditorWindow::restoreLayout() {
     restoreState(settings.value("window/state").toByteArray());
 
     const QByteArray dockState =
-        settings.value("docking/state/v4").toByteArray();
+        settings.value("docking/state/v5").toByteArray();
 
     if (!dockState.isEmpty()) {
-        coreManager->restoreState(dockState, 4);
+        coreManager->restoreState(dockState, 5);
     }
 
     const int inspectorWidth =

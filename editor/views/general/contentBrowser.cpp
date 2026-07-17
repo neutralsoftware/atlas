@@ -235,7 +235,9 @@ ContentBrowserPanel::ContentBrowserPanel(const QString &projectFile,
             });
 
     auto *deleteAction = new QAction(this);
-    deleteAction->setShortcut(QKeySequence::Delete);
+    deleteAction->setShortcuts(
+        {QKeySequence::Delete,
+         QKeySequence(Qt::META | Qt::Key_Backspace)});
     deleteAction->setShortcutContext(Qt::WidgetWithChildrenShortcut);
     connect(deleteAction, &QAction::triggered, this,
             &ContentBrowserPanel::deleteSelection);
@@ -247,6 +249,32 @@ ContentBrowserPanel::ContentBrowserPanel(const QString &projectFile,
     connect(renameAction, &QAction::triggered, this,
             &ContentBrowserPanel::renameSelection);
     addAction(renameAction);
+
+    auto *openAction = new QAction(this);
+    openAction->setShortcuts(
+        {QKeySequence(Qt::Key_Return), QKeySequence(Qt::Key_Enter)});
+    openAction->setShortcutContext(Qt::WidgetWithChildrenShortcut);
+    connect(openAction, &QAction::triggered, this, [this] {
+        if (gridView->currentIndex().isValid())
+            openIndex(gridView->currentIndex());
+    });
+    addAction(openAction);
+
+    auto *createFolderAction = new QAction(this);
+    createFolderAction->setShortcut(
+        QKeySequence(Qt::META | Qt::SHIFT | Qt::Key_N));
+    createFolderAction->setShortcutContext(Qt::WidgetWithChildrenShortcut);
+    connect(createFolderAction, &QAction::triggered, this,
+            &ContentBrowserPanel::createFolder);
+    addAction(createFolderAction);
+
+    auto *revealAction = new QAction(this);
+    revealAction->setShortcut(
+        QKeySequence(Qt::META | Qt::SHIFT | Qt::Key_R));
+    revealAction->setShortcutContext(Qt::WidgetWithChildrenShortcut);
+    connect(revealAction, &QAction::triggered, this,
+            &ContentBrowserPanel::revealSelection);
+    addAction(revealAction);
 
     navigateTo(projectRoot);
 }

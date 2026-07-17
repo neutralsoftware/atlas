@@ -1678,6 +1678,14 @@ void applyEditorCameraData(Context &context) {
                     context.camera->focusRange);
     tryReadBoolAny(context.editorCameraData, {"automaticMoving"},
                    context.cameraAutomaticMoving);
+    if (context.editorCameraData.contains("actions") &&
+        context.editorCameraData["actions"].is_array()) {
+        context.cameraActions.clear();
+        for (const auto &action : context.editorCameraData["actions"]) {
+            if (action.is_string())
+                context.cameraActions.push_back(action.get<std::string>());
+        }
+    }
 }
 
 json serializedEditorCamera(const Context &context) {
@@ -1702,6 +1710,7 @@ json serializedEditorCamera(const Context &context) {
     result["focusDepth"] = context.camera->focusDepth;
     result["focusRange"] = context.camera->focusRange;
     result["automaticMoving"] = context.cameraAutomaticMoving;
+    result["actions"] = context.cameraActions;
     return result;
 }
 
@@ -1722,6 +1731,15 @@ json serializeEditorLightObject(Context &context, GameObject &object) {
     }
     const std::string reference = serializableObjectReference(context, object);
     node["id"] = reference.empty() ? std::to_string(id) : reference;
+    if (auto parent = context.objectParents.find(id);
+        parent != context.objectParents.end()) {
+        auto parentName = context.objectNames.find(parent->second);
+        node["parent"] = parentName != context.objectNames.end()
+                             ? parentName->second
+                             : std::to_string(parent->second);
+    } else {
+        node.erase("parent");
+    }
 
     if (auto it = context.editorPointLights.find(id);
         it != context.editorPointLights.end() && it->second != nullptr) {
