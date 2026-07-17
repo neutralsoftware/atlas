@@ -138,9 +138,9 @@ PostProcessingPanel::PostProcessingPanel(ViewportPanel *viewport,
     connect(removeTargetButton, &QToolButton::clicked, this,
             &PostProcessingPanel::removeTarget);
     connect(applyButton, &QPushButton::clicked, this, [this] {
-        if (viewport != nullptr) {
+        if (this->viewport != nullptr) {
             statusLabel->setText("Reloading…");
-            viewport->reloadRuntime();
+            this->viewport->reloadRuntime();
         }
     });
     if (viewport != nullptr) {
