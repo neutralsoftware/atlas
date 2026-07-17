@@ -267,9 +267,6 @@ void ViewportPanel::showEvent(QShowEvent *event) {
 }
 
 void ViewportPanel::hideEvent(QHideEvent *event) {
-    if (frameTimer != nullptr) {
-        frameTimer->stop();
-    }
     QWidget::hideEvent(event);
 }
 
@@ -319,7 +316,7 @@ void ViewportPanel::resizeEvent(QResizeEvent *event) {
 
 void ViewportPanel::scheduleRuntimeStart() {
     if (shuttingDown || runtimeContext != nullptr || runtimeStartQueued ||
-        !isVisible() || width() <= 1 || height() <= 1) {
+        width() <= 1 || height() <= 1) {
         return;
     }
     runtimeStartQueued = true;
@@ -328,8 +325,7 @@ void ViewportPanel::scheduleRuntimeStart() {
         if (shuttingDown) {
             return;
         }
-        if (runtimeContext == nullptr && isVisible() && width() > 1 &&
-            height() > 1) {
+        if (runtimeContext == nullptr && width() > 1 && height() > 1) {
             startRuntime();
         }
     });
@@ -841,7 +837,7 @@ void ViewportPanel::reloadRuntime() {
         return;
     }
     stopRuntime();
-    scheduleRuntimeStart();
+    QTimer::singleShot(0, this, [this] { scheduleRuntimeStart(); });
 }
 
 void ViewportPanel::setRuntimeShadingMode(int mode) {
