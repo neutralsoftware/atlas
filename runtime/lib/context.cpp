@@ -464,9 +464,20 @@ bool isEmptyStringValue(const json &value) {
     return value.is_string() && value.get<std::string>().empty();
 }
 
+bool isFiniteNumber(const json &value) {
+    return value.is_number() && std::isfinite(value.get<double>());
+}
+
+bool isFiniteVector(const Position3d &value) {
+    return std::isfinite(value.x) && std::isfinite(value.y) &&
+           std::isfinite(value.z);
+}
+
 bool tryReadVec3(const json &node, const char *key, Position3d &target) {
     auto it = node.find(key);
-    if (it == node.end() || !it->is_array() || it->size() != 3) {
+    if (it == node.end() || !it->is_array() || it->size() != 3 ||
+        !isFiniteNumber((*it)[0]) || !isFiniteNumber((*it)[1]) ||
+        !isFiniteNumber((*it)[2])) {
         return false;
     }
     target = Position3d((*it)[0].get<float>(), (*it)[1].get<float>(),
@@ -486,7 +497,8 @@ bool tryReadVec3Any(const json &node, std::initializer_list<const char *> keys,
 
 bool tryReadVec2(const json &node, const char *key, Position2d &target) {
     auto it = node.find(key);
-    if (it == node.end() || !it->is_array() || it->size() != 2) {
+    if (it == node.end() || !it->is_array() || it->size() != 2 ||
+        !isFiniteNumber((*it)[0]) || !isFiniteNumber((*it)[1])) {
         return false;
     }
     target = Position2d{(*it)[0].get<float>(), (*it)[1].get<float>()};
@@ -1479,19 +1491,27 @@ void applyTransform(GameObject &object, const json &objectData) {
 }
 
 json vec3ToJson(const Position3d &value) {
-    return json::array({value.x, value.y, value.z});
+    return json::array({std::isfinite(value.x) ? value.x : 0.0f,
+                        std::isfinite(value.y) ? value.y : 0.0f,
+                        std::isfinite(value.z) ? value.z : 0.0f});
 }
 
 json rotationToJson(const Rotation3d &value) {
-    return json::array({value.pitch, value.yaw, value.roll});
+    return json::array({std::isfinite(value.pitch) ? value.pitch : 0.0f,
+                        std::isfinite(value.yaw) ? value.yaw : 0.0f,
+                        std::isfinite(value.roll) ? value.roll : 0.0f});
 }
 
 json colorToJson(const Color &value) {
-    return json::array({value.r, value.g, value.b, value.a});
+    return json::array({std::isfinite(value.r) ? value.r : 1.0f,
+                        std::isfinite(value.g) ? value.g : 1.0f,
+                        std::isfinite(value.b) ? value.b : 1.0f,
+                        std::isfinite(value.a) ? value.a : 1.0f});
 }
 
 json sizeToJson(const Size2d &value) {
-    return json::array({value.width, value.height});
+    return json::array({std::isfinite(value.width) ? value.width : 1.0f,
+                        std::isfinite(value.height) ? value.height : 1.0f});
 }
 
 Magnitude3d editorForwardDirection(GameObject &object) {
@@ -1690,6 +1710,38 @@ void applyEditorCameraData(Context &context) {
                 context.cameraActions.push_back(action.get<std::string>());
         }
     }
+}
+
+void repairEditorCamera(Context &context) {
+    if (context.camera == nullptr) {
+        return;
+    }
+    Position3d position = context.camera->position;
+    Position3d storedPosition;
+    const bool storedPositionValid =
+        tryReadVec3(context.editorCameraData, "position", storedPosition);
+    if (!isFiniteVector(position) || !storedPositionValid) {
+        position = storedPositionValid ? storedPosition
+                                       : Position3d{0.0f, 0.0f, -5.0f};
+        context.camera->position = position;
+        context.editorCameraData["position"] = vec3ToJson(position);
+    }
+    Position3d target = context.camera->target;
+    Position3d storedTarget;
+    const bool storedTargetValid =
+        tryReadVec3(context.editorCameraData, "target", storedTarget);
+    if (!isFiniteVector(target) ||
+        glm::length(target.toGlm() - position.toGlm()) < 0.000001f) {
+        target = storedTargetValid ? storedTarget : target;
+        if (!isFiniteVector(target) ||
+            glm::length(target.toGlm() - position.toGlm()) < 0.000001f) {
+            target = Position3d{position.x, position.y, position.z + 1.0f};
+        }
+    }
+    if (!storedTargetValid) {
+        context.editorCameraData["target"] = vec3ToJson(target);
+    }
+    context.camera->lookAt(target);
 }
 
 json serializedEditorCamera(const Context &context) {
@@ -4140,6 +4192,9 @@ bool Context::stepFrame() {
     }
     if (scene == nullptr) {
         throw std::runtime_error("Scene is not initialized");
+    }
+    if (editorRuntime) {
+        repairEditorCamera(*this);
     }
     for (const auto &renderable : objects) {
         auto *object = dynamic_cast<GameObject *>(
