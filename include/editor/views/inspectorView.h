@@ -33,6 +33,7 @@ class InspectorPanel : public QWidget {
     void applySceneSnapshot(const QString &snapshot);
     void inspectRuntimeObject(int id);
     void inspectCamera();
+    void inspectEnvironment();
     void inspectFile(const QString &path);
 
   protected:
@@ -43,6 +44,7 @@ class InspectorPanel : public QWidget {
     void showEmptyState();
     void showObject(const QJsonObject &object);
     void showCamera();
+    void showEnvironment();
     void showFile();
     void rebuildBody();
     void commitHeaderName();
@@ -65,6 +67,7 @@ class InspectorPanel : public QWidget {
     int lastRuntimeSelection = -1;
     bool fileTarget = false;
     bool cameraTarget = false;
+    bool environmentTarget = false;
     bool rebuilding = false;
 };
 

@@ -292,6 +292,13 @@ glm::vec3 editorAxisVector(int axis) {
     return glm::vec3(0.0f);
 }
 
+glm::vec3 editorScaleAxisVector(GameObject *object, int axis) {
+    const glm::vec3 localAxis = editorAxisVector(axis);
+    if (object == nullptr || glm::length(localAxis) < 0.000001f)
+        return localAxis;
+    return glm::normalize(object->getRotation().toGlmQuat() * localAxis);
+}
+
 void ensureEditorLineObject(std::unique_ptr<CoreObject> &object,
                             bool &initialized,
                             const std::vector<CoreVertex> &vertices) {
@@ -2283,7 +2290,10 @@ int Window::hitTestEditorGizmoAxis(float x, float y, float scale) {
     if (editorControlMode == EditorControlMode::Move ||
         editorControlMode == EditorControlMode::Scale) {
         for (int axis = 1; axis <= 3; ++axis) {
-            glm::vec3 axisVector = editorAxisVector(axis);
+            glm::vec3 axisVector =
+                editorControlMode == EditorControlMode::Scale
+                    ? editorScaleAxisVector(selectedEditorObject, axis)
+                    : editorAxisVector(axis);
             glm::vec2 from;
             glm::vec2 to;
             float depth = 0.0f;
@@ -2408,7 +2418,10 @@ void Window::updateEditorDrag(float x, float y, float scale) {
     float effectiveScale = scale > 0.0f ? scale : editorDragStartScale;
     float dx = (x - editorDragStartX) / effectiveScale;
     float dy = (y - editorDragStartY) / effectiveScale;
-    glm::vec3 axis = editorAxisVector(editorActiveGizmoAxis);
+    glm::vec3 axis = editorControlMode == EditorControlMode::Scale
+                         ? editorScaleAxisVector(selectedEditorObject,
+                                                 editorActiveGizmoAxis)
+                         : editorAxisVector(editorActiveGizmoAxis);
     if (glm::length(axis) < 0.000001f) {
         return;
     }
@@ -2877,9 +2890,9 @@ void Window::updateEditorControlGeometry() {
                          cameraPosition, zColor);
         appendArrowHead(gizmoVertices, zTip, zAxis, arrowSize, zColor);
     } else if (editorControlMode == EditorControlMode::Scale) {
-        glm::vec3 xAxis(1.0f, 0.0f, 0.0f);
-        glm::vec3 yAxis(0.0f, 1.0f, 0.0f);
-        glm::vec3 zAxis(0.0f, 0.0f, 1.0f);
+        glm::vec3 xAxis = editorScaleAxisVector(selectedEditorObject, 1);
+        glm::vec3 yAxis = editorScaleAxisVector(selectedEditorObject, 2);
+        glm::vec3 zAxis = editorScaleAxisVector(selectedEditorObject, 3);
         glm::vec3 xTip = center + xAxis * axisLength;
         glm::vec3 yTip = center + yAxis * axisLength;
         glm::vec3 zTip = center + zAxis * axisLength;

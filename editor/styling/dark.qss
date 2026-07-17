@@ -677,10 +677,16 @@ QScrollArea#inspectorScroll {
     border-radius: 3px;
 }
 
-#inspectorComponentHeader {
+#inspectorComponentHeaderRow {
     background-color: #2A3033;
     border: none;
     border-bottom: 1px solid #343D41;
+    border-radius: 3px;
+}
+
+#inspectorComponentHeader {
+    background-color: transparent;
+    border: none;
     border-radius: 3px;
     padding: 4px 7px;
     color: #EEF2F4;
@@ -690,6 +696,19 @@ QScrollArea#inspectorScroll {
 
 #inspectorComponentHeader:hover {
     background-color: #30373A;
+}
+
+#inspectorComponentRemoveButton {
+    background-color: transparent;
+    border-color: transparent;
+    min-width: 20px;
+    min-height: 20px;
+    padding: 1px;
+}
+
+#inspectorComponentRemoveButton:hover {
+    background-color: #543136;
+    border-color: #78444C;
 }
 
 #inspectorComponentBody {

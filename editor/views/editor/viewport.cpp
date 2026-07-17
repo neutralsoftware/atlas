@@ -240,13 +240,18 @@ ViewportPanel::ViewportPanel(const QString &projectFile, QWidget *parent)
 
     frameTimer = new QTimer(this);
     resizeTimer = new QTimer(this);
+    environmentReloadTimer = new QTimer(this);
     undoStack = new QUndoStack(this);
     frameTimer->setTimerType(Qt::PreciseTimer);
     resizeTimer->setSingleShot(true);
     resizeTimer->setInterval(0);
+    environmentReloadTimer->setSingleShot(true);
+    environmentReloadTimer->setInterval(140);
     connect(frameTimer, &QTimer::timeout, this, [this] { stepRuntime(); });
     connect(resizeTimer, &QTimer::timeout, this,
             [this] { resizeRuntime(); });
+    connect(environmentReloadTimer, &QTimer::timeout, this,
+            &ViewportPanel::reloadRuntime);
     if (auto *app = QCoreApplication::instance()) {
         connect(app, &QCoreApplication::aboutToQuit, this,
                 [this] { shutdownRuntime(); });
@@ -342,11 +347,15 @@ void ViewportPanel::shutdownRuntime() {
     runtimeStartQueued = false;
     if (resizeTimer != nullptr)
         resizeTimer->stop();
+    if (environmentReloadTimer != nullptr)
+        environmentReloadTimer->stop();
     stopRuntime();
 }
 
 void ViewportPanel::mousePressEvent(QMouseEvent *event) {
     setFocus(Qt::MouseFocusReason);
+    if (event->button() == Qt::LeftButton)
+        leftPointerMoved = false;
     sendPointerEvent(0, static_cast<float>(event->position().x()),
                      static_cast<float>(event->position().y()),
                      runtimeMouseButton(event->button()));
@@ -357,6 +366,8 @@ void ViewportPanel::mousePressEvent(QMouseEvent *event) {
 }
 
 void ViewportPanel::mouseMoveEvent(QMouseEvent *event) {
+    if (event->buttons().testFlag(Qt::LeftButton))
+        leftPointerMoved = true;
     sendPointerEvent(1, static_cast<float>(event->position().x()),
                      static_cast<float>(event->position().y()),
                      activeRuntimeMouseButton(event->buttons()));
@@ -367,6 +378,13 @@ void ViewportPanel::mouseReleaseEvent(QMouseEvent *event) {
     sendPointerEvent(2, static_cast<float>(event->position().x()),
                      static_cast<float>(event->position().y()),
                      runtimeMouseButton(event->button()));
+    if (event->button() == Qt::LeftButton && leftPointerMoved &&
+        runtimeContext != nullptr && selectedRuntimeObjectId() >= 0) {
+        runtimeContext->saveCurrentScene();
+        refreshSceneSnapshot();
+        setSceneDirty(true);
+    }
+    leftPointerMoved = false;
     event->accept();
 }
 
@@ -581,6 +599,7 @@ bool ViewportPanel::renameRuntimeObjectDirect(int id, const QString &name) {
     }
     runtimeContext->saveCurrentScene();
     refreshSceneSnapshot();
+    setSceneDirty(true);
     return true;
 }
 
@@ -624,6 +643,9 @@ bool ViewportPanel::setRuntimeSceneProperty(
     }
     runtimeContext->saveCurrentScene();
     refreshSceneSnapshot();
+    setSceneDirty(true);
+    if (section.compare("environment", Qt::CaseInsensitive) == 0)
+        environmentReloadTimer->start();
     return true;
 }
 
@@ -650,6 +672,7 @@ bool ViewportPanel::applyRuntimeObjectProperty(
     }
     runtimeContext->saveCurrentScene();
     refreshSceneSnapshot();
+    setSceneDirty(true);
     return true;
 }
 
@@ -668,11 +691,24 @@ int ViewportPanel::addRuntimeObjectComponent(
         if (index >= 0) {
             runtimeContext->saveCurrentScene();
             refreshSceneSnapshot();
+            setSceneDirty(true);
         }
         return index;
     } catch (const json::exception &) {
         return -1;
     }
+}
+
+bool ViewportPanel::removeRuntimeObjectComponent(int id, int componentIndex) {
+    if (runtimeContext == nullptr ||
+        !runtimeContext->removeObjectComponent(id, componentIndex) ||
+        !runtimeContext->saveCurrentScene()) {
+        return false;
+    }
+    refreshSceneSnapshot();
+    setSceneDirty(true);
+    QTimer::singleShot(0, this, &ViewportPanel::reloadRuntime);
+    return true;
 }
 
 bool ViewportPanel::controlRuntimeAudio(int id, int componentIndex,
@@ -689,6 +725,7 @@ bool ViewportPanel::setRuntimeObjectParent(int childId, int parentId) {
     }
     runtimeContext->saveCurrentScene();
     refreshSceneSnapshot();
+    setSceneDirty(true);
     return true;
 }
 
@@ -703,6 +740,7 @@ bool ViewportPanel::deleteRuntimeObject(int id) {
         qWarning() << "Atlas editor could not persist the deleted object";
     }
     refreshSceneSnapshot();
+    setSceneDirty(true);
     emit runtimeObjectActivated(-1);
     return true;
 }
@@ -717,12 +755,17 @@ int ViewportPanel::createRuntimeObject(const QString &type,
     if (id >= 0) {
         runtimeContext->saveCurrentScene();
         refreshSceneSnapshot();
+        setSceneDirty(true);
     }
     return id;
 }
 
 bool ViewportPanel::saveRuntimeScene() {
-    return runtimeContext != nullptr && runtimeContext->saveCurrentScene();
+    const bool saved =
+        runtimeContext != nullptr && runtimeContext->saveCurrentScene();
+    if (saved)
+        setSceneDirty(false);
+    return saved;
 }
 
 int ViewportPanel::selectedRuntimeObjectId() const {
@@ -740,6 +783,7 @@ bool ViewportPanel::applyRuntimeMaterialDirect(int id, const QString &path) {
     }
     runtimeContext->saveCurrentScene();
     refreshSceneSnapshot();
+    setSceneDirty(true);
     return true;
 }
 
@@ -785,6 +829,13 @@ void ViewportPanel::redo() {
         if (selected >= 0)
             emit runtimeObjectActivated(selected);
     }
+}
+
+void ViewportPanel::setSceneDirty(bool dirty) {
+    if (sceneDirty == dirty)
+        return;
+    sceneDirty = dirty;
+    emit sceneDirtyChanged(sceneDirty);
 }
 
 QJsonValue ViewportPanel::runtimeObjectProperty(

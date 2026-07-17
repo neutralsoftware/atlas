@@ -129,6 +129,7 @@ class Context {
                           const std::string &propertyPath, const json &value);
     bool setObjectMaterial(int id, const std::string &path);
     int addObjectComponent(int id, const json &component);
+    bool removeObjectComponent(int id, int componentIndex);
     bool controlObjectAudio(int id, int componentIndex,
                             const std::string &action);
     bool setObjectParent(int childId, int parentId);

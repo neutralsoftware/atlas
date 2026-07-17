@@ -97,6 +97,10 @@ QIcon inspectorIcon(QWidget *widget, const QString &type) {
     } else if (normalized.contains("camera")) {
         fallback = QStyle::SP_ComputerIcon;
         themeName = "camera-photo";
+    } else if (normalized.contains("environment") ||
+               normalized.contains("atmosphere")) {
+        fallback = QStyle::SP_DesktopIcon;
+        themeName = "weather-clear";
     } else if (normalized.contains("light") || normalized == "sun") {
         fallback = QStyle::SP_MessageBoxInformation;
         themeName = "weather-clear";
@@ -158,6 +162,66 @@ QJsonObject mergeObjects(QJsonObject base, const QJsonObject &values) {
         }
     }
     return base;
+}
+
+QJsonObject environmentSchema() {
+    return {
+        {"automaticAmbient", true},
+        {"atmosphereSky", true},
+        {"lookupTexture", ""},
+        {"fog", QJsonObject{{"color", QJsonArray{0.7, 0.78, 1.0}},
+                            {"intensity", 0.0}}},
+        {"volumetricLighting",
+         QJsonObject{{"enabled", false},
+                     {"density", 0.35},
+                     {"weight", 0.02},
+                     {"decay", 0.95},
+                     {"exposure", 0.7}}},
+        {"lightBloom", QJsonObject{{"radius", 0.01}, {"maxSamples", 6}}},
+        {"rimLight", QJsonObject{{"intensity", 0.0},
+                                 {"color", QJsonArray{1.0, 0.96, 0.86}}}},
+        {"atmosphere",
+         QJsonObject{
+             {"enabled", true},
+             {"cycle", false},
+             {"timeOfDay", 12.0},
+             {"secondsPerHour", 180.0},
+             {"wind", QJsonArray{0.0, 0.0, 0.0}},
+             {"sunColor", QJsonArray{1.0, 0.95, 0.84}},
+             {"moonColor", QJsonArray{0.59, 0.59, 0.82}},
+             {"sunSize", 1.0},
+             {"moonSize", 1.0},
+             {"sunTintStrength", 0.35},
+             {"moonTintStrength", 0.8},
+             {"starIntensity", 2.5},
+             {"globalLight",
+              QJsonObject{{"enabled", true},
+                          {"castsShadows", true},
+                          {"shadowResolution", 4096}}},
+             {"clouds",
+              QJsonObject{{"enabled", false},
+                          {"frequency", 4},
+                          {"divisions", 6},
+                          {"position", QJsonArray{0.0, 100.0, 0.0}},
+                          {"size", QJsonArray{500.0, 80.0, 500.0}},
+                          {"scale", 1.5},
+                          {"offset", QJsonArray{0.0, 0.0, 0.0}},
+                          {"density", 0.45},
+                          {"densityMultiplier", 1.5},
+                          {"absorption", 1.1},
+                          {"scattering", 0.85},
+                          {"phase", 0.55},
+                          {"clusterStrength", 0.5},
+                          {"primaryStepCount", 12},
+                          {"lightStepCount", 6},
+                          {"lightStepMultiplier", 1.6},
+                          {"minStepLength", 0.05},
+                          {"wind", QJsonArray{0.03, 0.0, 0.02}}}},
+             {"weather",
+              QJsonObject{{"enabled", false},
+                          {"condition", "clear"},
+                          {"intensity", 0.0},
+                          {"wind", QJsonArray{0.0, -0.4, 0.0}}}}}}};
 }
 
 QJsonObject vehicleWheelSchema() {
@@ -393,6 +457,8 @@ QStringList choicesFor(const QString &path) {
     if (key == "type" && path.contains("collider")) {
         return {"box", "sphere", "capsule", "mesh"};
     }
+    if (key == "condition" && path.contains("weather"))
+        return {"clear", "rain", "snow", "storm"};
     return {};
 }
 
@@ -714,20 +780,36 @@ void addPropertyRows(QVBoxLayout *layout, const QJsonObject &properties,
 
 QFrame *componentCard(const QString &title, const QJsonObject &properties,
                       const QString &path, const PropertyChanged &changed,
-                      QWidget *parent) {
+                      QWidget *parent,
+                      const std::function<void()> &remove = {}) {
     auto *card = new QFrame(parent);
     card->setObjectName("inspectorComponent");
     auto *layout = new QVBoxLayout(card);
     layout->setContentsMargins(0, 0, 0, 7);
     layout->setSpacing(2);
-    auto *header = new QToolButton(card);
+    auto *headerRow = new QWidget(card);
+    headerRow->setObjectName("inspectorComponentHeaderRow");
+    auto *headerLayout = new QHBoxLayout(headerRow);
+    headerLayout->setContentsMargins(0, 0, 3, 0);
+    headerLayout->setSpacing(2);
+    auto *header = new QToolButton(headerRow);
     header->setObjectName("inspectorComponentHeader");
     header->setText(title);
     header->setCheckable(true);
     header->setChecked(true);
     header->setArrowType(Qt::DownArrow);
     header->setToolButtonStyle(Qt::ToolButtonTextBesideIcon);
-    layout->addWidget(header);
+    headerLayout->addWidget(header, 1);
+    if (remove) {
+        auto *removeButton = new QToolButton(headerRow);
+        removeButton->setObjectName("inspectorComponentRemoveButton");
+        removeButton->setIcon(
+            card->style()->standardIcon(QStyle::SP_DialogDiscardButton));
+        removeButton->setToolTip(QStringLiteral("Remove %1").arg(title));
+        headerLayout->addWidget(removeButton);
+        QObject::connect(removeButton, &QToolButton::clicked, card, remove);
+    }
+    layout->addWidget(headerRow);
     auto *body = new QWidget(card);
     body->setObjectName("inspectorComponentBody");
     auto *bodyLayout = new QVBoxLayout(body);
@@ -791,6 +873,8 @@ void InspectorPanel::applySceneSnapshot(const QString &snapshot) {
     if (error.error != QJsonParseError::NoError || !document.isObject())
         return;
     scene = document.object();
+    if (environmentTarget)
+        return;
     if (cameraTarget) {
         inspectedCamera = scene.value("camera").toObject();
         return;
@@ -819,6 +903,7 @@ void InspectorPanel::applySceneSnapshot(const QString &snapshot) {
 void InspectorPanel::inspectRuntimeObject(int id) {
     fileTarget = false;
     cameraTarget = false;
+    environmentTarget = false;
     inspectedFile.clear();
     inspectedCamera = {};
     inspectedObjectId = id;
@@ -833,11 +918,23 @@ void InspectorPanel::inspectRuntimeObject(int id) {
 void InspectorPanel::inspectCamera() {
     fileTarget = false;
     cameraTarget = true;
+    environmentTarget = false;
     inspectedFile.clear();
     inspectedObjectId = -1;
     inspectedObject = {};
     inspectedCamera = scene.value("camera").toObject();
     showCamera();
+}
+
+void InspectorPanel::inspectEnvironment() {
+    fileTarget = false;
+    cameraTarget = false;
+    environmentTarget = true;
+    inspectedFile.clear();
+    inspectedObjectId = -1;
+    inspectedObject = {};
+    inspectedCamera = {};
+    showEnvironment();
 }
 
 void InspectorPanel::inspectFile(const QString &path) {
@@ -848,6 +945,7 @@ void InspectorPanel::inspectFile(const QString &path) {
     }
     fileTarget = true;
     cameraTarget = false;
+    environmentTarget = false;
     inspectedObjectId = -1;
     inspectedObject = {};
     inspectedFile = path;
@@ -970,7 +1068,21 @@ void InspectorPanel::showObject(const QJsonObject &object) {
                                            const QJsonValue &value) {
                 update(componentType, index, path, value);
             },
-            content));
+            content, [this, objectId, index, componentType] {
+                if (QMessageBox::question(
+                        this, "Remove Component",
+                        QStringLiteral("Remove %1 from this object?")
+                            .arg(componentTitle(componentType))) !=
+                    QMessageBox::Yes) {
+                    return;
+                }
+                if (viewport == nullptr ||
+                    !viewport->removeRuntimeObjectComponent(objectId,
+                                                            index)) {
+                    QMessageBox::warning(this, "Remove Component",
+                                         "The component could not be removed.");
+                }
+            }));
         if (componentType.toLower().remove('_').remove('-') == "audioplayer") {
             auto *controls = new QFrame(content);
             controls->setObjectName("inspectorAudioControls");
@@ -1163,6 +1275,77 @@ void InspectorPanel::showCamera() {
         componentCard("Depth of Field", focus, QString(), update, content));
     contentLayout->addWidget(
         componentCard("Camera Controls", controls, QString(), update, content));
+    contentLayout->addStretch();
+}
+
+void InspectorPanel::showEnvironment() {
+    rebuildBody();
+    auto *header = new QFrame(content);
+    header->setObjectName("inspectorHeader");
+    auto *headerLayout = new QHBoxLayout(header);
+    headerLayout->setContentsMargins(10, 10, 10, 10);
+    headerLayout->setSpacing(10);
+    auto *environmentIcon = new QLabel(header);
+    environmentIcon->setObjectName("inspectorObjectIcon");
+    environmentIcon->setPixmap(
+        inspectorIcon(this, "environment").pixmap(42, 42));
+    environmentIcon->setFixedSize(46, 46);
+    auto *identity = new QWidget(header);
+    auto *identityLayout = new QVBoxLayout(identity);
+    identityLayout->setContentsMargins(0, 0, 0, 0);
+    identityLayout->setSpacing(2);
+    auto *title = new QLabel("Environment", identity);
+    title->setObjectName("inspectorCameraTitle");
+    auto *kind = new QLabel("Live Scene Atmosphere", identity);
+    kind->setObjectName("inspectorTypeLabel");
+    identityLayout->addWidget(title);
+    identityLayout->addWidget(kind);
+    headerLayout->addWidget(environmentIcon);
+    headerLayout->addWidget(identity, 1);
+    contentLayout->addWidget(header);
+
+    QJsonObject values = mergeObjects(
+        environmentSchema(), scene.value("environment").toObject());
+    QJsonObject atmosphere = values.take("atmosphere").toObject();
+    QJsonObject globalLight = atmosphere.take("globalLight").toObject();
+    QJsonObject clouds = atmosphere.take("clouds").toObject();
+    QJsonObject weather = atmosphere.take("weather").toObject();
+    auto update = [this](const QString &prefix, const QString &path,
+                         const QJsonValue &value) {
+        if (viewport != nullptr)
+            viewport->setRuntimeSceneProperty("environment", -1,
+                                              prefix + path, value);
+    };
+    contentLayout->addWidget(componentCard(
+        "Environment", values, QString(),
+        [update](const QString &path, const QJsonValue &value) {
+            update(QString(), path, value);
+        },
+        content));
+    contentLayout->addWidget(componentCard(
+        "Atmosphere", atmosphere, QString(),
+        [update](const QString &path, const QJsonValue &value) {
+            update("/atmosphere", path, value);
+        },
+        content));
+    contentLayout->addWidget(componentCard(
+        "Global Light", globalLight, QString(),
+        [update](const QString &path, const QJsonValue &value) {
+            update("/atmosphere/globalLight", path, value);
+        },
+        content));
+    contentLayout->addWidget(componentCard(
+        "Clouds", clouds, QString(),
+        [update](const QString &path, const QJsonValue &value) {
+            update("/atmosphere/clouds", path, value);
+        },
+        content));
+    contentLayout->addWidget(componentCard(
+        "Weather", weather, QString(),
+        [update](const QString &path, const QJsonValue &value) {
+            update("/atmosphere/weather", path, value);
+        },
+        content));
     contentLayout->addStretch();
 }
 

@@ -25,7 +25,6 @@
 #include "DockManager.h"
 #include "editor/debug.h"
 #include "editor/views/fileExplorer.h"
-#include "editor/views/environmentEditor.h"
 #include "editor/views/hierarchyPanel.h"
 #include "editor/views/inspectorView.h"
 #include "editor/views/materialEditor.h"
@@ -34,9 +33,17 @@
 #include "editor/views/viewportTools.h"
 
 namespace {
-constexpr int DockStateVersion = 7;
-constexpr auto DockStateKey = "docking/state/v7";
+constexpr int DockStateVersion = 8;
+constexpr auto DockStateKey = "docking/state/v8";
 }
+
+#ifndef ATLAS_VERSION
+#define ATLAS_VERSION "Alpha 9"
+#endif
+
+#ifndef ATLAS_BUILD_STRING
+#define ATLAS_BUILD_STRING ""
+#endif
 
 EditorWindow::EditorWindow(const QString &projectFile, QWidget *parent)
     : QMainWindow(parent), projectFile(projectFile) {
@@ -49,9 +56,8 @@ EditorWindow::EditorWindow(const QString &projectFile, QWidget *parent)
 
 void EditorWindow::setupWindow() {
     const auto project = ProjectStore::projectInfo(projectFile);
-    setWindowTitle(project.has_value()
-                       ? QStringLiteral("%1 — Atlas Engine").arg(project->name)
-                       : QStringLiteral("Atlas Engine"));
+    projectName = project.has_value() ? project->name : QStringLiteral("Project");
+    updateWindowTitle(false);
     resize(1280, 720);
     menuBar()->setNativeMenuBar(false);
 
@@ -93,7 +99,6 @@ void EditorWindow::setupMenus() {
         if (materialEditorPanel != nullptr &&
             materialEditorPanel->isVisible()) {
             materialEditorPanel->saveMaterial();
-            return;
         }
         if (viewportPanel != nullptr) {
             viewportPanel->saveRuntimeScene();
@@ -162,6 +167,8 @@ void EditorWindow::setupMenus() {
 
 void EditorWindow::setupDocks() {
     viewportPanel = new ViewportPanel(projectFile);
+    connect(viewportPanel, &ViewportPanel::sceneDirtyChanged, this,
+            &EditorWindow::updateWindowTitle);
     auto *viewportTools = new ViewportTools(viewportPanel);
     auto *viewportDock = dockManager->addPanel(
         {.id = "viewport",
@@ -214,21 +221,12 @@ void EditorWindow::setupDocks() {
     coreManager->addDockWidgetTabToArea(postProcessingDock,
                                         viewportDock->dockAreaWidget());
 
-    environmentEditorPanel = new EnvironmentEditorPanel(viewportPanel);
-    auto *environmentDock = dockManager->addPanel(
-        {.id = "environmentEditor",
-         .title = "World",
-         .widget = environmentEditorPanel,
-         .area = EditorDockArea::Right,
-         .icon = style()->standardIcon(QStyle::SP_DesktopIcon)});
-    coreManager->addDockWidgetTabToArea(environmentDock,
-                                        viewportDock->dockAreaWidget());
     viewportDock->setAsCurrentTab();
     defaultDockState = coreManager->saveState(DockStateVersion);
 
     const QList<ads::CDockWidget *> managedDocks{
         viewportDock, hierarchyDock, inspectorDock, contentDock,
-        materialDock, environmentDock, postProcessingDock};
+        materialDock, postProcessingDock};
     for (ads::CDockWidget *dock : managedDocks) {
         connect(dock, &ads::CDockWidget::topLevelChanged, this,
                 [this](bool) { scheduleLayoutSave(); });
@@ -250,7 +248,6 @@ void EditorWindow::setupDocks() {
         const QList<QPair<QString, ads::CDockWidget *>> workspaces{
             {"Viewport", viewportDock},
             {"Material Editor", materialDock},
-            {"World", environmentDock},
             {"Post Processing", postProcessingDock},
             {"Hierarchy", hierarchyDock},
             {"Inspector", inspectorDock},
@@ -273,6 +270,8 @@ void EditorWindow::setupDocks() {
             &InspectorPanel::inspectRuntimeObject);
     connect(hierarchyPanel, &HierarchyPanel::cameraActivated, inspectorPanel,
             &InspectorPanel::inspectCamera);
+    connect(hierarchyPanel, &HierarchyPanel::environmentActivated,
+            inspectorPanel, &InspectorPanel::inspectEnvironment);
     connect(hierarchyPanel, &HierarchyPanel::objectActivated, contentBrowser,
             &ContentBrowserPanel::clearSelection);
     connect(viewportPanel, &ViewportPanel::runtimeObjectActivated,
@@ -345,6 +344,21 @@ void EditorWindow::configureDockSplitters() {
 void EditorWindow::scheduleLayoutSave() {
     if (!restoringLayout && !closing && layoutSaveTimer != nullptr)
         layoutSaveTimer->start();
+}
+
+void EditorWindow::updateWindowTitle(bool dirty) {
+    const QString name = projectName + (dirty ? "*" : "");
+#ifdef ATLAS_DEBUG_BUILD
+    const QString build = QStringLiteral(ATLAS_BUILD_STRING);
+    setWindowTitle(build.isEmpty()
+                       ? QStringLiteral("%1 - Atlas Engine (Development)")
+                             .arg(name)
+                       : QStringLiteral("%1 - Atlas Engine (Development) + %2")
+                             .arg(name, build));
+#else
+    setWindowTitle(QStringLiteral("%1 - Atlas Engine %2")
+                       .arg(name, QStringLiteral(ATLAS_VERSION)));
+#endif
 }
 
 void EditorWindow::closeEvent(QCloseEvent *event) {

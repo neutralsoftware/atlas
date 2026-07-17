@@ -33,6 +33,7 @@ class HierarchyPanel : public QWidget {
   signals:
     void objectActivated(int id);
     void cameraActivated();
+    void environmentActivated();
 
   protected:
     bool eventFilter(QObject *watched, QEvent *event) override;
@@ -59,7 +60,9 @@ class HierarchyPanel : public QWidget {
     QToolButton *addButton = nullptr;
     QToolButton *moreButton = nullptr;
     QHash<int, QStandardItem *> itemsById;
+    QHash<QString, QStandardItem *> specialItems;
     QString lastStructureSignature;
+    QString selectedSpecialType;
     bool applyingSnapshot = false;
 };
 

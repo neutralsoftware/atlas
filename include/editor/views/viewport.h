@@ -58,6 +58,7 @@ class ViewportPanel : public QWidget {
                                     const QJsonValue &value);
     int addRuntimeObjectComponent(int id, const QString &type,
                                   const QJsonObject &properties);
+    bool removeRuntimeObjectComponent(int id, int componentIndex);
     bool controlRuntimeAudio(int id, int componentIndex,
                              const QString &action);
     bool setRuntimeObjectParent(int childId, int parentId);
@@ -84,6 +85,7 @@ class ViewportPanel : public QWidget {
     void runtimeObjectActivated(int id);
     void playbackStateChanged(int state);
     void frameRateChanged(float framesPerSecond);
+    void sceneDirtyChanged(bool dirty);
 
   protected:
     QPaintEngine *paintEngine() const override;
@@ -108,12 +110,14 @@ class ViewportPanel : public QWidget {
     void resizeRuntime();
     void sendPointerEvent(int action, float x, float y, int button);
     void refreshSceneSnapshot();
+    void setSceneDirty(bool dirty);
     QJsonValue runtimeObjectProperty(int id, const QString &component,
                                      int componentIndex,
                                      const QString &propertyPath) const;
 
     QTimer *frameTimer = nullptr;
     QTimer *resizeTimer = nullptr;
+    QTimer *environmentReloadTimer = nullptr;
     QUndoStack *undoStack = nullptr;
     QString projectFile;
     std::shared_ptr<Context> runtimeContext;
@@ -123,6 +127,8 @@ class ViewportPanel : public QWidget {
     QString lastSceneSnapshot;
     bool runtimeStartQueued = false;
     bool shuttingDown = false;
+    bool sceneDirty = false;
+    bool leftPointerMoved = false;
     int playbackState = 0;
     int shadingMode = 0;
 };

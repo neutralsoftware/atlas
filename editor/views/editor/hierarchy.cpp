@@ -55,6 +55,9 @@ QIcon hierarchyIcon(QWidget *widget, const QString &type) {
     } else if (normalized == "camera") {
         fallback = QStyle::SP_ComputerIcon;
         themeName = "camera-photo";
+    } else if (normalized == "environment") {
+        fallback = QStyle::SP_DesktopIcon;
+        themeName = "weather-clear";
     } else if (normalized.contains("light") || normalized == "sun") {
         fallback = QStyle::SP_MessageBoxInformation;
         themeName = "weather-clear";
@@ -271,6 +274,11 @@ void HierarchyPanel::applySceneSnapshot(const QString &snapshot) {
         const QModelIndex index = itemsById.value(selectedId)->index();
         treeView->setCurrentIndex(index);
         treeView->scrollTo(index, QAbstractItemView::EnsureVisible);
+        selectedSpecialType.clear();
+    } else if (specialItems.contains(selectedSpecialType)) {
+        const QModelIndex index = specialItems.value(selectedSpecialType)->index();
+        treeView->setCurrentIndex(index);
+        treeView->scrollTo(index, QAbstractItemView::EnsureVisible);
     } else {
         treeView->setCurrentIndex(QModelIndex());
     }
@@ -282,50 +290,31 @@ void HierarchyPanel::rebuildScene(const QString &sceneName,
     applyingSnapshot = true;
     model->clear();
     itemsById.clear();
+    specialItems.clear();
 
     auto *root = new QStandardItem(hierarchyIcon(this, "scene"), sceneName);
     root->setData(-1, ObjectIdRole);
     root->setData("scene", ObjectTypeRole);
     root->setEditable(false);
-    QJsonArray regularObjects;
-    QJsonArray cameraObjects;
-    QJsonArray lightObjects;
-    for (const QJsonValue &value : objects) {
-        const QString type = value.toObject().value("type").toString().toLower();
-        if (type.contains("light") || type == "sun") {
-            lightObjects.append(value);
-        } else if (type.contains("camera")) {
-            cameraObjects.append(value);
-        } else {
-            regularObjects.append(value);
-        }
-    }
-    appendObjects(root, regularObjects);
+    appendObjects(root, objects);
 
-    auto *cameras =
-        new QStandardItem(hierarchyIcon(this, "camera"), "Cameras");
-    cameras->setData(-1, ObjectIdRole);
-    cameras->setEditable(false);
-    cameras->setSelectable(false);
     auto *mainCamera =
         new QStandardItem(hierarchyIcon(this, "camera"), "Main Camera");
     mainCamera->setData(-1, ObjectIdRole);
     mainCamera->setData("camera", ObjectTypeRole);
     mainCamera->setToolTip("Scene camera");
     mainCamera->setEditable(false);
-    cameras->appendRow(mainCamera);
-    appendObjects(cameras, cameraObjects);
-    root->appendRow(cameras);
+    specialItems.insert("camera", mainCamera);
+    root->appendRow(mainCamera);
 
-    if (!lightObjects.isEmpty()) {
-        auto *lights =
-            new QStandardItem(hierarchyIcon(this, "light"), "Lights");
-        lights->setData(-1, ObjectIdRole);
-        lights->setEditable(false);
-        lights->setSelectable(false);
-        appendObjects(lights, lightObjects);
-        root->appendRow(lights);
-    }
+    auto *environment = new QStandardItem(
+        hierarchyIcon(this, "environment"), "Environment");
+    environment->setData(-1, ObjectIdRole);
+    environment->setData("environment", ObjectTypeRole);
+    environment->setToolTip("Scene atmosphere and environment");
+    environment->setEditable(false);
+    specialItems.insert("environment", environment);
+    root->appendRow(environment);
     model->appendRow(root);
     treeView->expandAll();
 
@@ -333,6 +322,10 @@ void HierarchyPanel::rebuildScene(const QString &sceneName,
         const QModelIndex index = itemsById.value(selectedId)->index();
         treeView->setCurrentIndex(index);
         treeView->scrollTo(index, QAbstractItemView::EnsureVisible);
+        selectedSpecialType.clear();
+    } else if (specialItems.contains(selectedSpecialType)) {
+        treeView->setCurrentIndex(
+            specialItems.value(selectedSpecialType)->index());
     }
     applyingSnapshot = false;
 }
@@ -490,12 +483,21 @@ void HierarchyPanel::focusSelectedObject() {
     }
     const int id = selectedObjectId();
     if (id >= 0) {
+        selectedSpecialType.clear();
         viewport->selectRuntimeObject(id, true);
         emit objectActivated(id);
-    } else if (treeView->currentIndex().data(ObjectTypeRole).toString() ==
-               "camera") {
+        return;
+    }
+    const QString type =
+        treeView->currentIndex().data(ObjectTypeRole).toString();
+    if (type == "camera") {
+        selectedSpecialType = type;
         viewport->selectRuntimeObject(-1, false);
         emit cameraActivated();
+    } else if (type == "environment") {
+        selectedSpecialType = type;
+        viewport->selectRuntimeObject(-1, false);
+        emit environmentActivated();
     }
 }
 

@@ -25,7 +25,6 @@ class ViewportPanel;
 class InspectorPanel;
 class MaterialEditorPanel;
 class PostProcessingPanel;
-class EnvironmentEditorPanel;
 class QMenu;
 class QTimer;
 
@@ -45,6 +44,7 @@ private:
     void restoreLayout();
     void configureDockSplitters();
     void scheduleLayoutSave();
+    void updateWindowTitle(bool dirty);
 
     EditorDockManager* dockManager = nullptr;
     ads::CDockManager* coreManager = nullptr;
@@ -52,12 +52,12 @@ private:
     InspectorPanel* inspectorPanel = nullptr;
     MaterialEditorPanel* materialEditorPanel = nullptr;
     PostProcessingPanel* postProcessingPanel = nullptr;
-    EnvironmentEditorPanel* environmentEditorPanel = nullptr;
     QMenu* viewMenu = nullptr;
     QMenu* windowMenu = nullptr;
     QTimer* layoutSaveTimer = nullptr;
     QByteArray defaultDockState;
     QString projectFile;
+    QString projectName;
     bool closing = false;
     bool restoringLayout = false;
 

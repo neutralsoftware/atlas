@@ -4770,6 +4770,29 @@ int Context::addObjectComponent(int id, const json &component) {
     return index;
 }
 
+bool Context::removeObjectComponent(int id, int componentIndex) {
+    auto components = editorComponentData.find(id);
+    if (components == editorComponentData.end() ||
+        !components->second.is_array() || componentIndex < 0 ||
+        componentIndex >= static_cast<int>(components->second.size())) {
+        return false;
+    }
+
+    components->second.erase(components->second.begin() + componentIndex);
+    if (auto baseDirs = editorComponentBaseDirs.find(id);
+        baseDirs != editorComponentBaseDirs.end() &&
+        componentIndex < static_cast<int>(baseDirs->second.size())) {
+        baseDirs->second.erase(baseDirs->second.begin() + componentIndex);
+    }
+    if (auto runtimeComponents = editorRuntimeComponents.find(id);
+        runtimeComponents != editorRuntimeComponents.end() &&
+        componentIndex < static_cast<int>(runtimeComponents->second.size())) {
+        runtimeComponents->second.erase(runtimeComponents->second.begin() +
+                                        componentIndex);
+    }
+    return true;
+}
+
 bool Context::controlObjectAudio(int id, int componentIndex,
                                  const std::string &action) {
     auto components = editorRuntimeComponents.find(id);
