@@ -25,6 +25,7 @@
 #include "DockManager.h"
 #include "editor/debug.h"
 #include "editor/views/fileExplorer.h"
+#include "editor/views/environmentEditor.h"
 #include "editor/views/hierarchyPanel.h"
 #include "editor/views/inspectorView.h"
 #include "editor/views/materialEditor.h"
@@ -124,7 +125,7 @@ void EditorWindow::setupMenus() {
         "Reset Layout");
     connect(resetLayoutAction, &QAction::triggered, this, [this] {
         if (coreManager != nullptr && !defaultDockState.isEmpty()) {
-            coreManager->restoreState(defaultDockState, 5);
+            coreManager->restoreState(defaultDockState, 6);
             if (auto *dock = dockManager->panel("viewport"))
                 dock->setAsCurrentTab();
         }
@@ -196,20 +197,31 @@ void EditorWindow::setupDocks() {
          .icon = style()->standardIcon(QStyle::SP_ComputerIcon)});
     coreManager->addDockWidgetTabToArea(postProcessingDock,
                                         viewportDock->dockAreaWidget());
+
+    environmentEditorPanel = new EnvironmentEditorPanel(viewportPanel);
+    auto *environmentDock = dockManager->addPanel(
+        {.id = "environmentEditor",
+         .title = "World",
+         .widget = environmentEditorPanel,
+         .area = EditorDockArea::Right,
+         .icon = style()->standardIcon(QStyle::SP_DesktopIcon)});
+    coreManager->addDockWidgetTabToArea(environmentDock,
+                                        viewportDock->dockAreaWidget());
     viewportDock->setAsCurrentTab();
-    defaultDockState = coreManager->saveState(5);
+    defaultDockState = coreManager->saveState(6);
 
     if (windowMenu != nullptr) {
         windowMenu->addSeparator();
         const QList<ads::CDockWidget *> docks{
-            viewportDock, hierarchyDock, inspectorDock,
-            contentDock,  materialDock,  postProcessingDock};
+            viewportDock, hierarchyDock, inspectorDock, contentDock,
+            materialDock, environmentDock, postProcessingDock};
         for (ads::CDockWidget *dock : docks)
             windowMenu->addAction(dock->toggleViewAction());
         windowMenu->addSeparator();
         const QList<QPair<QString, ads::CDockWidget *>> workspaces{
             {"Viewport", viewportDock},
             {"Material Editor", materialDock},
+            {"World", environmentDock},
             {"Post Processing", postProcessingDock},
             {"Hierarchy", hierarchyDock},
             {"Inspector", inspectorDock},
@@ -260,7 +272,7 @@ void EditorWindow::saveLayout() {
 
     settings.setValue("window/geometry", saveGeometry());
     settings.setValue("window/state", saveState());
-    settings.setValue("docking/state/v5", coreManager->saveState(5));
+    settings.setValue("docking/state/v6", coreManager->saveState(6));
     if (inspectorPanel != nullptr) {
         settings.setValue("panels/inspector/width", inspectorPanel->width());
     }
@@ -284,10 +296,10 @@ void EditorWindow::restoreLayout() {
     restoreState(settings.value("window/state").toByteArray());
 
     const QByteArray dockState =
-        settings.value("docking/state/v5").toByteArray();
+        settings.value("docking/state/v6").toByteArray();
 
     if (!dockState.isEmpty()) {
-        coreManager->restoreState(dockState, 5);
+        coreManager->restoreState(dockState, 6);
     }
 
     const int inspectorWidth =

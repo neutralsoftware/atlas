@@ -25,6 +25,7 @@ class ViewportPanel;
 class InspectorPanel;
 class MaterialEditorPanel;
 class PostProcessingPanel;
+class EnvironmentEditorPanel;
 class QMenu;
 
 class EditorWindow : public QMainWindow {
@@ -48,6 +49,7 @@ private:
     InspectorPanel* inspectorPanel = nullptr;
     MaterialEditorPanel* materialEditorPanel = nullptr;
     PostProcessingPanel* postProcessingPanel = nullptr;
+    EnvironmentEditorPanel* environmentEditorPanel = nullptr;
     QMenu* viewMenu = nullptr;
     QMenu* windowMenu = nullptr;
     QByteArray defaultDockState;
