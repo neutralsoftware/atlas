@@ -239,9 +239,14 @@ ViewportPanel::ViewportPanel(const QString &projectFile, QWidget *parent)
     setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Expanding);
 
     frameTimer = new QTimer(this);
+    resizeTimer = new QTimer(this);
     undoStack = new QUndoStack(this);
     frameTimer->setTimerType(Qt::PreciseTimer);
+    resizeTimer->setSingleShot(true);
+    resizeTimer->setInterval(0);
     connect(frameTimer, &QTimer::timeout, this, [this] { stepRuntime(); });
+    connect(resizeTimer, &QTimer::timeout, this,
+            [this] { resizeRuntime(); });
     if (auto *app = QCoreApplication::instance()) {
         connect(app, &QCoreApplication::aboutToQuit, this,
                 [this] { shutdownRuntime(); });
@@ -311,7 +316,8 @@ void ViewportPanel::resizeEvent(QResizeEvent *event) {
         scheduleRuntimeStart();
         return;
     }
-    resizeRuntime();
+    if (!resizeTimer->isActive())
+        resizeTimer->start();
 }
 
 void ViewportPanel::scheduleRuntimeStart() {
@@ -334,6 +340,8 @@ void ViewportPanel::scheduleRuntimeStart() {
 void ViewportPanel::shutdownRuntime() {
     shuttingDown = true;
     runtimeStartQueued = false;
+    if (resizeTimer != nullptr)
+        resizeTimer->stop();
     stopRuntime();
 }
 
@@ -516,10 +524,18 @@ void ViewportPanel::resizeRuntime() {
         std::abs(nextScale - runtimeScale) <= 0.0001f) {
         return;
     }
-    runtimeContext->resize(nextWidth, nextHeight, nextScale);
-    runtimeWidth = nextWidth;
-    runtimeHeight = nextHeight;
-    runtimeScale = nextScale;
+    try {
+        runtimeContext->resize(nextWidth, nextHeight, nextScale);
+        runtimeWidth = nextWidth;
+        runtimeHeight = nextHeight;
+        runtimeScale = nextScale;
+    } catch (const std::exception &error) {
+        qWarning().noquote()
+            << QStringLiteral("Atlas viewport resize failed: %1")
+                   .arg(QString::fromUtf8(error.what()));
+    } catch (...) {
+        qWarning() << "Atlas viewport resize failed";
+    }
 }
 
 void ViewportPanel::sendPointerEvent(int action, float x, float y, int button) {

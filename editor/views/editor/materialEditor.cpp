@@ -26,6 +26,7 @@
 #include <QPair>
 #include <QSaveFile>
 #include <QScrollArea>
+#include <QSizePolicy>
 #include <QStyle>
 #include <QSignalBlocker>
 #include <QSplitter>
@@ -132,7 +133,7 @@ class MaterialPreviewWidget : public QWidget {
     explicit MaterialPreviewWidget(QWidget *parent = nullptr)
         : QWidget(parent) {
         setObjectName("materialPreview");
-        setMinimumSize(250, 250);
+        setMinimumSize(80, 80);
         setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Expanding);
     }
 
@@ -489,7 +490,8 @@ void MaterialEditorPanel::showMaterial() {
     auto *splitter = new QSplitter(Qt::Horizontal, body);
     splitter->setChildrenCollapsible(false);
     auto *previewPane = new QWidget(splitter);
-    previewPane->setMinimumWidth(300);
+    previewPane->setMinimumWidth(1);
+    previewPane->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Expanding);
     auto *previewLayout = new QVBoxLayout(previewPane);
     previewLayout->setContentsMargins(0, 0, 5, 0);
     previewLayout->setSpacing(8);
@@ -514,7 +516,8 @@ void MaterialEditorPanel::showMaterial() {
     propertiesScroll->setWidgetResizable(true);
     propertiesScroll->setHorizontalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
     auto *properties = new QWidget(propertiesScroll);
-    properties->setMinimumWidth(340);
+    properties->setMinimumWidth(1);
+    properties->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Expanding);
     auto *propertiesLayout = new QVBoxLayout(properties);
     propertiesLayout->setContentsMargins(5, 0, 0, 0);
     propertiesLayout->setSpacing(9);

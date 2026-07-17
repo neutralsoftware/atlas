@@ -17,8 +17,8 @@
 #include <QMenuBar>
 #include <QStyle>
 #include <QSettings>
+#include <QSplitter>
 #include <QTimer>
-#include <QVariantList>
 #include <QCloseEvent>
 #include <QFileInfo>
 
@@ -32,6 +32,11 @@
 #include "editor/views/postProcessing.h"
 #include "editor/views/viewport.h"
 #include "editor/views/viewportTools.h"
+
+namespace {
+constexpr int DockStateVersion = 7;
+constexpr auto DockStateKey = "docking/state/v7";
+}
 
 EditorWindow::EditorWindow(const QString &projectFile, QWidget *parent)
     : QMainWindow(parent), projectFile(projectFile) {
@@ -66,6 +71,13 @@ void EditorWindow::setupWindow() {
     coreManager = new ads::CDockManager(this);
     setCentralWidget(coreManager);
     dockManager = new EditorDockManager(coreManager);
+    layoutSaveTimer = new QTimer(this);
+    layoutSaveTimer->setSingleShot(true);
+    layoutSaveTimer->setInterval(250);
+    connect(layoutSaveTimer, &QTimer::timeout, this, [this] {
+        if (!restoringLayout && !closing)
+            saveLayout();
+    });
 }
 
 void EditorWindow::setupMenus() {
@@ -125,9 +137,13 @@ void EditorWindow::setupMenus() {
         "Reset Layout");
     connect(resetLayoutAction, &QAction::triggered, this, [this] {
         if (coreManager != nullptr && !defaultDockState.isEmpty()) {
-            coreManager->restoreState(defaultDockState, 6);
+            restoringLayout = true;
+            coreManager->restoreState(defaultDockState, DockStateVersion);
+            restoringLayout = false;
+            configureDockSplitters();
             if (auto *dock = dockManager->panel("viewport"))
                 dock->setAsCurrentTab();
+            scheduleLayoutSave();
         }
     });
 
@@ -208,14 +224,27 @@ void EditorWindow::setupDocks() {
     coreManager->addDockWidgetTabToArea(environmentDock,
                                         viewportDock->dockAreaWidget());
     viewportDock->setAsCurrentTab();
-    defaultDockState = coreManager->saveState(6);
+    defaultDockState = coreManager->saveState(DockStateVersion);
+
+    const QList<ads::CDockWidget *> managedDocks{
+        viewportDock, hierarchyDock, inspectorDock, contentDock,
+        materialDock, environmentDock, postProcessingDock};
+    for (ads::CDockWidget *dock : managedDocks) {
+        connect(dock, &ads::CDockWidget::topLevelChanged, this,
+                [this](bool) { scheduleLayoutSave(); });
+        connect(dock, &ads::CDockWidget::viewToggled, this,
+                [this](bool) { scheduleLayoutSave(); });
+    }
+    connect(coreManager, &ads::CDockManager::dockAreaCreated, this,
+            [this](ads::CDockAreaWidget *) {
+                QTimer::singleShot(0, this,
+                                   &EditorWindow::configureDockSplitters);
+            });
+    configureDockSplitters();
 
     if (windowMenu != nullptr) {
         windowMenu->addSeparator();
-        const QList<ads::CDockWidget *> docks{
-            viewportDock, hierarchyDock, inspectorDock, contentDock,
-            materialDock, environmentDock, postProcessingDock};
-        for (ads::CDockWidget *dock : docks)
+        for (ads::CDockWidget *dock : managedDocks)
             windowMenu->addAction(dock->toggleViewAction());
         windowMenu->addSeparator();
         const QList<QPair<QString, ads::CDockWidget *>> workspaces{
@@ -268,67 +297,54 @@ void EditorWindow::setupDocks() {
 }
 
 void EditorWindow::saveLayout() {
+    if (coreManager == nullptr)
+        return;
     QSettings settings("Neutral Software", "Atlas Engine");
 
     settings.setValue("window/geometry", saveGeometry());
-    settings.setValue("window/state", saveState());
-    settings.setValue("docking/state/v6", coreManager->saveState(6));
-    if (inspectorPanel != nullptr) {
-        settings.setValue("panels/inspector/width", inspectorPanel->width());
-    }
-    if (dockManager != nullptr) {
-        auto *dock = dockManager->panel("inspector");
-        if (dock != nullptr && dock->dockAreaWidget() != nullptr) {
-            QVariantList sizes;
-            for (int size :
-                 coreManager->splitterSizes(dock->dockAreaWidget())) {
-                sizes.append(size);
-            }
-            settings.setValue("panels/inspector/splitterSizes", sizes);
-        }
-    }
+    settings.setValue(DockStateKey,
+                      coreManager->saveState(DockStateVersion));
+    settings.sync();
 }
 
 void EditorWindow::restoreLayout() {
     QSettings settings("Neutral Software", "Atlas Engine");
 
-    restoreGeometry(settings.value("window/geometry").toByteArray());
-    restoreState(settings.value("window/state").toByteArray());
+    const QByteArray geometry = settings.value("window/geometry").toByteArray();
+    if (!geometry.isEmpty())
+        restoreGeometry(geometry);
+    const QByteArray dockState = settings.value(DockStateKey).toByteArray();
 
-    const QByteArray dockState =
-        settings.value("docking/state/v6").toByteArray();
+    QTimer::singleShot(0, this, [this, dockState] {
+        restoringLayout = true;
+        const bool restored = !dockState.isEmpty() &&
+                              coreManager->restoreState(
+                                  dockState, DockStateVersion);
+        if (!restored && !defaultDockState.isEmpty())
+            coreManager->restoreState(defaultDockState, DockStateVersion);
+        restoringLayout = false;
+        configureDockSplitters();
+    });
+}
 
-    if (!dockState.isEmpty()) {
-        coreManager->restoreState(dockState, 6);
+void EditorWindow::configureDockSplitters() {
+    if (coreManager == nullptr)
+        return;
+    for (QSplitter *splitter : coreManager->findChildren<QSplitter *>()) {
+        splitter->setHandleWidth(6);
+        splitter->setOpaqueResize(true);
+        splitter->setChildrenCollapsible(false);
+        if (!splitter->property("atlasLayoutTracking").toBool()) {
+            splitter->setProperty("atlasLayoutTracking", true);
+            connect(splitter, &QSplitter::splitterMoved, this,
+                    [this](int, int) { scheduleLayoutSave(); });
+        }
     }
+}
 
-    const int inspectorWidth =
-        settings.value("panels/inspector/width", 320).toInt();
-    const QVariantList storedSizes =
-        settings.value("panels/inspector/splitterSizes").toList();
-    QTimer::singleShot(0, this,
-                       [this, inspectorWidth, storedSizes] {
-                           if (inspectorPanel != nullptr &&
-                               inspectorWidth > 0) {
-                               inspectorPanel->resize(
-                                   inspectorWidth, inspectorPanel->height());
-                           }
-                           if (dockManager == nullptr ||
-                               storedSizes.isEmpty()) {
-                               return;
-                           }
-                           auto *dock = dockManager->panel("inspector");
-                           if (dock == nullptr ||
-                               dock->dockAreaWidget() == nullptr) {
-                               return;
-                           }
-                           QList<int> sizes;
-                           for (const QVariant &size : storedSizes) {
-                               sizes.append(size.toInt());
-                           }
-                           coreManager->setSplitterSizes(
-                               dock->dockAreaWidget(), sizes);
-                       });
+void EditorWindow::scheduleLayoutSave() {
+    if (!restoringLayout && !closing && layoutSaveTimer != nullptr)
+        layoutSaveTimer->start();
 }
 
 void EditorWindow::closeEvent(QCloseEvent *event) {
@@ -337,6 +353,8 @@ void EditorWindow::closeEvent(QCloseEvent *event) {
         return;
     }
     closing = true;
+    if (layoutSaveTimer != nullptr)
+        layoutSaveTimer->stop();
     saveLayout();
     for (auto *viewport : findChildren<ViewportPanel *>()) {
         viewport->shutdownRuntime();

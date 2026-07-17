@@ -27,6 +27,7 @@ class MaterialEditorPanel;
 class PostProcessingPanel;
 class EnvironmentEditorPanel;
 class QMenu;
+class QTimer;
 
 class EditorWindow : public QMainWindow {
     Q_OBJECT
@@ -42,6 +43,8 @@ private:
 
     void saveLayout();
     void restoreLayout();
+    void configureDockSplitters();
+    void scheduleLayoutSave();
 
     EditorDockManager* dockManager = nullptr;
     ads::CDockManager* coreManager = nullptr;
@@ -52,9 +55,11 @@ private:
     EnvironmentEditorPanel* environmentEditorPanel = nullptr;
     QMenu* viewMenu = nullptr;
     QMenu* windowMenu = nullptr;
+    QTimer* layoutSaveTimer = nullptr;
     QByteArray defaultDockState;
     QString projectFile;
     bool closing = false;
+    bool restoringLayout = false;
 
     void closeEvent(QCloseEvent* event) override;
 };
