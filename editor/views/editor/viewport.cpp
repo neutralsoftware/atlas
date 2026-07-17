@@ -645,7 +645,14 @@ bool ViewportPanel::deleteRuntimeObject(int id) {
     if (runtimeContext == nullptr || !runtimeContext->deleteObject(id)) {
         return false;
     }
+    if (undoStack != nullptr) {
+        undoStack->clear();
+    }
+    if (!runtimeContext->saveCurrentScene()) {
+        qWarning() << "Atlas editor could not persist the deleted object";
+    }
     refreshSceneSnapshot();
+    emit runtimeObjectActivated(-1);
     return true;
 }
 

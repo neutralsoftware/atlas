@@ -80,6 +80,7 @@ class Context {
 
     std::unique_ptr<Window> window;
     std::vector<std::shared_ptr<Renderable>> objects;
+    std::vector<std::shared_ptr<Renderable>> retiredObjects;
     std::unordered_map<std::string, GameObject *> objectReferences;
     std::unordered_map<int, std::string> objectNames;
     std::unordered_map<int, std::string> objectSceneReferences;
