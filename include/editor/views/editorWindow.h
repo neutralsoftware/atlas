@@ -26,6 +26,7 @@ class InspectorPanel;
 class MaterialEditorPanel;
 class PostProcessingPanel;
 class QMenu;
+class QShowEvent;
 class QTimer;
 
 class EditorWindow : public QMainWindow {
@@ -34,6 +35,10 @@ class EditorWindow : public QMainWindow {
 public:
     explicit EditorWindow(const QString& projectFile,
                           QWidget* parent = nullptr);
+
+signals:
+    void startupStatusChanged(const QString& status);
+    void startupReady(bool success, const QString& message);
 
 private:
     void setupWindow();
@@ -60,8 +65,11 @@ private:
     QString projectName;
     bool closing = false;
     bool restoringLayout = false;
+    bool startupQueued = false;
+    bool startupComplete = false;
 
     void closeEvent(QCloseEvent* event) override;
+    void showEvent(QShowEvent* event) override;
 };
 
 #endif //ATLAS_EDITORWINDOW_H

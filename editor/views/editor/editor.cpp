@@ -17,6 +17,7 @@
 #include <QMenuBar>
 #include <QStyle>
 #include <QSettings>
+#include <QShowEvent>
 #include <QSplitter>
 #include <QTimer>
 #include <QCloseEvent>
@@ -169,6 +170,15 @@ void EditorWindow::setupDocks() {
     viewportPanel = new ViewportPanel(projectFile);
     connect(viewportPanel, &ViewportPanel::sceneDirtyChanged, this,
             &EditorWindow::updateWindowTitle);
+    connect(viewportPanel, &ViewportPanel::runtimeStartupFinished, this,
+            [this](bool success, const QString &message) {
+                if (startupComplete)
+                    return;
+                startupComplete = true;
+                emit startupStatusChanged(success ? "Project ready"
+                                                  : "Runtime unavailable");
+                emit startupReady(success, message);
+            });
     auto *viewportTools = new ViewportTools(viewportPanel);
     auto *viewportDock = dockManager->addPanel(
         {.id = "viewport",
@@ -314,16 +324,14 @@ void EditorWindow::restoreLayout() {
         restoreGeometry(geometry);
     const QByteArray dockState = settings.value(DockStateKey).toByteArray();
 
-    QTimer::singleShot(0, this, [this, dockState] {
-        restoringLayout = true;
-        const bool restored = !dockState.isEmpty() &&
-                              coreManager->restoreState(
-                                  dockState, DockStateVersion);
-        if (!restored && !defaultDockState.isEmpty())
-            coreManager->restoreState(defaultDockState, DockStateVersion);
-        restoringLayout = false;
-        configureDockSplitters();
-    });
+    restoringLayout = true;
+    const bool restored = !dockState.isEmpty() &&
+                          coreManager->restoreState(dockState,
+                                                    DockStateVersion);
+    if (!restored && !defaultDockState.isEmpty())
+        coreManager->restoreState(defaultDockState, DockStateVersion);
+    restoringLayout = false;
+    configureDockSplitters();
 }
 
 void EditorWindow::configureDockSplitters() {
@@ -359,6 +367,24 @@ void EditorWindow::updateWindowTitle(bool dirty) {
     setWindowTitle(QStringLiteral("%1 - Atlas Engine %2")
                        .arg(name, QStringLiteral(ATLAS_VERSION)));
 #endif
+}
+
+void EditorWindow::showEvent(QShowEvent *event) {
+    QMainWindow::showEvent(event);
+    if (startupQueued || startupComplete)
+        return;
+    startupQueued = true;
+    emit startupStatusChanged("Restoring editor workspace...");
+    QTimer::singleShot(0, this, [this] {
+        configureDockSplitters();
+        emit startupStatusChanged("Loading the project runtime...");
+        if (viewportPanel != nullptr) {
+            viewportPanel->setRuntimeStartupEnabled(true);
+        } else {
+            startupComplete = true;
+            emit startupReady(false, "Viewport is unavailable");
+        }
+    });
 }
 
 void EditorWindow::closeEvent(QCloseEvent *event) {

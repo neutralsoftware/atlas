@@ -31,6 +31,7 @@
 #include <filesystem>
 #include <fstream>
 #include <iterator>
+#include <limits>
 #include <memory>
 #include <numbers>
 #include <sstream>
@@ -4712,6 +4713,26 @@ bool Context::setObjectMaterial(int id, const std::string &path) {
     return true;
 }
 
+static json inheritedRigidbodyCollider(GameObject &object) {
+    const std::vector<CoreVertex> vertices = object.getVertices();
+    glm::vec3 size = glm::abs(object.getScale().toGlm());
+    if (!vertices.empty()) {
+        glm::vec3 minimum(std::numeric_limits<float>::max());
+        glm::vec3 maximum(std::numeric_limits<float>::lowest());
+        for (const CoreVertex &vertex : vertices) {
+            const glm::vec3 position = vertex.position.toGlm();
+            minimum = glm::min(minimum, position);
+            maximum = glm::max(maximum, position);
+        }
+        size *= maximum - minimum;
+    }
+    size.x = std::max(size.x, 0.05f);
+    size.y = std::max(size.y, 0.05f);
+    size.z = std::max(size.z, 0.05f);
+    return json{{"type", "box"},
+                {"size", json::array({size.x, size.y, size.z})}};
+}
+
 int Context::addObjectComponent(int id, const json &component) {
     GameObject *object = findContextObject(*this, id);
     if (object == nullptr || !component.is_object()) {
@@ -4731,6 +4752,17 @@ int Context::addObjectComponent(int id, const json &component) {
         return -1;
     }
 
+    json storedComponent = component;
+    if (normalizedType == "rigidbody") {
+        json &collider = storedComponent["collider"];
+        const bool inheritObjectSize =
+            collider.is_object() &&
+            collider.value("inheritObjectSize", false);
+        if (inheritObjectSize) {
+            collider = inheritedRigidbodyCollider(*object);
+        }
+    }
+
     json &components = editorComponentData[id];
     if (!components.is_array()) {
         components = json::array();
@@ -4748,14 +4780,14 @@ int Context::addObjectComponent(int id, const json &component) {
     }
 
     const int index = static_cast<int>(components.size());
-    components.push_back(component);
+    components.push_back(storedComponent);
     editorComponentBaseDirs[id].resize(static_cast<std::size_t>(index));
     editorComponentBaseDirs[id].push_back(sceneDir);
     PendingComponent pending{
         .object = object,
         .objectType = objectSceneTypes.contains(id) ? objectSceneTypes[id] : "",
         .baseDir = sceneDir,
-        .data = component,
+        .data = storedComponent,
         .componentIndex = index,
     };
     try {

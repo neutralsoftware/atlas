@@ -267,13 +267,20 @@ QSize ViewportPanel::minimumSizeHint() const { return QSize(1, 1); }
 
 QPaintEngine *ViewportPanel::paintEngine() const { return nullptr; }
 
+void ViewportPanel::setRuntimeStartupEnabled(bool enabled) {
+    runtimeStartupEnabled = enabled;
+    if (runtimeStartupEnabled)
+        scheduleRuntimeStart();
+}
+
 void ViewportPanel::showEvent(QShowEvent *event) {
     QWidget::showEvent(event);
     if (runtimeContext != nullptr) {
         frameTimer->start(16);
         return;
     }
-    scheduleRuntimeStart();
+    if (runtimeStartupEnabled)
+        scheduleRuntimeStart();
 }
 
 void ViewportPanel::hideEvent(QHideEvent *event) {
@@ -317,7 +324,7 @@ void ViewportPanel::dropEvent(QDropEvent *event) {
 
 void ViewportPanel::resizeEvent(QResizeEvent *event) {
     QWidget::resizeEvent(event);
-    if (runtimeContext == nullptr) {
+    if (runtimeContext == nullptr && runtimeStartupEnabled) {
         scheduleRuntimeStart();
         return;
     }
@@ -445,12 +452,16 @@ void ViewportPanel::startRuntime() {
     const std::string runtimeProjectFile = projectFile.toUtf8().toStdString();
     if (runtimeProjectFile.empty()) {
         qWarning() << "Atlas viewport runtime project file is not configured";
+        emit runtimeStartupFinished(false,
+                                    "Runtime project file is not configured");
         return;
     }
 
     void *metalView = reinterpret_cast<void *>(static_cast<quintptr>(winId()));
     if (metalView == nullptr) {
         qWarning() << "Atlas viewport could not resolve a native Metal view";
+        emit runtimeStartupFinished(false,
+                                    "Viewport native surface is unavailable");
         return;
     }
 
@@ -467,17 +478,23 @@ void ViewportPanel::startRuntime() {
         playbackState = 0;
         emit playbackStateChanged(playbackState);
         frameTimer->start(16);
+        emit runtimeStartupFinished(true, {});
     } catch (const std::exception &error) {
         qWarning().noquote()
             << QStringLiteral("Failed to start Atlas viewport runtime: %1")
                    .arg(QString::fromUtf8(error.what()));
         runtimeContext.reset();
+        emit runtimeStartupFinished(false,
+                                    QString::fromUtf8(error.what()));
     } catch (...) {
         qWarning() << "Failed to start Atlas viewport runtime";
         runtimeContext.reset();
+        emit runtimeStartupFinished(false, "Runtime initialization failed");
     }
 #else
     qWarning() << "Atlas viewport runtime embedding requires the Metal backend";
+    emit runtimeStartupFinished(false,
+                                "Runtime embedding requires the Metal backend");
 #endif
 }
 
@@ -683,6 +700,11 @@ int ViewportPanel::addRuntimeObjectComponent(
     }
     QJsonObject definition = properties;
     definition.insert("type", type);
+    if (type.toLower().remove('_').remove('-') == "rigidbody") {
+        QJsonObject collider = definition.value("collider").toObject();
+        collider.insert("inheritObjectSize", true);
+        definition.insert("collider", collider);
+    }
     const QByteArray payload =
         QJsonDocument(definition).toJson(QJsonDocument::Compact);
     try {

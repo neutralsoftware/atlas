@@ -8,7 +8,6 @@
 #include <QLabel>
 #include <QPixmap>
 #include <QScreen>
-#include <QTimer>
 
 #ifndef ATLAS_VERSION
 #define ATLAS_VERSION "Alpha 9"
@@ -143,23 +142,26 @@ SplashScreen::SplashScreen(QWidget *parent)
 }
 )");
 
-    finishTimer = new QTimer(this);
-    finishTimer->setSingleShot(true);
-    connect(finishTimer, &QTimer::timeout, this, [this] {
-        hide();
-        emit ready();
-    });
 }
 
-void SplashScreen::start(const QString &statusText, int durationMs) {
-    QString displayStatus = statusText;
-    displayStatus.replace(QChar(0x2026), "...");
-    statusLabel->setText(displayStatus);
+void SplashScreen::start(const QString &statusText) {
+    setStatus(statusText);
     const QRect available =
         QGuiApplication::primaryScreen()->availableGeometry();
     move(available.left() + (available.width() - width()) / 2,
          available.top() + (available.height() - height()) / 2);
     show();
     raise();
-    finishTimer->start(durationMs < 300 ? 300 : durationMs);
+}
+
+void SplashScreen::setStatus(const QString &statusText) {
+    QString displayStatus = statusText;
+    displayStatus.replace(QChar(0x2026), "...");
+    statusLabel->setText(displayStatus);
+    statusLabel->repaint();
+}
+
+void SplashScreen::finish() {
+    hide();
+    emit ready();
 }

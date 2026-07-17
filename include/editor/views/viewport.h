@@ -41,6 +41,7 @@ class ViewportPanel : public QWidget {
     ~ViewportPanel() override;
     QSize sizeHint() const override;
     QSize minimumSizeHint() const override;
+    void setRuntimeStartupEnabled(bool enabled);
     void shutdownRuntime();
     bool selectRuntimeObject(int id, bool focusCamera = true);
     bool renameRuntimeObject(int id, const QString &name);
@@ -86,6 +87,7 @@ class ViewportPanel : public QWidget {
     void playbackStateChanged(int state);
     void frameRateChanged(float framesPerSecond);
     void sceneDirtyChanged(bool dirty);
+    void runtimeStartupFinished(bool success, const QString &message);
 
   protected:
     QPaintEngine *paintEngine() const override;
@@ -126,6 +128,7 @@ class ViewportPanel : public QWidget {
     float runtimeScale = 0.0f;
     QString lastSceneSnapshot;
     bool runtimeStartQueued = false;
+    bool runtimeStartupEnabled = false;
     bool shuttingDown = false;
     bool sceneDirty = false;
     bool leftPointerMoved = false;
