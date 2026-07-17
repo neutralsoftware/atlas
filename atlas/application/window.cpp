@@ -1462,11 +1462,6 @@ bool Window::stepFrame() {
         this->uiRenderables.erase(std::remove(this->uiRenderables.begin(),
                                               this->uiRenderables.end(), obj),
                                   this->uiRenderables.end());
-        if (auto *fluid = dynamic_cast<Fluid *>(obj)) {
-            this->lateFluids.erase(std::remove(this->lateFluids.begin(),
-                                               this->lateFluids.end(), fluid),
-                                   this->lateFluids.end());
-        }
     }
     this->pendingRemovals.clear();
 
@@ -3122,32 +3117,43 @@ void Window::removeObject(Renderable *obj) {
         editorActiveGizmoAxis = 0;
     }
 
-    if (this->physicsWorld != nullptr) {
-        this->pendingRemovals.push_back(obj);
+    const auto pendingObject =
+        std::find(this->pendingObjects.begin(), this->pendingObjects.end(), obj);
+    const bool wasPending = pendingObject != this->pendingObjects.end();
+    if (wasPending) {
+        this->pendingObjects.erase(pendingObject);
+    }
+
+    this->lateForwardRenderables.erase(
+        std::remove(this->lateForwardRenderables.begin(),
+                    this->lateForwardRenderables.end(), obj),
+        this->lateForwardRenderables.end());
+    this->preferenceRenderables.erase(
+        std::remove(this->preferenceRenderables.begin(),
+                    this->preferenceRenderables.end(), obj),
+        this->preferenceRenderables.end());
+    this->firstRenderables.erase(std::remove(this->firstRenderables.begin(),
+                                             this->firstRenderables.end(), obj),
+                                 this->firstRenderables.end());
+    this->uiRenderables.erase(std::remove(this->uiRenderables.begin(),
+                                          this->uiRenderables.end(), obj),
+                              this->uiRenderables.end());
+    if (auto *fluid = dynamic_cast<Fluid *>(obj)) {
+        this->lateFluids.erase(std::remove(this->lateFluids.begin(),
+                                           this->lateFluids.end(), fluid),
+                               this->lateFluids.end());
+    }
+
+    if (this->physicsWorld != nullptr && !wasPending) {
+        if (std::find(this->pendingRemovals.begin(),
+                      this->pendingRemovals.end(), obj) ==
+            this->pendingRemovals.end()) {
+            this->pendingRemovals.push_back(obj);
+        }
     } else {
         this->renderables.erase(std::remove(this->renderables.begin(),
                                             this->renderables.end(), obj),
                                 this->renderables.end());
-        this->lateForwardRenderables.erase(
-            std::remove(this->lateForwardRenderables.begin(),
-                        this->lateForwardRenderables.end(), obj),
-            this->lateForwardRenderables.end());
-        this->preferenceRenderables.erase(
-            std::remove(this->preferenceRenderables.begin(),
-                        this->preferenceRenderables.end(), obj),
-            this->preferenceRenderables.end());
-        this->firstRenderables.erase(std::remove(this->firstRenderables.begin(),
-                                                 this->firstRenderables.end(),
-                                                 obj),
-                                     this->firstRenderables.end());
-        this->uiRenderables.erase(std::remove(this->uiRenderables.begin(),
-                                              this->uiRenderables.end(), obj),
-                                  this->uiRenderables.end());
-        if (auto *fluid = dynamic_cast<Fluid *>(obj)) {
-            this->lateFluids.erase(std::remove(this->lateFluids.begin(),
-                                               this->lateFluids.end(), fluid),
-                                   this->lateFluids.end());
-        }
     }
     this->shadowMapsDirty = true;
     this->shadowUpdateCooldown = 0.0f;

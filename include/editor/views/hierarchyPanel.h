@@ -15,6 +15,7 @@
 #include <QWidget>
 
 class QJsonArray;
+class QEvent;
 class QMenu;
 class QPoint;
 class QStandardItem;
@@ -31,6 +32,9 @@ class HierarchyPanel : public QWidget {
 
   signals:
     void objectActivated(int id);
+
+  protected:
+    bool eventFilter(QObject *watched, QEvent *event) override;
 
   private:
     void applySceneSnapshot(const QString &snapshot);

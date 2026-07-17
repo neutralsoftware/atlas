@@ -30,6 +30,7 @@
 #include <cmath>
 #include <filesystem>
 #include <fstream>
+#include <iterator>
 #include <memory>
 #include <numbers>
 #include <sstream>
@@ -3939,7 +3940,16 @@ bool Context::stepFrame() {
         }
     }
     window->setScene(scene.get());
-    return window->stepFrame();
+    auto previousRetiredObjects = std::move(retiredObjects);
+    try {
+        return window->stepFrame();
+    } catch (...) {
+        retiredObjects.insert(
+            retiredObjects.end(),
+            std::make_move_iterator(previousRetiredObjects.begin()),
+            std::make_move_iterator(previousRetiredObjects.end()));
+        throw;
+    }
 }
 
 bool Context::resize(int width, int height, float scale) {
@@ -4635,12 +4645,15 @@ bool Context::deleteObject(int id) {
         window->removeObject(object);
     }
 
-    objects.erase(std::remove_if(objects.begin(), objects.end(),
+    auto objectIt = std::find_if(objects.begin(), objects.end(),
                                  [&](const auto &renderable) {
                                      return renderable != nullptr &&
                                             renderable.get() == object;
-                                 }),
-                  objects.end());
+                                 });
+    if (objectIt != objects.end()) {
+        retiredObjects.push_back(std::move(*objectIt));
+        objects.erase(objectIt);
+    }
     return true;
 }
 
@@ -4936,11 +4949,22 @@ Context::~Context() {
     }
     if (context != nullptr) {
         runtime::scripting::clearSceneBindings(context, scriptHost);
+        editorRuntimeComponents.clear();
+        objects.clear();
+        renderTargets.clear();
+        directionalLights.clear();
+        pointLights.clear();
+        spotlights.clear();
+        areaLights.clear();
+        if (runtime != nullptr) {
+            JS_RunGC(runtime);
+        }
         JS_SetContextOpaque(context, nullptr);
         JS_FreeContext(context);
         context = nullptr;
     }
     if (runtime != nullptr) {
+        JS_RunGC(runtime);
         JS_FreeRuntime(runtime);
         runtime = nullptr;
     }
@@ -5122,6 +5146,9 @@ void Context::loadScene(Window &window, const json &sceneData) {
         }
     }
 
+    retiredObjects.insert(retiredObjects.end(),
+                          std::make_move_iterator(objects.begin()),
+                          std::make_move_iterator(objects.end()));
     objects.clear();
     objectReferences.clear();
     objectNames.clear();

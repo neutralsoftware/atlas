@@ -22,6 +22,7 @@ namespace ads {
 
 class ViewportPanel;
 class InspectorPanel;
+class MaterialEditorPanel;
 
 class EditorWindow : public QMainWindow {
     Q_OBJECT
@@ -42,6 +43,7 @@ private:
     ads::CDockManager* coreManager = nullptr;
     ViewportPanel* viewportPanel = nullptr;
     InspectorPanel* inspectorPanel = nullptr;
+    MaterialEditorPanel* materialEditorPanel = nullptr;
     QString projectFile;
     bool closing = false;
 

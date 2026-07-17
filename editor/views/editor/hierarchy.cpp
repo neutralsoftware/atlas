@@ -11,6 +11,8 @@
 
 #include <QAction>
 #include <QAbstractItemView>
+#include <QDropEvent>
+#include <QFileInfo>
 #include <QIcon>
 #include <QInputDialog>
 #include <QItemSelectionModel>
@@ -22,6 +24,7 @@
 #include <QList>
 #include <QMenu>
 #include <QMessageBox>
+#include <QMimeData>
 #include <QPair>
 #include <QSignalBlocker>
 #include <QStandardItem>
@@ -128,6 +131,10 @@ HierarchyPanel::HierarchyPanel(ViewportPanel *viewport, QWidget *parent)
     treeView->setSelectionMode(QAbstractItemView::SingleSelection);
     treeView->setContextMenuPolicy(Qt::CustomContextMenu);
     treeView->setUniformRowHeights(true);
+    treeView->setAcceptDrops(true);
+    treeView->setDragDropMode(QAbstractItemView::DropOnly);
+    treeView->viewport()->setAcceptDrops(true);
+    treeView->viewport()->installEventFilter(this);
     layout->addWidget(treeView);
 
     auto *addMenu = new QMenu(addButton);
@@ -256,7 +263,46 @@ void HierarchyPanel::rebuildScene(const QString &sceneName,
     root->setData(-1, ObjectIdRole);
     root->setData("scene", ObjectTypeRole);
     root->setEditable(false);
-    appendObjects(root, objects);
+    QJsonArray regularObjects;
+    QJsonArray cameraObjects;
+    QJsonArray lightObjects;
+    for (const QJsonValue &value : objects) {
+        const QString type = value.toObject().value("type").toString().toLower();
+        if (type.contains("light") || type == "sun") {
+            lightObjects.append(value);
+        } else if (type.contains("camera")) {
+            cameraObjects.append(value);
+        } else {
+            regularObjects.append(value);
+        }
+    }
+    appendObjects(root, regularObjects);
+
+    auto *cameras =
+        new QStandardItem(hierarchyIcon(this, "camera"), "Cameras");
+    cameras->setData(-1, ObjectIdRole);
+    cameras->setEditable(false);
+    cameras->setSelectable(false);
+    auto *mainCamera =
+        new QStandardItem(hierarchyIcon(this, "camera"), "Main Camera");
+    mainCamera->setData(-1, ObjectIdRole);
+    mainCamera->setData("camera", ObjectTypeRole);
+    mainCamera->setToolTip("Scene camera");
+    mainCamera->setEditable(false);
+    mainCamera->setSelectable(false);
+    cameras->appendRow(mainCamera);
+    appendObjects(cameras, cameraObjects);
+    root->appendRow(cameras);
+
+    if (!lightObjects.isEmpty()) {
+        auto *lights =
+            new QStandardItem(hierarchyIcon(this, "light"), "Lights");
+        lights->setData(-1, ObjectIdRole);
+        lights->setEditable(false);
+        lights->setSelectable(false);
+        appendObjects(lights, lightObjects);
+        root->appendRow(lights);
+    }
     model->appendRow(root);
     treeView->expandAll();
 
@@ -266,6 +312,42 @@ void HierarchyPanel::rebuildScene(const QString &sceneName,
         treeView->scrollTo(index, QAbstractItemView::EnsureVisible);
     }
     applyingSnapshot = false;
+}
+
+bool HierarchyPanel::eventFilter(QObject *watched, QEvent *event) {
+    if (treeView != nullptr && watched == treeView->viewport() &&
+        (event->type() == QEvent::DragEnter ||
+         event->type() == QEvent::DragMove || event->type() == QEvent::Drop)) {
+        auto *drop = static_cast<QDropEvent *>(event);
+        const QModelIndex index = treeView->indexAt(drop->position().toPoint());
+        const int objectId = index.data(ObjectIdRole).toInt();
+        if (drop->mimeData()->hasUrls() && objectId >= 0) {
+            const QString suffix =
+                QFileInfo(drop->mimeData()->urls().constFirst().toLocalFile())
+                    .suffix()
+                    .toLower();
+            const bool supported = suffix == "amat" || suffix == "material" ||
+                                   suffix == "ts" || suffix == "js";
+            if (supported && event->type() == QEvent::Drop &&
+                viewport != nullptr &&
+                viewport->attachRuntimeAsset(
+                    objectId,
+                    drop->mimeData()->urls().constFirst().toLocalFile())) {
+                treeView->setCurrentIndex(index);
+                viewport->selectRuntimeObject(objectId, false);
+                emit objectActivated(objectId);
+                drop->acceptProposedAction();
+                return true;
+            }
+            if (supported && event->type() != QEvent::Drop) {
+                drop->acceptProposedAction();
+                return true;
+            }
+        }
+        drop->ignore();
+        return true;
+    }
+    return QWidget::eventFilter(watched, event);
 }
 
 void HierarchyPanel::appendObjects(QStandardItem *parent,

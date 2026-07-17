@@ -13,6 +13,7 @@
 
 #include <QAction>
 #include <QList>
+#include <QKeySequence>
 #include <QMenuBar>
 #include <QStyle>
 #include <QSettings>
@@ -56,7 +57,7 @@ void EditorWindow::setupWindow() {
     ads::CDockManager::setConfigFlag(
         ads::CDockManager::DockAreaHasTabsMenuButton, false);
     ads::CDockManager::setConfigFlag(ads::CDockManager::DockAreaHasUndockButton,
-                                     false);
+                                     true);
     ads::CDockManager::setConfigFlag(ads::CDockManager::DockAreaHasCloseButton,
                                      false);
 
@@ -72,7 +73,14 @@ void EditorWindow::setupMenus() {
                         "Open");
     auto *saveAction = fileMenu->addAction(
         style()->standardIcon(QStyle::SP_DialogSaveButton), "Save Scene");
+    saveAction->setShortcut(QKeySequence::Save);
+    saveAction->setShortcutContext(Qt::ApplicationShortcut);
     connect(saveAction, &QAction::triggered, this, [this] {
+        if (materialEditorPanel != nullptr &&
+            materialEditorPanel->isVisible()) {
+            materialEditorPanel->saveMaterial();
+            return;
+        }
         if (viewportPanel != nullptr) {
             viewportPanel->saveRuntimeScene();
         }
@@ -82,8 +90,30 @@ void EditorWindow::setupMenus() {
                         "Quit", this, &QWidget::close);
 
     auto *editMenu = menuBar()->addMenu("Edit");
-    editMenu->addAction(style()->standardIcon(QStyle::SP_ArrowBack), "Undo");
-    editMenu->addAction(style()->standardIcon(QStyle::SP_ArrowForward), "Redo");
+    auto *undoAction = editMenu->addAction(
+        style()->standardIcon(QStyle::SP_ArrowBack), "Undo");
+    undoAction->setShortcut(QKeySequence::Undo);
+    undoAction->setShortcutContext(Qt::ApplicationShortcut);
+    connect(undoAction, &QAction::triggered, this, [this] {
+        if (materialEditorPanel != nullptr &&
+            materialEditorPanel->isVisible()) {
+            materialEditorPanel->undo();
+        } else if (viewportPanel != nullptr) {
+            viewportPanel->undo();
+        }
+    });
+    auto *redoAction = editMenu->addAction(
+        style()->standardIcon(QStyle::SP_ArrowForward), "Redo");
+    redoAction->setShortcut(QKeySequence::Redo);
+    redoAction->setShortcutContext(Qt::ApplicationShortcut);
+    connect(redoAction, &QAction::triggered, this, [this] {
+        if (materialEditorPanel != nullptr &&
+            materialEditorPanel->isVisible()) {
+            materialEditorPanel->redo();
+        } else if (viewportPanel != nullptr) {
+            viewportPanel->redo();
+        }
+    });
     editMenu->addSeparator();
     editMenu->addAction("Preferences");
 
@@ -106,7 +136,7 @@ void EditorWindow::setupMenus() {
 void EditorWindow::setupDocks() {
     viewportPanel = new ViewportPanel(projectFile);
     auto *viewportTools = new ViewportTools(viewportPanel);
-    dockManager->addPanel(
+    auto *viewportDock = dockManager->addPanel(
         {.id = "viewport",
          .title = "Viewport",
          .widget = viewportTools,
@@ -121,7 +151,7 @@ void EditorWindow::setupDocks() {
          .area = EditorDockArea::Left,
          .icon = style()->standardIcon(QStyle::SP_DirOpenIcon)});
 
-    inspectorPanel = new InspectorPanel(viewportPanel);
+    inspectorPanel = new InspectorPanel(viewportPanel, projectFile);
     dockManager->addPanel(
         {.id = "inspector",
          .title = "Inspector",
@@ -137,13 +167,16 @@ void EditorWindow::setupDocks() {
          .area = EditorDockArea::Bottom,
          .icon = style()->standardIcon(QStyle::SP_DirOpenIcon)});
 
-    auto *materialEditor = new MaterialEditorPanel(viewportPanel);
+    materialEditorPanel = new MaterialEditorPanel(viewportPanel);
     auto *materialDock = dockManager->addPanel(
         {.id = "materialEditor",
          .title = "Material Editor",
-         .widget = materialEditor,
+         .widget = materialEditorPanel,
          .area = EditorDockArea::Right,
          .icon = style()->standardIcon(QStyle::SP_FileDialogContentsView)});
+    coreManager->addDockWidgetTabToArea(materialDock,
+                                        viewportDock->dockAreaWidget());
+    viewportDock->setAsCurrentTab();
 
     connect(hierarchyPanel, &HierarchyPanel::objectActivated, inspectorPanel,
             &InspectorPanel::inspectRuntimeObject);
@@ -163,8 +196,8 @@ void EditorWindow::setupDocks() {
                 this->inspectorPanel->inspectFile(path);
             });
     connect(contentBrowser, &ContentBrowserPanel::assetActivated, this,
-            [materialEditor, materialDock](const QString &path) {
-                materialEditor->openMaterial(path);
+            [this, materialDock](const QString &path) {
+                materialEditorPanel->openMaterial(path);
                 materialDock->toggleView(true);
                 materialDock->raise();
             });
@@ -175,7 +208,7 @@ void EditorWindow::saveLayout() {
 
     settings.setValue("window/geometry", saveGeometry());
     settings.setValue("window/state", saveState());
-    settings.setValue("docking/state/v2", coreManager->saveState(2));
+    settings.setValue("docking/state/v4", coreManager->saveState(4));
     if (inspectorPanel != nullptr) {
         settings.setValue("panels/inspector/width", inspectorPanel->width());
     }
@@ -199,10 +232,10 @@ void EditorWindow::restoreLayout() {
     restoreState(settings.value("window/state").toByteArray());
 
     const QByteArray dockState =
-        settings.value("docking/state/v2").toByteArray();
+        settings.value("docking/state/v4").toByteArray();
 
     if (!dockState.isEmpty()) {
-        coreManager->restoreState(dockState, 2);
+        coreManager->restoreState(dockState, 4);
     }
 
     const int inspectorWidth =
