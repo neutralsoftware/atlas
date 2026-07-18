@@ -101,6 +101,7 @@ class Context {
     json editorCameraData = json::object();
     json editorTargetData = json::array();
     json editorEnvironmentData = json::object();
+    json editorPropertySyncs = json::array();
     std::vector<std::pair<std::string, std::string>> deletedObjectReferences;
 
     ProjectConfig config;
@@ -130,6 +131,8 @@ class Context {
                            const json &value);
     bool setSceneProperty(const std::string &section, int index,
                           const std::string &propertyPath, const json &value);
+    bool setPropertySync(const json &target, const json &source);
+    bool clearPropertySync(const json &target);
     bool setObjectMaterial(int id, const std::string &path);
     int addObjectComponent(int id, const json &component);
     bool removeObjectComponent(int id, int componentIndex);

@@ -60,11 +60,17 @@
 namespace {
 using PropertyChanged =
     std::function<void(const QString &, const QJsonValue &)>;
-using SyncOptions = QList<QPair<QString, QJsonValue>>;
+struct SyncOption {
+    QString label;
+    QJsonValue value;
+    QJsonObject source;
+};
+using SyncOptions = QList<SyncOption>;
 struct SyncProvider {
     std::function<SyncOptions(const QJsonValue &)> options;
     std::function<QString(const QString &)> matchedName;
-    std::function<void(const QString &, const QString &)> setMatchedName;
+    std::function<void(const QString &, const QJsonObject &)> setMatch;
+    std::function<void(const QString &)> clearMatch;
 
     explicit operator bool() const { return static_cast<bool>(options); }
 
@@ -669,8 +675,8 @@ void addSyncPicker(QHBoxLayout *layout, const QString &path,
             QAction *manual = menu->addAction(
                 "Enter value manually", menu,
                 [provider, path, showMatch] {
-                    if (provider.setMatchedName)
-                        provider.setMatchedName(path, QString());
+                    if (provider.clearMatch)
+                        provider.clearMatch(path);
                     showMatch(QString());
                 });
             manual->setProperty("searchText", "enter value manually unlink");
@@ -680,20 +686,20 @@ void addSyncPicker(QHBoxLayout *layout, const QString &path,
             generated->append(section);
             const SyncOptions options =
                 provider ? provider(current) : SyncOptions{};
-            for (const auto &[label, source] : options) {
+            for (const SyncOption &option : options) {
                 QAction *action = menu->addAction(
-                    label, menu,
-                    [current, source, path, changed, provider, label, showMatch,
+                    option.label, menu,
+                    [current, option, path, changed, provider, showMatch,
                      valueEditor] {
                         const QJsonValue matched =
-                            adaptedSyncValue(source, current, path);
+                            adaptedSyncValue(option.value, current, path);
                         changed(path, matched);
                         setNumericEditorValue(valueEditor, matched);
-                        if (provider.setMatchedName)
-                            provider.setMatchedName(path, label);
-                        showMatch(label);
+                        if (provider.setMatch)
+                            provider.setMatch(path, option.source);
+                        showMatch(option.label);
                     });
-                action->setProperty("searchText", label.toLower());
+                action->setProperty("searchText", option.label.toLower());
                 searchable->append(action);
                 generated->append(action);
             }
@@ -1032,23 +1038,33 @@ void addPropertyRows(QVBoxLayout *layout, const QJsonObject &properties,
     }
 }
 
+QString syncPointerSegment(QString value) {
+    return value.replace('~', "~0").replace('/', "~1");
+}
+
 void collectSyncOptions(const QString &label, const QJsonValue &value,
+                        const QJsonObject &source, const QString &path,
                         SyncOptions &options) {
     if (value.isDouble()) {
-        options.append({label, value});
+        QJsonObject endpoint = source;
+        endpoint.insert("path", path);
+        options.append({label, value, endpoint});
         return;
     }
     if (value.isArray()) {
         const QJsonArray array = value.toArray();
         if (!array.isEmpty() && isNumericArray(array)) {
-            options.append({label, value});
+            QJsonObject endpoint = source;
+            endpoint.insert("path", path);
+            options.append({label, value, endpoint});
             return;
         }
         for (int index = 0; index < array.size(); ++index) {
             if (array.at(index).isObject()) {
                 collectSyncOptions(
                     QStringLiteral("%1 %2").arg(label).arg(index + 1),
-                    array.at(index), options);
+                    array.at(index), source,
+                    path + '/' + QString::number(index), options);
             }
         }
         return;
@@ -1060,21 +1076,21 @@ void collectSyncOptions(const QString &label, const QJsonValue &value,
         const QString childLabel =
             label.isEmpty() ? humanize(iterator.key())
                             : label + " · " + humanize(iterator.key());
-        collectSyncOptions(childLabel, iterator.value(), options);
+        collectSyncOptions(childLabel, iterator.value(), source,
+                           path + '/' + syncPointerSegment(iterator.key()),
+                           options);
     }
 }
 
-SyncProvider makeSyncProvider(const QJsonObject &values) {
-    SyncOptions options;
-    collectSyncOptions(QString(), values, options);
+SyncProvider makeSyncProvider(const SyncOptions &options) {
     SyncProvider provider;
     provider.options = [options](const QJsonValue &target) {
         SyncOptions compatible;
         for (const auto &option : options) {
             if ((target.isDouble() &&
-                 (option.second.isDouble() || option.second.isArray())) ||
+                 (option.value.isDouble() || option.value.isArray())) ||
                 (target.isArray() &&
-                 (option.second.isDouble() || option.second.isArray()))) {
+                 (option.value.isDouble() || option.value.isArray()))) {
                 compatible.append(option);
             }
         }
@@ -1083,22 +1099,50 @@ SyncProvider makeSyncProvider(const QJsonObject &values) {
     return provider;
 }
 
+QJsonObject syncTargetAtPath(QJsonObject target, const QString &path) {
+    target.insert("path", target.value("path").toString() + path);
+    return target;
+}
+
 SyncProvider bindSyncProvider(const SyncProvider &provider,
-                              QHash<QString, QString> *matches,
-                              const QString &scope) {
+                              ViewportPanel *viewport, QJsonObject *scene,
+                              const QJsonObject &target) {
     SyncProvider bound = provider;
-    bound.matchedName = [matches, scope](const QString &path) {
-        return matches->value(scope + path);
+    bound.matchedName = [provider, scene, target](const QString &path) {
+        const QJsonObject endpoint = syncTargetAtPath(target, path);
+        const QJsonArray bindings = scene->value("propertySyncs").toArray();
+        for (const QJsonValue &entry : bindings) {
+            const QJsonObject binding = entry.toObject();
+            if (binding.value("target").toObject() != endpoint)
+                continue;
+            const QJsonObject source = binding.value("source").toObject();
+            for (const SyncOption &option : provider(QJsonValue(0.0))) {
+                if (option.source == source)
+                    return option.label;
+            }
+        }
+        return QString();
     };
-    bound.setMatchedName = [matches, scope](const QString &path,
-                                            const QString &name) {
-        const QString key = scope + path;
-        if (name.isEmpty())
-            matches->remove(key);
-        else
-            matches->insert(key, name);
+    bound.setMatch = [viewport, target](const QString &path,
+                                       const QJsonObject &source) {
+        if (viewport != nullptr)
+            viewport->setRuntimePropertySync(syncTargetAtPath(target, path),
+                                             source);
+    };
+    bound.clearMatch = [viewport, target](const QString &path) {
+        if (viewport != nullptr)
+            viewport->clearRuntimePropertySync(syncTargetAtPath(target, path));
     };
     return bound;
+}
+
+QJsonValue objectSyncReference(const QJsonObject &object) {
+    const QJsonValue id = object.value("properties").toObject().value("id");
+    if (id.isString() && !id.toString().isEmpty())
+        return id;
+    if (id.isDouble())
+        return QString::number(id.toInt());
+    return object.value("name");
 }
 
 QFrame *componentCard(const QString &title, const QJsonObject &properties,
@@ -1340,27 +1384,53 @@ void InspectorPanel::showObject(const QJsonObject &object) {
     QJsonObject transform{{"position", object.value("position")},
                           {"rotation", object.value("rotation")},
                           {"scale", object.value("scale")}};
-    SyncProvider syncProvider;
-    syncProvider.options = [this](const QJsonValue &target) {
-        const QJsonObject currentTransform{
-            {"position", inspectedObject.value("position")},
-            {"rotation", inspectedObject.value("rotation")},
-            {"scale", inspectedObject.value("scale")}};
-        return makeSyncProvider(
-            QJsonObject{{"Object Size", inspectedObject.value("boundsSize")},
-                        {"Transform", currentTransform},
-                        {"Object", inspectedObject.value("properties")},
-                        {"Components", inspectedObject.value("components")}})(
-            target);
-    };
+    const QJsonValue objectReference = objectSyncReference(object);
+    const QJsonArray components = object.value("components").toArray();
+    SyncOptions syncOptions;
+    syncOptions.append(
+        {"Object Size", object.value("boundsSize"),
+         QJsonObject{{"section", "object"},
+                     {"object", objectReference},
+                     {"component", "bounds"},
+                     {"componentIndex", -1},
+                     {"path", QString()}}});
+    collectSyncOptions(
+        "Transform", transform,
+        QJsonObject{{"section", "object"},
+                    {"object", objectReference},
+                    {"component", "transform"},
+                    {"componentIndex", -1}},
+        QString(), syncOptions);
+    collectSyncOptions(
+        "Object", object.value("properties"),
+        QJsonObject{{"section", "object"},
+                    {"object", objectReference},
+                    {"component", "object"},
+                    {"componentIndex", -1}},
+        QString(), syncOptions);
+    for (int index = 0; index < components.size(); ++index) {
+        const QJsonObject raw = components.at(index).toObject();
+        const QString componentType = raw.value("type").toString("component");
+        collectSyncOptions(
+            componentTitle(componentType), componentValues(componentType, raw),
+            QJsonObject{{"section", "object"},
+                        {"object", objectReference},
+                        {"component", componentType},
+                        {"componentIndex", index}},
+            QString(), syncOptions);
+    }
+    const SyncProvider syncProvider = makeSyncProvider(syncOptions);
+    const QJsonObject transformTarget{{"section", "object"},
+                                      {"object", objectReference},
+                                      {"component", "transform"},
+                                      {"componentIndex", -1}};
     contentLayout->addWidget(componentCard(
         "Transform", transform, QString(),
         [update](const QString &path, const QJsonValue &value) {
             update("transform", -1, path, value);
         },
-        content,
-        bindSyncProvider(syncProvider, &propertyMatches,
-                         QStringLiteral("object/%1/transform").arg(objectId))));
+        content, bindSyncProvider(syncProvider, viewport, &scene,
+                                  transformTarget)));
 
     QJsonObject objectProperties = object.value("properties").toObject();
     if (type.contains("light", Qt::CaseInsensitive) ||
@@ -1381,9 +1451,12 @@ void InspectorPanel::showObject(const QJsonObject &object) {
                 update("object", -1, path, value);
             },
             content,
-            bindSyncProvider(syncProvider, &propertyMatches,
-                             QStringLiteral("object/%1/properties")
-                                 .arg(objectId))));
+            bindSyncProvider(
+                syncProvider, viewport, &scene,
+                QJsonObject{{"section", "object"},
+                            {"object", objectReference},
+                            {"component", "object"},
+                            {"componentIndex", -1}})));
     }
 
     if (!materialPath.isEmpty()) {
@@ -1398,7 +1471,6 @@ void InspectorPanel::showObject(const QJsonObject &object) {
             content));
     }
 
-    const QJsonArray components = object.value("components").toArray();
     for (int index = 0; index < components.size(); ++index) {
         const QJsonObject raw = components.at(index).toObject();
         const QString componentType = raw.value("type").toString("component");
@@ -1410,10 +1482,12 @@ void InspectorPanel::showObject(const QJsonObject &object) {
                 update(componentType, index, path, value);
             },
             content,
-            bindSyncProvider(syncProvider, &propertyMatches,
-                             QStringLiteral("object/%1/component/%2")
-                                 .arg(objectId)
-                                 .arg(index)),
+            bindSyncProvider(
+                syncProvider, viewport, &scene,
+                QJsonObject{{"section", "object"},
+                            {"object", objectReference},
+                            {"component", componentType},
+                            {"componentIndex", index}}),
             [this, objectId, index, componentType] {
                 if (QMessageBox::question(
                         this, "Remove Component",
@@ -1588,8 +1662,8 @@ void InspectorPanel::showCamera() {
                           {"target", inspectedCamera.value("target")}};
     QJsonObject projection{
         {"orthographic", inspectedCamera.value("orthographic")},
-        {"fieldOfView", inspectedCamera.value("fov")},
-        {"orthographicSize", inspectedCamera.value("orthoSize")},
+        {"fov", inspectedCamera.value("fov")},
+        {"orthoSize", inspectedCamera.value("orthoSize")},
         {"nearClip", inspectedCamera.value("nearClip")},
         {"farClip", inspectedCamera.value("farClip")}};
     QJsonObject focus{{"focusDepth", inspectedCamera.value("focusDepth")},
@@ -1604,36 +1678,33 @@ void InspectorPanel::showCamera() {
         {"actions", inspectedCamera.value("actions").isArray()
                         ? inspectedCamera.value("actions")
                         : QJsonValue(QJsonArray{})}};
-    SyncProvider syncProvider;
-    syncProvider.options = [this](const QJsonValue &target) {
-        return makeSyncProvider(inspectedCamera)(target);
-    };
+    SyncOptions syncOptions;
+    collectSyncOptions("Camera", inspectedCamera,
+                       QJsonObject{{"section", "camera"}}, QString(),
+                       syncOptions);
+    const SyncProvider syncProvider = makeSyncProvider(syncOptions);
     contentLayout->addWidget(componentCard("Transform", transform, QString(),
                                            update, content,
                                            bindSyncProvider(
-                                               syncProvider, &propertyMatches,
-                                               "camera/transform")));
+                                               syncProvider, viewport, &scene,
+                                               QJsonObject{{"section",
+                                                            "camera"}})));
     contentLayout->addWidget(componentCard(
         "Projection", projection, QString(),
-        [update](const QString &path, const QJsonValue &value) {
-            QString runtimePath = path;
-            if (path == "/fieldOfView")
-                runtimePath = "/fov";
-            else if (path == "/orthographicSize")
-                runtimePath = "/orthoSize";
-            update(runtimePath, value);
-        },
-        content, bindSyncProvider(syncProvider, &propertyMatches,
-                                  "camera/projection")));
+        update,
+        content,
+        bindSyncProvider(syncProvider, viewport, &scene,
+                         QJsonObject{{"section", "camera"}})));
     contentLayout->addWidget(
         componentCard("Depth of Field", focus, QString(), update, content,
-                      bindSyncProvider(syncProvider, &propertyMatches,
-                                       "camera/focus")));
+                      bindSyncProvider(syncProvider, viewport, &scene,
+                                       QJsonObject{{"section", "camera"}})));
     contentLayout->addWidget(componentCard("Camera Controls", controls,
                                            QString(), update, content,
                                            bindSyncProvider(
-                                               syncProvider, &propertyMatches,
-                                               "camera/controls")));
+                                               syncProvider, viewport, &scene,
+                                               QJsonObject{{"section",
+                                                            "camera"}})));
     contentLayout->addStretch();
 }
 
@@ -1665,10 +1736,11 @@ void InspectorPanel::showEnvironment() {
 
     QJsonObject values = mergeObjects(
         environmentSchema(), scene.value("environment").toObject());
-    SyncProvider syncProvider;
-    syncProvider.options = [this](const QJsonValue &target) {
-        return makeSyncProvider(scene.value("environment").toObject())(target);
-    };
+    SyncOptions syncOptions;
+    collectSyncOptions("Environment", values,
+                       QJsonObject{{"section", "environment"}}, QString(),
+                       syncOptions);
+    const SyncProvider syncProvider = makeSyncProvider(syncOptions);
     QJsonObject atmosphere = values.take("atmosphere").toObject();
     QJsonObject globalLight = atmosphere.take("globalLight").toObject();
     QJsonObject clouds = atmosphere.take("clouds").toObject();
@@ -1684,36 +1756,45 @@ void InspectorPanel::showEnvironment() {
         [update](const QString &path, const QJsonValue &value) {
             update(QString(), path, value);
         },
-        content, bindSyncProvider(syncProvider, &propertyMatches,
-                                  "environment/base")));
+        content,
+        bindSyncProvider(syncProvider, viewport, &scene,
+                         QJsonObject{{"section", "environment"}})));
     contentLayout->addWidget(componentCard(
         "Atmosphere", atmosphere, QString(),
         [update](const QString &path, const QJsonValue &value) {
             update("/atmosphere", path, value);
         },
-        content, bindSyncProvider(syncProvider, &propertyMatches,
-                                  "environment/atmosphere")));
+        content,
+        bindSyncProvider(syncProvider, viewport, &scene,
+                         QJsonObject{{"section", "environment"},
+                                     {"path", "/atmosphere"}})));
     contentLayout->addWidget(componentCard(
         "Global Light", globalLight, QString(),
         [update](const QString &path, const QJsonValue &value) {
             update("/atmosphere/globalLight", path, value);
         },
-        content, bindSyncProvider(syncProvider, &propertyMatches,
-                                  "environment/globalLight")));
+        content,
+        bindSyncProvider(syncProvider, viewport, &scene,
+                         QJsonObject{{"section", "environment"},
+                                     {"path", "/atmosphere/globalLight"}})));
     contentLayout->addWidget(componentCard(
         "Clouds", clouds, QString(),
         [update](const QString &path, const QJsonValue &value) {
             update("/atmosphere/clouds", path, value);
         },
-        content, bindSyncProvider(syncProvider, &propertyMatches,
-                                  "environment/clouds")));
+        content,
+        bindSyncProvider(syncProvider, viewport, &scene,
+                         QJsonObject{{"section", "environment"},
+                                     {"path", "/atmosphere/clouds"}})));
     contentLayout->addWidget(componentCard(
         "Weather", weather, QString(),
         [update](const QString &path, const QJsonValue &value) {
             update("/atmosphere/weather", path, value);
         },
-        content, bindSyncProvider(syncProvider, &propertyMatches,
-                                  "environment/weather")));
+        content,
+        bindSyncProvider(syncProvider, viewport, &scene,
+                         QJsonObject{{"section", "environment"},
+                                     {"path", "/atmosphere/weather"}})));
     contentLayout->addStretch();
 }
 

@@ -11,7 +11,6 @@
 #define ATLAS_INSPECTORVIEW_H
 
 #include <QJsonObject>
-#include <QHash>
 #include <QString>
 #include <QWidget>
 
@@ -62,7 +61,6 @@ class InspectorPanel : public QWidget {
     QJsonObject scene;
     QJsonObject inspectedObject;
     QJsonObject inspectedCamera;
-    QHash<QString, QString> propertyMatches;
     QString inspectedFile;
     QString projectRoot;
     int inspectedObjectId = -1;

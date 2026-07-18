@@ -740,6 +740,47 @@ bool ViewportPanel::setRuntimeSceneProperty(
     return true;
 }
 
+bool ViewportPanel::setRuntimePropertySync(const QJsonObject &target,
+                                           const QJsonObject &source) {
+    if (runtimeContext == nullptr || playbackState != 0 || target.isEmpty() ||
+        source.isEmpty()) {
+        return false;
+    }
+    try {
+        const json parsedTarget = json::parse(
+            QJsonDocument(target).toJson(QJsonDocument::Compact).constData());
+        const json parsedSource = json::parse(
+            QJsonDocument(source).toJson(QJsonDocument::Compact).constData());
+        if (!runtimeContext->setPropertySync(parsedTarget, parsedSource) ||
+            !runtimeContext->saveCurrentScene()) {
+            return false;
+        }
+    } catch (const json::exception &) {
+        return false;
+    }
+    refreshSceneSnapshot();
+    setSceneDirty(true);
+    return true;
+}
+
+bool ViewportPanel::clearRuntimePropertySync(const QJsonObject &target) {
+    if (runtimeContext == nullptr || playbackState != 0 || target.isEmpty())
+        return false;
+    try {
+        const json parsedTarget = json::parse(
+            QJsonDocument(target).toJson(QJsonDocument::Compact).constData());
+        if (!runtimeContext->clearPropertySync(parsedTarget) ||
+            !runtimeContext->saveCurrentScene()) {
+            return false;
+        }
+    } catch (const json::exception &) {
+        return false;
+    }
+    refreshSceneSnapshot();
+    setSceneDirty(true);
+    return true;
+}
+
 bool ViewportPanel::applyRuntimeObjectProperty(
     int id, const QString &component, int componentIndex,
     const QString &propertyPath, const QJsonValue &value) {

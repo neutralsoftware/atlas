@@ -4440,6 +4440,149 @@ json editorObjectBoundsSize(GameObject &object) {
     return json::array({size.x, size.y, size.z});
 }
 
+GameObject *propertySyncObject(Context &context, const json &reference) {
+    if (reference.is_number_integer())
+        return findContextObject(context, reference.get<int>());
+    if (!reference.is_string())
+        return nullptr;
+    const std::string key = reference.get<std::string>();
+    auto object = context.objectReferences.find(key);
+    if (object == context.objectReferences.end())
+        object = context.objectReferences.find(normalizeToken(key));
+    return object != context.objectReferences.end() ? object->second : nullptr;
+}
+
+std::optional<json> propertySyncJsonValue(const json &value,
+                                          const std::string &path) {
+    try {
+        if (path.empty())
+            return value;
+        const std::string pointerPath =
+            path.front() == '/' ? path : '/' + path;
+        return value.at(json::json_pointer(pointerPath));
+    } catch (const json::exception &) {
+        return std::nullopt;
+    }
+}
+
+std::optional<json> propertySyncSourceValue(Context &context,
+                                            const json &source) {
+    if (!source.is_object())
+        return std::nullopt;
+    const std::string section =
+        normalizeToken(source.value("section", std::string()));
+    const std::string path = source.value("path", std::string());
+    if (section == "camera")
+        return propertySyncJsonValue(context.editorCameraData, path);
+    if (section == "environment")
+        return propertySyncJsonValue(context.editorEnvironmentData, path);
+    if (section != "object" || !source.contains("object"))
+        return std::nullopt;
+    GameObject *object = propertySyncObject(context, source["object"]);
+    if (object == nullptr)
+        return std::nullopt;
+    const int id = static_cast<int>(object->getId());
+    const std::string component =
+        normalizeToken(source.value("component", std::string()));
+    if (component == "bounds")
+        return editorObjectBoundsSize(*object);
+    if (component == "transform") {
+        const std::string property = normalizeToken(path);
+        if (property == "position")
+            return vec3ToJson(object->getPosition());
+        if (property == "rotation")
+            return rotationToJson(object->getRotation());
+        if (property == "scale")
+            return vec3ToJson(object->getScale());
+        return std::nullopt;
+    }
+    if (component == "object") {
+        auto sourceData = context.editorLightSourceData.find(id);
+        if (sourceData != context.editorLightSourceData.end())
+            return propertySyncJsonValue(sourceData->second, path);
+        auto objectData = context.editorObjectSourceData.find(id);
+        return objectData != context.editorObjectSourceData.end()
+                   ? propertySyncJsonValue(objectData->second, path)
+                   : std::nullopt;
+    }
+    const int index = source.value("componentIndex", -1);
+    auto components = context.editorComponentData.find(id);
+    if (components == context.editorComponentData.end() ||
+        !components->second.is_array() || index < 0 ||
+        index >= static_cast<int>(components->second.size())) {
+        return std::nullopt;
+    }
+    return propertySyncJsonValue(components->second[index], path);
+}
+
+bool applyPropertySyncTarget(Context &context, const json &target,
+                             const json &value, bool attachComponents) {
+    if (!target.is_object())
+        return false;
+    const std::string section =
+        normalizeToken(target.value("section", std::string()));
+    const std::string path = target.value("path", std::string());
+    if (section == "camera")
+        return context.setSceneProperty("camera", -1, path, value);
+    if (section == "environment")
+        return context.setSceneProperty("environment", -1, path, value);
+    if (section != "object" || !target.contains("object"))
+        return false;
+    GameObject *object = propertySyncObject(context, target["object"]);
+    if (object == nullptr)
+        return false;
+    const int id = static_cast<int>(object->getId());
+    const std::string component =
+        target.value("component", std::string());
+    const std::string normalized = normalizeToken(component);
+    const int index = target.value("componentIndex", -1);
+    if (!attachComponents && normalized != "transform" &&
+        normalized != "object") {
+        auto components = context.editorComponentData.find(id);
+        if (components == context.editorComponentData.end() ||
+            !components->second.is_array() || index < 0 ||
+            index >= static_cast<int>(components->second.size())) {
+            return false;
+        }
+        return setJsonProperty(components->second[index], path, value);
+    }
+    return context.setObjectProperty(id, component, index, path, value);
+}
+
+void applyPropertySyncs(Context &context, bool attachComponents) {
+    if (!context.editorPropertySyncs.is_array())
+        return;
+    for (const json &binding : context.editorPropertySyncs) {
+        if (!binding.is_object() || !binding.contains("target") ||
+            !binding.contains("source")) {
+            continue;
+        }
+        const std::optional<json> value =
+            propertySyncSourceValue(context, binding["source"]);
+        if (value.has_value())
+            applyPropertySyncTarget(context, binding["target"], *value,
+                                    attachComponents);
+    }
+}
+
+json canonicalPropertySyncEndpoint(Context &context, json endpoint) {
+    if (!endpoint.is_object() ||
+        normalizeToken(endpoint.value("section", std::string())) != "object" ||
+        !endpoint.contains("object")) {
+        return endpoint;
+    }
+    GameObject *object = propertySyncObject(context, endpoint["object"]);
+    if (object == nullptr)
+        return endpoint;
+    const int id = static_cast<int>(object->getId());
+    auto reference = context.objectSceneReferences.find(id);
+    endpoint["object"] =
+        reference != context.objectSceneReferences.end()
+            ? reference->second
+            : editorObjectName(context, *object);
+    return endpoint;
+}
+
 json editorObjectJson(const Context &context, GameObject &object,
                       const std::unordered_map<int, std::vector<int>> &children,
                       std::unordered_set<int> &visiting) {
@@ -4534,6 +4677,7 @@ std::string Context::sceneObjectsJson() const {
     snapshot["camera"] = serializedEditorCamera(*this);
     snapshot["targets"] = editorTargetData;
     snapshot["environment"] = editorEnvironmentData;
+    snapshot["propertySyncs"] = editorPropertySyncs;
 
     std::unordered_map<int, std::vector<int>> children;
     for (const auto &[childId, parentId] : objectParents) {
@@ -4728,6 +4872,43 @@ bool Context::setSceneProperty(const std::string &section, int index,
         return setJsonProperty(editorTargetData[index], propertyPath, value);
     }
     return false;
+}
+
+bool Context::setPropertySync(const json &target, const json &source) {
+    if (!target.is_object() || !source.is_object())
+        return false;
+    const json canonicalTarget = canonicalPropertySyncEndpoint(*this, target);
+    const json canonicalSource = canonicalPropertySyncEndpoint(*this, source);
+    if (!editorPropertySyncs.is_array())
+        editorPropertySyncs = json::array();
+    for (json &binding : editorPropertySyncs) {
+        if (binding.is_object() && binding.value("target", json()) ==
+                                       canonicalTarget) {
+            binding["source"] = canonicalSource;
+            applyPropertySyncs(*this, true);
+            return true;
+        }
+    }
+    editorPropertySyncs.push_back(
+        json{{"target", canonicalTarget}, {"source", canonicalSource}});
+    applyPropertySyncs(*this, true);
+    return true;
+}
+
+bool Context::clearPropertySync(const json &target) {
+    if (!target.is_object() || !editorPropertySyncs.is_array())
+        return false;
+    const json canonicalTarget = canonicalPropertySyncEndpoint(*this, target);
+    const auto previousSize = editorPropertySyncs.size();
+    editorPropertySyncs.erase(
+        std::remove_if(editorPropertySyncs.begin(), editorPropertySyncs.end(),
+                       [&canonicalTarget](const json &binding) {
+                           return binding.is_object() &&
+                                  binding.value("target", json()) ==
+                                      canonicalTarget;
+                       }),
+        editorPropertySyncs.end());
+    return editorPropertySyncs.size() != previousSize;
 }
 
 bool Context::setObjectMaterial(int id, const std::string &path) {
@@ -5332,6 +5513,7 @@ bool Context::saveCurrentScene() {
     if (!editorEnvironmentData.empty()) {
         sceneData["environment"] = editorEnvironmentData;
     }
+    sceneData["property_syncs"] = editorPropertySyncs;
 
     std::ofstream output(currentSceneFile, std::ios::trunc);
     if (!output.is_open()) {
@@ -5537,6 +5719,11 @@ void Context::loadScene(Window &window, const json &sceneData) {
                 sceneData["environment"].is_object()
             ? sceneData["environment"]
             : json::object();
+    editorPropertySyncs =
+        sceneData.contains("property_syncs") &&
+                sceneData["property_syncs"].is_array()
+            ? sceneData["property_syncs"]
+            : json::array();
 
     scene->atmosphere.resetRuntimeState();
     scene->setUseAtmosphereSkybox(false);
@@ -5977,6 +6164,27 @@ void Context::loadScene(Window &window, const json &sceneData) {
         }
         window.setEditorObjectParent(child, parent);
     }
+
+    applyPropertySyncs(*this, false);
+
+    auto refreshPendingSyncValues = [this](std::vector<PendingComponent> &list) {
+        for (PendingComponent &pending : list) {
+            if (pending.object == nullptr)
+                continue;
+            const int id = static_cast<int>(pending.object->getId());
+            auto components = editorComponentData.find(id);
+            if (components == editorComponentData.end() ||
+                !components->second.is_array() || pending.componentIndex < 0 ||
+                pending.componentIndex >=
+                    static_cast<int>(components->second.size())) {
+                continue;
+            }
+            pending.data = components->second[pending.componentIndex];
+        }
+    };
+    refreshPendingSyncValues(rigidbodyComponents);
+    refreshPendingSyncValues(standardComponents);
+    refreshPendingSyncValues(jointComponents);
 
     for (const auto &pending : rigidbodyComponents) {
         try {

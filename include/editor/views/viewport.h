@@ -53,6 +53,9 @@ class ViewportPanel : public QWidget {
     bool setRuntimeSceneProperty(const QString &section, int index,
                                  const QString &propertyPath,
                                  const QJsonValue &value);
+    bool setRuntimePropertySync(const QJsonObject &target,
+                                const QJsonObject &source);
+    bool clearRuntimePropertySync(const QJsonObject &target);
     bool applyRuntimeObjectProperty(int id, const QString &component,
                                     int componentIndex,
                                     const QString &propertyPath,
