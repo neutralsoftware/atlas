@@ -23,6 +23,7 @@
 #include "DockWidget.h"
 #include "../include/editor/application/styling.h"
 #include "editor/debug.h"
+#include "editor/styling/icons.h"
 #include "editor/views/editorWindow.h"
 #include "editor/views/projectBrowser.h"
 #include "editor/views/splashScreen.h"
@@ -41,9 +42,15 @@ int main(int argc, char **argv) {
         qWarning() << "Failed to load Manrope";
     }
 
-    const QFont systemFont =
-        QFontDatabase::systemFont(QFontDatabase::GeneralFont);
-    app.setFont(systemFont);
+    const QStringList manropeFamilies =
+        QFontDatabase::applicationFontFamilies(manropeFont);
+    QFont applicationFont = manropeFamilies.isEmpty()
+                                ? QFontDatabase::systemFont(
+                                      QFontDatabase::GeneralFont)
+                                : QFont(manropeFamilies.first());
+    applicationFont.setPointSizeF(11.0);
+    app.setFont(applicationFont);
+    styling::loadIconFont();
 
 #ifdef ATLAS_DEBUG_BUILD
     app.setWindowIcon(
