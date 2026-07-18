@@ -52,12 +52,14 @@ int main(int argc, char **argv) {
     app.setFont(applicationFont);
     styling::loadIconFont();
 
+#ifndef Q_OS_MACOS
 #ifdef ATLAS_DEBUG_BUILD
     app.setWindowIcon(
         QIcon(":/editor/assets/Icon-iOS-Default-1024x1024@1x.png"));
 #else
     app.setWindowIcon(
         QIcon(":/editor/assets/iconFile-iOS-Dark-1024x1024@1x.png"));
+#endif
 #endif
 
 #if QT_VERSION >= QT_VERSION_CHECK(6, 8, 0)

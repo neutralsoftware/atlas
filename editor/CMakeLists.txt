@@ -105,7 +105,7 @@ if (APPLE)
             MACOSX_BUNDLE_ICON_FILE "${ATLAS_APP_ICON_NAME}"
             MACOSX_BUNDLE_INFO_PLIST "${CMAKE_SOURCE_DIR}/editor/macos/Info.plist.in"
             MACOSX_BUNDLE_SHORT_VERSION_STRING "0.9.0"
-            MACOSX_BUNDLE_BUNDLE_VERSION "9"
+            MACOSX_BUNDLE_BUNDLE_VERSION "10"
             OUTPUT_NAME "Atlas Engine"
             BUILD_RPATH "@executable_path/../Frameworks"
             INSTALL_RPATH "@executable_path/../Frameworks"
