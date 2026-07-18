@@ -243,7 +243,7 @@ void EditorWindow::setupWindow() {
     updateWindowTitle(false);
     setMinimumSize(1100, 700);
     resize(1440, 900);
-    menuBar()->setNativeMenuBar(false);
+    menuBar()->setNativeMenuBar(true);
     menuBar()->setObjectName("atlasMenuBar");
 
     ads::CDockManager::setConfigFlag(ads::CDockManager::OpaqueSplitterResize,
