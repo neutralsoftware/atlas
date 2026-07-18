@@ -54,12 +54,16 @@ ushort codepoint(styling::Icon icon) {
         return 0xE1DA;
     case styling::Icon::CubeFocus:
         return 0xED0A;
+    case styling::Icon::CubeTransparent:
+        return 0xEC7C;
     case styling::Icon::CursorClick:
         return 0xE7C8;
     case styling::Icon::Database:
         return 0xE1DE;
     case styling::Icon::DotsVertical:
         return 0xE208;
+    case styling::Icon::DotsNine:
+        return 0xE1FC;
     case styling::Icon::Export:
         return 0xEAF0;
     case styling::Icon::Eye:

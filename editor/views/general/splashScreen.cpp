@@ -124,7 +124,7 @@ SplashScreen::SplashScreen(QWidget *parent)
 }
 #splashVersion {
     background: transparent;
-    color: #A78BFA;
+    color: #6BA3FF;
     font-size: 14px;
     font-weight: 700;
 }
@@ -147,7 +147,7 @@ SplashScreen::SplashScreen(QWidget *parent)
     border-radius: 2px;
 }
 #splashProgress::chunk {
-    background: #7C5CFC;
+    background: #4C8DFF;
     border-radius: 2px;
 }
 #splashWarning {

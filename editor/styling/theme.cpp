@@ -21,7 +21,7 @@ void styling::applyColorPalette(QApplication& app) {
     const QColor panel2 = QColor("#10151C");
     const QColor text = QColor("#E7ECF3");
     const QColor mutedText = QColor("#8490A4");
-    const QColor accent = QColor("#7C5CFC");
+    const QColor accent = QColor("#4C8DFF");
 
     p.setColor(QPalette::Window, bg);
     p.setColor(QPalette::WindowText, text);
@@ -47,7 +47,7 @@ void styling::applyColorPalette(QApplication& app) {
     p.setColor(QPalette::Disabled, QPalette::ButtonText, QColor("#566174"));
     p.setColor(QPalette::Disabled, QPalette::Button, QColor("#131922"));
     p.setColor(QPalette::Disabled, QPalette::Base, QColor("#11161D"));
-    p.setColor(QPalette::Disabled, QPalette::Highlight, QColor("#332A5E"));
+    p.setColor(QPalette::Disabled, QPalette::Highlight, QColor("#213958"));
 
     app.setPalette(p);
 }

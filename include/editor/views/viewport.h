@@ -168,6 +168,7 @@ class ViewportPanel : public QWidget {
     int keyboardTransformAxes = 7;
     int playbackState = 0;
     int shadingMode = 0;
+    int rightDragRuntimeButton = 0;
 };
 
 #endif // ATLAS_VIEWPORT_H

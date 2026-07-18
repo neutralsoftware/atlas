@@ -365,11 +365,11 @@ MaterialEditorPanel::MaterialEditorPanel(ViewportPanel *viewport,
     auto *saveButton = new QPushButton("Save", header);
     saveButton->setObjectName("materialSaveButton");
     saveButton->setIcon(
-        styling::icon(styling::Icon::FloppyDisk, "#F5B942"));
+        styling::icon(styling::Icon::FloppyDisk, "#D9A441"));
     auto *assignButton = new QPushButton("Assign to Selected", header);
     assignButton->setObjectName("materialAssignButton");
     assignButton->setIcon(
-        styling::icon(styling::Icon::Assign, "#F472B6"));
+        styling::icon(styling::Icon::Assign, "#D9825B"));
     headerLayout->addWidget(titleLabel, 1);
     headerLayout->addWidget(statusLabel);
     headerLayout->addWidget(assignButton);
@@ -608,10 +608,10 @@ void MaterialEditorPanel::showMaterial() {
         auto *choose = new QToolButton(row);
         choose->setText("Choose…");
         choose->setIcon(
-            styling::icon(styling::Icon::FolderOpen, "#55C2FF"));
+            styling::icon(styling::Icon::FolderOpen, "#4CB7D8"));
         choose->setToolButtonStyle(Qt::ToolButtonTextBesideIcon);
         auto *clear = new QToolButton(row);
-        clear->setIcon(styling::icon(styling::Icon::Close, "#FF6B7A"));
+        clear->setIcon(styling::icon(styling::Icon::Close, "#D86470"));
         clear->setToolTip("Remove texture");
         auto *identity = new QWidget(row);
         auto *identityLayout = new QVBoxLayout(identity);

@@ -4,7 +4,6 @@
 #include <editor/styling/icons.h>
 
 #include <QActionGroup>
-#include <QComboBox>
 #include <QFileInfo>
 #include <QHBoxLayout>
 #include <QLabel>
@@ -42,37 +41,29 @@ ViewportTools::ViewportTools(ViewportPanel *viewport,
 
     playButton = new QToolButton(toolbar);
     playButton->setObjectName("viewportPlaybackButton");
-    playButton->setIcon(styling::icon(styling::Icon::Play, "#52D273"));
+    playButton->setIcon(styling::icon(styling::Icon::Play, "#5EBB78"));
     playButton->setToolTip("Play");
     pauseButton = new QToolButton(toolbar);
     pauseButton->setObjectName("viewportPlaybackButton");
-    pauseButton->setIcon(styling::icon(styling::Icon::Pause, "#F5B942"));
+    pauseButton->setIcon(styling::icon(styling::Icon::Pause, "#D9A441"));
     pauseButton->setToolTip("Pause");
     stepButton = new QToolButton(toolbar);
     stepButton->setObjectName("viewportPlaybackButton");
     stepButton->setIcon(
-        styling::icon(styling::Icon::SkipForward, "#55C2FF"));
+        styling::icon(styling::Icon::SkipForward, "#4CB7D8"));
     stepButton->setToolTip("Step one frame");
     stopButton = new QToolButton(toolbar);
     stopButton->setObjectName("viewportPlaybackButton");
-    stopButton->setIcon(styling::icon(styling::Icon::Stop, "#FF6B7A"));
+    stopButton->setIcon(styling::icon(styling::Icon::Stop, "#D86470"));
     stopButton->setToolTip("Stop and restore the scene");
     reloadButton = new QToolButton(toolbar);
     reloadButton->setObjectName("viewportPlaybackButton");
     reloadButton->setIcon(
-        styling::icon(styling::Icon::ArrowCounterClockwise, "#A78BFA"));
+        styling::icon(styling::Icon::ArrowCounterClockwise, "#4C8DFF"));
     reloadButton->setToolTip("Reload runtime");
     playButton->setShortcut(QKeySequence("Ctrl+P"));
     pauseButton->setShortcut(QKeySequence("Ctrl+Shift+P"));
     stepButton->setShortcut(QKeySequence("Ctrl+Alt+P"));
-
-    tools->addStretch();
-    tools->addWidget(playButton);
-    tools->addWidget(pauseButton);
-    tools->addWidget(stepButton);
-    tools->addWidget(stopButton);
-    tools->addWidget(reloadButton);
-    tools->addSpacing(10);
 
     auto *transformGroup = new QActionGroup(toolbar);
     transformGroup->setExclusive(true);
@@ -81,16 +72,17 @@ ViewportTools::ViewportTools(ViewportPanel *viewport,
         styling::Icon::CursorClick, styling::Icon::ArrowsOutCardinal,
         styling::Icon::ArrowClockwise, styling::Icon::BoundingBox};
     const QList<QColor> transformColors{
-        QColor("#55C2FF"), QColor("#52D273"), QColor("#F5B942"),
-        QColor("#F472B6")};
+        QColor("#4CB7D8"), QColor("#5EBB78"), QColor("#D9A441"),
+        QColor("#4C8DFF")};
     for (int index = 0; index < transformNames.size(); ++index) {
         auto *button = new QToolButton(toolbar);
         button->setObjectName("viewportModeButton");
-        button->setIcon(
-            styling::icon(transformIcons.at(index), transformColors.at(index)));
-        button->setToolTip(transformNames.at(index) + " tool");
+        button->setToolButtonStyle(Qt::ToolButtonIconOnly);
         button->setCheckable(true);
         auto *action = new QAction(transformNames.at(index), button);
+        action->setIcon(
+            styling::icon(transformIcons.at(index), transformColors.at(index)));
+        action->setToolTip(transformNames.at(index) + " tool");
         action->setCheckable(true);
         action->setData(index);
         button->setDefaultAction(action);
@@ -104,45 +96,59 @@ ViewportTools::ViewportTools(ViewportPanel *viewport,
     tools->addSpacing(10);
     spaceButton = new QToolButton(toolbar);
     spaceButton->setObjectName("viewportOptionButton");
-    spaceButton->setText("World");
-    spaceButton->setIcon(styling::icon(styling::Icon::Globe, "#55C2FF"));
-    spaceButton->setToolButtonStyle(Qt::ToolButtonTextBesideIcon);
-    spaceButton->setToolTip("Transform space (Shift+T)");
+    spaceButton->setIcon(styling::icon(styling::Icon::Globe, "#4CB7D8"));
+    spaceButton->setToolTip("World transform space · Shift+T");
     tools->addWidget(spaceButton);
 
-    tools->addSpacing(10);
-    auto *shading = new QComboBox(toolbar);
-    shading->setObjectName("viewportShadingMode");
-    shading->addItems({"Lit", "Wireframe", "Points"});
-    shading->setToolTip("Viewport shading");
-    auto *shadingIcon = new QLabel(toolbar);
-    shadingIcon->setObjectName("viewportShadingIcon");
-    shadingIcon->setPixmap(
-        styling::icon(styling::Icon::Sphere, "#F472B6").pixmap(17, 17));
-    shadingIcon->setToolTip("Viewport shading");
-    tools->addWidget(shadingIcon);
-    tools->addWidget(shading);
+    tools->addStretch();
+    tools->addWidget(playButton);
+    tools->addWidget(pauseButton);
+    tools->addWidget(stepButton);
+    tools->addWidget(stopButton);
+    tools->addWidget(reloadButton);
+    tools->addStretch();
+
+    auto *shadingGroup = new QActionGroup(toolbar);
+    shadingGroup->setExclusive(true);
+    const QStringList shadingNames{"Lit", "Wireframe", "Points"};
+    const QList<styling::Icon> shadingIcons{
+        styling::Icon::Sphere, styling::Icon::CubeTransparent,
+        styling::Icon::DotsNine};
+    for (int index = 0; index < shadingNames.size(); ++index) {
+        auto *button = new QToolButton(toolbar);
+        button->setObjectName("viewportShadingButton");
+        button->setToolButtonStyle(Qt::ToolButtonIconOnly);
+        button->setCheckable(true);
+        auto *action = new QAction(shadingNames.at(index), button);
+        action->setIcon(
+            styling::icon(shadingIcons.at(index), "#9AA6B8"));
+        action->setToolTip(shadingNames.at(index) + " shading");
+        action->setCheckable(true);
+        action->setData(index);
+        button->setDefaultAction(action);
+        shadingGroup->addAction(action);
+        tools->addWidget(button);
+        if (index == 0)
+            action->setChecked(true);
+    }
 
     auto *fpsButton = new QToolButton(toolbar);
     fpsButton->setObjectName("viewportOptionButton");
     fpsButton->setIcon(
-        styling::icon(styling::Icon::Monitor, "#52D273"));
-    fpsButton->setText("FPS");
-    fpsButton->setToolButtonStyle(Qt::ToolButtonTextBesideIcon);
+        styling::icon(styling::Icon::Monitor, "#5EBB78"));
     fpsButton->setCheckable(true);
     fpsButton->setChecked(true);
-    fpsButton->setToolTip("Show frame rate");
+    fpsButton->setToolTip("Toggle frame rate");
     fpsLabel = new QLabel("-- FPS", toolbar);
     fpsLabel->setObjectName("viewportFpsLabel");
     fpsLabel->setMinimumWidth(62);
     tools->addWidget(fpsButton);
     tools->addWidget(fpsLabel);
-    tools->addStretch();
 
     layout->addWidget(toolbar);
     layout->addWidget(viewport, 1);
     shortcutHint = new QLabel(
-        "Tab Frame · Right-Drag Pan · Middle-Drag Orbit · G Move · R Rotate · S Scale",
+        "Tab Frame · Right-Drag Orbit · Shift + Right-Drag Pan · G Move · R Rotate · S Scale",
         this);
     shortcutHint->setObjectName("viewportShortcutHint");
     shortcutHint->setTextInteractionFlags(Qt::NoTextInteraction);
@@ -162,16 +168,20 @@ ViewportTools::ViewportTools(ViewportPanel *viewport,
             [viewport](QAction *action) {
                 viewport->setRuntimeControlMode(action->data().toInt());
             });
-    connect(shading, &QComboBox::currentIndexChanged, viewport,
-            &ViewportPanel::setRuntimeShadingMode);
+    connect(shadingGroup, &QActionGroup::triggered, this,
+            [viewport](QAction *action) {
+                viewport->setRuntimeShadingMode(action->data().toInt());
+            });
     connect(spaceButton, &QToolButton::clicked, viewport,
             &ViewportPanel::toggleTransformSpace);
     connect(viewport, &ViewportPanel::transformSpaceChanged, this,
             [this](bool local) {
-                spaceButton->setText(local ? "Local" : "World");
                 spaceButton->setIcon(styling::icon(
                     local ? styling::Icon::Cube : styling::Icon::Globe,
-                    local ? QColor("#A78BFA") : QColor("#55C2FF")));
+                    local ? QColor("#4C8DFF") : QColor("#4CB7D8")));
+                spaceButton->setToolTip(
+                    local ? "Local transform space · Shift+T"
+                          : "World transform space · Shift+T");
             });
     connect(fpsButton, &QToolButton::toggled, fpsLabel, &QWidget::setVisible);
     connect(viewport, &ViewportPanel::frameRateChanged, this,
