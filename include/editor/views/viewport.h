@@ -163,7 +163,6 @@ class ViewportPanel : public QWidget {
     bool shuttingDown = false;
     bool sceneDirty = false;
     bool leftPointerMoved = false;
-    bool cameraPanGesture = false;
     bool keyboardTransformActive = false;
     int keyboardTransformMode = 0;
     int keyboardTransformAxes = 7;

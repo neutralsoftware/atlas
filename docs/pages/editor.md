@@ -33,7 +33,8 @@ Scenes open as tabs above the viewport. Creating a scene uses the Atlas scene di
 | Reset scale | Command Option S |
 | Toggle local or world space | Shift T |
 | Focus or frame selection | Tab |
-| Pan viewport | Shift and drag |
+| Pan viewport | Right-click and drag |
+| Orbit viewport | Middle-click and drag |
 
 G, R, and S start a modal transform. X, Y, and Z constrain axes; multiple axis keys combine constraints; Shift plus an axis excludes it. Enter or left click confirms. Escape or right click cancels. The pointer wraps around the viewport during modal transforms so the operation can continue without reaching a screen edge.
 

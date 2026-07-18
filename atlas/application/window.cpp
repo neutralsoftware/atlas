@@ -2220,7 +2220,7 @@ void Window::editorPointerEvent(int action, float x, float y, int button,
         return;
     }
 
-    if (button == 4) {
+    if (button == 3) {
         if (action == 0) {
             editorCameraPanning = true;
             editorCameraLastX = x;
@@ -2233,7 +2233,7 @@ void Window::editorPointerEvent(int action, float x, float y, int button,
         return;
     }
 
-    if (button == 2 || button == 3) {
+    if (button == 2) {
         if (action == 0) {
             editorCameraDragging = true;
             editorCameraLastX = x;
