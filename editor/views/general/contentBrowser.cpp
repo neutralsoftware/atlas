@@ -35,6 +35,8 @@
 #include <QUrl>
 #include <QVBoxLayout>
 
+#include <utility>
+
 namespace {
 const QByteArray EmptyScene = R"({
     "name": "New Scene",
@@ -71,6 +73,24 @@ bool writeNewFile(const QString &path, const QByteArray &contents) {
 bool isValidEntryName(const QString &name) {
     return !name.isEmpty() && name != "." && name != ".." &&
            !name.contains('/') && !name.contains('\\');
+}
+
+bool copyEntry(const QString &source, const QString &destination) {
+    const QFileInfo info(source);
+    if (info.isDir()) {
+        if (!QDir().mkpath(destination))
+            return false;
+        QDir directory(source);
+        for (const QFileInfo &entry : directory.entryInfoList(
+                 QDir::NoDotAndDotDot | QDir::AllEntries)) {
+            if (!copyEntry(entry.absoluteFilePath(),
+                           QDir(destination).filePath(entry.fileName()))) {
+                return false;
+            }
+        }
+        return true;
+    }
+    return QFile::copy(source, destination);
 }
 } // namespace
 
@@ -119,20 +139,23 @@ ContentBrowserPanel::ContentBrowserPanel(const QString &projectFile,
 
     createButton = new QToolButton(toolbar);
     createButton->setObjectName("panelAddButton");
-    createButton->setText("+ Create");
+    createButton->setIcon(
+        style()->standardIcon(QStyle::SP_FileDialogNewFolder));
+    createButton->setText("Create");
+    createButton->setToolButtonStyle(Qt::ToolButtonTextBesideIcon);
     createButton->setPopupMode(QToolButton::InstantPopup);
 
     revealButton = new QToolButton(toolbar);
     revealButton->setObjectName("browserRevealButton");
     revealButton->setIcon(style()->standardIcon(QStyle::SP_DirOpenIcon));
-    revealButton->setText("Reveal");
-    revealButton->setToolButtonStyle(Qt::ToolButtonTextBesideIcon);
     revealButton->setToolTip("Reveal in Finder");
 
     moreButton = new QToolButton(toolbar);
     moreButton->setObjectName("panelMoreButton");
-    moreButton->setText("•••");
+    moreButton->setIcon(
+        style()->standardIcon(QStyle::SP_ToolBarHorizontalExtensionButton));
     moreButton->setPopupMode(QToolButton::InstantPopup);
+    moreButton->setToolTip("Content actions");
 
     toolbarLayout->addWidget(backButton);
     toolbarLayout->addWidget(forwardButton);
@@ -235,7 +258,9 @@ ContentBrowserPanel::ContentBrowserPanel(const QString &projectFile,
             });
 
     auto *deleteAction = new QAction(this);
-    deleteAction->setShortcut(QKeySequence::Delete);
+    deleteAction->setShortcuts(
+        {QKeySequence::Delete,
+         QKeySequence(Qt::META | Qt::Key_Backspace)});
     deleteAction->setShortcutContext(Qt::WidgetWithChildrenShortcut);
     connect(deleteAction, &QAction::triggered, this,
             &ContentBrowserPanel::deleteSelection);
@@ -247,6 +272,26 @@ ContentBrowserPanel::ContentBrowserPanel(const QString &projectFile,
     connect(renameAction, &QAction::triggered, this,
             &ContentBrowserPanel::renameSelection);
     addAction(renameAction);
+
+    renameAction->setShortcuts({QKeySequence(Qt::Key_Return),
+                                QKeySequence(Qt::Key_Enter),
+                                QKeySequence(Qt::Key_F2)});
+
+    auto *createFolderAction = new QAction(this);
+    createFolderAction->setShortcut(
+        QKeySequence(Qt::META | Qt::SHIFT | Qt::Key_N));
+    createFolderAction->setShortcutContext(Qt::WidgetWithChildrenShortcut);
+    connect(createFolderAction, &QAction::triggered, this,
+            &ContentBrowserPanel::createFolder);
+    addAction(createFolderAction);
+
+    auto *revealAction = new QAction(this);
+    revealAction->setShortcut(
+        QKeySequence(Qt::META | Qt::SHIFT | Qt::Key_R));
+    revealAction->setShortcutContext(Qt::WidgetWithChildrenShortcut);
+    connect(revealAction, &QAction::triggered, this,
+            &ContentBrowserPanel::revealSelection);
+    addAction(revealAction);
 
     navigateTo(projectRoot);
 }
@@ -311,6 +356,10 @@ void ContentBrowserPanel::openIndex(const QModelIndex &index) {
     const QString suffix = info.suffix().toLower();
     if (suffix == "amat" || suffix == "material") {
         emit assetActivated(info.absoluteFilePath());
+        return;
+    }
+    if (suffix == "ascene") {
+        emit sceneActivated(info.absoluteFilePath());
         return;
     }
     QDesktopServices::openUrl(QUrl::fromLocalFile(info.absoluteFilePath()));
@@ -454,17 +503,6 @@ void ContentBrowserPanel::deleteSelection() {
     if (selected.isEmpty()) {
         return;
     }
-    const QString prompt =
-        selected.size() == 1
-            ? QStringLiteral("Delete “%1”? This cannot be undone.")
-                  .arg(model->fileName(selected.first()))
-            : QStringLiteral("Delete %1 items? This cannot be undone.")
-                  .arg(selected.size());
-    if (QMessageBox::warning(this, "Delete Assets", prompt,
-                             QMessageBox::Cancel | QMessageBox::Yes,
-                             QMessageBox::Cancel) != QMessageBox::Yes) {
-        return;
-    }
     for (const QModelIndex &index : selected) {
         const QFileInfo info = model->fileInfo(index);
         if (info.isSymLink()) {
@@ -476,6 +514,58 @@ void ContentBrowserPanel::deleteSelection() {
         }
     }
 }
+
+void ContentBrowserPanel::focusSearch() {
+    searchField->setFocus();
+    searchField->selectAll();
+}
+
+void ContentBrowserPanel::copySelection() {
+    clipboardPaths.clear();
+    for (const QModelIndex &index :
+         gridView->selectionModel()->selectedIndexes()) {
+        clipboardPaths.append(model->filePath(index));
+    }
+    cutClipboard = false;
+}
+
+void ContentBrowserPanel::cutSelection() {
+    copySelection();
+    cutClipboard = true;
+}
+
+void ContentBrowserPanel::pasteSelection() {
+    for (const QString &source : std::as_const(clipboardPaths)) {
+        const QFileInfo info(source);
+        QString destination = QDir(currentPath).filePath(info.fileName());
+        if (QFileInfo(destination).exists())
+            destination = uniquePath(info.completeBaseName() + " Copy" +
+                                     (info.suffix().isEmpty()
+                                          ? QString()
+                                          : "." + info.suffix()));
+        if (cutClipboard) {
+            QDir().rename(source, destination);
+        } else {
+            copyEntry(source, destination);
+        }
+    }
+    if (cutClipboard)
+        clipboardPaths.clear();
+    refreshAssets();
+}
+
+void ContentBrowserPanel::duplicateSelection() {
+    copySelection();
+    pasteSelection();
+}
+
+void ContentBrowserPanel::refreshAssets() {
+    model->setRootPath(QString());
+    model->setRootPath(projectRoot);
+    gridView->setRootIndex(model->index(currentPath));
+}
+
+void ContentBrowserPanel::selectAllAssets() { gridView->selectAll(); }
 
 void ContentBrowserPanel::revealSelection() const {
     const QString path =

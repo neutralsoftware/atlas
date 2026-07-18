@@ -23,7 +23,6 @@
 #include <QLineEdit>
 #include <QList>
 #include <QMenu>
-#include <QMessageBox>
 #include <QMimeData>
 #include <QPair>
 #include <QSignalBlocker>
@@ -55,6 +54,9 @@ QIcon hierarchyIcon(QWidget *widget, const QString &type) {
     } else if (normalized == "camera") {
         fallback = QStyle::SP_ComputerIcon;
         themeName = "camera-photo";
+    } else if (normalized == "environment") {
+        fallback = QStyle::SP_DesktopIcon;
+        themeName = "weather-clear";
     } else if (normalized.contains("light") || normalized == "sun") {
         fallback = QStyle::SP_MessageBoxInformation;
         themeName = "weather-clear";
@@ -107,17 +109,25 @@ HierarchyPanel::HierarchyPanel(ViewportPanel *viewport, QWidget *parent)
 
     addButton = new QToolButton(toolbar);
     addButton->setObjectName("panelAddButton");
-    addButton->setText("+ Add Object");
+    addButton->setIcon(style()->standardIcon(QStyle::SP_FileDialogNewFolder));
+    addButton->setText("Add");
     addButton->setToolButtonStyle(Qt::ToolButtonTextBesideIcon);
     addButton->setPopupMode(QToolButton::InstantPopup);
+    addButton->setToolTip("Add Object");
 
     moreButton = new QToolButton(toolbar);
     moreButton->setObjectName("panelMoreButton");
-    moreButton->setText("•••");
+    moreButton->setIcon(
+        style()->standardIcon(QStyle::SP_ToolBarHorizontalExtensionButton));
     moreButton->setPopupMode(QToolButton::InstantPopup);
+    moreButton->setToolTip("Hierarchy actions");
 
     toolbarLayout->addWidget(addButton);
-    toolbarLayout->addStretch();
+    searchField = new QLineEdit(toolbar);
+    searchField->setPlaceholderText("Search hierarchy");
+    searchField->setClearButtonEnabled(true);
+    searchField->setMaximumWidth(180);
+    toolbarLayout->addWidget(searchField, 1);
     toolbarLayout->addWidget(moreButton);
     layout->addWidget(toolbar);
 
@@ -128,11 +138,14 @@ HierarchyPanel::HierarchyPanel(ViewportPanel *viewport, QWidget *parent)
     treeView->setHeaderHidden(true);
     treeView->setAnimated(true);
     treeView->setEditTriggers(QAbstractItemView::NoEditTriggers);
-    treeView->setSelectionMode(QAbstractItemView::SingleSelection);
+    treeView->setSelectionMode(QAbstractItemView::ExtendedSelection);
     treeView->setContextMenuPolicy(Qt::CustomContextMenu);
     treeView->setUniformRowHeights(true);
     treeView->setAcceptDrops(true);
-    treeView->setDragDropMode(QAbstractItemView::DropOnly);
+    treeView->setDragEnabled(true);
+    treeView->setDragDropMode(QAbstractItemView::DragDrop);
+    treeView->setDefaultDropAction(Qt::MoveAction);
+    treeView->setDropIndicatorShown(true);
     treeView->viewport()->setAcceptDrops(true);
     treeView->viewport()->installEventFilter(this);
     layout->addWidget(treeView);
@@ -190,20 +203,55 @@ HierarchyPanel::HierarchyPanel(ViewportPanel *viewport, QWidget *parent)
             [this](const QModelIndex &) { renameSelectedObject(); });
     connect(treeView, &QTreeView::customContextMenuRequested, this,
             &HierarchyPanel::showContextMenu);
+    connect(searchField, &QLineEdit::textChanged, this,
+            [this](const QString &query) {
+                const QString normalized = query.trimmed();
+                for (auto item = itemsById.begin(); item != itemsById.end();
+                     ++item) {
+                    QStandardItem *entry = item.value();
+                    const QModelIndex parentIndex =
+                        entry->parent() != nullptr ? entry->parent()->index()
+                                                   : QModelIndex();
+                    treeView->setRowHidden(
+                        entry->row(), parentIndex,
+                        !normalized.isEmpty() &&
+                            !entry->text().contains(normalized,
+                                                    Qt::CaseInsensitive));
+                }
+            });
 
     auto *deleteAction = new QAction(this);
-    deleteAction->setShortcut(QKeySequence::Delete);
+    deleteAction->setShortcuts(
+        {QKeySequence::Delete,
+         QKeySequence(Qt::META | Qt::Key_Backspace)});
     deleteAction->setShortcutContext(Qt::WidgetWithChildrenShortcut);
     connect(deleteAction, &QAction::triggered, this,
             &HierarchyPanel::deleteSelectedObject);
     addAction(deleteAction);
 
     auto *renameAction = new QAction(this);
-    renameAction->setShortcut(Qt::Key_F2);
+    renameAction->setShortcuts({QKeySequence(Qt::Key_Return),
+                                QKeySequence(Qt::Key_Enter),
+                                QKeySequence(Qt::Key_F2)});
     renameAction->setShortcutContext(Qt::WidgetWithChildrenShortcut);
     connect(renameAction, &QAction::triggered, this,
             &HierarchyPanel::renameSelectedObject);
     addAction(renameAction);
+
+    auto *focusAction = new QAction(this);
+    focusAction->setShortcut(Qt::Key_F);
+    focusAction->setShortcutContext(Qt::WidgetWithChildrenShortcut);
+    connect(focusAction, &QAction::triggered, this,
+            &HierarchyPanel::focusSelectedObject);
+    addAction(focusAction);
+
+    auto *createEmptyAction = new QAction(this);
+    createEmptyAction->setShortcut(
+        QKeySequence(Qt::META | Qt::SHIFT | Qt::Key_N));
+    createEmptyAction->setShortcutContext(Qt::WidgetWithChildrenShortcut);
+    connect(createEmptyAction, &QAction::triggered, this,
+            [this] { createObject("group", "Empty Object"); });
+    addAction(createEmptyAction);
 
     if (viewport != nullptr) {
         addButton->setEnabled(false);
@@ -239,12 +287,20 @@ void HierarchyPanel::applySceneSnapshot(const QString &snapshot) {
         return;
     }
 
+    if (treeView->selectionModel()->selectedRows().size() > 1)
+        return;
+
     applyingSnapshot = true;
     const QSignalBlocker blocker(treeView->selectionModel());
     treeView->clearSelection();
     treeView->setCurrentIndex(QModelIndex());
     if (itemsById.contains(selectedId)) {
         const QModelIndex index = itemsById.value(selectedId)->index();
+        treeView->setCurrentIndex(index);
+        treeView->scrollTo(index, QAbstractItemView::EnsureVisible);
+        selectedSpecialType.clear();
+    } else if (specialItems.contains(selectedSpecialType)) {
+        const QModelIndex index = specialItems.value(selectedSpecialType)->index();
         treeView->setCurrentIndex(index);
         treeView->scrollTo(index, QAbstractItemView::EnsureVisible);
     } else {
@@ -258,51 +314,31 @@ void HierarchyPanel::rebuildScene(const QString &sceneName,
     applyingSnapshot = true;
     model->clear();
     itemsById.clear();
+    specialItems.clear();
 
     auto *root = new QStandardItem(hierarchyIcon(this, "scene"), sceneName);
     root->setData(-1, ObjectIdRole);
     root->setData("scene", ObjectTypeRole);
     root->setEditable(false);
-    QJsonArray regularObjects;
-    QJsonArray cameraObjects;
-    QJsonArray lightObjects;
-    for (const QJsonValue &value : objects) {
-        const QString type = value.toObject().value("type").toString().toLower();
-        if (type.contains("light") || type == "sun") {
-            lightObjects.append(value);
-        } else if (type.contains("camera")) {
-            cameraObjects.append(value);
-        } else {
-            regularObjects.append(value);
-        }
-    }
-    appendObjects(root, regularObjects);
+    appendObjects(root, objects);
 
-    auto *cameras =
-        new QStandardItem(hierarchyIcon(this, "camera"), "Cameras");
-    cameras->setData(-1, ObjectIdRole);
-    cameras->setEditable(false);
-    cameras->setSelectable(false);
     auto *mainCamera =
         new QStandardItem(hierarchyIcon(this, "camera"), "Main Camera");
     mainCamera->setData(-1, ObjectIdRole);
     mainCamera->setData("camera", ObjectTypeRole);
     mainCamera->setToolTip("Scene camera");
     mainCamera->setEditable(false);
-    mainCamera->setSelectable(false);
-    cameras->appendRow(mainCamera);
-    appendObjects(cameras, cameraObjects);
-    root->appendRow(cameras);
+    specialItems.insert("camera", mainCamera);
+    root->appendRow(mainCamera);
 
-    if (!lightObjects.isEmpty()) {
-        auto *lights =
-            new QStandardItem(hierarchyIcon(this, "light"), "Lights");
-        lights->setData(-1, ObjectIdRole);
-        lights->setEditable(false);
-        lights->setSelectable(false);
-        appendObjects(lights, lightObjects);
-        root->appendRow(lights);
-    }
+    auto *environment = new QStandardItem(
+        hierarchyIcon(this, "environment"), "Environment");
+    environment->setData(-1, ObjectIdRole);
+    environment->setData("environment", ObjectTypeRole);
+    environment->setToolTip("Scene atmosphere and environment");
+    environment->setEditable(false);
+    specialItems.insert("environment", environment);
+    root->appendRow(environment);
     model->appendRow(root);
     treeView->expandAll();
 
@@ -310,6 +346,10 @@ void HierarchyPanel::rebuildScene(const QString &sceneName,
         const QModelIndex index = itemsById.value(selectedId)->index();
         treeView->setCurrentIndex(index);
         treeView->scrollTo(index, QAbstractItemView::EnsureVisible);
+        selectedSpecialType.clear();
+    } else if (specialItems.contains(selectedSpecialType)) {
+        treeView->setCurrentIndex(
+            specialItems.value(selectedSpecialType)->index());
     }
     applyingSnapshot = false;
 }
@@ -326,8 +366,11 @@ bool HierarchyPanel::eventFilter(QObject *watched, QEvent *event) {
                 QFileInfo(drop->mimeData()->urls().constFirst().toLocalFile())
                     .suffix()
                     .toLower();
-            const bool supported = suffix == "amat" || suffix == "material" ||
-                                   suffix == "ts" || suffix == "js";
+            const bool supported =
+                suffix == "amat" || suffix == "material" || suffix == "ts" ||
+                suffix == "js" || suffix == "wav" || suffix == "mp3" ||
+                suffix == "ogg" || suffix == "flac" || suffix == "m4a" ||
+                suffix == "aac";
             if (supported && event->type() == QEvent::Drop &&
                 viewport != nullptr &&
                 viewport->attachRuntimeAsset(
@@ -341,6 +384,23 @@ bool HierarchyPanel::eventFilter(QObject *watched, QEvent *event) {
             }
             if (supported && event->type() != QEvent::Drop) {
                 drop->acceptProposedAction();
+                return true;
+            }
+        }
+        if (drop->mimeData()->hasFormat(
+                "application/x-qstandarditemmodeldatalist")) {
+            const int childId = selectedObjectId();
+            const int parentId = index.isValid() ? objectId : -1;
+            const bool valid = childId >= 0 && childId != parentId;
+            if (valid && event->type() == QEvent::Drop && viewport != nullptr) {
+                if (viewport->setRuntimeObjectParent(childId, parentId)) {
+                    drop->setDropAction(Qt::MoveAction);
+                    drop->accept();
+                    return true;
+                }
+            } else if (valid && event->type() != QEvent::Drop) {
+                drop->setDropAction(Qt::MoveAction);
+                drop->accept();
                 return true;
             }
         }
@@ -428,17 +488,12 @@ void HierarchyPanel::renameSelectedObject() {
 }
 
 void HierarchyPanel::deleteSelectedObject() {
-    const int id = selectedObjectId();
-    if (id < 0 || viewport == nullptr) {
+    if (viewport == nullptr) {
         return;
     }
-    const QString name = itemsById.value(id)->text();
-    if (QMessageBox::question(
-            this, "Delete Object",
-            QStringLiteral("Delete “%1” and its children?").arg(name)) ==
-        QMessageBox::Yes) {
+    const QList<int> ids = selectedObjectIds();
+    for (int id : ids)
         viewport->deleteRuntimeObject(id);
-    }
 }
 
 void HierarchyPanel::focusSelectedObject() {
@@ -447,8 +502,25 @@ void HierarchyPanel::focusSelectedObject() {
     }
     const int id = selectedObjectId();
     if (id >= 0) {
-        viewport->selectRuntimeObject(id, true);
+        selectedSpecialType.clear();
+        const QList<int> ids = selectedObjectIds();
+        if (ids.size() > 1)
+            viewport->focusRuntimeObjects(ids);
+        else
+            viewport->selectRuntimeObject(id, true);
         emit objectActivated(id);
+        return;
+    }
+    const QString type =
+        treeView->currentIndex().data(ObjectTypeRole).toString();
+    if (type == "camera") {
+        selectedSpecialType = type;
+        viewport->selectRuntimeObject(-1, false);
+        emit cameraActivated();
+    } else if (type == "environment") {
+        selectedSpecialType = type;
+        viewport->selectRuntimeObject(-1, false);
+        emit environmentActivated();
     }
 }
 
@@ -464,6 +536,40 @@ int HierarchyPanel::selectedObjectId() const {
         return -1;
     }
     return treeView->currentIndex().data(ObjectIdRole).toInt();
+}
+
+QList<int> HierarchyPanel::selectedObjectIds() const {
+    QList<int> ids;
+    if (treeView == nullptr || treeView->selectionModel() == nullptr)
+        return ids;
+    for (const QModelIndex &index : treeView->selectionModel()->selectedRows()) {
+        bool valid = false;
+        const int id = index.data(ObjectIdRole).toInt(&valid);
+        if (valid && id >= 0 && !ids.contains(id))
+            ids.append(id);
+    }
+    return ids;
+}
+
+void HierarchyPanel::selectAllObjects() {
+    if (treeView != nullptr)
+        treeView->selectAll();
+}
+
+void HierarchyPanel::deselectAllObjects() {
+    if (treeView != nullptr)
+        treeView->clearSelection();
+    if (viewport != nullptr)
+        viewport->selectRuntimeObject(-1, false);
+}
+
+void HierarchyPanel::focusSearch() {
+    searchField->setFocus();
+    searchField->selectAll();
+}
+
+void HierarchyPanel::showCreationPopup() {
+    showAddObjectMenu(addButton->mapToGlobal(QPoint(0, addButton->height())));
 }
 
 QString HierarchyPanel::sceneSignature(const QString &sceneName,

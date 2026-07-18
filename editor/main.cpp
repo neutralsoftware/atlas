@@ -17,6 +17,7 @@
 #include <QMenuBar>
 #include <QStyle>
 #include <QStyleHints>
+#include <QTimer>
 
 #include "DockManager.h"
 #include "DockWidget.h"
@@ -27,6 +28,7 @@
 #include "editor/views/splashScreen.h"
 
 int main(int argc, char **argv) {
+    QApplication::setAttribute(Qt::AA_DontShowIconsInMenus);
     QApplication app(argc, argv);
     app.setApplicationName("Atlas Engine");
     app.setApplicationDisplayName("Atlas Engine");
@@ -58,32 +60,42 @@ int main(int argc, char **argv) {
     app.setStyle("Fusion");
     styling::applyTheme(app);
 
-    auto *projectBrowser = new ProjectBrowser();
-    QObject::connect(projectBrowser, &ProjectBrowser::openProjectRequested,
-                     &app, [projectBrowser](const QString &projectFile) {
-                         projectBrowser->setEnabled(false);
-                         auto *splash = new SplashScreen();
-                         QObject::connect(
-                             splash, &SplashScreen::ready, splash,
-                             [projectBrowser, projectFile, splash] {
-                                 auto *editor = new EditorWindow(projectFile);
-                                 editor->setAttribute(Qt::WA_DeleteOnClose);
-                                 editor->show();
-                                 projectBrowser->deleteLater();
-                                 splash->deleteLater();
-                             });
-                         splash->start("Opening your project…", 1000);
-                         projectBrowser->hide();
-                     });
-
     auto *startupSplash = new SplashScreen();
-    QObject::connect(startupSplash, &SplashScreen::ready, startupSplash,
-                     [projectBrowser, startupSplash] {
-                         projectBrowser->show();
-                         projectBrowser->raise();
-                         projectBrowser->activateWindow();
-                         startupSplash->deleteLater();
-                     });
-    startupSplash->start("Loading the engine…", 1200);
+    startupSplash->start("Preparing the project browser...");
+    QTimer::singleShot(0, &app, [&app, startupSplash] {
+        auto *projectBrowser = new ProjectBrowser();
+        QObject::connect(
+            projectBrowser, &ProjectBrowser::openProjectRequested, &app,
+            [projectBrowser](const QString &projectFile) {
+                projectBrowser->setEnabled(false);
+                projectBrowser->hide();
+                auto *splash = new SplashScreen();
+                splash->start("Restoring editor workspace...");
+                QTimer::singleShot(
+                    0, splash, [projectBrowser, projectFile, splash] {
+                        auto *editor = new EditorWindow(projectFile);
+                        editor->setAttribute(Qt::WA_DeleteOnClose);
+                        QObject::connect(
+                            editor, &EditorWindow::startupStatusChanged,
+                            splash, &SplashScreen::setStatus);
+                        QObject::connect(
+                            editor, &EditorWindow::startupReady, splash,
+                            [projectBrowser, editor, splash](bool,
+                                                             const QString &) {
+                                splash->finish();
+                                splash->deleteLater();
+                                projectBrowser->deleteLater();
+                                editor->raise();
+                                editor->activateWindow();
+                            });
+                        editor->show();
+                    });
+            });
+        projectBrowser->show();
+        projectBrowser->raise();
+        projectBrowser->activateWindow();
+        startupSplash->finish();
+        startupSplash->deleteLater();
+    });
     return app.exec();
 }

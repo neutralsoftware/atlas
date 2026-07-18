@@ -11,6 +11,7 @@
 #define ATLAS_HIERARCHYPANEL_H
 
 #include <QHash>
+#include <QList>
 #include <QString>
 #include <QWidget>
 
@@ -20,6 +21,7 @@ class QMenu;
 class QPoint;
 class QStandardItem;
 class QStandardItemModel;
+class QLineEdit;
 class QToolButton;
 class QTreeView;
 class ViewportPanel;
@@ -29,9 +31,21 @@ class HierarchyPanel : public QWidget {
 
   public:
     explicit HierarchyPanel(ViewportPanel *viewport, QWidget *parent = nullptr);
+    void createObject(const QString &type, const QString &displayName);
+    void renameSelectedObject();
+    void deleteSelectedObject();
+    void focusSelectedObject();
+    void moveSelectedObjectToRoot();
+    void selectAllObjects();
+    void deselectAllObjects();
+    void focusSearch();
+    void showCreationPopup();
+    QList<int> selectedObjectIds() const;
 
   signals:
     void objectActivated(int id);
+    void cameraActivated();
+    void environmentActivated();
 
   protected:
     bool eventFilter(QObject *watched, QEvent *event) override;
@@ -43,11 +57,6 @@ class HierarchyPanel : public QWidget {
     void appendObjects(QStandardItem *parent, const QJsonArray &objects);
     void showAddObjectMenu(const QPoint &position);
     void showContextMenu(const QPoint &position);
-    void createObject(const QString &type, const QString &displayName);
-    void renameSelectedObject();
-    void deleteSelectedObject();
-    void focusSelectedObject();
-    void moveSelectedObjectToRoot();
     int selectedObjectId() const;
     QString sceneSignature(const QString &sceneName,
                            const QJsonArray &objects) const;
@@ -57,8 +66,11 @@ class HierarchyPanel : public QWidget {
     QStandardItemModel *model = nullptr;
     QToolButton *addButton = nullptr;
     QToolButton *moreButton = nullptr;
+    QLineEdit *searchField = nullptr;
     QHash<int, QStandardItem *> itemsById;
+    QHash<QString, QStandardItem *> specialItems;
     QString lastStructureSignature;
+    QString selectedSpecialType;
     bool applyingSnapshot = false;
 };
 

@@ -81,6 +81,7 @@ pub struct PackConfig {
 
 #[derive(serde::Deserialize)]
 pub struct Config {
+    #[serde(flatten)]
     pub project: ProjectConfig,
     pub pack: PackConfig,
 }

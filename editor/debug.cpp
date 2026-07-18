@@ -8,6 +8,7 @@
 */
 
 #include <editor/debug.h>
+#include <editor/widgets/scrubbableSpinBox.h>
 #include <QCheckBox>
 #include <QComboBox>
 #include <QDateEdit>
@@ -142,11 +143,11 @@ QWidget* DebugComponentsView::createInputSection() {
         "Rendered"
     });
 
-    auto* spinBox = new QSpinBox(container);
+    auto* spinBox = new ScrubbableSpinBox(container);
     spinBox->setRange(0, 4096);
     spinBox->setValue(128);
 
-    auto* doubleSpinBox = new QDoubleSpinBox(container);
+    auto* doubleSpinBox = new ScrubbableDoubleSpinBox(container);
     doubleSpinBox->setRange(0.0, 1.0);
     doubleSpinBox->setSingleStep(0.01);
     doubleSpinBox->setValue(0.42);
@@ -368,15 +369,15 @@ QWidget* DebugComponentsView::createCollapsibleSection() {
     form->setContentsMargins(18, 4, 0, 0);
     form->setSpacing(8);
 
-    auto* positionX = new QDoubleSpinBox(body);
+    auto* positionX = new ScrubbableDoubleSpinBox(body);
     positionX->setRange(-10000.0, 10000.0);
     positionX->setValue(12.5);
 
-    auto* positionY = new QDoubleSpinBox(body);
+    auto* positionY = new ScrubbableDoubleSpinBox(body);
     positionY->setRange(-10000.0, 10000.0);
     positionY->setValue(4.0);
 
-    auto* positionZ = new QDoubleSpinBox(body);
+    auto* positionZ = new ScrubbableDoubleSpinBox(body);
     positionZ->setRange(-10000.0, 10000.0);
     positionZ->setValue(-2.25);
 

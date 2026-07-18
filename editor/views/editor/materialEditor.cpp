@@ -1,4 +1,5 @@
 #include <editor/views/materialEditor.h>
+#include <editor/widgets/scrubbableSpinBox.h>
 
 #include <editor/views/viewport.h>
 
@@ -26,6 +27,8 @@
 #include <QPair>
 #include <QSaveFile>
 #include <QScrollArea>
+#include <QSizePolicy>
+#include <QStyle>
 #include <QSignalBlocker>
 #include <QSplitter>
 #include <QTimer>
@@ -68,7 +71,7 @@ void displayColor(QPushButton *button, const QColor &color) {
 
 QDoubleSpinBox *scalarField(double minimum, double maximum, double step,
                             QWidget *parent) {
-    auto *field = new QDoubleSpinBox(parent);
+    auto *field = new ScrubbableDoubleSpinBox(parent);
     field->setObjectName("materialScalarField");
     field->setRange(minimum, maximum);
     field->setSingleStep(step);
@@ -131,7 +134,7 @@ class MaterialPreviewWidget : public QWidget {
     explicit MaterialPreviewWidget(QWidget *parent = nullptr)
         : QWidget(parent) {
         setObjectName("materialPreview");
-        setMinimumSize(250, 250);
+        setMinimumSize(80, 80);
         setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Expanding);
     }
 
@@ -353,15 +356,17 @@ MaterialEditorPanel::MaterialEditorPanel(ViewportPanel *viewport,
     auto *header = new QWidget(this);
     header->setObjectName("materialEditorHeader");
     auto *headerLayout = new QHBoxLayout(header);
-    headerLayout->setContentsMargins(10, 7, 10, 7);
+    headerLayout->setContentsMargins(8, 4, 8, 4);
     titleLabel = new QLabel("Material Editor", header);
     titleLabel->setObjectName("materialEditorTitle");
     statusLabel = new QLabel(header);
     statusLabel->setObjectName("materialEditorStatus");
     auto *saveButton = new QPushButton("Save", header);
     saveButton->setObjectName("materialSaveButton");
+    saveButton->setIcon(style()->standardIcon(QStyle::SP_DialogSaveButton));
     auto *assignButton = new QPushButton("Assign to Selected", header);
     assignButton->setObjectName("materialAssignButton");
+    assignButton->setIcon(style()->standardIcon(QStyle::SP_ArrowRight));
     headerLayout->addWidget(titleLabel, 1);
     headerLayout->addWidget(statusLabel);
     headerLayout->addWidget(assignButton);
@@ -486,7 +491,8 @@ void MaterialEditorPanel::showMaterial() {
     auto *splitter = new QSplitter(Qt::Horizontal, body);
     splitter->setChildrenCollapsible(false);
     auto *previewPane = new QWidget(splitter);
-    previewPane->setMinimumWidth(300);
+    previewPane->setMinimumWidth(1);
+    previewPane->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Expanding);
     auto *previewLayout = new QVBoxLayout(previewPane);
     previewLayout->setContentsMargins(0, 0, 5, 0);
     previewLayout->setSpacing(8);
@@ -511,7 +517,8 @@ void MaterialEditorPanel::showMaterial() {
     propertiesScroll->setWidgetResizable(true);
     propertiesScroll->setHorizontalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
     auto *properties = new QWidget(propertiesScroll);
-    properties->setMinimumWidth(340);
+    properties->setMinimumWidth(1);
+    properties->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Expanding);
     auto *propertiesLayout = new QVBoxLayout(properties);
     propertiesLayout->setContentsMargins(5, 0, 0, 0);
     propertiesLayout->setSpacing(9);

@@ -98,6 +98,11 @@ class Context {
     std::unordered_map<int, AreaLight *> editorAreaLights;
     std::unordered_map<int, DirectionalLight *> editorDirectionalLights;
     std::unordered_map<int, json> editorLightSourceData;
+    json editorCameraData = json::object();
+    json editorTargetData = json::array();
+    json editorEnvironmentData = json::object();
+    json editorPropertySyncs = json::array();
+    bool applyingPropertySyncs = false;
     std::vector<std::pair<std::string, std::string>> deletedObjectReferences;
 
     ProjectConfig config;
@@ -114,20 +119,38 @@ class Context {
                             float scale);
     bool editorScrollEvent(float delta, float scale);
     bool editorKeyEvent(int key, bool pressed);
+    bool beginEditorKeyboardTransform(int mode, float x, float y, float scale);
+    bool setEditorKeyboardTransformAxes(int axes);
+    bool finishEditorKeyboardTransform(bool commit);
+    bool toggleEditorTransformSpace();
+    bool toggleEditorTransformSnapping();
+    float changeEditorTransformSnapIncrement(float factor);
     int selectedObjectId() const;
     std::string selectedObjectName() const;
     std::string sceneObjectsJson() const;
     bool selectObject(int id, bool focusCamera);
+    bool focusObjects(const std::vector<int> &ids);
     bool renameObject(int id, const std::string &name);
     bool setObjectProperty(int id, const std::string &component,
                            int componentIndex, const std::string &propertyPath,
                            const json &value);
+    bool setSceneProperty(const std::string &section, int index,
+                          const std::string &propertyPath, const json &value);
+    bool setPropertySync(const json &target, const json &source);
+    bool clearPropertySync(const json &target);
     bool setObjectMaterial(int id, const std::string &path);
     int addObjectComponent(int id, const json &component);
+    bool removeObjectComponent(int id, int componentIndex);
+    bool controlObjectAudio(int id, int componentIndex,
+                            const std::string &action);
     bool setObjectParent(int childId, int parentId);
     bool deleteObject(int id);
     int createObject(const std::string &type, const std::string &name);
+    std::string objectDefinitionJson(int id) const;
+    int pasteObjectDefinition(const std::string &definition);
     bool saveCurrentScene();
+    bool openSceneFile(const std::string &path);
+    std::string currentScenePath() const;
     void end();
     void loadProject();
     void loadMainScene(Window &window);

@@ -8,7 +8,6 @@
 #include <QLabel>
 #include <QPixmap>
 #include <QScreen>
-#include <QTimer>
 
 #ifndef ATLAS_VERSION
 #define ATLAS_VERSION "Alpha 9"
@@ -106,13 +105,13 @@ SplashScreen::SplashScreen(QWidget *parent)
     background: transparent;
 }
 #splashCard {
-    background: #FFFFFF;
+    background: #1F2427;
     border: 1px solid rgba(20, 24, 28, 18);
     border-radius: 40px;
 }
 #splashTitle {
     background: transparent;
-    color: #0B0D0E;
+    color: #FFFFFF;
     font-size: 40px;
     font-weight: 700;
 }
@@ -124,7 +123,7 @@ SplashScreen::SplashScreen(QWidget *parent)
 }
 #splashCompany {
     background: transparent;
-    color: #111416;
+    color: #A1A5A8;
     font-family: "Manrope";
     font-size: 12px;
     font-weight: 650;
@@ -142,24 +141,26 @@ SplashScreen::SplashScreen(QWidget *parent)
     font-weight: 450;
 }
 )");
-
-    finishTimer = new QTimer(this);
-    finishTimer->setSingleShot(true);
-    connect(finishTimer, &QTimer::timeout, this, [this] {
-        hide();
-        emit ready();
-    });
 }
 
-void SplashScreen::start(const QString &statusText, int durationMs) {
-    QString displayStatus = statusText;
-    displayStatus.replace(QChar(0x2026), "...");
-    statusLabel->setText(displayStatus);
+void SplashScreen::start(const QString &statusText) {
+    setStatus(statusText);
     const QRect available =
         QGuiApplication::primaryScreen()->availableGeometry();
     move(available.left() + (available.width() - width()) / 2,
          available.top() + (available.height() - height()) / 2);
     show();
     raise();
-    finishTimer->start(durationMs < 300 ? 300 : durationMs);
+}
+
+void SplashScreen::setStatus(const QString &statusText) {
+    QString displayStatus = statusText;
+    displayStatus.replace(QChar(0x2026), "...");
+    statusLabel->setText(displayStatus);
+    statusLabel->repaint();
+}
+
+void SplashScreen::finish() {
+    hide();
+    emit ready();
 }

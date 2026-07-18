@@ -4,25 +4,40 @@
 
 #include <QActionGroup>
 #include <QComboBox>
+#include <QFileInfo>
 #include <QHBoxLayout>
 #include <QLabel>
 #include <QKeySequence>
+#include <QList>
+#include <QSignalBlocker>
 #include <QStyle>
+#include <QTabBar>
 #include <QToolButton>
 #include <QVBoxLayout>
 
-ViewportTools::ViewportTools(ViewportPanel *viewport, QWidget *parent)
-    : QWidget(parent), viewport(viewport) {
+ViewportTools::ViewportTools(ViewportPanel *viewport,
+                             const QString &projectFile, QWidget *parent)
+    : QWidget(parent), viewport(viewport),
+      projectRoot(QFileInfo(projectFile).absolutePath()) {
     setObjectName("viewportTools");
     auto *layout = new QVBoxLayout(this);
     layout->setContentsMargins(0, 0, 0, 0);
     layout->setSpacing(0);
 
+    sceneTabs = new QTabBar(this);
+    sceneTabs->setObjectName("sceneTabs");
+    sceneTabs->setDocumentMode(true);
+    sceneTabs->setExpanding(false);
+    sceneTabs->setMovable(true);
+    sceneTabs->setTabsClosable(true);
+    sceneTabs->setVisible(false);
+    layout->addWidget(sceneTabs);
+
     auto *toolbar = new QWidget(this);
     toolbar->setObjectName("viewportToolbar");
     auto *tools = new QHBoxLayout(toolbar);
-    tools->setContentsMargins(7, 5, 7, 5);
-    tools->setSpacing(4);
+    tools->setContentsMargins(5, 3, 5, 3);
+    tools->setSpacing(2);
 
     playButton = new QToolButton(toolbar);
     playButton->setObjectName("viewportPlaybackButton");
@@ -58,17 +73,19 @@ ViewportTools::ViewportTools(ViewportPanel *viewport, QWidget *parent)
 
     auto *transformGroup = new QActionGroup(toolbar);
     transformGroup->setExclusive(true);
-    const QStringList transformNames{"Move", "Rotate", "Scale"};
-    const QStringList transformLabels{"Move", "Rotate", "Scale"};
+    const QStringList transformNames{"Select", "Move", "Rotate", "Scale"};
+    const QList<QStyle::StandardPixmap> transformIcons{
+        QStyle::SP_ArrowUp, QStyle::SP_ArrowRight, QStyle::SP_BrowserReload,
+        QStyle::SP_TitleBarMaxButton};
     for (int index = 0; index < transformNames.size(); ++index) {
         auto *button = new QToolButton(toolbar);
         button->setObjectName("viewportModeButton");
-        button->setText(transformLabels.at(index));
+        button->setIcon(style()->standardIcon(transformIcons.at(index)));
         button->setToolTip(transformNames.at(index) + " tool");
         button->setCheckable(true);
         auto *action = new QAction(transformNames.at(index), button);
         action->setCheckable(true);
-        action->setData(index + 1);
+        action->setData(index);
         button->setDefaultAction(action);
         transformGroup->addAction(action);
         tools->addWidget(button);
@@ -76,6 +93,14 @@ ViewportTools::ViewportTools(ViewportPanel *viewport, QWidget *parent)
             action->setChecked(true);
         }
     }
+
+    tools->addSpacing(10);
+    spaceButton = new QToolButton(toolbar);
+    spaceButton->setObjectName("viewportOptionButton");
+    spaceButton->setText("World");
+    spaceButton->setToolButtonStyle(Qt::ToolButtonTextOnly);
+    spaceButton->setToolTip("Transform space (Shift+T)");
+    tools->addWidget(spaceButton);
 
     tools->addSpacing(10);
     auto *shading = new QComboBox(toolbar);
@@ -86,7 +111,9 @@ ViewportTools::ViewportTools(ViewportPanel *viewport, QWidget *parent)
 
     auto *fpsButton = new QToolButton(toolbar);
     fpsButton->setObjectName("viewportOptionButton");
+    fpsButton->setIcon(style()->standardIcon(QStyle::SP_ComputerIcon));
     fpsButton->setText("FPS");
+    fpsButton->setToolButtonStyle(Qt::ToolButtonTextBesideIcon);
     fpsButton->setCheckable(true);
     fpsButton->setChecked(true);
     fpsButton->setToolTip("Show frame rate");
@@ -99,6 +126,12 @@ ViewportTools::ViewportTools(ViewportPanel *viewport, QWidget *parent)
 
     layout->addWidget(toolbar);
     layout->addWidget(viewport, 1);
+    shortcutHint = new QLabel(
+        "Tab Frame · Right-Drag Pan · Middle-Drag Orbit · G Move · R Rotate · S Scale",
+        this);
+    shortcutHint->setObjectName("viewportShortcutHint");
+    shortcutHint->setTextInteractionFlags(Qt::NoTextInteraction);
+    layout->addWidget(shortcutHint);
 
     connect(playButton, &QToolButton::clicked, viewport,
             &ViewportPanel::playRuntime);
@@ -116,6 +149,12 @@ ViewportTools::ViewportTools(ViewportPanel *viewport, QWidget *parent)
             });
     connect(shading, &QComboBox::currentIndexChanged, viewport,
             &ViewportPanel::setRuntimeShadingMode);
+    connect(spaceButton, &QToolButton::clicked, viewport,
+            &ViewportPanel::toggleTransformSpace);
+    connect(viewport, &ViewportPanel::transformSpaceChanged, this,
+            [this](bool local) {
+                spaceButton->setText(local ? "Local" : "World");
+            });
     connect(fpsButton, &QToolButton::toggled, fpsLabel, &QWidget::setVisible);
     connect(viewport, &ViewportPanel::frameRateChanged, this,
             [this](float fps) {
@@ -123,12 +162,72 @@ ViewportTools::ViewportTools(ViewportPanel *viewport, QWidget *parent)
             });
     connect(viewport, &ViewportPanel::playbackStateChanged, this,
             &ViewportTools::updatePlaybackState);
+    connect(viewport, &ViewportPanel::transformHintChanged, shortcutHint,
+            &QLabel::setText);
     connect(viewport, &ViewportPanel::runtimeAvailabilityChanged, this,
             [this](bool available) {
                 runtimeAvailable = available;
                 updatePlaybackState(playbackState);
             });
+    connect(sceneTabs, &QTabBar::currentChanged, this, [this](int index) {
+        if (index >= 0 && index < scenePaths.size() &&
+            this->viewport != nullptr)
+            this->viewport->openRuntimeScene(scenePaths.at(index));
+    });
+    connect(sceneTabs, &QTabBar::tabCloseRequested, this, [this](int index) {
+        closeSceneTab(index);
+    });
+    connect(viewport, &ViewportPanel::sceneOpened, this,
+            &ViewportTools::openSceneTab);
+    refreshSceneTabs();
     updatePlaybackState(0);
+}
+
+void ViewportTools::refreshSceneTabs() {
+    const QString current = viewport != nullptr ? viewport->currentRuntimeScene()
+                                                : QString();
+    if (!current.trimmed().isEmpty())
+        openSceneTab(current);
+    updateSceneTabs();
+}
+
+void ViewportTools::openSceneTab(const QString &path) {
+    const QString absolute = QFileInfo(path).absoluteFilePath();
+    if (path.trimmed().isEmpty() || !QFileInfo(absolute).isFile())
+        return;
+    int index = scenePaths.indexOf(absolute);
+    if (index < 0) {
+        scenePaths.append(absolute);
+        index = sceneTabs->addTab(QFileInfo(absolute).completeBaseName());
+        sceneTabs->setTabToolTip(index, absolute);
+    }
+    const QSignalBlocker blocker(sceneTabs);
+    sceneTabs->setCurrentIndex(index);
+    updateSceneTabs();
+}
+
+void ViewportTools::closeCurrentSceneTab() {
+    closeSceneTab(sceneTabs->currentIndex());
+}
+
+void ViewportTools::closeSceneTab(int index) {
+    if (index < 0 || index >= scenePaths.size())
+        return;
+    const QSignalBlocker blocker(sceneTabs);
+    scenePaths.removeAt(index);
+    sceneTabs->removeTab(index);
+    if (!scenePaths.isEmpty()) {
+        const int next = qMin(index, scenePaths.size() - 1);
+        sceneTabs->setCurrentIndex(next);
+        if (viewport != nullptr)
+            viewport->openRuntimeScene(scenePaths.at(next));
+    }
+    updateSceneTabs();
+}
+
+void ViewportTools::updateSceneTabs() {
+    sceneTabs->setVisible(!scenePaths.isEmpty());
+    sceneTabs->setTabsClosable(!scenePaths.isEmpty());
 }
 
 void ViewportTools::updatePlaybackState(int state) {

@@ -450,9 +450,17 @@ class Window {
                             float scale = 1.0f);
     void editorScrollEvent(float delta, float scale = 1.0f);
     void editorKeyEvent(int key, bool pressed);
+    bool beginEditorKeyboardTransform(EditorControlMode mode, float x, float y,
+                                      float scale = 1.0f);
+    void setEditorKeyboardTransformAxes(int axes);
+    void finishEditorKeyboardTransform(bool commit);
+    bool toggleEditorTransformSpace();
+    bool toggleEditorTransformSnapping();
+    float changeEditorTransformSnapIncrement(float factor);
     GameObject *getSelectedEditorObject() const { return selectedEditorObject; }
     unsigned int getSelectedEditorObjectId() const;
     void selectEditorObject(GameObject *object, bool focusCamera = false);
+    void focusEditorObjects(const std::vector<GameObject *> &objects);
     void setEditorObjectParent(GameObject *child, GameObject *parent);
     /**
      * @brief Tears down state created by stepFrame()/run().
@@ -899,6 +907,7 @@ class Window {
     int hitTestEditorGizmoAxis(float x, float y, float scale);
     void updateEditorDrag(float x, float y, float scale);
     void updateEditorCameraDrag(float x, float y, float scale);
+    void updateEditorCameraPan(float x, float y, float scale);
     void updateEditorCameraMovement(float deltaTime);
     void applyEditorOrbitDelta(float yawDelta, float pitchDelta);
     void applyEditorZoomDelta(float scrollAmount);
@@ -991,7 +1000,17 @@ class Window {
     EditorShadingMode editorShadingMode = EditorShadingMode::Lit;
     GameObject *selectedEditorObject = nullptr;
     bool editorDragging = false;
+    bool editorKeyboardTransform = false;
+    bool editorLocalTransformSpace = false;
+    bool editorTransformSnapping = false;
+    float editorTransformSnapIncrement = 0.5f;
+    int editorKeyboardTransformAxes = 7;
+    float editorKeyboardLastX = 0.0f;
+    float editorKeyboardLastY = 0.0f;
+    float editorKeyboardAccumulatedX = 0.0f;
+    float editorKeyboardAccumulatedY = 0.0f;
     bool editorCameraDragging = false;
+    bool editorCameraPanning = false;
     int editorActiveGizmoAxis = 0;
     float editorDragStartX = 0.0f;
     float editorDragStartY = 0.0f;
@@ -1024,6 +1043,7 @@ class Window {
                                glm::vec3 &boundsMax);
     void moveEditorObjectChildren(GameObject *object,
                                   const Position3d &deltaPosition);
+    void updateEditorKeyboardTransform(float x, float y, float scale);
 
     uint64_t pipelineStateVersion = 1;
     std::unordered_map<Renderable *, uint64_t> renderablePipelineVersions;

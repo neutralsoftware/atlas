@@ -33,6 +33,7 @@ ads::DockWidgetArea EditorDockManager::toAdsArea(EditorDockArea area) const {
 
 ads::CDockWidget* EditorDockManager::addPanel(const EditorDockPanelDesc& desc) {
     auto* dock = new ads::CDockWidget(desc.title);
+    dock->setObjectName(desc.id);
     dock->setWidget(desc.widget);
     dock->setFeature(ads::CDockWidget::DockWidgetMovable, true);
     dock->setFeature(ads::CDockWidget::DockWidgetFloatable, true);
@@ -42,8 +43,7 @@ ads::CDockWidget* EditorDockManager::addPanel(const EditorDockPanelDesc& desc) {
     }
 
     if (desc.area == EditorDockArea::Center) {
-        centerArea = dockManager->addDockWidget(ads::CenterDockWidgetArea,
-                                                dock);
+        centerArea = dockManager->setCentralWidget(dock);
         if (centerArea != nullptr) {
             centerArea->setAllowedAreas(ads::AllDockAreas);
         }

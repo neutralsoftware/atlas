@@ -54,7 +54,11 @@ glm::vec2 sampleControllerAxisPair(Window &window, int axisIndexX,
 glm::mat4 Camera::calculateViewMatrix() const {
     glm::dvec3 camPos(position.x, position.y, position.z);
     glm::dvec3 camTarget(target.x, target.y, target.z);
-    glm::dvec3 upVector(0.0, 1.0, 0.0); // Assuming Y-up coordinate system
+    glm::dvec3 direction = glm::normalize(camTarget - camPos);
+    glm::dvec3 upVector =
+        std::abs(glm::dot(direction, glm::dvec3(0.0, 1.0, 0.0))) > 0.999
+            ? glm::dvec3(0.0, 0.0, 1.0)
+            : glm::dvec3(0.0, 1.0, 0.0);
 
     return glm::mat4(glm::lookAt(camPos, camTarget, upVector));
 }
@@ -70,10 +74,14 @@ void Camera::setPosition(const Position3d &newPosition) {
 }
 
 void Camera::lookAt(const Point3d &newTarget) {
+    glm::vec3 delta(newTarget.x - position.x, newTarget.y - position.y,
+                    newTarget.z - position.z);
+    if (!std::isfinite(delta.x) || !std::isfinite(delta.y) ||
+        !std::isfinite(delta.z) || glm::length(delta) < 0.000001f) {
+        return;
+    }
     target = newTarget;
-    glm::vec3 dir = glm::normalize(glm::vec3(newTarget.x - position.x,
-                                             newTarget.y - position.y,
-                                             newTarget.z - position.z));
+    glm::vec3 dir = glm::normalize(delta);
     pitch = glm::degrees(asin(dir.y));
     yaw = glm::degrees(atan2(dir.z, dir.x));
     targetPitch = pitch;
