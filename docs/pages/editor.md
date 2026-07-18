@@ -65,3 +65,20 @@ Shift-click selects multiple hierarchy objects. Dropping OBJ, FBX, glTF, GLB, or
 | Command palette | Command Shift P |
 
 The command palette lists available commands and their shortcuts and supports keyboard filtering, arrow navigation, and Enter. Scripts are watched for changes and the editor reloads the runtime automatically when JavaScript or TypeScript files change.
+
+## Packaging Atlas Engine
+
+Run the macOS packer from the repository root:
+
+```shell
+./scripts/package_app.py --debug --macOS
+./scripts/package_app.py --release --macOS
+```
+
+The equivalent `just` recipes are `just package-debug-macos` and `just package-release-macos`. Products are written below `dist/macOS/<configuration>` and intermediate files are written below `build/package`; both directories are ignored by version control.
+
+The package is self-contained and includes Qt, the Atlas CLI, and `runtime.dylib`. On first launch, Atlas Engine offers to install the bundled CLI and runtime into `~/Library/Application Support/Atlas Engine/toolchains/alpha9` and registers them in `~/.atlas/config.json`. Installation does not require administrator access and preserves other configured Atlas versions.
+
+Debug packages use an ad-hoc signature. A release intended for GitHub requires `ATLAS_SIGNING_IDENTITY` to name a Developer ID Application certificate and `ATLAS_NOTARY_PROFILE` to name a `notarytool` keychain profile. The packer creates, signs, notarizes, staples, mounts, and validates a drag-to-Applications DMG. It refuses to create an accidentally unnotarized release unless `ATLAS_ALLOW_UNNOTARIZED_RELEASE=1` is explicitly set; that local-only artifact is named `UNNOTARIZED`.
+
+The packer builds the host architecture by default. Set `ATLAS_MACOS_ARCHITECTURES='arm64;x86_64'` when the selected Qt installation contains both architectures to create a universal archive. `ATLAS_MACOS_DEPLOYMENT_TARGET` changes the default macOS 14.0 deployment target, and `ATLAS_MACDEPLOYQT` can select a specific `macdeployqt` executable.

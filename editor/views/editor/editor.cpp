@@ -9,6 +9,7 @@
 
 #include <editor/views/editorWindow.h>
 
+#include <editor/application/toolchainInstaller.h>
 #include <editor/project/projectStore.h>
 
 #include <QAction>
@@ -549,6 +550,8 @@ void EditorWindow::setupMenus() {
         addCommand(toolsMenu, "Project Settings…", QString(),
                    [this] { showProjectSettings(); });
     toolsSettings->setMenuRole(QAction::NoRole);
+    addCommand(toolsMenu, "Install Atlas Toolchain…", QString(),
+               [this] { ToolchainInstaller::install(this); });
     addCommand(toolsMenu, "Command Palette…", "Meta+Shift+P",
                [this] { showCommandPalette(); });
 

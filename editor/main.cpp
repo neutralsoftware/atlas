@@ -23,6 +23,7 @@
 #include "DockWidget.h"
 #include "../include/editor/application/styling.h"
 #include "editor/debug.h"
+#include "editor/application/toolchainInstaller.h"
 #include "editor/styling/icons.h"
 #include "editor/views/editorWindow.h"
 #include "editor/views/projectBrowser.h"
@@ -51,12 +52,14 @@ int main(int argc, char **argv) {
     app.setFont(applicationFont);
     styling::loadIconFont();
 
+#ifndef Q_OS_MACOS
 #ifdef ATLAS_DEBUG_BUILD
     app.setWindowIcon(
         QIcon(":/editor/assets/Icon-iOS-Default-1024x1024@1x.png"));
 #else
     app.setWindowIcon(
         QIcon(":/editor/assets/iconFile-iOS-Dark-1024x1024@1x.png"));
+#endif
 #endif
 
 #if QT_VERSION >= QT_VERSION_CHECK(6, 8, 0)
@@ -65,6 +68,7 @@ int main(int argc, char **argv) {
 
     app.setStyle("Fusion");
     styling::applyTheme(app);
+    ToolchainInstaller::ensureInstalled();
 
     auto *startupSplash = new SplashScreen();
     startupSplash->start("Preparing the project browser...");
