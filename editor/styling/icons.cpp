@@ -3,6 +3,7 @@
 #include <QFont>
 #include <QFontDatabase>
 #include <QPainter>
+#include <QPainterPath>
 #include <QPixmap>
 #include <QStringList>
 
@@ -210,4 +211,32 @@ QIcon styling::icon(Icon icon, const QColor &color) {
                          QIcon::Off);
     }
     return result;
+}
+
+QIcon styling::colorSwatch(const QColor &color, const QSize &size) {
+    const QSize swatchSize = size.expandedTo(QSize(8, 8));
+    QPixmap pixmap(swatchSize);
+    pixmap.fill(Qt::transparent);
+    QPainter painter(&pixmap);
+    painter.setRenderHint(QPainter::Antialiasing);
+    const QRectF bounds = QRectF(pixmap.rect()).adjusted(0.5, 0.5, -0.5, -0.5);
+    painter.setPen(Qt::NoPen);
+    painter.setBrush(QColor("#D0D0D0"));
+    painter.drawRoundedRect(bounds, 4.0, 4.0);
+    painter.save();
+    QPainterPath clip;
+    clip.addRoundedRect(bounds, 4.0, 4.0);
+    painter.setClipPath(clip);
+    painter.fillRect(QRectF(bounds.left(), bounds.top(), bounds.width() / 2.0,
+                            bounds.height() / 2.0),
+                     QColor("#8A8A8A"));
+    painter.fillRect(QRectF(bounds.center().x(), bounds.center().y(),
+                            bounds.width() / 2.0, bounds.height() / 2.0),
+                     QColor("#8A8A8A"));
+    painter.fillRect(bounds, color);
+    painter.restore();
+    painter.setBrush(Qt::NoBrush);
+    painter.setPen(QColor("#5B5D60"));
+    painter.drawRoundedRect(bounds, 4.0, 4.0);
+    return QIcon(pixmap);
 }

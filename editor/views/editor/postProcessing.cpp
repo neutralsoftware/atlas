@@ -105,16 +105,16 @@ PostProcessingPanel::PostProcessingPanel(ViewportPanel *viewport,
     targetSelector->setMinimumWidth(180);
     auto *addTargetButton = new QToolButton(toolbar);
     addTargetButton->setIcon(
-        styling::icon(styling::Icon::Plus, "#6BA3FF"));
+        styling::icon(styling::Icon::Plus, "#8498A8"));
     addTargetButton->setText("Target");
     addTargetButton->setToolButtonStyle(Qt::ToolButtonTextBesideIcon);
     removeTargetButton = new QToolButton(toolbar);
     removeTargetButton->setText("Remove");
     removeTargetButton->setIcon(
-        styling::icon(styling::Icon::Trash, "#D86470"));
+        styling::icon(styling::Icon::Trash, "#A17F7F"));
     auto *applyButton = new QPushButton("Apply to Preview", toolbar);
     applyButton->setIcon(
-        styling::icon(styling::Icon::Sparkle, "#5EBB78"));
+        styling::icon(styling::Icon::Sparkle, "#849589"));
     statusLabel = new QLabel(toolbar);
     statusLabel->setObjectName("postProcessingStatus");
     toolbarLayout->addWidget(title);
@@ -245,7 +245,7 @@ void PostProcessingPanel::rebuildEditor() {
     effectsTitle->setObjectName("postProcessingSectionTitle");
     auto *addEffectButton = new QToolButton(effectsHeading);
     addEffectButton->setIcon(
-        styling::icon(styling::Icon::Plus, "#6BA3FF"));
+        styling::icon(styling::Icon::Plus, "#8498A8"));
     addEffectButton->setText("Add Effect");
     addEffectButton->setToolButtonStyle(Qt::ToolButtonTextBesideIcon);
     addEffectButton->setPopupMode(QToolButton::InstantPopup);
@@ -258,7 +258,7 @@ void PostProcessingPanel::rebuildEditor() {
         "film_grain"};
     for (const QString &effect : effects) {
         effectMenu->addAction(
-            styling::icon(styling::Icon::Sparkle, "#5EBB78"),
+            styling::icon(styling::Icon::Sparkle, "#849589"),
             effectTitle(effect), this,
                               [this, effect] { addEffect(effect); });
     }
@@ -330,19 +330,19 @@ void PostProcessingPanel::rebuildEditor() {
         auto *moveUp = new QToolButton(actions);
         moveUp->setText("Move Up");
         moveUp->setIcon(
-            styling::icon(styling::Icon::CaretUp, "#4CB7D8"));
+            styling::icon(styling::Icon::CaretUp, "#7E929C"));
         moveUp->setToolButtonStyle(Qt::ToolButtonTextBesideIcon);
         moveUp->setEnabled(effectIndex > 0);
         auto *moveDown = new QToolButton(actions);
         moveDown->setText("Move Down");
         moveDown->setIcon(
-            styling::icon(styling::Icon::CaretDown, "#4CB7D8"));
+            styling::icon(styling::Icon::CaretDown, "#7E929C"));
         moveDown->setToolButtonStyle(Qt::ToolButtonTextBesideIcon);
         moveDown->setEnabled(effectIndex + 1 < effectStack.size());
         auto *remove = new QToolButton(actions);
         remove->setText("Remove Effect");
         remove->setIcon(
-            styling::icon(styling::Icon::Trash, "#D86470"));
+            styling::icon(styling::Icon::Trash, "#A17F7F"));
         remove->setToolButtonStyle(Qt::ToolButtonTextBesideIcon);
         actionsLayout->addStretch();
         actionsLayout->addWidget(moveUp);

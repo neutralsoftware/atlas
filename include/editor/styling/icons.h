@@ -3,6 +3,7 @@
 
 #include <QColor>
 #include <QIcon>
+#include <QSize>
 
 namespace styling {
 
@@ -85,6 +86,7 @@ enum class Icon {
 
 bool loadIconFont();
 QIcon icon(Icon icon, const QColor &color = QColor("#AAB4C4"));
+QIcon colorSwatch(const QColor &color, const QSize &size = QSize(18, 18));
 
 }
 

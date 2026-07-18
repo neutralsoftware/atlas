@@ -41,25 +41,25 @@ ViewportTools::ViewportTools(ViewportPanel *viewport,
 
     playButton = new QToolButton(toolbar);
     playButton->setObjectName("viewportPlaybackButton");
-    playButton->setIcon(styling::icon(styling::Icon::Play, "#5EBB78"));
+    playButton->setIcon(styling::icon(styling::Icon::Play, "#849589"));
     playButton->setToolTip("Play");
     pauseButton = new QToolButton(toolbar);
     pauseButton->setObjectName("viewportPlaybackButton");
-    pauseButton->setIcon(styling::icon(styling::Icon::Pause, "#D9A441"));
+    pauseButton->setIcon(styling::icon(styling::Icon::Pause, "#A1957D"));
     pauseButton->setToolTip("Pause");
     stepButton = new QToolButton(toolbar);
     stepButton->setObjectName("viewportPlaybackButton");
     stepButton->setIcon(
-        styling::icon(styling::Icon::SkipForward, "#4CB7D8"));
+        styling::icon(styling::Icon::SkipForward, "#7E929C"));
     stepButton->setToolTip("Step one frame");
     stopButton = new QToolButton(toolbar);
     stopButton->setObjectName("viewportPlaybackButton");
-    stopButton->setIcon(styling::icon(styling::Icon::Stop, "#D86470"));
+    stopButton->setIcon(styling::icon(styling::Icon::Stop, "#A17F7F"));
     stopButton->setToolTip("Stop and restore the scene");
     reloadButton = new QToolButton(toolbar);
     reloadButton->setObjectName("viewportPlaybackButton");
     reloadButton->setIcon(
-        styling::icon(styling::Icon::ArrowCounterClockwise, "#4C8DFF"));
+        styling::icon(styling::Icon::ArrowCounterClockwise, "#71889A"));
     reloadButton->setToolTip("Reload runtime");
     playButton->setShortcut(QKeySequence("Ctrl+P"));
     pauseButton->setShortcut(QKeySequence("Ctrl+Shift+P"));
@@ -72,8 +72,8 @@ ViewportTools::ViewportTools(ViewportPanel *viewport,
         styling::Icon::CursorClick, styling::Icon::ArrowsOutCardinal,
         styling::Icon::ArrowClockwise, styling::Icon::BoundingBox};
     const QList<QColor> transformColors{
-        QColor("#4CB7D8"), QColor("#5EBB78"), QColor("#D9A441"),
-        QColor("#4C8DFF")};
+        QColor("#7E929C"), QColor("#849589"), QColor("#A1957D"),
+        QColor("#71889A")};
     for (int index = 0; index < transformNames.size(); ++index) {
         auto *button = new QToolButton(toolbar);
         button->setObjectName("viewportModeButton");
@@ -96,7 +96,7 @@ ViewportTools::ViewportTools(ViewportPanel *viewport,
     tools->addSpacing(10);
     spaceButton = new QToolButton(toolbar);
     spaceButton->setObjectName("viewportOptionButton");
-    spaceButton->setIcon(styling::icon(styling::Icon::Globe, "#4CB7D8"));
+    spaceButton->setIcon(styling::icon(styling::Icon::Globe, "#7E929C"));
     spaceButton->setToolTip("World transform space · Shift+T");
     tools->addWidget(spaceButton);
 
@@ -135,7 +135,7 @@ ViewportTools::ViewportTools(ViewportPanel *viewport,
     auto *fpsButton = new QToolButton(toolbar);
     fpsButton->setObjectName("viewportOptionButton");
     fpsButton->setIcon(
-        styling::icon(styling::Icon::Monitor, "#5EBB78"));
+        styling::icon(styling::Icon::Monitor, "#849589"));
     fpsButton->setCheckable(true);
     fpsButton->setChecked(true);
     fpsButton->setToolTip("Toggle frame rate");
@@ -178,7 +178,7 @@ ViewportTools::ViewportTools(ViewportPanel *viewport,
             [this](bool local) {
                 spaceButton->setIcon(styling::icon(
                     local ? styling::Icon::Cube : styling::Icon::Globe,
-                    local ? QColor("#4C8DFF") : QColor("#4CB7D8")));
+                    local ? QColor("#71889A") : QColor("#7E929C")));
                 spaceButton->setToolTip(
                     local ? "Local transform space · Shift+T"
                           : "World transform space · Shift+T");

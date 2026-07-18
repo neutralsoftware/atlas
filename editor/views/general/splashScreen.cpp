@@ -112,8 +112,8 @@ SplashScreen::SplashScreen(QWidget *parent)
     background: transparent;
 }
 #splashCard {
-    background: #111720;
-    border: 1px solid #344156;
+    background: #202224;
+    border: 1px solid #494D52;
     border-radius: 18px;
 }
 #splashTitle {
@@ -124,7 +124,7 @@ SplashScreen::SplashScreen(QWidget *parent)
 }
 #splashVersion {
     background: transparent;
-    color: #6BA3FF;
+    color: #8498A8;
     font-size: 14px;
     font-weight: 700;
 }
@@ -142,12 +142,12 @@ SplashScreen::SplashScreen(QWidget *parent)
     font-weight: 550;
 }
 #splashProgress {
-    background: #202A38;
+    background: #34373A;
     border: none;
     border-radius: 2px;
 }
 #splashProgress::chunk {
-    background: #4C8DFF;
+    background: #71889A;
     border-radius: 2px;
 }
 #splashWarning {

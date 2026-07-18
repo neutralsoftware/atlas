@@ -44,24 +44,24 @@ constexpr int ObjectTypeRole = Qt::UserRole + 2;
 QIcon hierarchyIcon(QWidget *, const QString &type) {
     const QString normalized = type.toLower();
     if (normalized == "scene")
-        return styling::icon(styling::Icon::CubeFocus, "#4CB7D8");
+        return styling::icon(styling::Icon::CubeFocus, "#7E929C");
     if (normalized == "compound" || normalized == "group")
         return styling::icon(styling::Icon::Folder, "#8490A4");
     if (normalized == "camera")
-        return styling::icon(styling::Icon::Camera, "#D9825B");
+        return styling::icon(styling::Icon::Camera, "#9E897D");
     if (normalized == "environment")
-        return styling::icon(styling::Icon::Globe, "#4CB7D8");
+        return styling::icon(styling::Icon::Globe, "#7E929C");
     if (normalized.contains("light") || normalized == "sun")
-        return styling::icon(styling::Icon::Lightbulb, "#D9A441");
+        return styling::icon(styling::Icon::Lightbulb, "#A1957D");
     if (normalized == "terrain" || normalized == "landscape")
-        return styling::icon(styling::Icon::Mountains, "#5EBB78");
+        return styling::icon(styling::Icon::Mountains, "#849589");
     if (normalized == "particleemitter" || normalized == "particles")
-        return styling::icon(styling::Icon::Sparkle, "#6BA3FF");
+        return styling::icon(styling::Icon::Sparkle, "#8498A8");
     if (normalized == "model")
-        return styling::icon(styling::Icon::Cube, "#4CB7D8");
+        return styling::icon(styling::Icon::Cube, "#7E929C");
     if (normalized == "sphere")
-        return styling::icon(styling::Icon::Sphere, "#6BA3FF");
-    return styling::icon(styling::Icon::Cube, "#6BA3FF");
+        return styling::icon(styling::Icon::Sphere, "#8498A8");
+    return styling::icon(styling::Icon::Cube, "#8498A8");
 }
 
 QString objectSignature(const QJsonArray &objects) {
@@ -94,7 +94,7 @@ HierarchyPanel::HierarchyPanel(ViewportPanel *viewport, QWidget *parent)
 
     addButton = new QToolButton(toolbar);
     addButton->setObjectName("panelAddButton");
-    addButton->setIcon(styling::icon(styling::Icon::Plus, "#6BA3FF"));
+    addButton->setIcon(styling::icon(styling::Icon::Plus, "#8498A8"));
     addButton->setText("Add");
     addButton->setToolButtonStyle(Qt::ToolButtonTextBesideIcon);
     addButton->setPopupMode(QToolButton::InstantPopup);
@@ -432,15 +432,15 @@ void HierarchyPanel::showContextMenu(const QPoint &position) {
     }
     if (index.isValid() && selectedObjectId() >= 0) {
         menu.addSeparator();
-        menu.addAction(styling::icon(styling::Icon::Crosshair, "#4CB7D8"),
+        menu.addAction(styling::icon(styling::Icon::Crosshair, "#7E929C"),
                        "Focus", this, &HierarchyPanel::focusSelectedObject);
-        menu.addAction(styling::icon(styling::Icon::File, "#6BA3FF"),
+        menu.addAction(styling::icon(styling::Icon::File, "#8498A8"),
                        "Rename", this, &HierarchyPanel::renameSelectedObject);
-        menu.addAction(styling::icon(styling::Icon::TreeStructure, "#5EBB78"),
+        menu.addAction(styling::icon(styling::Icon::TreeStructure, "#849589"),
                        "Move to Scene Root", this,
                        &HierarchyPanel::moveSelectedObjectToRoot);
         menu.addSeparator();
-        menu.addAction(styling::icon(styling::Icon::Trash, "#D86470"),
+        menu.addAction(styling::icon(styling::Icon::Trash, "#A17F7F"),
                        "Delete", this, &HierarchyPanel::deleteSelectedObject);
     }
     menu.exec(treeView->viewport()->mapToGlobal(position));

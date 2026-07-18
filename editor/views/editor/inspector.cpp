@@ -174,32 +174,32 @@ bool isColorProperty(const QString &name, const QJsonArray &array) {
 QIcon inspectorIcon(QWidget *, const QString &type) {
     const QString normalized = type.toLower();
     if (normalized == "folder")
-        return styling::icon(styling::Icon::Folder, "#4CB7D8");
+        return styling::icon(styling::Icon::Folder, "#7E929C");
     if (normalized.contains("camera"))
-        return styling::icon(styling::Icon::Camera, "#D9825B");
+        return styling::icon(styling::Icon::Camera, "#9E897D");
     if (normalized.contains("environment") ||
         normalized.contains("atmosphere"))
-        return styling::icon(styling::Icon::Globe, "#4CB7D8");
+        return styling::icon(styling::Icon::Globe, "#7E929C");
     if (normalized.contains("light") || normalized == "sun")
-        return styling::icon(styling::Icon::Lightbulb, "#D9A441");
+        return styling::icon(styling::Icon::Lightbulb, "#A1957D");
     if (normalized.contains("terrain"))
-        return styling::icon(styling::Icon::Mountains, "#5EBB78");
+        return styling::icon(styling::Icon::Mountains, "#849589");
     if (normalized.contains("particle"))
-        return styling::icon(styling::Icon::Sparkle, "#6BA3FF");
+        return styling::icon(styling::Icon::Sparkle, "#8498A8");
     if (normalized.contains("audio") || normalized == "wav" ||
         normalized == "mp3" || normalized == "ogg" ||
         normalized == "flac")
-        return styling::icon(styling::Icon::MusicNote, "#5EBB78");
+        return styling::icon(styling::Icon::MusicNote, "#849589");
     if (normalized.contains("material"))
-        return styling::icon(styling::Icon::Material, "#D9825B");
+        return styling::icon(styling::Icon::Material, "#9E897D");
     if (normalized.contains("script") || normalized == "ts" ||
         normalized == "js")
-        return styling::icon(styling::Icon::FileCode, "#4CB7D8");
+        return styling::icon(styling::Icon::FileCode, "#7E929C");
     if (normalized.contains("rigidbody") || normalized.contains("joint"))
-        return styling::icon(styling::Icon::Wrench, "#D9A441");
+        return styling::icon(styling::Icon::Wrench, "#A1957D");
     if (normalized == "sphere")
-        return styling::icon(styling::Icon::Sphere, "#6BA3FF");
-    return styling::icon(styling::Icon::Cube, "#6BA3FF");
+        return styling::icon(styling::Icon::Sphere, "#8498A8");
+    return styling::icon(styling::Icon::Cube, "#8498A8");
 }
 
 QString componentTitle(const QString &type) {
@@ -611,7 +611,7 @@ void addSyncPicker(QHBoxLayout *layout, const QString &path,
     auto *button = new QToolButton(parent);
     button->setObjectName("inspectorSyncButton");
     button->setIcon(
-        styling::icon(styling::Icon::ArrowCounterClockwise, "#5EBB78"));
+        styling::icon(styling::Icon::ArrowCounterClockwise, "#849589"));
     button->setToolTip("Match this value with another property");
     button->setPopupMode(QToolButton::InstantPopup);
     auto showMatch = [button, valueEditor](const QString &name) {
@@ -792,12 +792,8 @@ QWidget *colorField(const QJsonArray &value, const PropertyChanged &changed,
     auto *text = new QLineEdit(field);
     text->setObjectName("inspectorColorText");
     auto updateDisplay = [swatch, text](const QColor &next) {
-        swatch->setStyleSheet(
-            QStringLiteral("background-color: rgba(%1,%2,%3,%4);")
-                .arg(next.red())
-                .arg(next.green())
-                .arg(next.blue())
-                .arg(next.alpha()));
+        swatch->setIcon(styling::colorSwatch(next, QSize(22, 14)));
+        swatch->setIconSize(QSize(22, 14));
         text->setText(next.name(QColor::HexArgb).toUpper());
     };
     updateDisplay(color);
@@ -975,7 +971,7 @@ void addPropertyRows(QVBoxLayout *layout, const QJsonObject &properties,
                 auto *add = new QToolButton(heading);
                 add->setObjectName("inspectorArrayButton");
                 add->setIcon(
-                    styling::icon(styling::Icon::Plus, "#6BA3FF"));
+                    styling::icon(styling::Icon::Plus, "#8498A8"));
                 add->setToolTip("Add item");
                 add->setToolTip(QStringLiteral("Add %1").arg(humanize(key)));
                 headingLayout->addWidget(title, 1);
@@ -1007,7 +1003,7 @@ void addPropertyRows(QVBoxLayout *layout, const QJsonObject &properties,
                     auto *remove = new QToolButton(itemHeading);
                     remove->setObjectName("inspectorArrayButton");
                     remove->setIcon(
-                        styling::icon(styling::Icon::Trash, "#D86470"));
+                        styling::icon(styling::Icon::Trash, "#A17F7F"));
                     remove->setToolTip("Remove item");
                     remove->setToolTip("Remove");
                     itemHeadingLayout->addWidget(itemTitle, 1);
@@ -1169,7 +1165,7 @@ QFrame *componentCard(const QString &title, const QJsonObject &properties,
         auto *removeButton = new QToolButton(headerRow);
         removeButton->setObjectName("inspectorComponentRemoveButton");
         removeButton->setIcon(
-            styling::icon(styling::Icon::Trash, "#D86470"));
+            styling::icon(styling::Icon::Trash, "#A17F7F"));
         removeButton->setToolTip(QStringLiteral("Remove %1").arg(title));
         headerLayout->addWidget(removeButton);
         QObject::connect(removeButton, &QToolButton::clicked, card, remove);
@@ -1514,7 +1510,7 @@ void InspectorPanel::showObject(const QJsonObject &object) {
                 styling::Icon::Play, styling::Icon::Pause,
                 styling::Icon::Stop};
             const QList<QColor> audioColors{
-                QColor("#5EBB78"), QColor("#D9A441"), QColor("#D86470")};
+                QColor("#849589"), QColor("#A1957D"), QColor("#A17F7F")};
             for (int actionIndex = 0; actionIndex < audioActions.size();
                  ++actionIndex) {
                 const QString &action = audioActions.at(actionIndex);
@@ -1538,7 +1534,7 @@ void InspectorPanel::showObject(const QJsonObject &object) {
     auto *addComponent = new QToolButton(content);
     addComponent->setObjectName("inspectorAddComponentButton");
     addComponent->setIcon(
-        styling::icon(styling::Icon::Plus, "#6BA3FF"));
+        styling::icon(styling::Icon::Plus, "#8498A8"));
     addComponent->setText("Add Component");
     addComponent->setToolButtonStyle(Qt::ToolButtonTextBesideIcon);
     addComponent->setPopupMode(QToolButton::InstantPopup);

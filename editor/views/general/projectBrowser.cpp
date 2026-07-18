@@ -126,15 +126,15 @@ public:
         templateGroup->setExclusive(true);
         auto* pbr = new TemplateCard(
             "PBR", "Deferred physically based rendering for most 3D projects.",
-            styling::Icon::Cube, "#6BA3FF", this);
+            styling::Icon::Cube, "#8498A8", this);
         auto* ddgi = new TemplateCard(
             "PBR + DDGI",
             "PBR with dynamic diffuse global illumination enabled.",
-            styling::Icon::Sun, "#D9A441", this);
+            styling::Icon::Sun, "#A1957D", this);
         auto* pathTracing = new TemplateCard(
             "Path Tracing",
             "Progressive ray-traced lighting for high-fidelity scenes.",
-            styling::Icon::Aperture, "#D9825B", this);
+            styling::Icon::Aperture, "#9E897D", this);
         templateGroup->addButton(pbr->button(),
                                  static_cast<int>(AtlasProjectTemplate::Pbr));
         templateGroup->addButton(
@@ -173,7 +173,7 @@ public:
         auto* browse = new QPushButton("Browse…", this);
         browse->setProperty("secondary", true);
         browse->setIcon(
-            styling::icon(styling::Icon::FolderOpen, "#4CB7D8"));
+            styling::icon(styling::Icon::FolderOpen, "#7E929C"));
         locationLayout->addWidget(browse);
         fields->addLayout(locationLayout);
         root->addLayout(fields);
@@ -259,7 +259,7 @@ public:
         auto* projectIcon = new QLabel(this);
         projectIcon->setObjectName("projectIcon");
         projectIcon->setPixmap(
-            styling::icon(styling::Icon::GameController, "#6BA3FF")
+            styling::icon(styling::Icon::GameController, "#8498A8")
                 .pixmap(30, 30));
         projectIcon->setFixedSize(36, 36);
         projectIcon->setAlignment(Qt::AlignCenter);
@@ -354,7 +354,7 @@ void ProjectBrowser::setupUi() {
     auto* projectsNav = new QPushButton("Projects", sidebar);
     projectsNav->setObjectName("projectNavSelected");
     projectsNav->setIcon(
-        styling::icon(styling::Icon::SquaresFour, "#6BA3FF"));
+        styling::icon(styling::Icon::SquaresFour, "#8498A8"));
     projectsNav->setEnabled(false);
     sidebarLayout->addWidget(projectsNav);
     sidebarLayout->addStretch();
@@ -382,7 +382,7 @@ void ProjectBrowser::setupUi() {
     auto* openButton = new QPushButton("Open existing", content);
     openButton->setProperty("secondary", true);
     openButton->setIcon(
-        styling::icon(styling::Icon::FolderOpen, "#4CB7D8"));
+        styling::icon(styling::Icon::FolderOpen, "#7E929C"));
     headingLayout->addWidget(openButton);
     auto* createButton = new QPushButton("New project", content);
     createButton->setObjectName("primaryAction");
@@ -540,16 +540,16 @@ void ProjectBrowser::showProjectMenu(const QPoint& position) {
 
     QMenu menu(this);
     QAction* open = menu.addAction(
-        styling::icon(styling::Icon::GameController, "#6BA3FF"),
+        styling::icon(styling::Icon::GameController, "#8498A8"),
         "Open project");
     open->setEnabled(available);
     QAction* reveal = menu.addAction(
-        styling::icon(styling::Icon::FolderOpen, "#4CB7D8"),
+        styling::icon(styling::Icon::FolderOpen, "#7E929C"),
         "Show in Finder");
     reveal->setEnabled(QFileInfo::exists(QFileInfo(projectFile).absolutePath()));
     menu.addSeparator();
     QAction* remove = menu.addAction(
-        styling::icon(styling::Icon::Trash, "#D86470"),
+        styling::icon(styling::Icon::Trash, "#A17F7F"),
         "Remove from list");
     QAction* selected = menu.exec(projectList->viewport()->mapToGlobal(position));
     if (selected == open) {
