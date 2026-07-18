@@ -421,6 +421,7 @@ pub fn pack(cmd: Commands) {
         .unwrap_or_else(|| config.project.name.clone());
 
     let app_dir = Path::new("dist");
+    println!("{}", "Preparing project package...".cyan());
     if app_dir.exists() {
         if let Err(error) = fs::remove_dir_all(app_dir) {
             eprintln!("{}\n{error}", "atlas pack failed".red().bold());
@@ -450,6 +451,7 @@ pub fn pack(cmd: Commands) {
         }
 
         let atlas_binary = macos_dir.join("atlas");
+        println!("{}", "Bundling the Atlas runtime...".cyan());
         if let Err(error) = fs::copy(&runtime.atlas, &atlas_binary) {
             eprintln!("{}\n{error}", "atlas pack failed".red().bold());
             std::process::exit(1);
@@ -463,6 +465,7 @@ pub fn pack(cmd: Commands) {
             eprintln!("{}\n{error}", "atlas pack failed".red().bold());
             std::process::exit(1);
         }
+        println!("{}", "Copying project resources...".cyan());
         if let Err(error) = copy_project(&project_root, &resources_dir.join("Project")) {
             eprintln!("{}\n{error}", "atlas pack failed".red().bold());
             std::process::exit(1);

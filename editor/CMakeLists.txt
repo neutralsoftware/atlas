@@ -18,6 +18,31 @@ set(ATLAS_GENERATED_THEME_HEADER
 
 find_package(Qt6 REQUIRED COMPONENTS Widgets)
 find_package(Python3 REQUIRED COMPONENTS Interpreter)
+find_program(ATLAS_CARGO_EXECUTABLE cargo REQUIRED)
+
+file(GLOB_RECURSE ATLAS_CLI_SOURCES CONFIGURE_DEPENDS
+        "${CMAKE_SOURCE_DIR}/cli/src/*.rs"
+)
+
+set(ATLAS_EDITOR_CLI "${CMAKE_SOURCE_DIR}/target/debug/atlas")
+
+add_custom_command(
+        OUTPUT "${ATLAS_EDITOR_CLI}"
+        COMMAND
+        "${CMAKE_COMMAND}" -E env CARGO_TERM_COLOR=always
+        "${ATLAS_CARGO_EXECUTABLE}" build
+        --manifest-path "${CMAKE_SOURCE_DIR}/cli/Cargo.toml"
+        DEPENDS
+        "${CMAKE_SOURCE_DIR}/Cargo.toml"
+        "${CMAKE_SOURCE_DIR}/Cargo.lock"
+        "${CMAKE_SOURCE_DIR}/cli/Cargo.toml"
+        ${ATLAS_CLI_SOURCES}
+        WORKING_DIRECTORY "${CMAKE_SOURCE_DIR}"
+        COMMENT "Building Atlas CLI for editor project export"
+        VERBATIM
+)
+
+add_custom_target(atlas_editor_cli DEPENDS "${ATLAS_EDITOR_CLI}")
 
 # Compile all Qt themes into one header file
 
@@ -51,7 +76,14 @@ add_subdirectory(
 )
 
 qt_add_executable(AtlasEditor ${EDITOR_FILES})
-add_dependencies(AtlasEditor generate_atlas_themes)
+add_dependencies(AtlasEditor generate_atlas_themes atlas_editor_cli)
+
+add_custom_command(TARGET AtlasEditor POST_BUILD
+        COMMAND "${CMAKE_COMMAND}" -E copy_if_different
+        "${ATLAS_EDITOR_CLI}"
+        "$<TARGET_FILE_DIR:AtlasEditor>/atlas"
+        VERBATIM
+)
 
 qt_add_resources(AtlasEditor "atlas_editor_assets"
         PREFIX "/editor"

@@ -109,28 +109,17 @@ bool copyExportPath(const QString &sourcePath, const QString &destinationPath,
 }
 
 QString atlasCliPath() {
-    const QString installed = QStandardPaths::findExecutable("atlas");
-    if (!installed.isEmpty())
-        return installed;
     const QDir applicationDirectory(QCoreApplication::applicationDirPath());
     const QStringList candidates{
-        applicationDirectory.filePath("atlas"),
+        applicationDirectory.filePath("../../target/debug/atlas"),
         applicationDirectory.filePath("../../target/release/atlas"),
-        applicationDirectory.filePath("../../target/debug/atlas")};
+        applicationDirectory.filePath("atlas")};
     for (const QString &candidate : candidates) {
         const QFileInfo info(candidate);
         if (info.isFile() && info.isExecutable())
             return info.absoluteFilePath();
     }
-    return {};
-}
-
-QString atlasCliManifestPath() {
-    const QDir applicationDirectory(QCoreApplication::applicationDirPath());
-    const QString candidate =
-        applicationDirectory.filePath("../../cli/Cargo.toml");
-    return QFileInfo(candidate).isFile() ? QFileInfo(candidate).absoluteFilePath()
-                                         : QString();
+    return QStandardPaths::findExecutable("atlas");
 }
 
 QString tomlQuoted(QString value) {
@@ -248,7 +237,9 @@ void EditorWindow::setupMenus() {
             if (plainShift) {
                 action->setProperty("atlasShortcut", shortcut);
             } else {
-                action->setShortcut(QKeySequence(shortcut));
+                QString nativeShortcut = shortcut;
+                nativeShortcut.replace("Meta+", "Ctrl+");
+                action->setShortcut(QKeySequence(nativeShortcut));
                 action->setShortcutContext(Qt::ApplicationShortcut);
             }
         }
@@ -617,7 +608,7 @@ void EditorWindow::setupDocks() {
                     dock->raise();
                 });
             action->setShortcut(QKeySequence(
-                QStringLiteral("Meta+%1").arg(index + 1)));
+                QStringLiteral("Ctrl+%1").arg(index + 1)));
             action->setShortcutContext(Qt::ApplicationShortcut);
         }
     }
@@ -941,7 +932,7 @@ void EditorWindow::showExportDialog() {
     form->addRow("Destination", outputRow);
     layout->addLayout(form);
     auto *summary = new QLabel(
-        "Atlas will save the current scene, build the selected configuration, and package the project resources.",
+        "Atlas will save the current scene and package the configured runtime with the project resources.",
         &dialog);
     summary->setWordWrap(true);
     layout->addWidget(summary);
@@ -1027,17 +1018,8 @@ void EditorWindow::showExportDialog() {
     connect(exportButton, &QPushButton::clicked, &dialog,
             [this, process, output, platform, configuration, backend, progress,
              exportButton, revealButton, log] {
-        QString program;
+        const QString program = atlasCliPath();
         QStringList arguments;
-        const QString manifest = atlasCliManifestPath();
-        const QString cargo = QStandardPaths::findExecutable("cargo");
-        if (!manifest.isEmpty() && !cargo.isEmpty()) {
-            program = cargo;
-            arguments << "run" << "--quiet" << "--manifest-path" << manifest
-                      << "--";
-        } else {
-            program = atlasCliPath();
-        }
         if (program.isEmpty()) {
             QMessageBox::warning(
                 this, "Export Project",
