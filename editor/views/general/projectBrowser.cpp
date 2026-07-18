@@ -313,9 +313,15 @@ void ProjectBrowser::setupUi() {
             .scaled(brandIcon->size(), Qt::KeepAspectRatio,
                     Qt::SmoothTransformation));
     brandLayout->addWidget(brandIcon);
-    auto* brand = new QLabel("Atlas", sidebar);
+    auto* brandCopy = new QVBoxLayout();
+    brandCopy->setSpacing(0);
+    auto* brand = new QLabel("Atlas Engine", sidebar);
     brand->setObjectName("projectBrand");
-    brandLayout->addWidget(brand);
+    brandCopy->addWidget(brand);
+    auto* brandVersion = new QLabel(QStringLiteral(ATLAS_VERSION), sidebar);
+    brandVersion->setObjectName("projectSidebarVersion");
+    brandCopy->addWidget(brandVersion);
+    brandLayout->addLayout(brandCopy);
     brandLayout->addStretch();
     sidebarLayout->addLayout(brandLayout);
 
@@ -326,9 +332,6 @@ void ProjectBrowser::setupUi() {
     sidebarLayout->addWidget(projectsNav);
     sidebarLayout->addStretch();
 
-    auto* version = new QLabel(QStringLiteral(ATLAS_VERSION), sidebar);
-    version->setObjectName("projectSidebarVersion");
-    sidebarLayout->addWidget(version);
     rootLayout->addWidget(sidebar);
 
     auto* content = new QWidget(root);

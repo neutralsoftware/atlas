@@ -1980,6 +1980,7 @@ void Window::setEditorControlsEnabled(bool enabled) {
         editorKeyboardTransform = false;
         editorActiveGizmoAxis = 0;
         editorCameraDragging = false;
+        editorCameraPanning = false;
         editorOrbitVelocityX = 0.0f;
         editorOrbitVelocityY = 0.0f;
         editorZoomVelocity = 0.0f;
@@ -1993,6 +1994,7 @@ void Window::setEditorSimulationEnabled(bool enabled) {
     editorKeyboardTransform = false;
     editorActiveGizmoAxis = 0;
     editorCameraDragging = false;
+    editorCameraPanning = false;
     editorOrbitVelocityX = 0.0f;
     editorOrbitVelocityY = 0.0f;
     editorZoomVelocity = 0.0f;
@@ -2215,6 +2217,19 @@ void Window::editorPointerEvent(int action, float x, float y, int button,
     if (editorKeyboardTransform) {
         if (action == 1)
             updateEditorKeyboardTransform(x, y, effectiveScale);
+        return;
+    }
+
+    if (button == 4) {
+        if (action == 0) {
+            editorCameraPanning = true;
+            editorCameraLastX = x;
+            editorCameraLastY = y;
+        } else if (action == 1 && editorCameraPanning) {
+            updateEditorCameraPan(x, y, effectiveScale);
+        } else if (action == 2) {
+            editorCameraPanning = false;
+        }
         return;
     }
 
@@ -2820,6 +2835,39 @@ void Window::updateEditorCameraDrag(float x, float y, float scale) {
     applyEditorOrbitDelta(yawDelta, pitchDelta);
     editorOrbitVelocityX = yawDelta * 45.0f;
     editorOrbitVelocityY = pitchDelta * 45.0f;
+}
+
+void Window::updateEditorCameraPan(float x, float y, float scale) {
+    if (camera == nullptr)
+        return;
+    const float effectiveScale = scale > 0.0f ? scale : 1.0f;
+    const float dx = (x - editorCameraLastX) / effectiveScale;
+    const float dy = (y - editorCameraLastY) / effectiveScale;
+    editorCameraLastX = x;
+    editorCameraLastY = y;
+    glm::vec3 position = camera->position.toGlm();
+    glm::vec3 target = camera->target.toGlm();
+    glm::vec3 front = target - position;
+    if (glm::length(front) < 0.000001f)
+        front = camera->getFrontVector().toGlm();
+    front = glm::normalize(front);
+    glm::vec3 right = glm::cross(front, glm::vec3(0.0f, 1.0f, 0.0f));
+    if (glm::length(right) < 0.000001f)
+        right = glm::vec3(1.0f, 0.0f, 0.0f);
+    else
+        right = glm::normalize(right);
+    const glm::vec3 up = glm::normalize(glm::cross(right, front));
+    const float distance = std::max(0.1f, glm::length(target - position));
+    const float sensitivity = distance * 0.0018f;
+    const glm::vec3 movement =
+        -right * dx * sensitivity - up * dy * sensitivity;
+    camera->position = Position3d::fromGlm(position + movement);
+    camera->target = Position3d::fromGlm(target + movement);
+    if (editorOrbitPivotInitialized)
+        editorOrbitPivot =
+            Position3d::fromGlm(editorOrbitPivot.toGlm() + movement);
+    shadowMapsDirty = true;
+    ssaoMapsDirty = true;
 }
 
 void Window::applyEditorOrbitDelta(float yawDelta, float pitchDelta) {

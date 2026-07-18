@@ -907,6 +907,7 @@ class Window {
     int hitTestEditorGizmoAxis(float x, float y, float scale);
     void updateEditorDrag(float x, float y, float scale);
     void updateEditorCameraDrag(float x, float y, float scale);
+    void updateEditorCameraPan(float x, float y, float scale);
     void updateEditorCameraMovement(float deltaTime);
     void applyEditorOrbitDelta(float yawDelta, float pitchDelta);
     void applyEditorZoomDelta(float scrollAmount);
@@ -1009,6 +1010,7 @@ class Window {
     float editorKeyboardAccumulatedX = 0.0f;
     float editorKeyboardAccumulatedY = 0.0f;
     bool editorCameraDragging = false;
+    bool editorCameraPanning = false;
     int editorActiveGizmoAxis = 0;
     float editorDragStartX = 0.0f;
     float editorDragStartY = 0.0f;

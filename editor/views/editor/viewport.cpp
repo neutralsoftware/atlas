@@ -401,7 +401,9 @@ void ViewportPanel::mousePressEvent(QMouseEvent *event) {
         event->accept();
         return;
     }
-    if (event->button() == Qt::LeftButton) {
+    cameraPanGesture = event->button() == Qt::LeftButton &&
+                       event->modifiers().testFlag(Qt::ShiftModifier);
+    if (event->button() == Qt::LeftButton && !cameraPanGesture) {
         leftPointerMoved = false;
         const int selected = selectedRuntimeObjectId();
         transformUndoBefore =
@@ -412,21 +414,26 @@ void ViewportPanel::mousePressEvent(QMouseEvent *event) {
                     .toArray(),
                 selected);
     }
+    const int button = cameraPanGesture
+                           ? static_cast<int>(MouseButton::Button4)
+                           : runtimeMouseButton(event->button());
     sendPointerEvent(0, static_cast<float>(event->position().x()),
-                     static_cast<float>(event->position().y()),
-                     runtimeMouseButton(event->button()));
-    if (event->button() == Qt::LeftButton && runtimeContext != nullptr) {
+                     static_cast<float>(event->position().y()), button);
+    if (event->button() == Qt::LeftButton && !cameraPanGesture &&
+        runtimeContext != nullptr) {
         emit runtimeObjectActivated(runtimeContext->selectedObjectId());
     }
     event->accept();
 }
 
 void ViewportPanel::mouseMoveEvent(QMouseEvent *event) {
-    if (event->buttons().testFlag(Qt::LeftButton))
+    if (event->buttons().testFlag(Qt::LeftButton) && !cameraPanGesture)
         leftPointerMoved = true;
+    const int button = cameraPanGesture
+                           ? static_cast<int>(MouseButton::Button4)
+                           : activeRuntimeMouseButton(event->buttons());
     sendPointerEvent(1, static_cast<float>(event->position().x()),
-                     static_cast<float>(event->position().y()),
-                     activeRuntimeMouseButton(event->buttons()));
+                     static_cast<float>(event->position().y()), button);
     if (keyboardTransformActive) {
         const QRect bounds(mapToGlobal(QPoint(0, 0)), size());
         QPoint cursor = event->globalPosition().toPoint();
@@ -452,10 +459,13 @@ void ViewportPanel::mouseMoveEvent(QMouseEvent *event) {
 }
 
 void ViewportPanel::mouseReleaseEvent(QMouseEvent *event) {
+    const int button = cameraPanGesture
+                           ? static_cast<int>(MouseButton::Button4)
+                           : runtimeMouseButton(event->button());
     sendPointerEvent(2, static_cast<float>(event->position().x()),
-                     static_cast<float>(event->position().y()),
-                     runtimeMouseButton(event->button()));
-    if (event->button() == Qt::LeftButton && leftPointerMoved &&
+                     static_cast<float>(event->position().y()), button);
+    if (event->button() == Qt::LeftButton && !cameraPanGesture &&
+        leftPointerMoved &&
         runtimeContext != nullptr && selectedRuntimeObjectId() >= 0) {
         const int selected = selectedRuntimeObjectId();
         runtimeContext->saveCurrentScene();
@@ -466,6 +476,7 @@ void ViewportPanel::mouseReleaseEvent(QMouseEvent *event) {
         emit runtimeObjectActivated(selected);
     }
     leftPointerMoved = false;
+    cameraPanGesture = false;
     event->accept();
 }
 
@@ -1368,7 +1379,8 @@ void ViewportPanel::finishKeyboardTransform(bool commit) {
     keyboardTransformMode = 0;
     keyboardTransformAxes = 7;
     transformUndoBefore = {};
-    emit transformHintChanged("G Move · R Rotate · S Scale");
+    emit transformHintChanged(
+        "Tab Frame · Shift+Drag Pan · G Move · R Rotate · S Scale");
 }
 
 void ViewportPanel::pushTransformUndo(int objectId,

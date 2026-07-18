@@ -87,7 +87,6 @@ private:
     bool restoringLayout = false;
     bool startupQueued = false;
     bool startupComplete = false;
-    qint64 lastShiftPress = 0;
 
     void closeEvent(QCloseEvent* event) override;
     void showEvent(QShowEvent* event) override;

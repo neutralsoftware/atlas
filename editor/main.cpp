@@ -28,6 +28,7 @@
 #include "editor/views/splashScreen.h"
 
 int main(int argc, char **argv) {
+    QApplication::setAttribute(Qt::AA_DontShowIconsInMenus);
     QApplication app(argc, argv);
     app.setApplicationName("Atlas Engine");
     app.setApplicationDisplayName("Atlas Engine");

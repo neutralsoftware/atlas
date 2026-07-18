@@ -4,7 +4,6 @@
 
 #include <QActionGroup>
 #include <QComboBox>
-#include <QDirIterator>
 #include <QFileInfo>
 #include <QHBoxLayout>
 #include <QLabel>
@@ -31,6 +30,7 @@ ViewportTools::ViewportTools(ViewportPanel *viewport,
     sceneTabs->setExpanding(false);
     sceneTabs->setMovable(true);
     sceneTabs->setTabsClosable(true);
+    sceneTabs->setVisible(false);
     layout->addWidget(sceneTabs);
 
     auto *toolbar = new QWidget(this);
@@ -126,7 +126,8 @@ ViewportTools::ViewportTools(ViewportPanel *viewport,
 
     layout->addWidget(toolbar);
     layout->addWidget(viewport, 1);
-    shortcutHint = new QLabel("G Move · R Rotate · S Scale", this);
+    shortcutHint = new QLabel(
+        "Tab Frame · Shift+Drag Pan · G Move · R Rotate · S Scale", this);
     shortcutHint->setObjectName("viewportShortcutHint");
     shortcutHint->setTextInteractionFlags(Qt::NoTextInteraction);
     layout->addWidget(shortcutHint);
@@ -173,10 +174,7 @@ ViewportTools::ViewportTools(ViewportPanel *viewport,
             this->viewport->openRuntimeScene(scenePaths.at(index));
     });
     connect(sceneTabs, &QTabBar::tabCloseRequested, this, [this](int index) {
-        if (sceneTabs->count() <= 1 || index < 0 || index >= scenePaths.size())
-            return;
-        scenePaths.removeAt(index);
-        sceneTabs->removeTab(index);
+        closeSceneTab(index);
     });
     connect(viewport, &ViewportPanel::sceneOpened, this,
             &ViewportTools::openSceneTab);
@@ -187,29 +185,15 @@ ViewportTools::ViewportTools(ViewportPanel *viewport,
 void ViewportTools::refreshSceneTabs() {
     const QString current = viewport != nullptr ? viewport->currentRuntimeScene()
                                                 : QString();
-    QStringList paths;
-    QDirIterator iterator(projectRoot, {"*.ascene"}, QDir::Files,
-                          QDirIterator::Subdirectories);
-    while (iterator.hasNext())
-        paths.append(QFileInfo(iterator.next()).absoluteFilePath());
-    paths.sort(Qt::CaseInsensitive);
-    const QSignalBlocker blocker(sceneTabs);
-    while (sceneTabs->count() > 0)
-        sceneTabs->removeTab(0);
-    scenePaths = paths;
-    for (const QString &path : scenePaths) {
-        const int index = sceneTabs->addTab(QFileInfo(path).completeBaseName());
-        sceneTabs->setTabToolTip(index, path);
-    }
-    int currentIndex = scenePaths.indexOf(QFileInfo(current).absoluteFilePath());
-    if (currentIndex < 0 && !scenePaths.isEmpty())
-        currentIndex = 0;
-    sceneTabs->setCurrentIndex(currentIndex);
-    sceneTabs->setTabsClosable(sceneTabs->count() > 1);
+    if (!current.trimmed().isEmpty())
+        openSceneTab(current);
+    updateSceneTabs();
 }
 
 void ViewportTools::openSceneTab(const QString &path) {
     const QString absolute = QFileInfo(path).absoluteFilePath();
+    if (path.trimmed().isEmpty() || !QFileInfo(absolute).isFile())
+        return;
     int index = scenePaths.indexOf(absolute);
     if (index < 0) {
         scenePaths.append(absolute);
@@ -218,15 +202,31 @@ void ViewportTools::openSceneTab(const QString &path) {
     }
     const QSignalBlocker blocker(sceneTabs);
     sceneTabs->setCurrentIndex(index);
-    sceneTabs->setTabsClosable(sceneTabs->count() > 1);
+    updateSceneTabs();
 }
 
 void ViewportTools::closeCurrentSceneTab() {
-    if (sceneTabs->count() <= 1)
+    closeSceneTab(sceneTabs->currentIndex());
+}
+
+void ViewportTools::closeSceneTab(int index) {
+    if (index < 0 || index >= scenePaths.size())
         return;
-    const int index = sceneTabs->currentIndex();
+    const QSignalBlocker blocker(sceneTabs);
     scenePaths.removeAt(index);
     sceneTabs->removeTab(index);
+    if (!scenePaths.isEmpty()) {
+        const int next = qMin(index, scenePaths.size() - 1);
+        sceneTabs->setCurrentIndex(next);
+        if (viewport != nullptr)
+            viewport->openRuntimeScene(scenePaths.at(next));
+    }
+    updateSceneTabs();
+}
+
+void ViewportTools::updateSceneTabs() {
+    sceneTabs->setVisible(!scenePaths.isEmpty());
+    sceneTabs->setTabsClosable(!scenePaths.isEmpty());
 }
 
 void ViewportTools::updatePlaybackState(int state) {

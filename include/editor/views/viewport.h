@@ -80,6 +80,7 @@ class ViewportPanel : public QWidget {
     bool openRuntimeScene(const QString &path);
     bool saveRuntimeSceneAs(const QString &path);
     QString currentRuntimeScene() const;
+    QString currentSceneSnapshot() const { return lastSceneSnapshot; }
     int selectedRuntimeObjectId() const;
     bool applyRuntimeMaterial(int id, const QString &path);
     bool applyRuntimeMaterialDirect(int id, const QString &path);
@@ -162,6 +163,7 @@ class ViewportPanel : public QWidget {
     bool shuttingDown = false;
     bool sceneDirty = false;
     bool leftPointerMoved = false;
+    bool cameraPanGesture = false;
     bool keyboardTransformActive = false;
     int keyboardTransformMode = 0;
     int keyboardTransformAxes = 7;

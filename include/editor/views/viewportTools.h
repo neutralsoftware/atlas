@@ -21,6 +21,8 @@ class ViewportTools : public QWidget {
 
   private:
     void updatePlaybackState(int state);
+    void closeSceneTab(int index);
+    void updateSceneTabs();
 
     ViewportPanel *viewport = nullptr;
     QToolButton *playButton = nullptr;
