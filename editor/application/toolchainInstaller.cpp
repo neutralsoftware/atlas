@@ -10,6 +10,7 @@
 #include <QMessageBox>
 #include <QPushButton>
 #include <QSaveFile>
+#include <QSettings>
 #include <QStandardPaths>
 
 namespace {
@@ -133,35 +134,36 @@ bool writeConfig(const ToolchainPaths& toolchain, QString* error) {
     }
     return true;
 }
+
+bool isInstalled(const ToolchainPaths& toolchain) {
+    return filesMatch(toolchain.bundledCli, toolchain.installedCli) &&
+           filesMatch(toolchain.bundledRuntime, toolchain.installedRuntime) &&
+           configMatches(toolchain);
 }
 
-bool ToolchainInstaller::ensureInstalled(QWidget* parent) {
-    const ToolchainPaths toolchain = paths();
-    if (!QFileInfo::exists(toolchain.bundledCli) ||
-        !QFileInfo::exists(toolchain.bundledRuntime))
-        return true;
+bool promptDismissed() {
+    QSettings settings("Neutral Software", "Atlas Engine");
+    return settings.value("toolchain/installationPromptDismissed", false)
+        .toBool();
+}
 
-    const bool installed = filesMatch(toolchain.bundledCli,
-                                      toolchain.installedCli) &&
-                           filesMatch(toolchain.bundledRuntime,
-                                      toolchain.installedRuntime) &&
-                           configMatches(toolchain);
-    if (installed)
-        return true;
+void setPromptDismissed(bool dismissed) {
+    QSettings settings("Neutral Software", "Atlas Engine");
+    settings.setValue("toolchain/installationPromptDismissed", dismissed);
+    settings.sync();
+}
 
-    QMessageBox prompt(parent);
-    prompt.setWindowTitle("Welcome to Atlas Engine");
-    prompt.setIcon(QMessageBox::Information);
-    prompt.setText("Install the Atlas toolchain for this user?");
-    prompt.setInformativeText(
-        "Atlas Engine includes the command-line tools and runtime required to create, run, and export projects. They will be installed in your user Library and do not require administrator access.");
-    auto* installButton = prompt.addButton("Install Toolchain",
-                                           QMessageBox::AcceptRole);
-    prompt.addButton("Not Now", QMessageBox::RejectRole);
-    prompt.setDefaultButton(installButton);
-    prompt.exec();
-    if (prompt.clickedButton() != installButton)
-        return false;
+bool installToolchain(const ToolchainPaths& toolchain, QWidget* parent,
+                      bool reportExistingInstallation) {
+    if (isInstalled(toolchain)) {
+        setPromptDismissed(false);
+        if (reportExistingInstallation) {
+            QMessageBox::information(
+                parent, "Atlas Toolchain Ready",
+                "The bundled Atlas toolchain is already installed for this user.");
+        }
+        return true;
+    }
 
     const QFileInfo cliInfo(toolchain.installedCli);
     const QFileInfo runtimeInfo(toolchain.installedRuntime);
@@ -180,8 +182,54 @@ bool ToolchainInstaller::ensureInstalled(QWidget* parent) {
         return false;
     }
 
+    setPromptDismissed(false);
     QMessageBox::information(
         parent, "Atlas Toolchain Installed",
         "The Atlas toolchain is ready. Projects can now be created, run, and exported from Atlas Engine.");
     return true;
+}
+}
+
+bool ToolchainInstaller::ensureInstalled(QWidget* parent) {
+    const ToolchainPaths toolchain = paths();
+    if (!QFileInfo::exists(toolchain.bundledCli) ||
+        !QFileInfo::exists(toolchain.bundledRuntime))
+        return true;
+
+    if (isInstalled(toolchain)) {
+        setPromptDismissed(false);
+        return true;
+    }
+    if (promptDismissed())
+        return false;
+
+    QMessageBox prompt(parent);
+    prompt.setWindowTitle("Welcome to Atlas Engine");
+    prompt.setIcon(QMessageBox::Information);
+    prompt.setText("Install the Atlas toolchain for this user?");
+    prompt.setInformativeText(
+        "Atlas Engine includes the command-line tools and runtime required to create, run, and export projects. They will be installed in your user Library and do not require administrator access.");
+    auto* installButton = prompt.addButton("Install Toolchain",
+                                           QMessageBox::AcceptRole);
+    prompt.addButton("Not Now", QMessageBox::RejectRole);
+    prompt.setDefaultButton(installButton);
+    prompt.exec();
+    if (prompt.clickedButton() != installButton) {
+        setPromptDismissed(true);
+        return false;
+    }
+
+    return installToolchain(toolchain, parent, false);
+}
+
+bool ToolchainInstaller::install(QWidget* parent) {
+    const ToolchainPaths toolchain = paths();
+    if (!QFileInfo::exists(toolchain.bundledCli) ||
+        !QFileInfo::exists(toolchain.bundledRuntime)) {
+        QMessageBox::warning(
+            parent, "Atlas Toolchain Unavailable",
+            "This copy of Atlas Engine does not include the packaged toolchain.");
+        return false;
+    }
+    return installToolchain(toolchain, parent, true);
 }

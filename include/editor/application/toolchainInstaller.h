@@ -5,6 +5,7 @@ class QWidget;
 
 namespace ToolchainInstaller {
 bool ensureInstalled(QWidget* parent = nullptr);
+bool install(QWidget* parent = nullptr);
 }
 
 #endif
