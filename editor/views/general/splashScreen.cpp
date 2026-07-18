@@ -105,13 +105,13 @@ SplashScreen::SplashScreen(QWidget *parent)
     background: transparent;
 }
 #splashCard {
-    background: #FFFFFF;
+    background: #1F2427;
     border: 1px solid rgba(20, 24, 28, 18);
     border-radius: 40px;
 }
 #splashTitle {
     background: transparent;
-    color: #0B0D0E;
+    color: #FFFFFF;
     font-size: 40px;
     font-weight: 700;
 }
@@ -123,7 +123,7 @@ SplashScreen::SplashScreen(QWidget *parent)
 }
 #splashCompany {
     background: transparent;
-    color: #111416;
+    color: #A1A5A8;
     font-family: "Manrope";
     font-size: 12px;
     font-weight: 650;
@@ -141,7 +141,6 @@ SplashScreen::SplashScreen(QWidget *parent)
     font-weight: 450;
 }
 )");
-
 }
 
 void SplashScreen::start(const QString &statusText) {
