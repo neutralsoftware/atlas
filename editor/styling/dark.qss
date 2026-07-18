@@ -184,6 +184,14 @@ QToolButton::menu-indicator {
     color: #9DA8AE;
 }
 
+#viewportShortcutHint {
+    background-color: #181B1D;
+    border-top: 1px solid #303639;
+    color: #8F9AA0;
+    font-size: 10px;
+    padding: 4px 8px;
+}
+
 #materialEditorHeader {
     background-color: #1B1E20;
     border-bottom: 1px solid #363C3F;
@@ -726,7 +734,8 @@ QScrollArea#inspectorScroll {
 }
 
 #inspectorVectorField,
-#inspectorColorField {
+#inspectorColorField,
+#inspectorNumericField {
     background-color: #191C1D;
     border: 1px solid #363D41;
     border-radius: 3px;
@@ -744,6 +753,23 @@ QScrollArea#inspectorScroll {
     border: none;
     border-radius: 0;
     padding: 2px;
+}
+
+#inspectorNumericField QDoubleSpinBox {
+    background-color: transparent;
+    border: none;
+}
+
+#inspectorSyncButton {
+    background-color: transparent;
+    border: none;
+    min-width: 20px;
+    min-height: 20px;
+    padding: 1px;
+}
+
+#inspectorSyncButton:hover {
+    background-color: #30373A;
 }
 
 #inspectorColorSwatch {

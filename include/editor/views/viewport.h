@@ -88,6 +88,7 @@ class ViewportPanel : public QWidget {
     void frameRateChanged(float framesPerSecond);
     void sceneDirtyChanged(bool dirty);
     void runtimeStartupFinished(bool success, const QString &message);
+    void transformHintChanged(const QString &hint);
 
   protected:
     QPaintEngine *paintEngine() const override;
@@ -113,6 +114,9 @@ class ViewportPanel : public QWidget {
     void sendPointerEvent(int action, float x, float y, int button);
     void refreshSceneSnapshot();
     void setSceneDirty(bool dirty);
+    void beginKeyboardTransform(int mode);
+    void updateKeyboardTransformAxes(int key, bool exclude);
+    void finishKeyboardTransform(bool commit);
     QJsonValue runtimeObjectProperty(int id, const QString &component,
                                      int componentIndex,
                                      const QString &propertyPath) const;
@@ -127,11 +131,15 @@ class ViewportPanel : public QWidget {
     int runtimeHeight = 0;
     float runtimeScale = 0.0f;
     QString lastSceneSnapshot;
+    QString selectionToRestore;
     bool runtimeStartQueued = false;
     bool runtimeStartupEnabled = false;
     bool shuttingDown = false;
     bool sceneDirty = false;
     bool leftPointerMoved = false;
+    bool keyboardTransformActive = false;
+    int keyboardTransformMode = 0;
+    int keyboardTransformAxes = 7;
     int playbackState = 0;
     int shadingMode = 0;
 };

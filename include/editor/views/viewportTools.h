@@ -23,6 +23,7 @@ class ViewportTools : public QWidget {
     QToolButton *stopButton = nullptr;
     QToolButton *reloadButton = nullptr;
     QLabel *fpsLabel = nullptr;
+    QLabel *shortcutHint = nullptr;
     bool runtimeAvailable = false;
     int playbackState = 0;
 };

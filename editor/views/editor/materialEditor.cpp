@@ -1,4 +1,5 @@
 #include <editor/views/materialEditor.h>
+#include <editor/widgets/scrubbableSpinBox.h>
 
 #include <editor/views/viewport.h>
 
@@ -70,7 +71,7 @@ void displayColor(QPushButton *button, const QColor &color) {
 
 QDoubleSpinBox *scalarField(double minimum, double maximum, double step,
                             QWidget *parent) {
-    auto *field = new QDoubleSpinBox(parent);
+    auto *field = new ScrubbableDoubleSpinBox(parent);
     field->setObjectName("materialScalarField");
     field->setRange(minimum, maximum);
     field->setSingleStep(step);

@@ -32,9 +32,11 @@
 #include <QLineEdit>
 #include <QList>
 #include <QMenu>
+#include <QKeyEvent>
 #include <QPair>
 #include <QMessageBox>
 #include <QMimeData>
+#include <QMouseEvent>
 #include <QPointer>
 #include <QPushButton>
 #include <QScrollArea>
@@ -49,12 +51,76 @@
 #include <algorithm>
 #include <cmath>
 #include <functional>
+#include <memory>
 
 #include "editor/views/viewport.h"
+#include "editor/widgets/scrubbableSpinBox.h"
 
 namespace {
 using PropertyChanged =
     std::function<void(const QString &, const QJsonValue &)>;
+using SyncOptions = QList<QPair<QString, QJsonValue>>;
+using SyncProvider = std::function<SyncOptions(const QJsonValue &)>;
+
+class PickerSearchField : public QLineEdit {
+  public:
+    explicit PickerSearchField(QMenu *menu) : QLineEdit(menu), menu(menu) {}
+
+  protected:
+    void keyPressEvent(QKeyEvent *event) override {
+        if (event->key() == Qt::Key_Down || event->key() == Qt::Key_Up) {
+            const QList<QAction *> actions = selectableActions();
+            if (!actions.isEmpty()) {
+                int index = actions.indexOf(menu->activeAction());
+                if (event->key() == Qt::Key_Down)
+                    index = (index + 1) % actions.size();
+                else
+                    index = index <= 0 ? actions.size() - 1 : index - 1;
+                menu->setActiveAction(actions.at(index));
+            }
+            event->accept();
+            return;
+        }
+        if (event->key() == Qt::Key_Return ||
+            event->key() == Qt::Key_Enter) {
+            const QList<QAction *> actions = selectableActions();
+            QAction *action = menu->activeAction();
+            if ((action == nullptr || !actions.contains(action)) &&
+                !actions.isEmpty()) {
+                action = actions.first();
+            }
+            if (action != nullptr) {
+                action->trigger();
+                menu->close();
+            }
+            event->accept();
+            return;
+        }
+        if (event->key() == Qt::Key_Escape) {
+            menu->close();
+            event->accept();
+            return;
+        }
+        QLineEdit::keyPressEvent(event);
+    }
+
+  private:
+    QList<QAction *> selectableActions() const {
+        QList<QAction *> result;
+        for (QAction *action : menu->actions()) {
+            auto *widgetAction = qobject_cast<QWidgetAction *>(action);
+            if (action->isVisible() && action->isEnabled() &&
+                !action->isSeparator() &&
+                (widgetAction == nullptr ||
+                 widgetAction->defaultWidget() == nullptr)) {
+                result.append(action);
+            }
+        }
+        return result;
+    }
+
+    QMenu *menu = nullptr;
+};
 
 QString humanize(const QString &value) {
     QString result;
@@ -463,14 +529,121 @@ QStringList choicesFor(const QString &path) {
 }
 
 QDoubleSpinBox *numberField(double value, QWidget *parent) {
-    auto *field = new QDoubleSpinBox(parent);
+    auto *field = new ScrubbableDoubleSpinBox(parent);
     field->setObjectName("inspectorNumberField");
     field->setRange(-1000000000.0, 1000000000.0);
     field->setDecimals(4);
     field->setSingleStep(0.1);
+    field->setButtonSymbols(QAbstractSpinBox::NoButtons);
     field->setValue(value);
     field->setKeyboardTracking(true);
     return field;
+}
+
+QJsonValue adaptedSyncValue(const QJsonValue &source,
+                            const QJsonValue &target,
+                            const QString &path) {
+    if (target.isDouble()) {
+        if (source.isDouble())
+            return source;
+        const QJsonArray values = source.toArray();
+        if (values.isEmpty())
+            return target;
+        if (path.endsWith("/radius", Qt::CaseInsensitive)) {
+            double maximum = 0.0;
+            for (const QJsonValue &value : values)
+                maximum = std::max(maximum, std::abs(value.toDouble()));
+            return maximum * 0.5;
+        }
+        if (path.endsWith("/height", Qt::CaseInsensitive) &&
+            values.size() > 1) {
+            return values.at(1);
+        }
+        return values.first();
+    }
+    if (!target.isArray())
+        return source;
+    const int dimensions = target.toArray().size();
+    QJsonArray result;
+    if (source.isDouble()) {
+        while (result.size() < dimensions)
+            result.append(source);
+        return result;
+    }
+    const QJsonArray values = source.toArray();
+    for (int index = 0; index < dimensions; ++index) {
+        result.append(index < values.size() ? values.at(index)
+                                            : values.isEmpty()
+                                                  ? QJsonValue(0.0)
+                                                  : values.last());
+    }
+    return result;
+}
+
+void addSyncPicker(QHBoxLayout *layout, const QString &path,
+                   const QJsonValue &current, const PropertyChanged &changed,
+                   const SyncProvider &provider, QWidget *parent) {
+    auto *button = new QToolButton(parent);
+    button->setObjectName("inspectorSyncButton");
+    button->setIcon(
+        parent->style()->standardIcon(QStyle::SP_BrowserReload));
+    button->setToolTip("Match this value with another property");
+    button->setPopupMode(QToolButton::InstantPopup);
+    auto *menu = new QMenu(button);
+    auto *searchAction = new QWidgetAction(menu);
+    auto *search = new PickerSearchField(menu);
+    search->setPlaceholderText("Search properties");
+    search->setClearButtonEnabled(true);
+    search->setMinimumWidth(240);
+    searchAction->setDefaultWidget(search);
+    menu->addAction(searchAction);
+    menu->addSeparator();
+    auto searchable = std::make_shared<QList<QAction *>>();
+    auto generated = std::make_shared<QList<QAction *>>();
+    QObject::connect(search, &QLineEdit::textChanged, menu,
+                     [searchable](const QString &text) {
+                         const QString query = text.trimmed().toLower();
+                         for (QAction *action : *searchable) {
+                             action->setVisible(
+                                 query.isEmpty() ||
+                                 action->property("searchText")
+                                     .toString()
+                                     .contains(query));
+                         }
+                     });
+    QObject::connect(
+        menu, &QMenu::aboutToShow, search,
+        [menu, search, searchable, generated, provider, current, path,
+         changed] {
+            for (QAction *action : *generated) {
+                menu->removeAction(action);
+                action->deleteLater();
+            }
+            generated->clear();
+            searchable->clear();
+            const SyncOptions options =
+                provider ? provider(current) : SyncOptions{};
+            for (const auto &[label, source] : options) {
+                QAction *action = menu->addAction(
+                    label, menu, [current, source, path, changed] {
+                        changed(path,
+                                adaptedSyncValue(source, current, path));
+                    });
+                action->setProperty("searchText", label.toLower());
+                searchable->append(action);
+                generated->append(action);
+            }
+            if (searchable->isEmpty()) {
+                QAction *empty =
+                    menu->addAction("No compatible properties");
+                empty->setEnabled(false);
+                generated->append(empty);
+            }
+            search->clear();
+            search->setFocus();
+        });
+    button->setMenu(menu);
+    layout->addWidget(button);
 }
 
 void connectLiveText(QLineEdit *field, const std::function<void()> &commit) {
@@ -488,7 +661,8 @@ void connectLiveText(QLineEdit *field, const std::function<void()> &commit) {
 }
 
 QWidget *vectorField(const QJsonArray &value, const PropertyChanged &changed,
-                     const QString &path, QWidget *parent) {
+                     const QString &path, const SyncProvider &syncProvider,
+                     QWidget *parent) {
     auto *field = new QFrame(parent);
     field->setObjectName("inspectorVectorField");
     auto *layout = new QHBoxLayout(field);
@@ -520,6 +694,7 @@ QWidget *vectorField(const QJsonArray &value, const PropertyChanged &changed,
         QObject::connect(box, &QDoubleSpinBox::valueChanged, field,
                          [commit](double) { commit(); });
     }
+    addSyncPicker(layout, path, value, changed, syncProvider, field);
     return field;
 }
 
@@ -596,11 +771,11 @@ QWidget *colorField(const QJsonArray &value, const PropertyChanged &changed,
 
 void addPropertyRows(QVBoxLayout *layout, const QJsonObject &properties,
                      const QString &path, const PropertyChanged &changed,
-                     QWidget *parent);
+                     const SyncProvider &syncProvider, QWidget *parent);
 
 QWidget *primitiveField(const QString &name, const QString &path,
                         const QJsonValue &value, const PropertyChanged &changed,
-                        QWidget *parent) {
+                        const SyncProvider &syncProvider, QWidget *parent) {
     if (value.isBool()) {
         auto *field = new QCheckBox(parent);
         field->setChecked(value.toBool());
@@ -610,12 +785,19 @@ QWidget *primitiveField(const QString &name, const QString &path,
         return field;
     }
     if (value.isDouble()) {
-        auto *field = numberField(value.toDouble(), parent);
-        QObject::connect(field, &QDoubleSpinBox::valueChanged, parent,
+        auto *container = new QFrame(parent);
+        container->setObjectName("inspectorNumericField");
+        auto *layout = new QHBoxLayout(container);
+        layout->setContentsMargins(0, 0, 0, 0);
+        layout->setSpacing(2);
+        auto *field = numberField(value.toDouble(), container);
+        layout->addWidget(field, 1);
+        addSyncPicker(layout, path, value, changed, syncProvider, container);
+        QObject::connect(field, &QDoubleSpinBox::valueChanged, container,
                          [field, changed, path](double) {
                              changed(path, field->value());
                          });
-        return field;
+        return container;
     }
     if (value.isArray()) {
         const QJsonArray array = value.toArray();
@@ -624,7 +806,7 @@ QWidget *primitiveField(const QString &name, const QString &path,
         }
         if ((array.size() == 2 || array.size() == 3) &&
             isNumericArray(array)) {
-            return vectorField(array, changed, path, parent);
+            return vectorField(array, changed, path, syncProvider, parent);
         }
         auto *field = new QLineEdit(parent);
         QStringList entries;
@@ -684,7 +866,7 @@ QFrame *propertyRow(const QString &label, QWidget *editor, QWidget *parent) {
 
 void addPropertyRows(QVBoxLayout *layout, const QJsonObject &properties,
                      const QString &path, const PropertyChanged &changed,
-                     QWidget *parent) {
+                     const SyncProvider &syncProvider, QWidget *parent) {
     for (auto iterator = properties.begin(); iterator != properties.end();
          ++iterator) {
         const QString key = iterator.key();
@@ -699,7 +881,7 @@ void addPropertyRows(QVBoxLayout *layout, const QJsonObject &properties,
             title->setObjectName("inspectorNestedTitle");
             groupLayout->addWidget(title);
             addPropertyRows(groupLayout, iterator.value().toObject(), nextPath,
-                            changed, group);
+                            changed, syncProvider, group);
             layout->addWidget(group);
             continue;
         }
@@ -766,21 +948,71 @@ void addPropertyRows(QVBoxLayout *layout, const QJsonObject &properties,
                                      });
                     addPropertyRows(groupLayout, array.at(index).toObject(),
                                     nextPath + '/' + QString::number(index),
-                                    changed, group);
+                                    changed, syncProvider, group);
                 }
                 layout->addWidget(group);
                 continue;
             }
         }
         QWidget *editor =
-            primitiveField(key, nextPath, iterator.value(), changed, parent);
+            primitiveField(key, nextPath, iterator.value(), changed,
+                           syncProvider, parent);
         layout->addWidget(propertyRow(humanize(key), editor, parent));
     }
 }
 
+void collectSyncOptions(const QString &label, const QJsonValue &value,
+                        SyncOptions &options) {
+    if (value.isDouble()) {
+        options.append({label, value});
+        return;
+    }
+    if (value.isArray()) {
+        const QJsonArray array = value.toArray();
+        if (!array.isEmpty() && isNumericArray(array)) {
+            options.append({label, value});
+            return;
+        }
+        for (int index = 0; index < array.size(); ++index) {
+            if (array.at(index).isObject()) {
+                collectSyncOptions(
+                    QStringLiteral("%1 %2").arg(label).arg(index + 1),
+                    array.at(index), options);
+            }
+        }
+        return;
+    }
+    if (!value.isObject())
+        return;
+    const QJsonObject object = value.toObject();
+    for (auto iterator = object.begin(); iterator != object.end(); ++iterator) {
+        const QString childLabel =
+            label.isEmpty() ? humanize(iterator.key())
+                            : label + " · " + humanize(iterator.key());
+        collectSyncOptions(childLabel, iterator.value(), options);
+    }
+}
+
+SyncProvider makeSyncProvider(const QJsonObject &values) {
+    SyncOptions options;
+    collectSyncOptions(QString(), values, options);
+    return [options](const QJsonValue &target) {
+        SyncOptions compatible;
+        for (const auto &option : options) {
+            if ((target.isDouble() &&
+                 (option.second.isDouble() || option.second.isArray())) ||
+                (target.isArray() &&
+                 (option.second.isDouble() || option.second.isArray()))) {
+                compatible.append(option);
+            }
+        }
+        return compatible;
+    };
+}
+
 QFrame *componentCard(const QString &title, const QJsonObject &properties,
                       const QString &path, const PropertyChanged &changed,
-                      QWidget *parent,
+                      QWidget *parent, const SyncProvider &syncProvider = {},
                       const std::function<void()> &remove = {}) {
     auto *card = new QFrame(parent);
     card->setObjectName("inspectorComponent");
@@ -815,7 +1047,7 @@ QFrame *componentCard(const QString &title, const QJsonObject &properties,
     auto *bodyLayout = new QVBoxLayout(body);
     bodyLayout->setContentsMargins(0, 2, 0, 0);
     bodyLayout->setSpacing(1);
-    addPropertyRows(bodyLayout, properties, path, changed, body);
+    addPropertyRows(bodyLayout, properties, path, changed, syncProvider, body);
     layout->addWidget(body);
     QObject::connect(
         header, &QToolButton::toggled, card, [header, body](bool expanded) {
@@ -1017,12 +1249,24 @@ void InspectorPanel::showObject(const QJsonObject &object) {
     QJsonObject transform{{"position", object.value("position")},
                           {"rotation", object.value("rotation")},
                           {"scale", object.value("scale")}};
+    const SyncProvider syncProvider = [this](const QJsonValue &target) {
+        const QJsonObject currentTransform{
+            {"position", inspectedObject.value("position")},
+            {"rotation", inspectedObject.value("rotation")},
+            {"scale", inspectedObject.value("scale")}};
+        return makeSyncProvider(
+            QJsonObject{{"Object Size", inspectedObject.value("boundsSize")},
+                        {"Transform", currentTransform},
+                        {"Object", inspectedObject.value("properties")},
+                        {"Components", inspectedObject.value("components")}})(
+            target);
+    };
     contentLayout->addWidget(componentCard(
         "Transform", transform, QString(),
         [update](const QString &path, const QJsonValue &value) {
             update("transform", -1, path, value);
         },
-        content));
+        content, syncProvider));
 
     QJsonObject objectProperties = object.value("properties").toObject();
     if (type.contains("light", Qt::CaseInsensitive) ||
@@ -1042,7 +1286,7 @@ void InspectorPanel::showObject(const QJsonObject &object) {
             [update](const QString &path, const QJsonValue &value) {
                 update("object", -1, path, value);
             },
-            content));
+            content, syncProvider));
     }
 
     if (!materialPath.isEmpty()) {
@@ -1068,7 +1312,7 @@ void InspectorPanel::showObject(const QJsonObject &object) {
                                            const QJsonValue &value) {
                 update(componentType, index, path, value);
             },
-            content, [this, objectId, index, componentType] {
+            content, syncProvider, [this, objectId, index, componentType] {
                 if (QMessageBox::question(
                         this, "Remove Component",
                         QStringLiteral("Remove %1 from this object?")
@@ -1122,7 +1366,7 @@ void InspectorPanel::showObject(const QJsonObject &object) {
     addComponent->setPopupMode(QToolButton::InstantPopup);
     auto *componentMenu = new QMenu(addComponent);
     auto *searchAction = new QWidgetAction(componentMenu);
-    auto *componentSearch = new QLineEdit(componentMenu);
+    auto *componentSearch = new PickerSearchField(componentMenu);
     componentSearch->setPlaceholderText("Search components, scripts, materials");
     componentSearch->setClearButtonEnabled(true);
     componentSearch->setMinimumWidth(280);
@@ -1258,8 +1502,11 @@ void InspectorPanel::showCamera() {
         {"actions", inspectedCamera.value("actions").isArray()
                         ? inspectedCamera.value("actions")
                         : QJsonValue(QJsonArray{})}};
+    const SyncProvider syncProvider = [this](const QJsonValue &target) {
+        return makeSyncProvider(inspectedCamera)(target);
+    };
     contentLayout->addWidget(componentCard("Transform", transform, QString(),
-                                           update, content));
+                                           update, content, syncProvider));
     contentLayout->addWidget(componentCard(
         "Projection", projection, QString(),
         [update](const QString &path, const QJsonValue &value) {
@@ -1270,11 +1517,13 @@ void InspectorPanel::showCamera() {
                 runtimePath = "/orthoSize";
             update(runtimePath, value);
         },
-        content));
+        content, syncProvider));
     contentLayout->addWidget(
-        componentCard("Depth of Field", focus, QString(), update, content));
-    contentLayout->addWidget(
-        componentCard("Camera Controls", controls, QString(), update, content));
+        componentCard("Depth of Field", focus, QString(), update, content,
+                      syncProvider));
+    contentLayout->addWidget(componentCard("Camera Controls", controls,
+                                           QString(), update, content,
+                                           syncProvider));
     contentLayout->addStretch();
 }
 
@@ -1306,6 +1555,9 @@ void InspectorPanel::showEnvironment() {
 
     QJsonObject values = mergeObjects(
         environmentSchema(), scene.value("environment").toObject());
+    const SyncProvider syncProvider = [this](const QJsonValue &target) {
+        return makeSyncProvider(scene.value("environment").toObject())(target);
+    };
     QJsonObject atmosphere = values.take("atmosphere").toObject();
     QJsonObject globalLight = atmosphere.take("globalLight").toObject();
     QJsonObject clouds = atmosphere.take("clouds").toObject();
@@ -1321,31 +1573,31 @@ void InspectorPanel::showEnvironment() {
         [update](const QString &path, const QJsonValue &value) {
             update(QString(), path, value);
         },
-        content));
+        content, syncProvider));
     contentLayout->addWidget(componentCard(
         "Atmosphere", atmosphere, QString(),
         [update](const QString &path, const QJsonValue &value) {
             update("/atmosphere", path, value);
         },
-        content));
+        content, syncProvider));
     contentLayout->addWidget(componentCard(
         "Global Light", globalLight, QString(),
         [update](const QString &path, const QJsonValue &value) {
             update("/atmosphere/globalLight", path, value);
         },
-        content));
+        content, syncProvider));
     contentLayout->addWidget(componentCard(
         "Clouds", clouds, QString(),
         [update](const QString &path, const QJsonValue &value) {
             update("/atmosphere/clouds", path, value);
         },
-        content));
+        content, syncProvider));
     contentLayout->addWidget(componentCard(
         "Weather", weather, QString(),
         [update](const QString &path, const QJsonValue &value) {
             update("/atmosphere/weather", path, value);
         },
-        content));
+        content, syncProvider));
     contentLayout->addStretch();
 }
 

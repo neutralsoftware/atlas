@@ -1977,6 +1977,7 @@ void Window::setEditorControlsEnabled(bool enabled) {
     if (!enabled) {
         selectedEditorObject = nullptr;
         editorDragging = false;
+        editorKeyboardTransform = false;
         editorActiveGizmoAxis = 0;
         editorCameraDragging = false;
         editorOrbitVelocityX = 0.0f;
@@ -1989,6 +1990,7 @@ void Window::setEditorControlsEnabled(bool enabled) {
 void Window::setEditorSimulationEnabled(bool enabled) {
     editorSimulationEnabled = enabled;
     editorDragging = false;
+    editorKeyboardTransform = false;
     editorActiveGizmoAxis = 0;
     editorCameraDragging = false;
     editorOrbitVelocityX = 0.0f;
@@ -1999,6 +2001,54 @@ void Window::setEditorSimulationEnabled(bool enabled) {
 void Window::setEditorControlMode(EditorControlMode mode) {
     editorControlMode = mode;
     editorDragging = false;
+    editorActiveGizmoAxis = 0;
+}
+
+bool Window::beginEditorKeyboardTransform(EditorControlMode mode, float x,
+                                          float y, float scale) {
+    if (!editorControlsEnabled || editorSimulationEnabled ||
+        selectedEditorObject == nullptr || mode == EditorControlMode::None) {
+        return false;
+    }
+    editorControlMode = mode;
+    editorKeyboardTransform = true;
+    editorKeyboardTransformAxes = 7;
+    editorDragging = false;
+    editorActiveGizmoAxis = 0;
+    editorDragStartX = x;
+    editorDragStartY = y;
+    editorDragStartScale = scale > 0.0f ? scale : 1.0f;
+    editorDragStartPosition = selectedEditorObject->getPosition();
+    editorDragStartRotation = selectedEditorObject->getRotation();
+    editorDragStartObjectScale = selectedEditorObject->getScale();
+    return true;
+}
+
+void Window::setEditorKeyboardTransformAxes(int axes) {
+    if (!editorKeyboardTransform)
+        return;
+    editorKeyboardTransformAxes = std::clamp(axes, 1, 7);
+    editorActiveGizmoAxis =
+        editorKeyboardTransformAxes == 1   ? 1
+        : editorKeyboardTransformAxes == 2 ? 2
+        : editorKeyboardTransformAxes == 4 ? 3
+                                           : 0;
+}
+
+void Window::finishEditorKeyboardTransform(bool commit) {
+    if (!editorKeyboardTransform || selectedEditorObject == nullptr)
+        return;
+    if (!commit) {
+        const Position3d childDelta =
+            editorDragStartPosition - selectedEditorObject->getPosition();
+        selectedEditorObject->setPosition(editorDragStartPosition);
+        selectedEditorObject->setRotation(editorDragStartRotation);
+        selectedEditorObject->setScale(editorDragStartObjectScale);
+        moveEditorObjectChildren(selectedEditorObject, childDelta);
+        shadowMapsDirty = true;
+        ssaoMapsDirty = true;
+    }
+    editorKeyboardTransform = false;
     editorActiveGizmoAxis = 0;
 }
 
@@ -2100,6 +2150,12 @@ void Window::editorPointerEvent(int action, float x, float y, int button,
     float effectiveScale = scale > 0.0f ? scale : 1.0f;
     if (action == 3) {
         editorScrollEvent(y, effectiveScale);
+        return;
+    }
+
+    if (editorKeyboardTransform) {
+        if (action == 1)
+            updateEditorKeyboardTransform(x, y, effectiveScale);
         return;
     }
 
@@ -2534,6 +2590,94 @@ void Window::updateEditorDrag(float x, float y, float scale) {
                 std::max(0.05f, editorDragStartObjectScale.z + scaleDelta);
         }
         selectedEditorObject->setScale(nextScale);
+    }
+    shadowMapsDirty = true;
+    ssaoMapsDirty = true;
+}
+
+void Window::updateEditorKeyboardTransform(float x, float y, float scale) {
+    if (!editorKeyboardTransform || selectedEditorObject == nullptr ||
+        camera == nullptr)
+        return;
+
+    const float effectiveScale = scale > 0.0f ? scale : editorDragStartScale;
+    const float dx = (x - editorDragStartX) / effectiveScale;
+    const float dy = (y - editorDragStartY) / effectiveScale;
+    const int axes = editorKeyboardTransformAxes;
+    const float distance = glm::length(editorDragStartPosition.toGlm() -
+                                       camera->position.toGlm());
+
+    if (editorControlMode == EditorControlMode::Move) {
+        glm::vec3 delta(0.0f);
+        if (axes == 7) {
+            glm::vec3 front = glm::normalize(camera->target.toGlm() -
+                                             camera->position.toGlm());
+            glm::vec3 right = glm::cross(front, glm::vec3(0.0f, 1.0f, 0.0f));
+            if (glm::length(right) < 0.000001f)
+                right = glm::vec3(1.0f, 0.0f, 0.0f);
+            else
+                right = glm::normalize(right);
+            const glm::vec3 up = glm::normalize(glm::cross(right, front));
+            const float sensitivity = std::max(0.0025f, distance * 0.0025f);
+            delta = (right * dx + up * dy) * sensitivity;
+        } else {
+            const float viewWidth =
+                std::max(1.0f, static_cast<float>(width));
+            const float viewHeight =
+                std::max(1.0f, static_cast<float>(height));
+            const glm::mat4 viewProjection =
+                calculateProjectionMatrix() * camera->calculateViewMatrix();
+            const glm::vec3 center = editorDragStartPosition.toGlm();
+            for (int axisIndex = 0; axisIndex < 3; ++axisIndex) {
+                if ((axes & (1 << axisIndex)) == 0)
+                    continue;
+                const glm::vec3 axis = editorAxisVector(axisIndex + 1);
+                glm::vec2 centerScreen;
+                glm::vec2 axisScreen;
+                float depth = 0.0f;
+                if (!projectPointToScreen(center, viewProjection, viewWidth,
+                                          viewHeight, centerScreen, depth) ||
+                    !projectPointToScreen(center + axis, viewProjection,
+                                          viewWidth, viewHeight, axisScreen,
+                                          depth)) {
+                    continue;
+                }
+                const glm::vec2 projected = axisScreen - centerScreen;
+                const float pixels = glm::length(projected);
+                if (pixels > 0.000001f) {
+                    const float amount =
+                        glm::dot(glm::vec2(dx, dy), projected / pixels) /
+                        pixels;
+                    delta += axis * amount;
+                }
+            }
+        }
+        const Position3d next =
+            Position3d::fromGlm(editorDragStartPosition.toGlm() + delta);
+        const Position3d childDelta =
+            next - selectedEditorObject->getPosition();
+        selectedEditorObject->setPosition(next);
+        moveEditorObjectChildren(selectedEditorObject, childDelta);
+    } else if (editorControlMode == EditorControlMode::Scale) {
+        const float amount = (dx + dy) * 0.01f;
+        Scale3d next = editorDragStartObjectScale;
+        if ((axes & 1) != 0)
+            next.x = std::max(0.05f, next.x + amount);
+        if ((axes & 2) != 0)
+            next.y = std::max(0.05f, next.y + amount);
+        if ((axes & 4) != 0)
+            next.z = std::max(0.05f, next.z + amount);
+        selectedEditorObject->setScale(next);
+    } else if (editorControlMode == EditorControlMode::Rotate) {
+        const float angle = (dx + dy) * 0.25f;
+        Rotation3d next = editorDragStartRotation;
+        if ((axes & 1) != 0)
+            next.pitch += angle;
+        if ((axes & 2) != 0)
+            next.yaw += angle;
+        if ((axes & 4) != 0)
+            next.roll += angle;
+        selectedEditorObject->setRotation(next);
     }
     shadowMapsDirty = true;
     ssaoMapsDirty = true;

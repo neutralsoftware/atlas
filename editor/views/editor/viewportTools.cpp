@@ -104,6 +104,10 @@ ViewportTools::ViewportTools(ViewportPanel *viewport, QWidget *parent)
 
     layout->addWidget(toolbar);
     layout->addWidget(viewport, 1);
+    shortcutHint = new QLabel("G Move · R Rotate · S Scale", this);
+    shortcutHint->setObjectName("viewportShortcutHint");
+    shortcutHint->setTextInteractionFlags(Qt::NoTextInteraction);
+    layout->addWidget(shortcutHint);
 
     connect(playButton, &QToolButton::clicked, viewport,
             &ViewportPanel::playRuntime);
@@ -128,6 +132,8 @@ ViewportTools::ViewportTools(ViewportPanel *viewport, QWidget *parent)
             });
     connect(viewport, &ViewportPanel::playbackStateChanged, this,
             &ViewportTools::updatePlaybackState);
+    connect(viewport, &ViewportPanel::transformHintChanged, shortcutHint,
+            &QLabel::setText);
     connect(viewport, &ViewportPanel::runtimeAvailabilityChanged, this,
             [this](bool available) {
                 runtimeAvailable = available;

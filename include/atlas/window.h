@@ -450,6 +450,10 @@ class Window {
                             float scale = 1.0f);
     void editorScrollEvent(float delta, float scale = 1.0f);
     void editorKeyEvent(int key, bool pressed);
+    bool beginEditorKeyboardTransform(EditorControlMode mode, float x, float y,
+                                      float scale = 1.0f);
+    void setEditorKeyboardTransformAxes(int axes);
+    void finishEditorKeyboardTransform(bool commit);
     GameObject *getSelectedEditorObject() const { return selectedEditorObject; }
     unsigned int getSelectedEditorObjectId() const;
     void selectEditorObject(GameObject *object, bool focusCamera = false);
@@ -991,6 +995,8 @@ class Window {
     EditorShadingMode editorShadingMode = EditorShadingMode::Lit;
     GameObject *selectedEditorObject = nullptr;
     bool editorDragging = false;
+    bool editorKeyboardTransform = false;
+    int editorKeyboardTransformAxes = 7;
     bool editorCameraDragging = false;
     int editorActiveGizmoAxis = 0;
     float editorDragStartX = 0.0f;
@@ -1024,6 +1030,7 @@ class Window {
                                glm::vec3 &boundsMax);
     void moveEditorObjectChildren(GameObject *object,
                                   const Position3d &deltaPosition);
+    void updateEditorKeyboardTransform(float x, float y, float scale);
 
     uint64_t pipelineStateVersion = 1;
     std::unordered_map<Renderable *, uint64_t> renderablePipelineVersions;

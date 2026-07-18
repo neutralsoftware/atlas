@@ -16,6 +16,7 @@
 
 #include <QCloseEvent>
 #include <QCoreApplication>
+#include <QCursor>
 #include <QDebug>
 #include <QDragEnterEvent>
 #include <QDropEvent>
@@ -120,6 +121,20 @@ QJsonObject findSnapshotObject(const QJsonArray &objects, int id) {
         if (!child.isEmpty()) {
             return child;
         }
+    }
+    return {};
+}
+
+QJsonObject findSnapshotObjectByName(const QJsonArray &objects,
+                                     const QString &name) {
+    for (const QJsonValue &entry : objects) {
+        const QJsonObject object = entry.toObject();
+        if (object.value("name").toString() == name)
+            return object;
+        const QJsonObject child = findSnapshotObjectByName(
+            object.value("children").toArray(), name);
+        if (!child.isEmpty())
+            return child;
     }
     return {};
 }
@@ -361,6 +376,13 @@ void ViewportPanel::shutdownRuntime() {
 
 void ViewportPanel::mousePressEvent(QMouseEvent *event) {
     setFocus(Qt::MouseFocusReason);
+    if (keyboardTransformActive &&
+        (event->button() == Qt::LeftButton ||
+         event->button() == Qt::RightButton)) {
+        finishKeyboardTransform(event->button() == Qt::LeftButton);
+        event->accept();
+        return;
+    }
     if (event->button() == Qt::LeftButton)
         leftPointerMoved = false;
     sendPointerEvent(0, static_cast<float>(event->position().x()),
@@ -387,9 +409,11 @@ void ViewportPanel::mouseReleaseEvent(QMouseEvent *event) {
                      runtimeMouseButton(event->button()));
     if (event->button() == Qt::LeftButton && leftPointerMoved &&
         runtimeContext != nullptr && selectedRuntimeObjectId() >= 0) {
+        const int selected = selectedRuntimeObjectId();
         runtimeContext->saveCurrentScene();
         refreshSceneSnapshot();
         setSceneDirty(true);
+        emit runtimeObjectActivated(selected);
     }
     leftPointerMoved = false;
     event->accept();
@@ -408,6 +432,38 @@ void ViewportPanel::wheelEvent(QWheelEvent *event) {
 }
 
 void ViewportPanel::keyPressEvent(QKeyEvent *event) {
+    if (!event->isAutoRepeat() && runtimeContext != nullptr &&
+        playbackState == 0) {
+        if (keyboardTransformActive) {
+            if (event->key() == Qt::Key_Escape) {
+                finishKeyboardTransform(false);
+                event->accept();
+                return;
+            }
+            if (event->key() == Qt::Key_Return ||
+                event->key() == Qt::Key_Enter) {
+                finishKeyboardTransform(true);
+                event->accept();
+                return;
+            }
+            if (event->key() == Qt::Key_X || event->key() == Qt::Key_Y ||
+                event->key() == Qt::Key_Z) {
+                updateKeyboardTransformAxes(
+                    event->key(),
+                    event->modifiers().testFlag(Qt::ShiftModifier));
+                event->accept();
+                return;
+            }
+        } else if (event->key() == Qt::Key_G ||
+                   event->key() == Qt::Key_R ||
+                   event->key() == Qt::Key_S) {
+            beginKeyboardTransform(event->key() == Qt::Key_G   ? 1
+                                   : event->key() == Qt::Key_R ? 2
+                                                               : 3);
+            event->accept();
+            return;
+        }
+    }
     const int key = editorCameraKey(event->key());
     if (event->isAutoRepeat()) {
         if (key >= 0) {
@@ -474,6 +530,20 @@ void ViewportPanel::startRuntime() {
         runtimeContext->setEditorShadingMode(shadingMode);
         resizeRuntime();
         refreshSceneSnapshot();
+        if (!selectionToRestore.isEmpty()) {
+            const QJsonDocument document =
+                QJsonDocument::fromJson(lastSceneSnapshot.toUtf8());
+            const QJsonObject restored = findSnapshotObjectByName(
+                document.object().value("objects").toArray(),
+                selectionToRestore);
+            const int restoredId = restored.value("id").toInt(-1);
+            selectionToRestore.clear();
+            if (restoredId >= 0 &&
+                runtimeContext->selectObject(restoredId, false)) {
+                refreshSceneSnapshot();
+                emit runtimeObjectActivated(restoredId);
+            }
+        }
         emit runtimeAvailabilityChanged(true);
         playbackState = 0;
         emit playbackStateChanged(playbackState);
@@ -595,6 +665,8 @@ bool ViewportPanel::selectRuntimeObject(int id, bool focusCamera) {
 }
 
 bool ViewportPanel::renameRuntimeObject(int id, const QString &name) {
+    if (playbackState != 0)
+        return false;
     const QJsonObject object = findSnapshotObject(
         QJsonDocument::fromJson(lastSceneSnapshot.toUtf8())
             .object()
@@ -610,7 +682,7 @@ bool ViewportPanel::renameRuntimeObject(int id, const QString &name) {
 }
 
 bool ViewportPanel::renameRuntimeObjectDirect(int id, const QString &name) {
-    if (runtimeContext == nullptr ||
+    if (runtimeContext == nullptr || playbackState != 0 ||
         !runtimeContext->renameObject(id, name.toUtf8().toStdString())) {
         return false;
     }
@@ -623,6 +695,8 @@ bool ViewportPanel::renameRuntimeObjectDirect(int id, const QString &name) {
 bool ViewportPanel::setRuntimeObjectProperty(
     int id, const QString &component, int componentIndex,
     const QString &propertyPath, const QJsonValue &value) {
+    if (playbackState != 0)
+        return false;
     const QJsonValue previous = runtimeObjectProperty(
         id, component, componentIndex, propertyPath);
     if (previous.isUndefined()) {
@@ -640,7 +714,7 @@ bool ViewportPanel::setRuntimeObjectProperty(
 bool ViewportPanel::setRuntimeSceneProperty(
     const QString &section, int index, const QString &propertyPath,
     const QJsonValue &value) {
-    if (runtimeContext == nullptr || section.isEmpty()) {
+    if (runtimeContext == nullptr || playbackState != 0 || section.isEmpty()) {
         return false;
     }
     QJsonArray wrapper;
@@ -669,7 +743,7 @@ bool ViewportPanel::setRuntimeSceneProperty(
 bool ViewportPanel::applyRuntimeObjectProperty(
     int id, const QString &component, int componentIndex,
     const QString &propertyPath, const QJsonValue &value) {
-    if (runtimeContext == nullptr) {
+    if (runtimeContext == nullptr || playbackState != 0) {
         return false;
     }
     QJsonArray wrapper;
@@ -695,7 +769,7 @@ bool ViewportPanel::applyRuntimeObjectProperty(
 
 int ViewportPanel::addRuntimeObjectComponent(
     int id, const QString &type, const QJsonObject &properties) {
-    if (runtimeContext == nullptr || type.isEmpty()) {
+    if (runtimeContext == nullptr || playbackState != 0 || type.isEmpty()) {
         return -1;
     }
     QJsonObject definition = properties;
@@ -722,13 +796,19 @@ int ViewportPanel::addRuntimeObjectComponent(
 }
 
 bool ViewportPanel::removeRuntimeObjectComponent(int id, int componentIndex) {
-    if (runtimeContext == nullptr ||
+    if (runtimeContext == nullptr || playbackState != 0 ||
         !runtimeContext->removeObjectComponent(id, componentIndex) ||
         !runtimeContext->saveCurrentScene()) {
         return false;
     }
     refreshSceneSnapshot();
     setSceneDirty(true);
+    const QJsonDocument document =
+        QJsonDocument::fromJson(lastSceneSnapshot.toUtf8());
+    selectionToRestore =
+        findSnapshotObject(document.object().value("objects").toArray(), id)
+            .value("name")
+            .toString();
     QTimer::singleShot(0, this, &ViewportPanel::reloadRuntime);
     return true;
 }
@@ -741,7 +821,7 @@ bool ViewportPanel::controlRuntimeAudio(int id, int componentIndex,
 }
 
 bool ViewportPanel::setRuntimeObjectParent(int childId, int parentId) {
-    if (runtimeContext == nullptr ||
+    if (runtimeContext == nullptr || playbackState != 0 ||
         !runtimeContext->setObjectParent(childId, parentId)) {
         return false;
     }
@@ -752,7 +832,8 @@ bool ViewportPanel::setRuntimeObjectParent(int childId, int parentId) {
 }
 
 bool ViewportPanel::deleteRuntimeObject(int id) {
-    if (runtimeContext == nullptr || !runtimeContext->deleteObject(id)) {
+    if (runtimeContext == nullptr || playbackState != 0 ||
+        !runtimeContext->deleteObject(id)) {
         return false;
     }
     if (undoStack != nullptr) {
@@ -769,7 +850,7 @@ bool ViewportPanel::deleteRuntimeObject(int id) {
 
 int ViewportPanel::createRuntimeObject(const QString &type,
                                        const QString &name) {
-    if (runtimeContext == nullptr) {
+    if (runtimeContext == nullptr || playbackState != 0) {
         return -1;
     }
     const int id = runtimeContext->createObject(type.toUtf8().toStdString(),
@@ -783,6 +864,8 @@ int ViewportPanel::createRuntimeObject(const QString &type,
 }
 
 bool ViewportPanel::saveRuntimeScene() {
+    if (playbackState != 0)
+        return false;
     const bool saved =
         runtimeContext != nullptr && runtimeContext->saveCurrentScene();
     if (saved)
@@ -799,7 +882,8 @@ bool ViewportPanel::applyRuntimeMaterial(int id, const QString &path) {
 }
 
 bool ViewportPanel::applyRuntimeMaterialDirect(int id, const QString &path) {
-    if (runtimeContext == nullptr || id < 0 || path.isEmpty() ||
+    if (runtimeContext == nullptr || playbackState != 0 || id < 0 ||
+        path.isEmpty() ||
         !runtimeContext->setObjectMaterial(id, path.toStdString())) {
         return false;
     }
@@ -836,7 +920,7 @@ bool ViewportPanel::attachRuntimeAsset(int id, const QString &path) {
 }
 
 void ViewportPanel::undo() {
-    if (undoStack != nullptr) {
+    if (undoStack != nullptr && playbackState == 0) {
         undoStack->undo();
         const int selected = selectedRuntimeObjectId();
         if (selected >= 0)
@@ -845,7 +929,7 @@ void ViewportPanel::undo() {
 }
 
 void ViewportPanel::redo() {
-    if (undoStack != nullptr) {
+    if (undoStack != nullptr && playbackState == 0) {
         undoStack->redo();
         const int selected = selectedRuntimeObjectId();
         if (selected >= 0)
@@ -884,6 +968,11 @@ void ViewportPanel::playRuntime() {
     if (runtimeContext == nullptr) {
         return;
     }
+    finishKeyboardTransform(false);
+    if (playbackState == 0 && !saveRuntimeScene()) {
+        qWarning() << "Atlas editor could not checkpoint the scene for play";
+        return;
+    }
     runtimeContext->setEditorSimulationEnabled(true);
     playbackState = 1;
     emit playbackStateChanged(playbackState);
@@ -893,7 +982,6 @@ void ViewportPanel::pauseRuntime() {
     if (runtimeContext == nullptr || playbackState == 0) {
         return;
     }
-    saveRuntimeScene();
     runtimeContext->setEditorSimulationEnabled(false);
     refreshSceneSnapshot();
     playbackState = 2;
@@ -907,7 +995,6 @@ void ViewportPanel::stepRuntimeOnce() {
     runtimeContext->setEditorSimulationEnabled(true);
     stepRuntime();
     if (runtimeContext != nullptr) {
-        saveRuntimeScene();
         runtimeContext->setEditorSimulationEnabled(false);
         playbackState = 2;
         emit playbackStateChanged(playbackState);
@@ -925,6 +1012,21 @@ void ViewportPanel::reloadRuntime() {
     if (shuttingDown) {
         return;
     }
+    if (selectionToRestore.isEmpty() && runtimeContext != nullptr) {
+        const int selected = selectedRuntimeObjectId();
+        if (selected >= 0) {
+            const QJsonDocument document =
+                QJsonDocument::fromJson(lastSceneSnapshot.toUtf8());
+            selectionToRestore = findSnapshotObject(
+                                     document.object()
+                                         .value("objects")
+                                         .toArray(),
+                                     selected)
+                                     .value("name")
+                                     .toString();
+        }
+    }
+    finishKeyboardTransform(false);
     stopRuntime();
     QTimer::singleShot(0, this, [this] { scheduleRuntimeStart(); });
 }
@@ -943,7 +1045,76 @@ void ViewportPanel::setRuntimeControlMode(int mode) {
     if (mode < 0 || mode > 3 || runtimeContext == nullptr) {
         return;
     }
+    finishKeyboardTransform(false);
     runtimeContext->setEditorControlMode(mode);
+}
+
+void ViewportPanel::beginKeyboardTransform(int mode) {
+    if (runtimeContext == nullptr || selectedRuntimeObjectId() < 0)
+        return;
+    const QPoint pointer = mapFromGlobal(QCursor::pos());
+    if (!runtimeContext->beginEditorKeyboardTransform(
+            mode, static_cast<float>(pointer.x()),
+            static_cast<float>(height() - pointer.y()), widgetScale(this))) {
+        return;
+    }
+    keyboardTransformActive = true;
+    keyboardTransformMode = mode;
+    keyboardTransformAxes = 7;
+    const QString operation =
+        mode == 1 ? "Move" : mode == 2 ? "Rotate" : "Scale";
+    emit transformHintChanged(
+        QStringLiteral("%1 · All axes · X/Y/Z constrain · Shift+Axis exclude "
+                       "· Enter/LMB confirm · Esc/RMB cancel")
+            .arg(operation));
+}
+
+void ViewportPanel::updateKeyboardTransformAxes(int key, bool exclude) {
+    if (!keyboardTransformActive || runtimeContext == nullptr)
+        return;
+    const int bit = key == Qt::Key_X ? 1 : key == Qt::Key_Y ? 2 : 4;
+    if (exclude) {
+        keyboardTransformAxes = 7 & ~bit;
+    } else if (keyboardTransformAxes == 7) {
+        keyboardTransformAxes = bit;
+    } else {
+        keyboardTransformAxes |= bit;
+    }
+    runtimeContext->setEditorKeyboardTransformAxes(keyboardTransformAxes);
+    QString axes;
+    if ((keyboardTransformAxes & 1) != 0)
+        axes += 'X';
+    if ((keyboardTransformAxes & 2) != 0)
+        axes += 'Y';
+    if ((keyboardTransformAxes & 4) != 0)
+        axes += 'Z';
+    const QString operation = keyboardTransformMode == 1   ? "Move"
+                              : keyboardTransformMode == 2 ? "Rotate"
+                                                           : "Scale";
+    emit transformHintChanged(
+        QStringLiteral("%1 · %2 locked · X/Y/Z add axes · Shift+Axis exclude "
+                       "· Enter/LMB confirm · Esc/RMB cancel")
+            .arg(operation, axes));
+}
+
+void ViewportPanel::finishKeyboardTransform(bool commit) {
+    if (!keyboardTransformActive)
+        return;
+    if (runtimeContext != nullptr) {
+        const int selected = selectedRuntimeObjectId();
+        runtimeContext->finishEditorKeyboardTransform(commit);
+        if (commit) {
+            runtimeContext->saveCurrentScene();
+            setSceneDirty(true);
+        }
+        refreshSceneSnapshot();
+        if (selected >= 0)
+            emit runtimeObjectActivated(selected);
+    }
+    keyboardTransformActive = false;
+    keyboardTransformMode = 0;
+    keyboardTransformAxes = 7;
+    emit transformHintChanged("G Move · R Rotate · S Scale");
 }
 
 void ViewportPanel::refreshSceneSnapshot() {

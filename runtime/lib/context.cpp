@@ -4292,6 +4292,28 @@ bool Context::editorKeyEvent(int key, bool pressed) {
     return true;
 }
 
+bool Context::beginEditorKeyboardTransform(int mode, float x, float y,
+                                           float scale) {
+    if (window == nullptr || mode < 1 || mode > 3)
+        return false;
+    return window->beginEditorKeyboardTransform(
+        static_cast<EditorControlMode>(mode), x, y, scale);
+}
+
+bool Context::setEditorKeyboardTransformAxes(int axes) {
+    if (window == nullptr || axes < 1 || axes > 7)
+        return false;
+    window->setEditorKeyboardTransformAxes(axes);
+    return true;
+}
+
+bool Context::finishEditorKeyboardTransform(bool commit) {
+    if (window == nullptr)
+        return false;
+    window->finishEditorKeyboardTransform(commit);
+    return true;
+}
+
 int Context::selectedObjectId() const {
     if (window == nullptr || window->getSelectedEditorObject() == nullptr) {
         return -1;
@@ -4399,6 +4421,25 @@ std::string editorObjectType(const Context &context, GameObject &object) {
     return "gameObject";
 }
 
+json editorObjectBoundsSize(GameObject &object) {
+    const std::vector<CoreVertex> vertices = object.getVertices();
+    glm::vec3 size = glm::abs(object.getScale().toGlm());
+    if (!vertices.empty()) {
+        glm::vec3 minimum(std::numeric_limits<float>::max());
+        glm::vec3 maximum(std::numeric_limits<float>::lowest());
+        for (const CoreVertex &vertex : vertices) {
+            const glm::vec3 position = vertex.position.toGlm();
+            minimum = glm::min(minimum, position);
+            maximum = glm::max(maximum, position);
+        }
+        size *= maximum - minimum;
+    }
+    size.x = std::max(size.x, 0.05f);
+    size.y = std::max(size.y, 0.05f);
+    size.z = std::max(size.z, 0.05f);
+    return json::array({size.x, size.y, size.z});
+}
+
 json editorObjectJson(const Context &context, GameObject &object,
                       const std::unordered_map<int, std::vector<int>> &children,
                       std::unordered_set<int> &visiting) {
@@ -4411,6 +4452,7 @@ json editorObjectJson(const Context &context, GameObject &object,
     node["position"] = vec3ToJson(object.getPosition());
     node["rotation"] = rotationToJson(object.getRotation());
     node["scale"] = vec3ToJson(object.getScale());
+    node["boundsSize"] = editorObjectBoundsSize(object);
     if (auto light = context.editorLightSourceData.find(id);
         light != context.editorLightSourceData.end()) {
         node["properties"] = light->second;
@@ -4714,23 +4756,7 @@ bool Context::setObjectMaterial(int id, const std::string &path) {
 }
 
 static json inheritedRigidbodyCollider(GameObject &object) {
-    const std::vector<CoreVertex> vertices = object.getVertices();
-    glm::vec3 size = glm::abs(object.getScale().toGlm());
-    if (!vertices.empty()) {
-        glm::vec3 minimum(std::numeric_limits<float>::max());
-        glm::vec3 maximum(std::numeric_limits<float>::lowest());
-        for (const CoreVertex &vertex : vertices) {
-            const glm::vec3 position = vertex.position.toGlm();
-            minimum = glm::min(minimum, position);
-            maximum = glm::max(maximum, position);
-        }
-        size *= maximum - minimum;
-    }
-    size.x = std::max(size.x, 0.05f);
-    size.y = std::max(size.y, 0.05f);
-    size.z = std::max(size.z, 0.05f);
-    return json{{"type", "box"},
-                {"size", json::array({size.x, size.y, size.z})}};
+    return json{{"type", "box"}, {"size", editorObjectBoundsSize(object)}};
 }
 
 int Context::addObjectComponent(int id, const json &component) {

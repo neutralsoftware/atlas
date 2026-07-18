@@ -1,4 +1,5 @@
 #include <editor/views/postProcessing.h>
+#include <editor/widgets/scrubbableSpinBox.h>
 
 #include <editor/views/viewport.h>
 
@@ -74,7 +75,7 @@ QJsonObject effectDefaults(const QString &type) {
 }
 
 QDoubleSpinBox *effectNumber(double value, QWidget *parent) {
-    auto *field = new QDoubleSpinBox(parent);
+    auto *field = new ScrubbableDoubleSpinBox(parent);
     field->setRange(-10000.0, 10000.0);
     field->setDecimals(3);
     field->setSingleStep(0.05);
@@ -279,7 +280,7 @@ void PostProcessingPanel::rebuildEditor() {
                 const bool integral = iterator.key() == "size" ||
                                       iterator.key() == "pixelSize";
                 if (integral) {
-                    auto *field = new QSpinBox(group);
+                    auto *field = new ScrubbableSpinBox(group);
                     field->setRange(1, 1024);
                     field->setValue(iterator.value().toInt());
                     effectForm->addRow(effectTitle(iterator.key()), field);

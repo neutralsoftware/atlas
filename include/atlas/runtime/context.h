@@ -117,6 +117,9 @@ class Context {
                             float scale);
     bool editorScrollEvent(float delta, float scale);
     bool editorKeyEvent(int key, bool pressed);
+    bool beginEditorKeyboardTransform(int mode, float x, float y, float scale);
+    bool setEditorKeyboardTransformAxes(int axes);
+    bool finishEditorKeyboardTransform(bool commit);
     int selectedObjectId() const;
     std::string selectedObjectName() const;
     std::string sceneObjectsJson() const;
