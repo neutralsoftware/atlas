@@ -8,6 +8,7 @@
  */
 
 #include <editor/views/inspectorView.h>
+#include <editor/styling/icons.h>
 
 #include <QAction>
 #include <QCheckBox>
@@ -170,44 +171,35 @@ bool isColorProperty(const QString &name, const QJsonArray &array) {
            (array.size() == 3 || array.size() == 4) && isNumericArray(array);
 }
 
-QIcon inspectorIcon(QWidget *widget, const QString &type) {
+QIcon inspectorIcon(QWidget *, const QString &type) {
     const QString normalized = type.toLower();
-    QStyle::StandardPixmap fallback = QStyle::SP_FileIcon;
-    QString themeName = "application-x-executable";
-    if (normalized == "folder") {
-        fallback = QStyle::SP_DirIcon;
-        themeName = "folder";
-    } else if (normalized.contains("camera")) {
-        fallback = QStyle::SP_ComputerIcon;
-        themeName = "camera-photo";
-    } else if (normalized.contains("environment") ||
-               normalized.contains("atmosphere")) {
-        fallback = QStyle::SP_DesktopIcon;
-        themeName = "weather-clear";
-    } else if (normalized.contains("light") || normalized == "sun") {
-        fallback = QStyle::SP_MessageBoxInformation;
-        themeName = "weather-clear";
-    } else if (normalized.contains("terrain")) {
-        fallback = QStyle::SP_DriveHDIcon;
-        themeName = "applications-graphics";
-    } else if (normalized.contains("particle")) {
-        fallback = QStyle::SP_BrowserReload;
-        themeName = "weather-showers-scattered";
-    } else if (normalized.contains("audio") || normalized == "wav" ||
-               normalized == "mp3" || normalized == "ogg" ||
-               normalized == "flac") {
-        fallback = QStyle::SP_MediaVolume;
-        themeName = "audio-x-generic";
-    } else if (normalized == "model") {
-        fallback = QStyle::SP_FileDialogContentsView;
-        themeName = "model";
-    } else if (normalized == "solid" || normalized == "cube" ||
-               normalized == "sphere" || normalized == "plane" ||
-               normalized == "pyramid" || normalized == "capsule") {
-        fallback = QStyle::SP_DirIcon;
-        themeName = "applications-games";
-    }
-    return QIcon::fromTheme(themeName, widget->style()->standardIcon(fallback));
+    if (normalized == "folder")
+        return styling::icon(styling::Icon::Folder, "#55C2FF");
+    if (normalized.contains("camera"))
+        return styling::icon(styling::Icon::Camera, "#F472B6");
+    if (normalized.contains("environment") ||
+        normalized.contains("atmosphere"))
+        return styling::icon(styling::Icon::Globe, "#55C2FF");
+    if (normalized.contains("light") || normalized == "sun")
+        return styling::icon(styling::Icon::Lightbulb, "#F5B942");
+    if (normalized.contains("terrain"))
+        return styling::icon(styling::Icon::Mountains, "#52D273");
+    if (normalized.contains("particle"))
+        return styling::icon(styling::Icon::Sparkle, "#A78BFA");
+    if (normalized.contains("audio") || normalized == "wav" ||
+        normalized == "mp3" || normalized == "ogg" ||
+        normalized == "flac")
+        return styling::icon(styling::Icon::MusicNote, "#52D273");
+    if (normalized.contains("material"))
+        return styling::icon(styling::Icon::Material, "#F472B6");
+    if (normalized.contains("script") || normalized == "ts" ||
+        normalized == "js")
+        return styling::icon(styling::Icon::FileCode, "#55C2FF");
+    if (normalized.contains("rigidbody") || normalized.contains("joint"))
+        return styling::icon(styling::Icon::Wrench, "#F5B942");
+    if (normalized == "sphere")
+        return styling::icon(styling::Icon::Sphere, "#A78BFA");
+    return styling::icon(styling::Icon::Cube, "#A78BFA");
 }
 
 QString componentTitle(const QString &type) {
@@ -619,7 +611,7 @@ void addSyncPicker(QHBoxLayout *layout, const QString &path,
     auto *button = new QToolButton(parent);
     button->setObjectName("inspectorSyncButton");
     button->setIcon(
-        parent->style()->standardIcon(QStyle::SP_BrowserReload));
+        styling::icon(styling::Icon::ArrowCounterClockwise, "#52D273"));
     button->setToolTip("Match this value with another property");
     button->setPopupMode(QToolButton::InstantPopup);
     auto showMatch = [button, valueEditor](const QString &name) {
@@ -1173,7 +1165,7 @@ QFrame *componentCard(const QString &title, const QJsonObject &properties,
         auto *removeButton = new QToolButton(headerRow);
         removeButton->setObjectName("inspectorComponentRemoveButton");
         removeButton->setIcon(
-            card->style()->standardIcon(QStyle::SP_DialogDiscardButton));
+            styling::icon(styling::Icon::Trash, "#FF6B7A"));
         removeButton->setToolTip(QStringLiteral("Remove %1").arg(title));
         headerLayout->addWidget(removeButton);
         QObject::connect(removeButton, &QToolButton::clicked, card, remove);
@@ -1512,15 +1504,17 @@ void InspectorPanel::showObject(const QJsonObject &object) {
             controlsLayout->setContentsMargins(8, 4, 8, 6);
             controlsLayout->setSpacing(5);
             const QStringList audioActions{"Play", "Pause", "Stop"};
-            const QList<QStyle::StandardPixmap> audioIcons{
-                QStyle::SP_MediaPlay, QStyle::SP_MediaPause,
-                QStyle::SP_MediaStop};
+            const QList<styling::Icon> audioIcons{
+                styling::Icon::Play, styling::Icon::Pause,
+                styling::Icon::Stop};
+            const QList<QColor> audioColors{
+                QColor("#52D273"), QColor("#F5B942"), QColor("#FF6B7A")};
             for (int actionIndex = 0; actionIndex < audioActions.size();
                  ++actionIndex) {
                 const QString &action = audioActions.at(actionIndex);
                 auto *button = new QToolButton(controls);
-                button->setIcon(
-                    style()->standardIcon(audioIcons.at(actionIndex)));
+                button->setIcon(styling::icon(
+                    audioIcons.at(actionIndex), audioColors.at(actionIndex)));
                 button->setToolTip(action);
                 controlsLayout->addWidget(button);
                 connect(button, &QToolButton::clicked, this,
@@ -1538,7 +1532,7 @@ void InspectorPanel::showObject(const QJsonObject &object) {
     auto *addComponent = new QToolButton(content);
     addComponent->setObjectName("inspectorAddComponentButton");
     addComponent->setIcon(
-        style()->standardIcon(QStyle::SP_FileDialogNewFolder));
+        styling::icon(styling::Icon::Plus, "#A78BFA"));
     addComponent->setText("Add Component");
     addComponent->setToolButtonStyle(Qt::ToolButtonTextBesideIcon);
     addComponent->setPopupMode(QToolButton::InstantPopup);

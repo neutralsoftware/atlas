@@ -7,6 +7,7 @@
 #include <QGuiApplication>
 #include <QLabel>
 #include <QPixmap>
+#include <QProgressBar>
 #include <QScreen>
 
 #ifndef ATLAS_VERSION
@@ -22,11 +23,11 @@ SplashScreen::SplashScreen(QWidget *parent)
     setAttribute(Qt::WA_TranslucentBackground);
     setModal(true);
     setObjectName("atlasSplash");
-    setFixedSize(708, 218);
+    setFixedSize(708, 252);
 
     auto *card = new QFrame(this);
     card->setObjectName("splashCard");
-    card->setGeometry(0, 0, 708, 218);
+    card->setGeometry(0, 0, 708, 252);
     auto *shadow = new QGraphicsDropShadowEffect(card);
     shadow->setBlurRadius(20.0);
     shadow->setOffset(0.0, 5.0);
@@ -35,7 +36,7 @@ SplashScreen::SplashScreen(QWidget *parent)
 
     auto *icon = new QLabel(card);
     icon->setObjectName("splashIcon");
-    icon->setGeometry(28, 32, 110, 110);
+    icon->setGeometry(30, 38, 108, 108);
 #ifdef ATLAS_DEBUG_BUILD
     icon->setPixmap(QPixmap(":/editor/assets/Icon-iOS-Default-1024x1024@1x.png")
                         .scaled(icon->size(), Qt::KeepAspectRatio,
@@ -49,7 +50,7 @@ SplashScreen::SplashScreen(QWidget *parent)
 
     auto *title = new QLabel(card);
     title->setObjectName("splashTitle");
-    title->setGeometry(162, 42, 530, 44);
+    title->setGeometry(164, 42, 514, 44);
 
     QFont titleFont = title->font();
     titleFont.setLetterSpacing(QFont::AbsoluteSpacing, -0.3);
@@ -65,7 +66,7 @@ SplashScreen::SplashScreen(QWidget *parent)
 
     auto *version = new QLabel(card);
     version->setObjectName("splashVersion");
-    version->setGeometry(162, 85, 500, 32);
+    version->setGeometry(164, 86, 500, 28);
 #ifdef ATLAS_DEBUG_BUILD
     version->setText(QStringLiteral("%1 (build %2)")
                          .arg(QStringLiteral(ATLAS_VERSION),
@@ -77,13 +78,19 @@ SplashScreen::SplashScreen(QWidget *parent)
 
     auto *company = new QLabel("by neutral software", card);
     company->setObjectName("splashCompany");
-    company->setGeometry(162, 116, 400, 23);
+    company->setGeometry(164, 114, 400, 22);
     company->setAlignment(Qt::AlignLeft | Qt::AlignVCenter);
 
     statusLabel = new QLabel("Loading the engine…", card);
     statusLabel->setObjectName("splashStatus");
-    statusLabel->setGeometry(0, 136, 708, 22);
-    statusLabel->setAlignment(Qt::AlignCenter);
+    statusLabel->setGeometry(164, 151, 500, 22);
+    statusLabel->setAlignment(Qt::AlignLeft | Qt::AlignVCenter);
+
+    auto *progress = new QProgressBar(card);
+    progress->setObjectName("splashProgress");
+    progress->setGeometry(164, 181, 500, 5);
+    progress->setRange(0, 0);
+    progress->setTextVisible(false);
 
 #ifdef ATLAS_DEBUG_BUILD
     auto *warning = new QLabel(
@@ -95,7 +102,7 @@ SplashScreen::SplashScreen(QWidget *parent)
         "appropriate runtime in your system that works with this version.",
         card);
     warning->setObjectName("splashWarning");
-    warning->setGeometry(40, 161, 628, 48);
+        warning->setGeometry(40, 199, 628, 44);
     warning->setWordWrap(true);
     warning->setAlignment(Qt::AlignLeft | Qt::AlignTop);
 #endif
@@ -105,38 +112,47 @@ SplashScreen::SplashScreen(QWidget *parent)
     background: transparent;
 }
 #splashCard {
-    background: #1F2427;
-    border: 1px solid rgba(20, 24, 28, 18);
-    border-radius: 40px;
+    background: #111720;
+    border: 1px solid #344156;
+    border-radius: 18px;
 }
 #splashTitle {
     background: transparent;
-    color: #FFFFFF;
-    font-size: 40px;
-    font-weight: 700;
+    color: #F5F7FA;
+    font-size: 34px;
+    font-weight: 750;
 }
 #splashVersion {
     background: transparent;
-    color: #A1A5A8;
-    font-size: 18px;
+    color: #A78BFA;
+    font-size: 14px;
     font-weight: 700;
 }
 #splashCompany {
     background: transparent;
-    color: #A1A5A8;
+    color: #7F8B9D;
     font-family: "Manrope";
     font-size: 12px;
     font-weight: 650;
 }
 #splashStatus {
     background: transparent;
-    color: #9A9EA1;
-    font-size: 9px;
-    font-weight: 450;
+    color: #B7C1CF;
+    font-size: 10px;
+    font-weight: 550;
+}
+#splashProgress {
+    background: #202A38;
+    border: none;
+    border-radius: 2px;
+}
+#splashProgress::chunk {
+    background: #7C5CFC;
+    border-radius: 2px;
 }
 #splashWarning {
     background: transparent;
-    color: #A4A8AB;
+    color: #68758A;
     font-size: 9px;
     font-weight: 450;
 }

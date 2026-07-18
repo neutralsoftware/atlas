@@ -1,5 +1,6 @@
 #include <editor/views/materialEditor.h>
 #include <editor/widgets/scrubbableSpinBox.h>
+#include <editor/styling/icons.h>
 
 #include <editor/views/viewport.h>
 
@@ -363,10 +364,12 @@ MaterialEditorPanel::MaterialEditorPanel(ViewportPanel *viewport,
     statusLabel->setObjectName("materialEditorStatus");
     auto *saveButton = new QPushButton("Save", header);
     saveButton->setObjectName("materialSaveButton");
-    saveButton->setIcon(style()->standardIcon(QStyle::SP_DialogSaveButton));
+    saveButton->setIcon(
+        styling::icon(styling::Icon::FloppyDisk, "#F5B942"));
     auto *assignButton = new QPushButton("Assign to Selected", header);
     assignButton->setObjectName("materialAssignButton");
-    assignButton->setIcon(style()->standardIcon(QStyle::SP_ArrowRight));
+    assignButton->setIcon(
+        styling::icon(styling::Icon::Assign, "#F472B6"));
     headerLayout->addWidget(titleLabel, 1);
     headerLayout->addWidget(statusLabel);
     headerLayout->addWidget(assignButton);

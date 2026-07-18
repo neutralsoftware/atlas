@@ -1,6 +1,7 @@
 #include <editor/views/viewportTools.h>
 
 #include <editor/views/viewport.h>
+#include <editor/styling/icons.h>
 
 #include <QActionGroup>
 #include <QComboBox>
@@ -41,23 +42,25 @@ ViewportTools::ViewportTools(ViewportPanel *viewport,
 
     playButton = new QToolButton(toolbar);
     playButton->setObjectName("viewportPlaybackButton");
-    playButton->setIcon(style()->standardIcon(QStyle::SP_MediaPlay));
+    playButton->setIcon(styling::icon(styling::Icon::Play, "#52D273"));
     playButton->setToolTip("Play");
     pauseButton = new QToolButton(toolbar);
     pauseButton->setObjectName("viewportPlaybackButton");
-    pauseButton->setIcon(style()->standardIcon(QStyle::SP_MediaPause));
+    pauseButton->setIcon(styling::icon(styling::Icon::Pause, "#F5B942"));
     pauseButton->setToolTip("Pause");
     stepButton = new QToolButton(toolbar);
     stepButton->setObjectName("viewportPlaybackButton");
-    stepButton->setIcon(style()->standardIcon(QStyle::SP_MediaSkipForward));
+    stepButton->setIcon(
+        styling::icon(styling::Icon::SkipForward, "#55C2FF"));
     stepButton->setToolTip("Step one frame");
     stopButton = new QToolButton(toolbar);
     stopButton->setObjectName("viewportPlaybackButton");
-    stopButton->setIcon(style()->standardIcon(QStyle::SP_MediaStop));
+    stopButton->setIcon(styling::icon(styling::Icon::Stop, "#FF6B7A"));
     stopButton->setToolTip("Stop and restore the scene");
     reloadButton = new QToolButton(toolbar);
     reloadButton->setObjectName("viewportPlaybackButton");
-    reloadButton->setIcon(style()->standardIcon(QStyle::SP_BrowserReload));
+    reloadButton->setIcon(
+        styling::icon(styling::Icon::ArrowCounterClockwise, "#A78BFA"));
     reloadButton->setToolTip("Reload runtime");
     playButton->setShortcut(QKeySequence("Ctrl+P"));
     pauseButton->setShortcut(QKeySequence("Ctrl+Shift+P"));
@@ -74,13 +77,17 @@ ViewportTools::ViewportTools(ViewportPanel *viewport,
     auto *transformGroup = new QActionGroup(toolbar);
     transformGroup->setExclusive(true);
     const QStringList transformNames{"Select", "Move", "Rotate", "Scale"};
-    const QList<QStyle::StandardPixmap> transformIcons{
-        QStyle::SP_ArrowUp, QStyle::SP_ArrowRight, QStyle::SP_BrowserReload,
-        QStyle::SP_TitleBarMaxButton};
+    const QList<styling::Icon> transformIcons{
+        styling::Icon::CursorClick, styling::Icon::ArrowsOutCardinal,
+        styling::Icon::ArrowClockwise, styling::Icon::BoundingBox};
+    const QList<QColor> transformColors{
+        QColor("#55C2FF"), QColor("#52D273"), QColor("#F5B942"),
+        QColor("#F472B6")};
     for (int index = 0; index < transformNames.size(); ++index) {
         auto *button = new QToolButton(toolbar);
         button->setObjectName("viewportModeButton");
-        button->setIcon(style()->standardIcon(transformIcons.at(index)));
+        button->setIcon(
+            styling::icon(transformIcons.at(index), transformColors.at(index)));
         button->setToolTip(transformNames.at(index) + " tool");
         button->setCheckable(true);
         auto *action = new QAction(transformNames.at(index), button);
@@ -111,7 +118,8 @@ ViewportTools::ViewportTools(ViewportPanel *viewport,
 
     auto *fpsButton = new QToolButton(toolbar);
     fpsButton->setObjectName("viewportOptionButton");
-    fpsButton->setIcon(style()->standardIcon(QStyle::SP_ComputerIcon));
+    fpsButton->setIcon(
+        styling::icon(styling::Icon::Monitor, "#52D273"));
     fpsButton->setText("FPS");
     fpsButton->setToolButtonStyle(Qt::ToolButtonTextBesideIcon);
     fpsButton->setCheckable(true);

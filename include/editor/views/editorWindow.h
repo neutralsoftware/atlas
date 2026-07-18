@@ -49,6 +49,7 @@ private:
     void setupWindow();
     void setupMenus();
     void setupDocks();
+    void setupWorkspaceBar();
 
     void saveLayout();
     void restoreLayout();

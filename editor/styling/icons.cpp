@@ -90,6 +90,8 @@ ushort codepoint(styling::Icon icon) {
         return 0xE2A0;
     case styling::Icon::Image:
         return 0xE2CA;
+    case styling::Icon::Info:
+        return 0xE2CE;
     case styling::Icon::Layout:
         return 0xE6D6;
     case styling::Icon::Lightbulb:

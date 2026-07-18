@@ -1,5 +1,6 @@
 #include <editor/views/postProcessing.h>
 #include <editor/widgets/scrubbableSpinBox.h>
+#include <editor/styling/icons.h>
 
 #include <editor/views/viewport.h>
 
@@ -104,15 +105,16 @@ PostProcessingPanel::PostProcessingPanel(ViewportPanel *viewport,
     targetSelector->setMinimumWidth(180);
     auto *addTargetButton = new QToolButton(toolbar);
     addTargetButton->setIcon(
-        style()->standardIcon(QStyle::SP_FileDialogNewFolder));
+        styling::icon(styling::Icon::Plus, "#A78BFA"));
     addTargetButton->setText("Target");
     addTargetButton->setToolButtonStyle(Qt::ToolButtonTextBesideIcon);
     removeTargetButton = new QToolButton(toolbar);
     removeTargetButton->setText("Remove");
     removeTargetButton->setIcon(
-        style()->standardIcon(QStyle::SP_DialogDiscardButton));
+        styling::icon(styling::Icon::Trash, "#FF6B7A"));
     auto *applyButton = new QPushButton("Apply to Preview", toolbar);
-    applyButton->setIcon(style()->standardIcon(QStyle::SP_BrowserReload));
+    applyButton->setIcon(
+        styling::icon(styling::Icon::Sparkle, "#52D273"));
     statusLabel = new QLabel(toolbar);
     statusLabel->setObjectName("postProcessingStatus");
     toolbarLayout->addWidget(title);
@@ -243,7 +245,7 @@ void PostProcessingPanel::rebuildEditor() {
     effectsTitle->setObjectName("postProcessingSectionTitle");
     auto *addEffectButton = new QToolButton(effectsHeading);
     addEffectButton->setIcon(
-        style()->standardIcon(QStyle::SP_FileDialogNewFolder));
+        styling::icon(styling::Icon::Plus, "#A78BFA"));
     addEffectButton->setText("Add Effect");
     addEffectButton->setToolButtonStyle(Qt::ToolButtonTextBesideIcon);
     addEffectButton->setPopupMode(QToolButton::InstantPopup);

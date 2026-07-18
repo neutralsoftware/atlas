@@ -46,6 +46,7 @@ enum class Icon {
     Hand,
     HardDrives,
     Image,
+    Info,
     Layout,
     Lightbulb,
     MagnifyingGlass,
