@@ -1091,22 +1091,41 @@ void EditorWindow::showCommandPalette() {
             item->setText(item->text() + "\t" +
                           shortcut);
     }
+    if (commands->count() > 0)
+        commands->setCurrentRow(0);
+    auto *noCommands = new QListWidgetItem("No matching commands", commands);
+    noCommands->setData(Qt::UserRole, QVariant::fromValue<quintptr>(0));
+    noCommands->setData(Qt::UserRole + 1, true);
+    noCommands->setHidden(true);
     connect(search, &QLineEdit::textChanged, &dialog,
-            [commands](const QString &text) {
+            [commands, noCommands](const QString &text) {
+                int firstMatch = -1;
                 for (int index = 0; index < commands->count(); ++index) {
                     QListWidgetItem *item = commands->item(index);
-                    item->setHidden(!item->text().contains(
-                        text, Qt::CaseInsensitive));
+                    if (item == noCommands)
+                        continue;
+                    if (firstMatch < 0 && item->text().contains(
+                                              text, Qt::CaseInsensitive))
+                        firstMatch = index;
+                }
+                if (firstMatch >= 0) {
+                    commands->setCurrentRow(firstMatch);
+                    noCommands->setHidden(true);
+                } else {
+                    noCommands->setHidden(false);
+                    commands->setCurrentItem(noCommands);
                 }
                 for (int index = 0; index < commands->count(); ++index) {
-                    if (!commands->item(index)->isHidden()) {
-                        commands->setCurrentRow(index);
-                        break;
-                    }
+                    QListWidgetItem *item = commands->item(index);
+                    if (item != noCommands)
+                        item->setHidden(!item->text().contains(
+                            text, Qt::CaseInsensitive));
                 }
             });
     connect(commands, &QListWidget::itemActivated, &dialog,
             [&dialog](QListWidgetItem *item) {
+                if (item->data(Qt::UserRole + 1).toBool())
+                    return;
                 auto *action = reinterpret_cast<QAction *>(
                     item->data(Qt::UserRole).value<quintptr>());
                 dialog.accept();
@@ -1202,25 +1221,45 @@ void EditorWindow::showGlobalSearch() {
             SearchValueRole,
             QVariant::fromValue<quintptr>(reinterpret_cast<quintptr>(action)));
     }
+    if (results->count() > 0)
+        results->setCurrentRow(0);
+    auto *noResults = new QListWidgetItem("No matching results", results);
+    noResults->setData(SearchKindRole, 3);
+    noResults->setHidden(true);
     connect(search, &QLineEdit::textChanged, &dialog,
-            [results](const QString &text) {
+            [results, noResults](const QString &text) {
+                int firstMatch = -1;
                 for (int index = 0; index < results->count(); ++index) {
                     QListWidgetItem *item = results->item(index);
-                    item->setHidden(!item->text().contains(
-                                        text, Qt::CaseInsensitive) &&
-                                    !item->toolTip().contains(
-                                        text, Qt::CaseInsensitive));
+                    if (item == noResults)
+                        continue;
+                    const bool matches =
+                        item->text().contains(text, Qt::CaseInsensitive) ||
+                        item->toolTip().contains(text, Qt::CaseInsensitive);
+                    if (firstMatch < 0 && matches)
+                        firstMatch = index;
+                }
+                if (firstMatch >= 0) {
+                    results->setCurrentRow(firstMatch);
+                    noResults->setHidden(true);
+                } else {
+                    noResults->setHidden(false);
+                    results->setCurrentItem(noResults);
                 }
                 for (int index = 0; index < results->count(); ++index) {
-                    if (!results->item(index)->isHidden()) {
-                        results->setCurrentRow(index);
-                        break;
-                    }
+                    QListWidgetItem *item = results->item(index);
+                    if (item != noResults)
+                        item->setHidden(
+                            !item->text().contains(text, Qt::CaseInsensitive) &&
+                            !item->toolTip().contains(text,
+                                                      Qt::CaseInsensitive));
                 }
             });
     connect(results, &QListWidget::itemActivated, &dialog,
             [this, &dialog](QListWidgetItem *item) {
                 const int kind = item->data(Qt::UserRole + 1).toInt();
+                if (kind == 3)
+                    return;
                 dialog.accept();
                 if (kind == 1 && viewportPanel != nullptr) {
                     const int id = item->data(Qt::UserRole + 2).toInt();
@@ -1268,8 +1307,6 @@ void EditorWindow::showGlobalSearch() {
             [moveSelection] { moveSelection(1); });
     connect(up, &QShortcut::activated, &dialog,
             [moveSelection] { moveSelection(-1); });
-    if (results->count() > 0)
-        results->setCurrentRow(0);
     search->setFocus();
     dialog.exec();
 }
