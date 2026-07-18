@@ -28,28 +28,38 @@ def require(name, override=None):
     return Path(candidate)
 
 
-def create_icon(source, destination, work_directory):
-    sips = require("sips", "/usr/bin/sips")
-    iconutil = require("iconutil", "/usr/bin/iconutil")
-    iconset = work_directory / "AtlasEngine.iconset"
-    if iconset.exists():
-        shutil.rmtree(iconset)
-    iconset.mkdir(parents=True)
-    sizes = {
-        "icon_16x16.png": 16,
-        "icon_16x16@2x.png": 32,
-        "icon_32x32.png": 32,
-        "icon_32x32@2x.png": 64,
-        "icon_128x128.png": 128,
-        "icon_128x128@2x.png": 256,
-        "icon_256x256.png": 256,
-        "icon_256x256@2x.png": 512,
-        "icon_512x512.png": 512,
-        "icon_512x512@2x.png": 1024,
-    }
-    for filename, size in sizes.items():
-        run([sips, "-z", size, size, source, "--out", iconset / filename])
-    run([iconutil, "-c", "icns", iconset, "-o", destination])
+def compile_icon(config, artwork, output_directory, work_directory,
+                 deployment_target):
+    source = work_directory / "AtlasEngine.icon"
+    if source.exists():
+        shutil.rmtree(source)
+    (source / "Assets").mkdir(parents=True)
+    shutil.copy2(config, source / "icon.json")
+    shutil.copy2(artwork, source / "Assets" / "atlas_ball_bright.png")
+    if output_directory.exists():
+        shutil.rmtree(output_directory)
+    output_directory.mkdir(parents=True)
+    partial_plist = output_directory / "icon-info.plist"
+    run([
+        "/usr/bin/xcrun",
+        "actool",
+        "--compile",
+        output_directory,
+        "--platform",
+        "macosx",
+        "--minimum-deployment-target",
+        deployment_target,
+        "--app-icon",
+        "AtlasEngine",
+        "--output-partial-info-plist",
+        partial_plist,
+        source,
+    ])
+    icon = output_directory / "AtlasEngine.icns"
+    assets = output_directory / "Assets.car"
+    if not icon.is_file() or not assets.is_file():
+        raise RuntimeError("Xcode did not compile the complete Atlas app icon")
+    return icon, assets
 
 
 def locate_macdeployqt():
@@ -267,16 +277,20 @@ def main():
     app_name = "Atlas Engine.app"
     built_app = build_directory / "bin" / app_name
     packaged_app = dist_directory / app_name
-    icon_source = root / "editor" / "assets" / (
-        "iconFile-iOS-Dark-1024x1024@1x.png"
-        if args.release
-        else "Icon-iOS-Default-1024x1024@1x.png"
+    icon_config = root / "editor" / "assets" / (
+        "AtlasEngine.icon.json" if args.release else "AtlasEngineDev.icon.json"
     )
-    icon = assets_directory / "AtlasEngine.icns"
+    icon_artwork = root / "editor" / "assets" / "atlas_ball_bright.png"
 
     assets_directory.mkdir(parents=True, exist_ok=True)
     dist_directory.mkdir(parents=True, exist_ok=True)
-    create_icon(icon_source, icon, assets_directory)
+    icon, icon_assets = compile_icon(
+        icon_config,
+        icon_artwork,
+        assets_directory / "compiled-icon",
+        assets_directory,
+        deployment_target,
+    )
 
     run([
         require("cmake"),
@@ -325,11 +339,18 @@ def main():
             "-timestamp",
         ])
     run(deploy)
-    sign_bundle(packaged_app, signing_identity)
 
     plist_path = packaged_app / "Contents" / "Info.plist"
+    resources_directory = packaged_app / "Contents" / "Resources"
+    shutil.copy2(icon_assets, resources_directory / "Assets.car")
     with plist_path.open("rb") as stream:
         plist = plistlib.load(stream)
+    plist["CFBundleIconFile"] = "AtlasEngine"
+    plist["CFBundleIconName"] = "AtlasEngine"
+    with plist_path.open("wb") as stream:
+        plistlib.dump(plist, stream)
+    sign_bundle(packaged_app, signing_identity)
+
     if plist.get("CFBundleIdentifier") != "neutralsoftware.atlas":
         raise RuntimeError("Packaged app has the wrong bundle identifier")
     if plist.get("LSMinimumSystemVersion") != deployment_target:
@@ -338,6 +359,10 @@ def main():
         raise RuntimeError("Packaged app is missing the Atlas CLI")
     if not (packaged_app / "Contents" / "Frameworks" / "runtime.dylib").is_file():
         raise RuntimeError("Packaged app is missing the Atlas runtime")
+    if not (resources_directory / "AtlasEngine.icns").is_file():
+        raise RuntimeError("Packaged app is missing the legacy macOS icon")
+    if not (resources_directory / "Assets.car").is_file():
+        raise RuntimeError("Packaged app is missing the modern macOS icon")
 
     invalid_dependencies = macho_dependencies(packaged_app)
     if invalid_dependencies:
