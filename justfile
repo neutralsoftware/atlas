@@ -62,6 +62,12 @@ frametest:
 cli:
     cargo build
 
+package-debug-macos:
+    ./scripts/package_app.py --debug --macOS
+
+package-release-macos:
+    ./scripts/package_app.py --release --macOS
+
 release-metal:
     rm -rf build/release-metal
     mkdir -p build/release-metal dist/release

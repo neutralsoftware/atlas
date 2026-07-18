@@ -23,6 +23,7 @@
 #include "DockWidget.h"
 #include "../include/editor/application/styling.h"
 #include "editor/debug.h"
+#include "editor/application/toolchainInstaller.h"
 #include "editor/styling/icons.h"
 #include "editor/views/editorWindow.h"
 #include "editor/views/projectBrowser.h"
@@ -65,6 +66,7 @@ int main(int argc, char **argv) {
 
     app.setStyle("Fusion");
     styling::applyTheme(app);
+    ToolchainInstaller::ensureInstalled();
 
     auto *startupSplash = new SplashScreen();
     startupSplash->start("Preparing the project browser...");

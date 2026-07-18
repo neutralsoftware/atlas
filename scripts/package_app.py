@@ -1,0 +1,261 @@
+#!/usr/bin/env python3
+
+import argparse
+import os
+import platform
+import plistlib
+import shutil
+import subprocess
+import sys
+from pathlib import Path
+
+
+def run(command, cwd=None, capture=False):
+    print("+", " ".join(str(part) for part in command), flush=True)
+    return subprocess.run(
+        [str(part) for part in command],
+        cwd=cwd,
+        check=True,
+        text=True,
+        capture_output=capture,
+    )
+
+
+def require(name, override=None):
+    candidate = override or shutil.which(name)
+    if not candidate:
+        raise RuntimeError(f"Required tool was not found: {name}")
+    return Path(candidate)
+
+
+def create_icon(source, destination, work_directory):
+    sips = require("sips", "/usr/bin/sips")
+    iconutil = require("iconutil", "/usr/bin/iconutil")
+    iconset = work_directory / "AtlasEngine.iconset"
+    if iconset.exists():
+        shutil.rmtree(iconset)
+    iconset.mkdir(parents=True)
+    sizes = {
+        "icon_16x16.png": 16,
+        "icon_16x16@2x.png": 32,
+        "icon_32x32.png": 32,
+        "icon_32x32@2x.png": 64,
+        "icon_128x128.png": 128,
+        "icon_128x128@2x.png": 256,
+        "icon_256x256.png": 256,
+        "icon_256x256@2x.png": 512,
+        "icon_512x512.png": 512,
+        "icon_512x512@2x.png": 1024,
+    }
+    for filename, size in sizes.items():
+        run([sips, "-z", size, size, source, "--out", iconset / filename])
+    run([iconutil, "-c", "icns", iconset, "-o", destination])
+
+
+def locate_macdeployqt():
+    configured = os.environ.get("ATLAS_MACDEPLOYQT")
+    if configured:
+        return require("macdeployqt", configured)
+    found = shutil.which("macdeployqt")
+    if found:
+        return Path(found)
+    qtpaths = shutil.which("qtpaths6") or shutil.which("qtpaths")
+    if qtpaths:
+        result = run([qtpaths, "--query", "QT_INSTALL_BINS"], capture=True)
+        candidate = Path(result.stdout.strip()) / "macdeployqt"
+        if candidate.is_file():
+            return candidate
+    raise RuntimeError("macdeployqt was not found. Install Qt 6 or set ATLAS_MACDEPLOYQT.")
+
+
+def macho_dependencies(bundle):
+    file_tool = require("file", "/usr/bin/file")
+    otool = require("otool", "/usr/bin/otool")
+    invalid = []
+    for path in bundle.rglob("*"):
+        if not path.is_file() or path.is_symlink():
+            continue
+        kind = run([file_tool, "-b", path], capture=True).stdout
+        if "Mach-O" not in kind:
+            continue
+        output = run([otool, "-L", path], capture=True).stdout.splitlines()[1:]
+        for line in output:
+            dependency = line.strip().split(" (", 1)[0]
+            if dependency.startswith(("@", "/System/Library/", "/usr/lib/")):
+                continue
+            invalid.append((path, dependency))
+    return invalid
+
+
+def sign_bundle(bundle, identity):
+    codesign = require("codesign", "/usr/bin/codesign")
+    command = [codesign, "--force", "--deep", "--options", "runtime"]
+    if identity != "-":
+        command.append("--timestamp")
+    command.extend(["--sign", identity, bundle])
+    run(command)
+    run([codesign, "--verify", "--deep", "--strict", "--verbose=2", bundle])
+
+
+def archive_bundle(bundle, archive):
+    if archive.exists():
+        archive.unlink()
+    run([
+        "/usr/bin/ditto",
+        "-c",
+        "-k",
+        "--sequesterRsrc",
+        "--keepParent",
+        bundle,
+        archive,
+    ])
+
+
+def notarize(bundle, profile, temporary_archive):
+    archive_bundle(bundle, temporary_archive)
+    run([
+        "/usr/bin/xcrun",
+        "notarytool",
+        "submit",
+        temporary_archive,
+        "--keychain-profile",
+        profile,
+        "--wait",
+    ])
+    run(["/usr/bin/xcrun", "stapler", "staple", bundle])
+    temporary_archive.unlink()
+
+
+def parse_arguments():
+    parser = argparse.ArgumentParser(
+        description="Build and package Atlas Engine as a self-contained macOS app."
+    )
+    configuration = parser.add_mutually_exclusive_group(required=True)
+    configuration.add_argument("--debug", action="store_true")
+    configuration.add_argument("--release", action="store_true")
+    parser.add_argument("--macOS", dest="macos", action="store_true", required=True)
+    return parser.parse_args()
+
+
+def main():
+    args = parse_arguments()
+    if platform.system() != "Darwin":
+        raise RuntimeError("--macOS packaging must run on macOS")
+
+    root = Path(__file__).resolve().parent.parent
+    mode = "release" if args.release else "debug"
+    configuration = mode.capitalize()
+    architectures = os.environ.get("ATLAS_MACOS_ARCHITECTURES", platform.machine())
+    architecture_tag = "universal" if ";" in architectures else architectures
+    deployment_target = os.environ.get("ATLAS_MACOS_DEPLOYMENT_TARGET", "14.0")
+    signing_identity = os.environ.get("ATLAS_SIGNING_IDENTITY", "-")
+    notary_profile = os.environ.get("ATLAS_NOTARY_PROFILE")
+    build_directory = root / "build" / "package" / f"macos-{mode}-{architecture_tag}"
+    assets_directory = build_directory / "package-assets"
+    dist_directory = root / "dist" / "macOS" / mode
+    app_name = "Atlas Engine.app"
+    built_app = build_directory / "bin" / app_name
+    packaged_app = dist_directory / app_name
+    icon_source = root / "editor" / "assets" / (
+        "iconFile-iOS-Dark-1024x1024@1x.png"
+        if args.release
+        else "Icon-iOS-Default-1024x1024@1x.png"
+    )
+    icon = assets_directory / "AtlasEngine.icns"
+
+    assets_directory.mkdir(parents=True, exist_ok=True)
+    dist_directory.mkdir(parents=True, exist_ok=True)
+    create_icon(icon_source, icon, assets_directory)
+
+    run([
+        require("cmake"),
+        "-S",
+        root,
+        "-B",
+        build_directory,
+        "-G",
+        "Ninja",
+        f"-DCMAKE_BUILD_TYPE={configuration}",
+        "-DBACKEND=METAL",
+        f"-DCMAKE_OSX_ARCHITECTURES={architectures}",
+        f"-DCMAKE_OSX_DEPLOYMENT_TARGET={deployment_target}",
+        f"-DATLAS_APP_ICON={icon}",
+    ])
+    run([
+        require("cmake"),
+        "--build",
+        build_directory,
+        "--target",
+        "AtlasEditor",
+        "--parallel",
+        str(os.cpu_count() or 4),
+    ])
+    if not built_app.is_dir():
+        raise RuntimeError(f"Atlas Engine app bundle was not produced at {built_app}")
+
+    if packaged_app.exists():
+        shutil.rmtree(packaged_app)
+    run(["/usr/bin/ditto", built_app, packaged_app])
+
+    deploy = [
+        locate_macdeployqt(),
+        packaged_app,
+        "-always-overwrite",
+        f"-libpath={build_directory / 'lib'}",
+        "-hardened-runtime",
+    ]
+    if signing_identity == "-":
+        deploy.append("-codesign=-")
+    elif notary_profile:
+        deploy.append(f"-sign-for-notarization={signing_identity}")
+    else:
+        deploy.extend([f"-codesign={signing_identity}", "-timestamp"])
+    run(deploy)
+    sign_bundle(packaged_app, signing_identity)
+
+    plist_path = packaged_app / "Contents" / "Info.plist"
+    with plist_path.open("rb") as stream:
+        plist = plistlib.load(stream)
+    if plist.get("CFBundleIdentifier") != "neutralsoftware.atlas":
+        raise RuntimeError("Packaged app has the wrong bundle identifier")
+    if not (packaged_app / "Contents" / "Helpers" / "atlas").is_file():
+        raise RuntimeError("Packaged app is missing the Atlas CLI")
+    if not (packaged_app / "Contents" / "Frameworks" / "runtime.dylib").is_file():
+        raise RuntimeError("Packaged app is missing the Atlas runtime")
+
+    invalid_dependencies = macho_dependencies(packaged_app)
+    if invalid_dependencies:
+        details = "\n".join(
+            f"{path.relative_to(packaged_app)}: {dependency}"
+            for path, dependency in invalid_dependencies
+        )
+        raise RuntimeError(f"The app contains non-portable library paths:\n{details}")
+
+    temporary_archive = dist_directory / "Atlas-Engine-notarization.zip"
+    if notary_profile:
+        if signing_identity == "-":
+            raise RuntimeError("ATLAS_NOTARY_PROFILE requires ATLAS_SIGNING_IDENTITY")
+        notarize(packaged_app, notary_profile, temporary_archive)
+
+    archive = dist_directory / (
+        f"Atlas-Engine-alpha9-macOS-{architecture_tag}-{mode}.zip"
+    )
+    archive_bundle(packaged_app, archive)
+    signature = "ad-hoc development signature"
+    if notary_profile:
+        signature = "Developer ID signature and notarization"
+    elif signing_identity != "-":
+        signature = "Developer ID signature"
+    print(f"Packaged app: {packaged_app}")
+    print(f"Archive: {archive}")
+    print(f"Architecture: {architectures}")
+    print(f"Minimum macOS: {deployment_target}")
+    print(f"Trust: {signature}")
+
+
+if __name__ == "__main__":
+    try:
+        main()
+    except (RuntimeError, subprocess.CalledProcessError) as error:
+        print(f"Packaging failed: {error}", file=sys.stderr)
+        raise SystemExit(1)
