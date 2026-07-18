@@ -543,8 +543,9 @@ QList<int> HierarchyPanel::selectedObjectIds() const {
     if (treeView == nullptr || treeView->selectionModel() == nullptr)
         return ids;
     for (const QModelIndex &index : treeView->selectionModel()->selectedRows()) {
-        const int id = index.data(ObjectIdRole).toInt(-1);
-        if (id >= 0 && !ids.contains(id))
+        bool valid = false;
+        const int id = index.data(ObjectIdRole).toInt(&valid);
+        if (valid && id >= 0 && !ids.contains(id))
             ids.append(id);
     }
     return ids;

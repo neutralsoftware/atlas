@@ -168,8 +168,9 @@ ViewportTools::ViewportTools(ViewportPanel *viewport,
                 updatePlaybackState(playbackState);
             });
     connect(sceneTabs, &QTabBar::currentChanged, this, [this](int index) {
-        if (index >= 0 && index < scenePaths.size() && viewport != nullptr)
-            viewport->openRuntimeScene(scenePaths.at(index));
+        if (index >= 0 && index < scenePaths.size() &&
+            this->viewport != nullptr)
+            this->viewport->openRuntimeScene(scenePaths.at(index));
     });
     connect(sceneTabs, &QTabBar::tabCloseRequested, this, [this](int index) {
         if (sceneTabs->count() <= 1 || index < 0 || index >= scenePaths.size())
