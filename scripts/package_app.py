@@ -109,9 +109,9 @@ def macho_dependencies(bundle):
 
 def sign_bundle(bundle, identity):
     codesign = require("codesign", "/usr/bin/codesign")
-    command = [codesign, "--force", "--deep", "--options", "runtime"]
+    command = [codesign, "--force", "--deep"]
     if identity != "-":
-        command.append("--timestamp")
+        command.extend(["--options", "runtime", "--timestamp"])
     command.extend(["--sign", identity, bundle])
     run(command)
     run([codesign, "--verify", "--deep", "--strict", "--verbose=2", bundle])
@@ -131,19 +131,100 @@ def archive_bundle(bundle, archive):
     ])
 
 
-def notarize(bundle, profile, temporary_archive):
-    archive_bundle(bundle, temporary_archive)
+def create_dmg(bundle, dmg, staging_directory):
+    if staging_directory.exists():
+        shutil.rmtree(staging_directory)
+    staging_directory.mkdir(parents=True)
+    run(["/usr/bin/ditto", bundle, staging_directory / bundle.name])
+    os.symlink("/Applications", staging_directory / "Applications")
+    if dmg.exists():
+        dmg.unlink()
+    run([
+        "/usr/bin/hdiutil",
+        "create",
+        "-volname",
+        "Atlas Engine",
+        "-srcfolder",
+        staging_directory,
+        "-format",
+        "UDZO",
+        "-ov",
+        dmg,
+    ])
+
+
+def sign_dmg(dmg, identity):
+    if identity == "-":
+        return
+    run([
+        "/usr/bin/codesign",
+        "--force",
+        "--timestamp",
+        "--sign",
+        identity,
+        dmg,
+    ])
+    run(["/usr/bin/codesign", "--verify", "--verbose=2", dmg])
+
+
+def validate_release_identity(identity):
+    result = subprocess.run(
+        ["/usr/bin/security", "find-identity", "-p", "codesigning", "-v"],
+        check=True,
+        text=True,
+        capture_output=True,
+    )
+    matches = [line for line in result.stdout.splitlines() if identity in line]
+    if not any('"Developer ID Application:' in line for line in matches):
+        raise RuntimeError(
+            "ATLAS_SIGNING_IDENTITY must select an installed Developer ID "
+            "Application certificate for a publishable release"
+        )
+
+
+def notarize(artifact, profile):
     run([
         "/usr/bin/xcrun",
         "notarytool",
         "submit",
-        temporary_archive,
+        artifact,
         "--keychain-profile",
         profile,
         "--wait",
     ])
-    run(["/usr/bin/xcrun", "stapler", "staple", bundle])
-    temporary_archive.unlink()
+    run(["/usr/bin/xcrun", "stapler", "staple", artifact])
+    run(["/usr/bin/xcrun", "stapler", "validate", artifact])
+
+
+def validate_dmg(dmg, mountpoint):
+    if mountpoint.exists():
+        shutil.rmtree(mountpoint)
+    mountpoint.mkdir(parents=True)
+    run([
+        "/usr/bin/hdiutil",
+        "attach",
+        "-readonly",
+        "-nobrowse",
+        "-mountpoint",
+        mountpoint,
+        dmg,
+    ])
+    try:
+        mounted_app = mountpoint / "Atlas Engine.app"
+        if not mounted_app.is_dir():
+            raise RuntimeError("DMG does not contain Atlas Engine.app")
+        if not (mountpoint / "Applications").is_symlink():
+            raise RuntimeError("DMG does not contain the Applications link")
+        run([
+            "/usr/bin/codesign",
+            "--verify",
+            "--deep",
+            "--strict",
+            "--verbose=2",
+            mounted_app,
+        ])
+    finally:
+        run(["/usr/bin/hdiutil", "detach", mountpoint])
 
 
 def parse_arguments():
@@ -170,6 +251,16 @@ def main():
     deployment_target = os.environ.get("ATLAS_MACOS_DEPLOYMENT_TARGET", "14.0")
     signing_identity = os.environ.get("ATLAS_SIGNING_IDENTITY", "-")
     notary_profile = os.environ.get("ATLAS_NOTARY_PROFILE")
+    allow_unnotarized = os.environ.get("ATLAS_ALLOW_UNNOTARIZED_RELEASE") == "1"
+    if args.release and (signing_identity == "-" or not notary_profile):
+        if not allow_unnotarized:
+            raise RuntimeError(
+                "A publishable release requires ATLAS_SIGNING_IDENTITY and "
+                "ATLAS_NOTARY_PROFILE. Set ATLAS_ALLOW_UNNOTARIZED_RELEASE=1 "
+                "only to create a local test DMG."
+            )
+    if args.release and not allow_unnotarized:
+        validate_release_identity(signing_identity)
     build_directory = root / "build" / "package" / f"macos-{mode}-{architecture_tag}"
     assets_directory = build_directory / "package-assets"
     dist_directory = root / "dist" / "macOS" / mode
@@ -222,14 +313,17 @@ def main():
         packaged_app,
         "-always-overwrite",
         f"-libpath={build_directory / 'lib'}",
-        "-hardened-runtime",
     ]
     if signing_identity == "-":
         deploy.append("-codesign=-")
     elif notary_profile:
         deploy.append(f"-sign-for-notarization={signing_identity}")
     else:
-        deploy.extend([f"-codesign={signing_identity}", "-timestamp"])
+        deploy.extend([
+            f"-codesign={signing_identity}",
+            "-hardened-runtime",
+            "-timestamp",
+        ])
     run(deploy)
     sign_bundle(packaged_app, signing_identity)
 
@@ -253,16 +347,33 @@ def main():
         )
         raise RuntimeError(f"The app contains non-portable library paths:\n{details}")
 
-    temporary_archive = dist_directory / "Atlas-Engine-notarization.zip"
-    if notary_profile:
-        if signing_identity == "-":
-            raise RuntimeError("ATLAS_NOTARY_PROFILE requires ATLAS_SIGNING_IDENTITY")
-        notarize(packaged_app, notary_profile, temporary_archive)
-
     archive = dist_directory / (
         f"Atlas-Engine-alpha9-macOS-{architecture_tag}-{mode}.zip"
     )
     archive_bundle(packaged_app, archive)
+    dmg_suffix = ""
+    if args.release and allow_unnotarized and not notary_profile:
+        dmg_suffix = "-UNNOTARIZED"
+    dmg = dist_directory / (
+        f"Atlas-Engine-alpha9-macOS-{architecture_tag}-{mode}{dmg_suffix}.dmg"
+    )
+    create_dmg(packaged_app, dmg, build_directory / "dmg-root")
+    sign_dmg(dmg, signing_identity)
+    if notary_profile:
+        if signing_identity == "-":
+            raise RuntimeError("ATLAS_NOTARY_PROFILE requires ATLAS_SIGNING_IDENTITY")
+        notarize(dmg, notary_profile)
+        run([
+            "/usr/sbin/spctl",
+            "--assess",
+            "--type",
+            "open",
+            "--context",
+            "context:primary-signature",
+            "--verbose=2",
+            dmg,
+        ])
+    validate_dmg(dmg, build_directory / "dmg-mount")
     signature = "ad-hoc development signature"
     if notary_profile:
         signature = "Developer ID signature and notarization"
@@ -270,6 +381,7 @@ def main():
         signature = "Developer ID signature"
     print(f"Packaged app: {packaged_app}")
     print(f"Archive: {archive}")
+    print(f"DMG: {dmg}")
     print(f"Architecture: {architectures}")
     print(f"Minimum macOS: {deployment_target}")
     print(f"Trust: {signature}")

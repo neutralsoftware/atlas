@@ -79,6 +79,6 @@ The equivalent `just` recipes are `just package-debug-macos` and `just package-r
 
 The package is self-contained and includes Qt, the Atlas CLI, and `runtime.dylib`. On first launch, Atlas Engine offers to install the bundled CLI and runtime into `~/Library/Application Support/Atlas Engine/toolchains/alpha9` and registers them in `~/.atlas/config.json`. Installation does not require administrator access and preserves other configured Atlas versions.
 
-Development packages use an ad-hoc signature. For a Developer ID package, set `ATLAS_SIGNING_IDENTITY` to the certificate name. Set `ATLAS_NOTARY_PROFILE` to a `notarytool` keychain profile to submit, wait for notarization, and staple the result automatically.
+Debug packages use an ad-hoc signature. A release intended for GitHub requires `ATLAS_SIGNING_IDENTITY` to name a Developer ID Application certificate and `ATLAS_NOTARY_PROFILE` to name a `notarytool` keychain profile. The packer creates, signs, notarizes, staples, mounts, and validates a drag-to-Applications DMG. It refuses to create an accidentally unnotarized release unless `ATLAS_ALLOW_UNNOTARIZED_RELEASE=1` is explicitly set; that local-only artifact is named `UNNOTARIZED`.
 
 The packer builds the host architecture by default. Set `ATLAS_MACOS_ARCHITECTURES='arm64;x86_64'` when the selected Qt installation contains both architectures to create a universal archive. `ATLAS_MACOS_DEPLOYMENT_TARGET` changes the default macOS 14.0 deployment target, and `ATLAS_MACDEPLOYQT` can select a specific `macdeployqt` executable.
