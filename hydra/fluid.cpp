@@ -201,7 +201,10 @@ void Fluid::render(float dt, std::shared_ptr<opal::CommandBuffer> commandBuffer,
     if (TracerServices::getInstance().isOk()) {
         DebugObjectPacket debugPacket{};
         debugPacket.drawCallsForObject = 1;
-        debugPacket.frameCount = Window::mainWindow->device->frameCount;
+        debugPacket.frameCount =
+            Window::mainWindow != nullptr && Window::mainWindow->device != nullptr
+                ? Window::mainWindow->device->frameCount
+                : 0;
         debugPacket.triangleCount = indices.size() / 3;
         debugPacket.vertexBufferSizeMb =
             static_cast<float>(sizeof(FluidVertex) * vertices.size()) /

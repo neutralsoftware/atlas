@@ -654,6 +654,12 @@ void Texture::updateData3D(const void *data, int width, int height, int depth,
 #endif
 }
 
+#ifdef METAL
+MTL::Texture *Texture::getMetalTexture() const {
+    return metal::textureState(const_cast<Texture *>(this)).texture;
+}
+#endif
+
 void Texture::updateData(const void *data, int width, int height,
                          TextureDataFormat dataFormat) {
 #ifdef OPENGL

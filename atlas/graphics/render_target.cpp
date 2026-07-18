@@ -27,8 +27,13 @@ RenderTarget::RenderTarget(Window &window, RenderTargetType type,
                            int resolution) {
     atlas_log("Creating render target (type: " +
               std::to_string(static_cast<int>(type)) + ")");
-    int fbWidth, fbHeight;
-    atlasGetWindowSizeInPixels(window.windowRef, &fbWidth, &fbHeight);
+    Size2d drawableSize = window.getSize();
+    int fbWidth = static_cast<int>(drawableSize.width);
+    int fbHeight = static_cast<int>(drawableSize.height);
+    if (fbWidth <= 1 || fbHeight <= 1) {
+        fbWidth = std::max(1, window.width);
+        fbHeight = std::max(1, window.height);
+    }
 
     float targetScale = window.getRenderScale();
     if (type == RenderTargetType::SSAO || type == RenderTargetType::SSAOBlur) {
@@ -456,7 +461,8 @@ RenderTarget::RenderTarget(Window &window, RenderTargetType type,
                      4.0f /* bytes per pixel */) /
                     (1024.0f * 1024.0f);
     packet.kind = DebugResourceKind::RenderTarget;
-    packet.frameNumber = Window::mainWindow->device->frameCount;
+    packet.frameNumber =
+        window.device != nullptr ? window.device->frameCount : 0;
     packet.send();
 }
 
@@ -921,7 +927,11 @@ void RenderTarget::render(float dt,
     if (TracerServices::getInstance().isOk()) {
         DebugObjectPacket debugPacket;
         debugPacket.drawCallsForObject = 1;
-        debugPacket.frameCount = Window::mainWindow->device->frameCount;
+        debugPacket.frameCount =
+            Window::mainWindow != nullptr &&
+                    Window::mainWindow->device != nullptr
+                ? Window::mainWindow->device->frameCount
+                : 0;
         debugPacket.triangleCount = 2;
         debugPacket.vertexBufferSizeMb =
             static_cast<float>(sizeof(CoreVertex) * 4) / (1024.0f * 1024.0f);

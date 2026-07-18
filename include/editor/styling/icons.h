@@ -1,0 +1,93 @@
+#ifndef ATLAS_EDITOR_ICONS_H
+#define ATLAS_EDITOR_ICONS_H
+
+#include <QColor>
+#include <QIcon>
+#include <QSize>
+
+namespace styling {
+
+enum class Icon {
+    Aperture,
+    ArrowClockwise,
+    ArrowCounterClockwise,
+    ArrowLeft,
+    ArrowRight,
+    ArrowUp,
+    ArrowsOutCardinal,
+    Assign,
+    BoundingBox,
+    Camera,
+    CaretDown,
+    CaretLeft,
+    CaretRight,
+    CaretUp,
+    Check,
+    Close,
+    Cloud,
+    Code,
+    Crosshair,
+    Cube,
+    CubeFocus,
+    CubeTransparent,
+    CursorClick,
+    Database,
+    DotsVertical,
+    DotsNine,
+    Export,
+    Eye,
+    EyeSlash,
+    File,
+    FileCode,
+    FilmStrip,
+    FloppyDisk,
+    Folder,
+    FolderOpen,
+    GameController,
+    Gear,
+    Globe,
+    Hand,
+    HardDrives,
+    Image,
+    Info,
+    Layout,
+    Lightbulb,
+    MagnifyingGlass,
+    Material,
+    Monitor,
+    MonitorPlay,
+    Mountains,
+    MusicNote,
+    Package,
+    PaintBrush,
+    Palette,
+    Pause,
+    Play,
+    Plus,
+    RocketLaunch,
+    Rows,
+    Sidebar,
+    SkipForward,
+    SlidersHorizontal,
+    Sparkle,
+    SpeakerHigh,
+    Sphere,
+    SquaresFour,
+    Stack,
+    Stop,
+    Sun,
+    TerminalWindow,
+    Trash,
+    TreeStructure,
+    Warning,
+    Waveform,
+    Wrench
+};
+
+bool loadIconFont();
+QIcon icon(Icon icon, const QColor &color = QColor("#AAB4C4"));
+QIcon colorSwatch(const QColor &color, const QSize &size = QSize(18, 18));
+
+}
+
+#endif

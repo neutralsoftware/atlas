@@ -23,18 +23,23 @@
 #include "aurora/procedural.h"
 #include "aurora/terrain.h"
 #include "atlas/runtime/atlasScripts.h"
+#include "hydra/fluid.h"
 #include <algorithm>
 #include <array>
 #include <cctype>
 #include <cmath>
 #include <filesystem>
 #include <fstream>
+#include <iterator>
+#include <limits>
 #include <memory>
+#include <numbers>
 #include <sstream>
 #include <stdexcept>
 #include <json.hpp>
 #include <string>
 #include <toml.hpp>
+#include <unordered_set>
 #include <variant>
 #include <vector>
 
@@ -87,6 +92,7 @@ struct PendingComponent {
     std::string objectType;
     std::string baseDir;
     json data;
+    int componentIndex = -1;
 };
 
 struct RuntimeEnvironmentDefinition {
@@ -187,6 +193,10 @@ class RuntimeScriptComponent final : public Component {
 
 constexpr const char *RUNTIME_SCRIPT_BUNDLE_PATH = "dist/scripts.js";
 constexpr const char *RUNTIME_FILE_MODULE_PREFIX = "__atlas_file__/";
+
+std::string serializableObjectName(const Context &context, GameObject &object);
+std::string serializableObjectReference(const Context &context,
+                                        GameObject &object);
 
 std::string normalizeScriptPath(std::string path) {
     std::replace(path.begin(), path.end(), '\\', '/');
@@ -455,9 +465,20 @@ bool isEmptyStringValue(const json &value) {
     return value.is_string() && value.get<std::string>().empty();
 }
 
+bool isFiniteNumber(const json &value) {
+    return value.is_number() && std::isfinite(value.get<double>());
+}
+
+bool isFiniteVector(const Position3d &value) {
+    return std::isfinite(value.x) && std::isfinite(value.y) &&
+           std::isfinite(value.z);
+}
+
 bool tryReadVec3(const json &node, const char *key, Position3d &target) {
     auto it = node.find(key);
-    if (it == node.end() || !it->is_array() || it->size() != 3) {
+    if (it == node.end() || !it->is_array() || it->size() != 3 ||
+        !isFiniteNumber((*it)[0]) || !isFiniteNumber((*it)[1]) ||
+        !isFiniteNumber((*it)[2])) {
         return false;
     }
     target = Position3d((*it)[0].get<float>(), (*it)[1].get<float>(),
@@ -477,7 +498,8 @@ bool tryReadVec3Any(const json &node, std::initializer_list<const char *> keys,
 
 bool tryReadVec2(const json &node, const char *key, Position2d &target) {
     auto it = node.find(key);
-    if (it == node.end() || !it->is_array() || it->size() != 2) {
+    if (it == node.end() || !it->is_array() || it->size() != 2 ||
+        !isFiniteNumber((*it)[0]) || !isFiniteNumber((*it)[1])) {
         return false;
     }
     target = Position2d{(*it)[0].get<float>(), (*it)[1].get<float>()};
@@ -1406,17 +1428,40 @@ void registerGameObject(Context &context, GameObject &object,
         name = objectType + "_" + std::to_string(generatedIndex);
     }
 
+    object.name = name;
     registerObjectReference(context, name, &object);
     context.objectNames[object.getId()] = name;
+    context.objectSceneReferences[object.getId()] = name;
+    context.objectSceneTypes[object.getId()] = objectType;
+    context.editorObjectSourceData[object.getId()] = objectData;
+    if (objectType == "solid") {
+        std::string solidType;
+        tryReadStringAny(objectData, {"solid_type", "solidType"}, solidType);
+        context.objectSceneSolidTypes[object.getId()] =
+            normalizeToken(solidType);
+    }
 
     if (const json *idField = findField(objectData, {"id"});
         idField != nullptr) {
         if (idField->is_string()) {
-            registerObjectReference(context, idField->get<std::string>(),
-                                    &object);
+            std::string sceneReference = idField->get<std::string>();
+            context.objectSceneReferences[object.getId()] = sceneReference;
+            registerObjectReference(context, sceneReference, &object);
         } else if (idField->is_number_integer()) {
-            registerObjectReference(
-                context, std::to_string(idField->get<int>()), &object);
+            std::string sceneReference = std::to_string(idField->get<int>());
+            context.objectSceneReferences[object.getId()] = sceneReference;
+            registerObjectReference(context, sceneReference, &object);
+        }
+    }
+
+    if (const json *parentField = findField(objectData, {"parent"});
+        parentField != nullptr) {
+        if (parentField->is_string()) {
+            context.objectParentReferences[object.getId()] =
+                parentField->get<std::string>();
+        } else if (parentField->is_number_integer()) {
+            context.objectParentReferences[object.getId()] =
+                std::to_string(parentField->get<int>());
         }
     }
 
@@ -1446,10 +1491,669 @@ void applyTransform(GameObject &object, const json &objectData) {
     }
 }
 
+json vec3ToJson(const Position3d &value) {
+    return json::array({std::isfinite(value.x) ? value.x : 0.0f,
+                        std::isfinite(value.y) ? value.y : 0.0f,
+                        std::isfinite(value.z) ? value.z : 0.0f});
+}
+
+json rotationToJson(const Rotation3d &value) {
+    return json::array({std::isfinite(value.pitch) ? value.pitch : 0.0f,
+                        std::isfinite(value.yaw) ? value.yaw : 0.0f,
+                        std::isfinite(value.roll) ? value.roll : 0.0f});
+}
+
+json colorToJson(const Color &value) {
+    return json::array({std::isfinite(value.r) ? value.r : 1.0f,
+                        std::isfinite(value.g) ? value.g : 1.0f,
+                        std::isfinite(value.b) ? value.b : 1.0f,
+                        std::isfinite(value.a) ? value.a : 1.0f});
+}
+
+json sizeToJson(const Size2d &value) {
+    return json::array({std::isfinite(value.width) ? value.width : 1.0f,
+                        std::isfinite(value.height) ? value.height : 1.0f});
+}
+
+Magnitude3d editorForwardDirection(GameObject &object) {
+    glm::vec3 direction =
+        object.getRotation().toGlmQuat() * glm::vec3(0.0f, -1.0f, 0.0f);
+    if (glm::length(direction) < 0.000001f) {
+        direction = glm::vec3(0.0f, -1.0f, 0.0f);
+    }
+    return Magnitude3d::fromGlm(glm::normalize(direction));
+}
+
+bool isEditorLightObject(const Context &context, GameObject &object) {
+    const int id = static_cast<int>(object.getId());
+    return context.editorPointLights.contains(id) ||
+           context.editorSpotlights.contains(id) ||
+           context.editorAreaLights.contains(id) ||
+           context.editorDirectionalLights.contains(id) ||
+           context.editorLightSourceData.contains(id);
+}
+
+void syncEditorLightObject(Context &context, GameObject &object) {
+    const int id = static_cast<int>(object.getId());
+    const auto sourceIt = context.editorLightSourceData.find(id);
+    const json *source =
+        sourceIt != context.editorLightSourceData.end() ? &sourceIt->second
+                                                        : nullptr;
+    if (auto it = context.editorPointLights.find(id);
+        it != context.editorPointLights.end() && it->second != nullptr) {
+        it->second->position = object.getPosition();
+        if (source != nullptr) {
+            tryReadColorAny(*source, {"color"}, it->second->color);
+            tryReadColorAny(*source, {"shineColor"}, it->second->shineColor);
+            tryReadFloatAny(*source, {"intensity"}, it->second->intensity);
+            tryReadFloatAny(*source, {"distance", "range"},
+                            it->second->distance);
+            bool castsShadows = false;
+            int resolution = 2048;
+            tryReadBoolAny(*source, {"castsShadows"}, castsShadows);
+            tryReadIntAny(*source, {"shadowResolution"}, resolution);
+            if (castsShadows && it->second->shadowRenderTarget == nullptr &&
+                context.window != nullptr) {
+                it->second->castShadows(*context.window, resolution);
+            }
+        }
+    }
+    if (auto it = context.editorSpotlights.find(id);
+        it != context.editorSpotlights.end() && it->second != nullptr) {
+        it->second->position = object.getPosition();
+        it->second->direction = editorForwardDirection(object);
+        if (source != nullptr) {
+            Position3d direction;
+            if (tryReadVec3Any(*source, {"direction"}, direction)) {
+                it->second->direction = direction.normalized();
+            }
+            tryReadColorAny(*source, {"color"}, it->second->color);
+            tryReadColorAny(*source, {"shineColor"}, it->second->shineColor);
+            tryReadFloatAny(*source, {"intensity"}, it->second->intensity);
+            tryReadFloatAny(*source, {"range", "distance"}, it->second->range);
+            float cutoff =
+                glm::degrees(std::acos(std::clamp(it->second->cutOff, -1.0f,
+                                                  1.0f)));
+            float outerCutoff = glm::degrees(std::acos(
+                std::clamp(it->second->outerCutoff, -1.0f, 1.0f)));
+            tryReadFloatAny(*source, {"cutoff"}, cutoff);
+            tryReadFloatAny(*source, {"outerCutoff"}, outerCutoff);
+            it->second->cutOff = glm::cos(glm::radians(cutoff));
+            it->second->outerCutoff = glm::cos(glm::radians(outerCutoff));
+            bool castsShadows = false;
+            int resolution = 2048;
+            tryReadBoolAny(*source, {"castsShadows"}, castsShadows);
+            tryReadIntAny(*source, {"shadowResolution"}, resolution);
+            if (castsShadows && it->second->shadowRenderTarget == nullptr &&
+                context.window != nullptr) {
+                it->second->castShadows(*context.window, resolution);
+            }
+        }
+        it->second->updateDebugObjectRotation();
+    }
+    if (auto it = context.editorAreaLights.find(id);
+        it != context.editorAreaLights.end() && it->second != nullptr) {
+        it->second->position = object.getPosition();
+        it->second->setRotation(object.getRotation());
+        if (source != nullptr) {
+            Position3d axis;
+            if (tryReadVec3Any(*source, {"right"}, axis)) {
+                it->second->right = axis.normalized();
+            }
+            if (tryReadVec3Any(*source, {"up"}, axis)) {
+                it->second->up = axis.normalized();
+            }
+            Position2d size;
+            if (tryReadVec2Any(*source, {"size"}, size)) {
+                it->second->size = Size2d{size.x, size.y};
+            }
+            tryReadColorAny(*source, {"color"}, it->second->color);
+            tryReadColorAny(*source, {"shineColor"}, it->second->shineColor);
+            tryReadFloatAny(*source, {"intensity"}, it->second->intensity);
+            tryReadFloatAny(*source, {"range", "distance"}, it->second->range);
+            tryReadFloatAny(*source, {"angle"}, it->second->angle);
+            tryReadBoolAny(*source, {"castsBothSides"},
+                           it->second->castsBothSides);
+            bool castsShadows = false;
+            int resolution = 2048;
+            tryReadBoolAny(*source, {"castsShadows"}, castsShadows);
+            tryReadIntAny(*source, {"shadowResolution"}, resolution);
+            if (castsShadows && it->second->shadowRenderTarget == nullptr &&
+                context.window != nullptr) {
+                it->second->castShadows(*context.window, resolution);
+            }
+        }
+    }
+    if (auto it = context.editorDirectionalLights.find(id);
+        it != context.editorDirectionalLights.end() && it->second != nullptr) {
+        it->second->direction = editorForwardDirection(object);
+        if (source != nullptr) {
+            Position3d direction;
+            if (tryReadVec3Any(*source, {"direction"}, direction)) {
+                it->second->direction = direction.normalized();
+            }
+            tryReadColorAny(*source, {"color"}, it->second->color);
+            tryReadColorAny(*source, {"shineColor"}, it->second->shineColor);
+            tryReadFloatAny(*source, {"intensity"}, it->second->intensity);
+            bool castsShadows = false;
+            int resolution = 4096;
+            tryReadBoolAny(*source, {"castsShadows"}, castsShadows);
+            tryReadIntAny(*source, {"shadowResolution"}, resolution);
+            if (castsShadows && it->second->shadowRenderTarget == nullptr &&
+                context.window != nullptr) {
+                it->second->castShadows(*context.window, resolution);
+            }
+        }
+    }
+    if (source != nullptr && context.scene != nullptr &&
+        !context.editorPointLights.contains(id) &&
+        !context.editorSpotlights.contains(id) &&
+        !context.editorAreaLights.contains(id) &&
+        !context.editorDirectionalLights.contains(id)) {
+        Color color = context.scene->getAmbientColor();
+        float intensity = context.scene->getAmbientIntensity() / 4.0f;
+        tryReadColorAny(*source, {"color"}, color);
+        tryReadFloatAny(*source, {"intensity"}, intensity);
+        context.scene->setAmbientColor(color);
+        context.scene->setAmbientIntensity(intensity * 4.0f);
+    }
+    if (source != nullptr) {
+        auto *coreObject = dynamic_cast<CoreObject *>(&object);
+        if (coreObject == nullptr) {
+            return;
+        }
+        Color color = coreObject->material.albedo;
+        if (tryReadColorAny(*source, {"color"}, color)) {
+            coreObject->material.albedo = color;
+            coreObject->material.emissiveColor = color;
+        }
+    }
+}
+
+void applyEditorCameraData(Context &context) {
+    if (context.camera == nullptr || !context.editorCameraData.is_object()) {
+        return;
+    }
+    tryReadVec3Any(context.editorCameraData, {"position"},
+                   context.camera->position);
+    Position3d target = context.camera->target;
+    if (tryReadVec3Any(context.editorCameraData, {"target"}, target)) {
+        context.camera->lookAt(target);
+    }
+    tryReadFloatAny(context.editorCameraData, {"fov"}, context.camera->fov);
+    tryReadFloatAny(context.editorCameraData, {"nearClip"},
+                    context.camera->nearClip);
+    tryReadFloatAny(context.editorCameraData, {"farClip"},
+                    context.camera->farClip);
+    tryReadFloatAny(context.editorCameraData, {"orthoSize"},
+                    context.camera->orthographicSize);
+    tryReadFloatAny(context.editorCameraData, {"movementSpeed"},
+                    context.camera->movementSpeed);
+    tryReadFloatAny(context.editorCameraData, {"mouseSensitivity"},
+                    context.camera->mouseSensitivity);
+    tryReadFloatAny(context.editorCameraData, {"controllerLookSensitivity"},
+                    context.camera->controllerLookSensitivity);
+    tryReadFloatAny(context.editorCameraData, {"lookSmoothness"},
+                    context.camera->lookSmoothness);
+    tryReadBoolAny(context.editorCameraData, {"orthographic"},
+                   context.camera->useOrthographic);
+    tryReadFloatAny(context.editorCameraData, {"focusDepth"},
+                    context.camera->focusDepth);
+    tryReadFloatAny(context.editorCameraData, {"focusRange"},
+                    context.camera->focusRange);
+    tryReadBoolAny(context.editorCameraData, {"automaticMoving"},
+                   context.cameraAutomaticMoving);
+    if (context.editorCameraData.contains("actions") &&
+        context.editorCameraData["actions"].is_array()) {
+        context.cameraActions.clear();
+        for (const auto &action : context.editorCameraData["actions"]) {
+            if (action.is_string())
+                context.cameraActions.push_back(action.get<std::string>());
+        }
+    }
+}
+
+void repairEditorCamera(Context &context) {
+    if (context.camera == nullptr) {
+        return;
+    }
+    Position3d position = context.camera->position;
+    Position3d storedPosition;
+    const bool storedPositionValid =
+        tryReadVec3(context.editorCameraData, "position", storedPosition);
+    if (!isFiniteVector(position) || !storedPositionValid) {
+        position = storedPositionValid ? storedPosition
+                                       : Position3d{0.0f, 0.0f, -5.0f};
+        context.camera->position = position;
+        context.editorCameraData["position"] = vec3ToJson(position);
+    }
+    Position3d target = context.camera->target;
+    Position3d storedTarget;
+    const bool storedTargetValid =
+        tryReadVec3(context.editorCameraData, "target", storedTarget);
+    if (!isFiniteVector(target) ||
+        glm::length(target.toGlm() - position.toGlm()) < 0.000001f) {
+        target = storedTargetValid ? storedTarget : target;
+        if (!isFiniteVector(target) ||
+            glm::length(target.toGlm() - position.toGlm()) < 0.000001f) {
+            target = Position3d{position.x, position.y, position.z + 1.0f};
+        }
+    }
+    if (!storedTargetValid) {
+        context.editorCameraData["target"] = vec3ToJson(target);
+    }
+    context.camera->lookAt(target);
+}
+
+json serializedEditorCamera(const Context &context) {
+    json result = context.editorCameraData.is_object()
+                      ? context.editorCameraData
+                      : json::object();
+    if (context.camera == nullptr) {
+        return result;
+    }
+    result["position"] = vec3ToJson(context.camera->position);
+    result["target"] = vec3ToJson(context.camera->target);
+    result["fov"] = context.camera->fov;
+    result["nearClip"] = context.camera->nearClip;
+    result["farClip"] = context.camera->farClip;
+    result["orthoSize"] = context.camera->orthographicSize;
+    result["movementSpeed"] = context.camera->movementSpeed;
+    result["mouseSensitivity"] = context.camera->mouseSensitivity;
+    result["controllerLookSensitivity"] =
+        context.camera->controllerLookSensitivity;
+    result["lookSmoothness"] = context.camera->lookSmoothness;
+    result["orthographic"] = context.camera->useOrthographic;
+    result["focusDepth"] = context.camera->focusDepth;
+    result["focusRange"] = context.camera->focusRange;
+    result["automaticMoving"] = context.cameraAutomaticMoving;
+    result["actions"] = context.cameraActions;
+    return result;
+}
+
+json serializeEditorLightObject(Context &context, GameObject &object) {
+    syncEditorLightObject(context, object);
+
+    const int id = static_cast<int>(object.getId());
+    json node = json::object();
+    if (auto source = context.editorLightSourceData.find(id);
+        source != context.editorLightSourceData.end() &&
+        source->second.is_object()) {
+        node = source->second;
+    }
+
+    const std::string name = serializableObjectName(context, object);
+    if (!name.empty()) {
+        node["name"] = name;
+    }
+    const std::string reference = serializableObjectReference(context, object);
+    node["id"] = reference.empty() ? std::to_string(id) : reference;
+    if (auto parent = context.objectParents.find(id);
+        parent != context.objectParents.end()) {
+        auto parentName = context.objectNames.find(parent->second);
+        node["parent"] = parentName != context.objectNames.end()
+                             ? parentName->second
+                             : std::to_string(parent->second);
+    } else {
+        node.erase("parent");
+    }
+
+    if (auto it = context.editorPointLights.find(id);
+        it != context.editorPointLights.end() && it->second != nullptr) {
+        Light &light = *it->second;
+        node["type"] = "pointLight";
+        node["position"] = vec3ToJson(light.position);
+        node["color"] = colorToJson(light.color);
+        node["shineColor"] = colorToJson(light.shineColor);
+        node["intensity"] = light.intensity;
+        node["distance"] = light.distance;
+        return node;
+    }
+
+    if (auto it = context.editorSpotlights.find(id);
+        it != context.editorSpotlights.end() && it->second != nullptr) {
+        Spotlight &light = *it->second;
+        node["type"] = "spotLight";
+        node["position"] = vec3ToJson(light.position);
+        node["direction"] = vec3ToJson(light.direction);
+        node["color"] = colorToJson(light.color);
+        node["shineColor"] = colorToJson(light.shineColor);
+        node["intensity"] = light.intensity;
+        node["range"] = light.range;
+        node["cutoff"] =
+            glm::degrees(std::acos(std::clamp(light.cutOff, -1.0f, 1.0f)));
+        node["outerCutoff"] =
+            glm::degrees(std::acos(std::clamp(light.outerCutoff, -1.0f, 1.0f)));
+        return node;
+    }
+
+    if (auto it = context.editorAreaLights.find(id);
+        it != context.editorAreaLights.end() && it->second != nullptr) {
+        AreaLight &light = *it->second;
+        node["type"] = "areaLight";
+        node["position"] = vec3ToJson(light.position);
+        node["right"] = vec3ToJson(light.right);
+        node["up"] = vec3ToJson(light.up);
+        node["size"] = sizeToJson(light.size);
+        node["color"] = colorToJson(light.color);
+        node["shineColor"] = colorToJson(light.shineColor);
+        node["intensity"] = light.intensity;
+        node["range"] = light.range;
+        node["angle"] = light.angle;
+        node["castsBothSides"] = light.castsBothSides;
+        return node;
+    }
+
+    if (auto it = context.editorDirectionalLights.find(id);
+        it != context.editorDirectionalLights.end() && it->second != nullptr) {
+        DirectionalLight &light = *it->second;
+        node["type"] = "directionalLight";
+        node["position"] = vec3ToJson(object.getPosition());
+        node["direction"] = vec3ToJson(light.direction);
+        node["color"] = colorToJson(light.color);
+        node["shineColor"] = colorToJson(light.shineColor);
+        node["intensity"] = light.intensity;
+        return node;
+    }
+
+    node["type"] = "ambientLight";
+    node["position"] = vec3ToJson(object.getPosition());
+    if (!node.contains("color")) {
+        node["color"] = colorToJson(Color::white());
+    }
+    if (!node.contains("intensity")) {
+        node["intensity"] = 0.5f;
+    }
+    return node;
+}
+
+std::string serializableObjectName(const Context &context, GameObject &object) {
+    if (!object.name.empty()) {
+        return object.name;
+    }
+    auto it = context.objectNames.find(static_cast<int>(object.getId()));
+    if (it != context.objectNames.end()) {
+        return it->second;
+    }
+    return {};
+}
+
+std::string serializableObjectReference(const Context &context,
+                                        GameObject &object) {
+    auto it =
+        context.objectSceneReferences.find(static_cast<int>(object.getId()));
+    if (it != context.objectSceneReferences.end()) {
+        return it->second;
+    }
+    return {};
+}
+
+bool objectNodeMatches(const json &node, const std::string &name,
+                       const std::string &reference) {
+    if (!node.is_object()) {
+        return false;
+    }
+    if (!name.empty() || !reference.empty()) {
+        if (const json *nameField = findField(node, {"name"});
+            nameField != nullptr && nameField->is_string()) {
+            const std::string nodeName = nameField->get<std::string>();
+            if ((!name.empty() && nodeName == name) ||
+                (!reference.empty() && nodeName == reference)) {
+                return true;
+            }
+        }
+    }
+    if (!reference.empty()) {
+        if (const json *idField = findField(node, {"id"}); idField != nullptr) {
+            if (idField->is_string() &&
+                idField->get<std::string>() == reference) {
+                return true;
+            }
+            if (idField->is_number_integer() &&
+                std::to_string(idField->get<int>()) == reference) {
+                return true;
+            }
+        }
+    }
+    return false;
+}
+
+void writeObjectTransform(json &node, const Context &context,
+                          GameObject &object) {
+    const std::string name = serializableObjectName(context, object);
+    if (!name.empty()) {
+        node["name"] = name;
+    }
+    node["position"] = vec3ToJson(object.getPosition());
+    node["rotation"] = rotationToJson(object.getRotation());
+    node["scale"] = vec3ToJson(object.getScale());
+    auto parentIt =
+        context.objectParents.find(static_cast<int>(object.getId()));
+    if (parentIt != context.objectParents.end()) {
+        auto parentName = context.objectNames.find(parentIt->second);
+        node["parent"] = parentName != context.objectNames.end()
+                             ? parentName->second
+                             : std::to_string(parentIt->second);
+    } else {
+        node.erase("parent");
+    }
+}
+
+bool updateObjectNode(json &node, const Context &context, GameObject &object) {
+    const std::string name = serializableObjectName(context, object);
+    const std::string reference = serializableObjectReference(context, object);
+    if (objectNodeMatches(node, name, reference)) {
+        if (auto source = context.editorObjectSourceData.find(object.getId());
+            source != context.editorObjectSourceData.end() &&
+            source->second.is_object()) {
+            for (const auto &[key, value] : source->second.items()) {
+                if (key != "objects") {
+                    node[key] = value;
+                }
+            }
+        }
+        if (auto components =
+                context.editorComponentData.find(object.getId());
+            components != context.editorComponentData.end()) {
+            node["components"] = components->second;
+        }
+        writeObjectTransform(node, context, object);
+        return true;
+    }
+
+    if (const json *children = findField(node, {"objects"});
+        children != nullptr && children->is_array()) {
+        json &mutableChildren = node["objects"];
+        for (auto &child : mutableChildren) {
+            if (updateObjectNode(child, context, object)) {
+                return true;
+            }
+        }
+    }
+
+    return false;
+}
+
+bool removeObjectNode(json &nodes, const std::string &name,
+                      const std::string &reference) {
+    if (!nodes.is_array()) {
+        return false;
+    }
+
+    bool removed = false;
+    for (auto it = nodes.begin(); it != nodes.end();) {
+        if (objectNodeMatches(*it, name, reference)) {
+            it = nodes.erase(it);
+            removed = true;
+            continue;
+        }
+
+        if (it->is_object()) {
+            if (const json *children = findField(*it, {"objects"});
+                children != nullptr && children->is_array()) {
+                removed = removeObjectNode((*it)["objects"], name, reference) ||
+                          removed;
+            }
+        }
+
+        ++it;
+    }
+    return removed;
+}
+
+json serializeNewObject(const Context &context, GameObject &object) {
+    json node = json::object();
+    if (auto source = context.editorObjectSourceData.find(object.getId());
+        source != context.editorObjectSourceData.end() &&
+        source->second.is_object()) {
+        node = source->second;
+    }
+    const std::string name = serializableObjectName(context, object);
+    if (!name.empty()) {
+        node["name"] = name;
+    }
+    node["id"] = static_cast<int>(object.getId());
+    const int id = static_cast<int>(object.getId());
+    auto typeIt = context.objectSceneTypes.find(id);
+    const std::string type =
+        typeIt != context.objectSceneTypes.end() ? typeIt->second : "solid";
+    node["type"] = type;
+    if (type == "solid") {
+        auto solidIt = context.objectSceneSolidTypes.find(id);
+        node["solid_type"] = solidIt != context.objectSceneSolidTypes.end()
+                                 ? solidIt->second
+                                 : "cube";
+    }
+    writeObjectTransform(node, context, object);
+    if (auto components = context.editorComponentData.find(object.getId());
+        components != context.editorComponentData.end()) {
+        node["components"] = components->second;
+    }
+    return node;
+}
+
+CoreObject createCapsulePrimitive(float radius, float height, Color color) {
+    constexpr unsigned int sectorCount = 32;
+    constexpr unsigned int hemisphereSegments = 8;
+    std::vector<CoreVertex> vertices;
+    std::vector<Index> indices;
+    const float halfHeight = std::max(0.0f, height * 0.5f);
+    const float pi = static_cast<float>(std::numbers::pi);
+
+    auto appendRing = [&](float y, float ringRadius, float centerY,
+                          float vCoord) {
+        for (unsigned int j = 0; j <= sectorCount; ++j) {
+            float sector = (static_cast<float>(j) / sectorCount) * pi * 2.0f;
+            float x = ringRadius * std::cos(sector);
+            float z = ringRadius * std::sin(sector);
+            glm::vec3 normal(x, y - centerY, z);
+            if (glm::length(normal) < 0.000001f) {
+                normal = glm::vec3(0.0f, y >= 0.0f ? 1.0f : -1.0f, 0.0f);
+            } else {
+                normal = glm::normalize(normal);
+            }
+            glm::vec3 tangent(-std::sin(sector), 0.0f, std::cos(sector));
+            if (glm::length(tangent) < 0.000001f) {
+                tangent = glm::vec3(1.0f, 0.0f, 0.0f);
+            } else {
+                tangent = glm::normalize(tangent);
+            }
+            glm::vec3 bitangent = glm::normalize(glm::cross(normal, tangent));
+
+            CoreVertex vertex;
+            vertex.position = Position3d(x, y, z);
+            vertex.color = color;
+            vertex.textureCoordinate = {
+                static_cast<float>(j) / sectorCount,
+                vCoord,
+            };
+            vertex.normal = Normal3d::fromGlm(normal);
+            vertex.tangent = Normal3d::fromGlm(tangent);
+            vertex.bitangent = Normal3d::fromGlm(bitangent);
+            vertices.push_back(vertex);
+        }
+    };
+
+    for (unsigned int i = 0; i <= hemisphereSegments; ++i) {
+        float t = static_cast<float>(i) / hemisphereSegments;
+        float angle = (pi * 0.5f) * (1.0f - t);
+        appendRing(halfHeight + radius * std::sin(angle),
+                   radius * std::cos(angle), halfHeight, t * 0.5f);
+    }
+    for (unsigned int i = 1; i <= hemisphereSegments; ++i) {
+        float t = static_cast<float>(i) / hemisphereSegments;
+        float angle = -(pi * 0.5f) * t;
+        appendRing(-halfHeight + radius * std::sin(angle),
+                   radius * std::cos(angle), -halfHeight, 0.5f + t * 0.5f);
+    }
+
+    const unsigned int ringCount = hemisphereSegments * 2 + 1;
+    for (unsigned int i = 0; i < ringCount - 1; ++i) {
+        unsigned int k1 = i * (sectorCount + 1);
+        unsigned int k2 = k1 + sectorCount + 1;
+        for (unsigned int j = 0; j < sectorCount; ++j, ++k1, ++k2) {
+            indices.push_back(k1);
+            indices.push_back(k2);
+            indices.push_back(k1 + 1);
+            indices.push_back(k1 + 1);
+            indices.push_back(k2);
+            indices.push_back(k2 + 1);
+        }
+    }
+
+    CoreObject capsule;
+    capsule.attachVertices(vertices);
+    capsule.attachIndices(indices);
+    capsule.material.albedo = color;
+    capsule.initialize();
+    return capsule;
+}
+
+void resolveObjectParentReferences(Context &context) {
+    for (const auto &[childId, parentReference] :
+         context.objectParentReferences) {
+        auto parentIt = context.objectReferences.find(parentReference);
+        if (parentIt == context.objectReferences.end()) {
+            parentIt =
+                context.objectReferences.find(normalizeToken(parentReference));
+        }
+        if (parentIt == context.objectReferences.end() ||
+            parentIt->second == nullptr) {
+            continue;
+        }
+
+        GameObject *child = nullptr;
+        for (const auto &renderable : context.objects) {
+            if (renderable == nullptr) {
+                continue;
+            }
+            auto *object = dynamic_cast<GameObject *>(renderable.get());
+            if (object != nullptr &&
+                static_cast<int>(object->getId()) == childId) {
+                child = object;
+                break;
+            }
+        }
+        if (child == nullptr || child == parentIt->second) {
+            continue;
+        }
+
+        context.objectParents[childId] =
+            static_cast<int>(parentIt->second->getId());
+        if (auto *compound = dynamic_cast<CompoundObject *>(parentIt->second);
+            compound != nullptr &&
+            std::ranges::find(compound->objects, child) ==
+                compound->objects.end()) {
+            compound->addObject(child);
+        }
+    }
+}
+
 void applyMaterial(GameObject &object, const MaterialDefinition &material) {
     if (auto *coreObject = dynamic_cast<CoreObject *>(&object);
         coreObject != nullptr) {
         coreObject->material = material.material;
+        coreObject->textures.clear();
         for (const auto &texture : material.textures) {
             coreObject->attachTexture(texture);
         }
@@ -1461,6 +2165,7 @@ void applyMaterial(GameObject &object, const MaterialDefinition &material) {
         for (auto &mesh : model->getObjects()) {
             if (mesh != nullptr) {
                 mesh->material = material.material;
+                mesh->textures.clear();
             }
         }
         for (const auto &texture : material.textures) {
@@ -1469,13 +2174,54 @@ void applyMaterial(GameObject &object, const MaterialDefinition &material) {
     }
 }
 
-void collectPendingComponents(GameObject &object, const json &objectData,
+std::shared_ptr<CoreObject> createEditorLightProxy(const std::string &type,
+                                                   const Color &color,
+                                                   const Position3d &position) {
+    auto object = std::make_shared<CoreObject>();
+    const std::string normalized = normalizeToken(type);
+    if (normalized == "pointlight") {
+        *object = createSphere(0.1f, 24, 12, color);
+    } else if (normalized == "arealight") {
+        *object = createPlane({0.55f, 0.55f}, color);
+    } else {
+        *object = createPyramid({0.35f, 0.35f, 0.35f}, color);
+    }
+    object->setPosition(position);
+    object->material.albedo = color;
+    object->material.emissiveColor = color;
+    object->material.emissiveIntensity = 1.5f;
+    object->castsShadows = false;
+    object->editorOnly = true;
+    return object;
+}
+
+int registerEditorLightObject(Context &context,
+                              const std::shared_ptr<CoreObject> &object,
+                              const json &sourceData,
+                              const std::string &objectType) {
+    if (context.window == nullptr || object == nullptr) {
+        return -1;
+    }
+    registerGameObject(context, *object, sourceData, objectType,
+                       context.objects.size());
+    const int id = static_cast<int>(object->getId());
+    context.editorLightSourceData[id] =
+        sourceData.is_object() ? sourceData : json::object();
+    context.objects.push_back(object);
+    context.window->addObject(object.get());
+    return id;
+}
+
+void collectPendingComponents(Context &context, GameObject &object,
+                              const json &objectData,
                               const std::string &baseDir,
                               std::vector<PendingComponent> &rigidbodies,
                               std::vector<PendingComponent> &standard,
                               std::vector<PendingComponent> &joints) {
     const json *componentsField = findField(objectData, {"components"});
     if (componentsField == nullptr) {
+        context.editorComponentData[object.getId()] = json::array();
+        context.editorComponentBaseDirs[object.getId()] = {};
         return;
     }
 
@@ -1494,14 +2240,22 @@ void collectPendingComponents(GameObject &object, const json &objectData,
     }
 
     if (componentEntries.empty()) {
+        context.editorComponentData[object.getId()] = json::array();
+        context.editorComponentBaseDirs[object.getId()] = {};
         return;
     }
+
+    context.editorComponentData[object.getId()] = componentEntries;
+    context.editorComponentBaseDirs[object.getId()] =
+        std::vector<std::string>(componentEntries.size(), definition.baseDir);
 
     std::string objectType;
     tryReadStringAny(objectData, {"type"}, objectType);
     objectType = normalizeToken(objectType);
 
-    for (const auto &componentData : componentEntries) {
+    for (std::size_t componentIndex = 0;
+         componentIndex < componentEntries.size(); ++componentIndex) {
+        const json &componentData = componentEntries[componentIndex];
         if (!componentData.is_object()) {
             continue;
         }
@@ -1518,6 +2272,7 @@ void collectPendingComponents(GameObject &object, const json &objectData,
             .objectType = objectType,
             .baseDir = definition.baseDir,
             .data = componentData,
+            .componentIndex = static_cast<int>(componentIndex),
         };
 
         if (normalizedType == "rigidbody") {
@@ -1936,14 +2691,29 @@ void configureVehicleSettings(bezel::VehicleSettings &settings,
     }
 }
 
-void attachComponent(Context &context, const PendingComponent &pending) {
+std::shared_ptr<Component> attachComponent(Context &context,
+                                           const PendingComponent &pending) {
     if (pending.object == nullptr || !pending.data.is_object()) {
-        return;
+        return nullptr;
     }
 
     std::string type;
     tryReadStringAny(pending.data, {"type"}, type);
     const std::string token = normalizeToken(type);
+    auto finish = [&](const std::shared_ptr<Component> &component) {
+        if (component != nullptr && pending.componentIndex >= 0) {
+            auto &components =
+                context.editorRuntimeComponents[pending.object->getId()];
+            if (components.size() <=
+                static_cast<std::size_t>(pending.componentIndex)) {
+                components.resize(
+                    static_cast<std::size_t>(pending.componentIndex) + 1);
+            }
+            components[static_cast<std::size_t>(pending.componentIndex)] =
+                component;
+        }
+        return component;
+    };
 
     if (token == "script" || token == "traitscript") {
         auto component = std::make_shared<RuntimeScriptComponent>();
@@ -2021,7 +2791,7 @@ void attachComponent(Context &context, const PendingComponent &pending) {
         }
 
         pending.object->addComponent(component);
-        return;
+        return finish(component);
     }
 
     if (token == "rigidbody") {
@@ -2080,7 +2850,7 @@ void attachComponent(Context &context, const PendingComponent &pending) {
             context.context, context.scriptHost, pending.object->getId(),
             rigidbody);
 
-        return;
+        return finish(rigidbody);
     }
 
     if (token == "audioplayer") {
@@ -2109,6 +2879,15 @@ void attachComponent(Context &context, const PendingComponent &pending) {
             component->setPosition(position);
         }
 
+        float volume = 1.0f;
+        if (tryReadFloatAny(pending.data, {"volume"}, volume)) {
+            component->setVolume(volume);
+        }
+        bool loop = false;
+        if (tryReadBoolAny(pending.data, {"loop", "looping"}, loop)) {
+            component->setLoop(loop);
+        }
+
         bool autoPlay = false;
         if (tryReadBoolAny(pending.data,
                            {"autoplay", "autoPlay", "playOnStart"}, autoPlay) &&
@@ -2116,7 +2895,7 @@ void attachComponent(Context &context, const PendingComponent &pending) {
             component->play();
         }
 
-        return;
+        return finish(component);
     }
 
     if (token == "joint" || token == "fixedjoint") {
@@ -2126,7 +2905,7 @@ void attachComponent(Context &context, const PendingComponent &pending) {
         runtime::scripting::registerNativeFixedJoint(
             context.context, context.scriptHost, pending.object->getId(),
             component);
-        return;
+        return finish(component);
     }
 
     if (token == "hingejoint") {
@@ -2162,7 +2941,7 @@ void attachComponent(Context &context, const PendingComponent &pending) {
             context.context, context.scriptHost, pending.object->getId(),
             component);
 
-        return;
+        return finish(component);
     }
 
     if (token == "springjoint") {
@@ -2197,7 +2976,7 @@ void attachComponent(Context &context, const PendingComponent &pending) {
             context.context, context.scriptHost, pending.object->getId(),
             component);
 
-        return;
+        return finish(component);
     }
 
     if (token == "vehicle") {
@@ -2207,10 +2986,277 @@ void attachComponent(Context &context, const PendingComponent &pending) {
         runtime::scripting::registerNativeVehicle(
             context.context, context.scriptHost, pending.object->getId(),
             component);
-        return;
+        return finish(component);
     }
 
     throw std::runtime_error("Unknown component type: " + type);
+}
+
+bool updateAttachedComponent(Context &context, GameObject &object,
+                             const std::shared_ptr<Component> &component,
+                             const json &data, const std::string &baseDir,
+                             const std::string &propertyPath) {
+    if (component == nullptr || !data.is_object()) {
+        return false;
+    }
+
+    if (auto script =
+            std::dynamic_pointer_cast<RuntimeScriptComponent>(component);
+        script != nullptr) {
+        if (const json *variables = findField(data, {"variables"});
+            variables != nullptr) {
+            script->variables = *variables;
+            if (script->instance != nullptr) {
+                const std::string serialized = variables->dump();
+                JSValue parsed = JS_ParseJSON(
+                    context.context, serialized.c_str(), serialized.size(),
+                    "<atlas:variables>");
+                if (!JS_IsException(parsed)) {
+                    JS_SetPropertyStr(context.context,
+                                      script->instance->instance, "variables",
+                                      parsed);
+                } else {
+                    runtime::scripting::dumpExecution(context.context);
+                    JS_FreeValue(context.context, parsed);
+                }
+            }
+        }
+        tryReadStringAny(data, {"traitedType"}, script->traitedType);
+        if (!propertyPath.starts_with("/variables")) {
+            tryReadStringAny(data, {"name", "class", "className"},
+                             script->className);
+            std::string source;
+            if (tryReadStringAny(data, {"source"}, source) &&
+                !source.empty()) {
+                const std::string resolvedSource =
+                    resolveRuntimePath(baseDir, source);
+                std::string extension =
+                    std::filesystem::path(resolvedSource).extension().string();
+                std::transform(extension.begin(), extension.end(),
+                               extension.begin(), [](unsigned char value) {
+                                   return static_cast<char>(
+                                       std::tolower(value));
+                               });
+                if (extension == ".js" || extension == ".mjs") {
+                    script->entryModuleName =
+                        context.registerScriptModule(resolvedSource);
+                    script->source.clear();
+                } else {
+                    script->entryModuleName = context.scriptBundleModuleName;
+                    script->source =
+                        context.toProjectScriptPath(resolvedSource);
+                }
+                if (script->className.empty()) {
+                    script->className = inferScriptClassName(resolvedSource);
+                }
+            }
+            if (script->className.empty() ||
+                script->entryModuleName.empty()) {
+                throw std::runtime_error(
+                    "Script component is missing a valid class or source");
+            }
+            const int objectId = static_cast<int>(object.getId());
+            if (script->isTrait && !script->traitedType.empty() &&
+                context.objectSceneTypes.contains(objectId) &&
+                normalizeToken(script->traitedType) !=
+                    normalizeToken(context.objectSceneTypes[objectId])) {
+                throw std::runtime_error(
+                    "Trait script is incompatible with the object type");
+            }
+            script->instance.reset();
+            script->initialized = false;
+            script->atAttach();
+            script->init();
+        }
+        return true;
+    }
+
+    if (auto rigidbody = std::dynamic_pointer_cast<Rigidbody>(component);
+        rigidbody != nullptr) {
+        tryReadStringAny(data, {"sendSignal", "signal"},
+                         rigidbody->sendSignal);
+        tryReadBoolAny(data, {"isSensor"}, rigidbody->isSensor);
+        if (rigidbody->body != nullptr) {
+            rigidbody->body->sensorSignal = rigidbody->sendSignal;
+            rigidbody->body->isSensor = rigidbody->isSensor;
+        }
+        if (propertyPath.starts_with("/collider")) {
+            if (const json *collider = findField(data, {"collider"});
+                collider != nullptr) {
+                configureRigidbodyCollider(rigidbody, object, *collider);
+            }
+        }
+        float value = 0.0f;
+        if (tryReadFloatAny(data, {"friction"}, value)) {
+            rigidbody->setFriction(value);
+        }
+        if (tryReadFloatAny(data, {"mass"}, value)) {
+            rigidbody->setMass(value);
+        }
+        if (tryReadFloatAny(data, {"restitution", "restituition"}, value)) {
+            rigidbody->setRestitution(value);
+        }
+        if (const json *damping = findField(data, {"damping"});
+            damping != nullptr && damping->is_object()) {
+            float linear = 0.0f;
+            float angular = 0.0f;
+            tryReadFloatAny(*damping, {"linear"}, linear);
+            tryReadFloatAny(*damping, {"angular"}, angular);
+            rigidbody->setDamping(linear, angular);
+        }
+        if (propertyPath.starts_with("/tags") && rigidbody->body != nullptr) {
+            rigidbody->body->tags.clear();
+            if (const json *tags = findField(data, {"tags"});
+                tags != nullptr && tags->is_array()) {
+                for (const auto &tag : *tags) {
+                    if (tag.is_string()) {
+                        rigidbody->addTag(tag.get<std::string>());
+                    }
+                }
+            }
+        }
+        std::string motionType;
+        if (tryReadStringAny(data, {"motionType"}, motionType)) {
+            rigidbody->setMotionType(parseMotionType(motionType));
+        }
+        if (rigidbody->body != nullptr &&
+            rigidbody->body->collider != nullptr &&
+            Window::mainWindow != nullptr &&
+            Window::mainWindow->physicsWorld != nullptr) {
+            rigidbody->body->position = object.getPosition();
+            rigidbody->body->rotation = object.getRotation();
+            rigidbody->body->create(Window::mainWindow->physicsWorld);
+            auto attached =
+                context.editorRuntimeComponents.find(object.getId());
+            if (attached != context.editorRuntimeComponents.end()) {
+                for (const auto &entry : attached->second) {
+                    const std::shared_ptr<Component> related = entry.lock();
+                    if (auto joint =
+                            std::dynamic_pointer_cast<Joint>(related);
+                        joint != nullptr) {
+                        joint->breakJoint();
+                    }
+                    if (auto vehicle =
+                            std::dynamic_pointer_cast<Vehicle>(related);
+                        vehicle != nullptr) {
+                        vehicle->requestRecreate();
+                    }
+                }
+            }
+        }
+        return true;
+    }
+
+    if (auto audio = std::dynamic_pointer_cast<AudioPlayer>(component);
+        audio != nullptr) {
+        if (propertyPath == "/source") {
+            std::string source;
+            if (tryReadStringAny(data, {"source"}, source) &&
+                !source.empty()) {
+                audio->setSource(createRuntimeResource(
+                    baseDir, source, ResourceType::Audio, "runtime-audio"));
+            }
+        }
+        bool spatialization = false;
+        if (tryReadBoolAny(data, {"useSpatialization"}, spatialization)) {
+            if (spatialization) {
+                audio->useSpatialization();
+            } else {
+                audio->disableSpatialization();
+            }
+        }
+        Position3d position;
+        if (tryReadVec3Any(data, {"position"}, position)) {
+            audio->setPosition(position);
+        }
+        float volume = 1.0f;
+        if (tryReadFloatAny(data, {"volume"}, volume)) {
+            audio->setVolume(volume);
+        }
+        bool loop = false;
+        if (tryReadBoolAny(data, {"loop", "looping"}, loop)) {
+            audio->setLoop(loop);
+        }
+        if (propertyPath == "/autoplay" || propertyPath == "/playOnStart") {
+            bool autoPlay = false;
+            tryReadBoolAny(data, {"autoplay", "autoPlay", "playOnStart"},
+                           autoPlay);
+            if (autoPlay) {
+                audio->play();
+            } else {
+                audio->stop();
+            }
+        }
+        return true;
+    }
+
+    if (auto joint = std::dynamic_pointer_cast<Joint>(component);
+        joint != nullptr) {
+        joint->breakJoint();
+        configureJointBase(*joint, context, object, data);
+        if (auto hinge = std::dynamic_pointer_cast<HingeJoint>(component);
+            hinge != nullptr) {
+            Position3d axis;
+            if (tryReadVec3Any(data, {"axis1"}, axis)) {
+                hinge->axis1 = normalizeVector(axis, {0.0f, 1.0f, 0.0f});
+            }
+            if (tryReadVec3Any(data, {"axis2"}, axis)) {
+                hinge->axis2 = normalizeVector(axis, {0.0f, 1.0f, 0.0f});
+            }
+            if (const json *limits = findField(data, {"limits"});
+                limits != nullptr && limits->is_object()) {
+                tryReadBoolAny(*limits, {"isEnabled", "enabled"},
+                               hinge->limits.enabled);
+                tryReadFloatAny(*limits, {"minAngle"},
+                                hinge->limits.minAngle);
+                tryReadFloatAny(*limits, {"maxAngle"},
+                                hinge->limits.maxAngle);
+            }
+            if (const json *motor = findField(data, {"motor"});
+                motor != nullptr && motor->is_object()) {
+                tryReadBoolAny(*motor, {"isEnabled", "enabled"},
+                               hinge->motor.enabled);
+                tryReadFloatAny(*motor, {"maxForce"}, hinge->motor.maxForce);
+                tryReadFloatAny(*motor, {"maxTorque"},
+                                hinge->motor.maxTorque);
+            }
+        }
+        if (auto spring = std::dynamic_pointer_cast<SpringJoint>(component);
+            spring != nullptr) {
+            tryReadVec3Any(data, {"anchorB"}, spring->anchorB);
+            tryReadFloatAny(data, {"restLength"}, spring->restLength);
+            tryReadBoolAny(data, {"useLimits"}, spring->useLimits);
+            tryReadFloatAny(data, {"minLength"}, spring->minLength);
+            tryReadFloatAny(data, {"maxLength"}, spring->maxLength);
+            if (const json *settings = findField(data, {"spring"});
+                settings != nullptr && settings->is_object()) {
+                tryReadBoolAny(*settings, {"enabled", "isEnabled"},
+                               spring->spring.enabled);
+                std::string mode;
+                if (tryReadStringAny(*settings, {"mode"}, mode)) {
+                    spring->spring.mode = parseSpringMode(mode);
+                }
+                tryReadFloatAny(*settings, {"frequencyHz"},
+                                spring->spring.frequencyHz);
+                tryReadFloatAny(*settings, {"dampingRatio"},
+                                spring->spring.dampingRatio);
+                tryReadFloatAny(*settings, {"stiffness"},
+                                spring->spring.stiffness);
+                tryReadFloatAny(*settings, {"damping"},
+                                spring->spring.damping);
+            }
+        }
+        return true;
+    }
+
+    if (auto vehicle = std::dynamic_pointer_cast<Vehicle>(component);
+        vehicle != nullptr) {
+        configureVehicleSettings(vehicle->settings, data);
+        vehicle->requestRecreate();
+        return true;
+    }
+
+    return false;
 }
 
 Key parseKeyString(const std::string &value) {
@@ -2701,6 +3747,12 @@ createRenderable(Context &context, const json &objectData,
             *object =
                 createSphere(radius, static_cast<unsigned int>(sectorCount),
                              static_cast<unsigned int>(stackCount), color);
+        } else if (normalizedSolidType == "capsule") {
+            float radius = 0.35f;
+            float height = 1.0f;
+            tryReadFloatAny(objectData, {"radius"}, radius);
+            tryReadFloatAny(objectData, {"height"}, height);
+            *object = createCapsulePrimitive(radius, height, color);
         } else {
             throw std::runtime_error("Unknown solid type: " + solidType);
         }
@@ -2716,7 +3768,20 @@ createRenderable(Context &context, const json &objectData,
         }
 
         applyTransform(*object, objectData);
-        collectPendingComponents(*object, objectData, baseDir, rigidbodies,
+        collectPendingComponents(context, *object, objectData, baseDir, rigidbodies,
+                                 standard, joints);
+        return object;
+    }
+
+    if (normalizedType == "camera") {
+        auto object = std::make_shared<CoreObject>();
+        *object = createPyramid({0.65f, 0.45f, 0.65f},
+                                Color{0.25f, 0.55f, 1.0f, 1.0f});
+        registerGameObject(context, *object, objectData, normalizedType,
+                           generatedIndex);
+        context.objects.push_back(object);
+        applyTransform(*object, objectData);
+        collectPendingComponents(context, *object, objectData, baseDir, rigidbodies,
                                  standard, joints);
         return object;
     }
@@ -2742,11 +3807,13 @@ createRenderable(Context &context, const json &objectData,
                         "children");
                 }
                 object->addObject(childObject.get());
+                context.objectParents[static_cast<int>(childObject->getId())] =
+                    static_cast<int>(object->getId());
             }
         }
 
         applyTransform(*object, objectData);
-        collectPendingComponents(*object, objectData, baseDir, rigidbodies,
+        collectPendingComponents(context, *object, objectData, baseDir, rigidbodies,
                                  standard, joints);
         return object;
     }
@@ -2773,7 +3840,7 @@ createRenderable(Context &context, const json &objectData,
         }
 
         applyTransform(*object, objectData);
-        collectPendingComponents(*object, objectData, baseDir, rigidbodies,
+        collectPendingComponents(context, *object, objectData, baseDir, rigidbodies,
                                  standard, joints);
         return object;
     }
@@ -2857,7 +3924,7 @@ createRenderable(Context &context, const json &objectData,
             object->setParticleSettings(settings);
         }
 
-        collectPendingComponents(*object, objectData, baseDir, rigidbodies,
+        collectPendingComponents(context, *object, objectData, baseDir, rigidbodies,
                                  standard, joints);
         return object;
     }
@@ -2916,7 +3983,7 @@ createRenderable(Context &context, const json &objectData,
         }
 
         applyTransform(*object, objectData);
-        collectPendingComponents(*object, objectData, baseDir, rigidbodies,
+        collectPendingComponents(context, *object, objectData, baseDir, rigidbodies,
                                  standard, joints);
         return object;
     }
@@ -2940,7 +4007,8 @@ createRenderable(Context &context, const json &objectData,
 
 static std::shared_ptr<Context>
 makeContextWithWindowOptions(std::string projectFile, void *metalView,
-                             CoreWindowReference sdlInputWindow) {
+                             CoreWindowReference sdlInputWindow,
+                             bool showHostWindow = true) {
     auto context = std::make_shared<Context>();
 
     if (!std::filesystem::exists(projectFile)) {
@@ -2948,6 +4016,7 @@ makeContextWithWindowOptions(std::string projectFile, void *metalView,
     }
 
     toml::table configTable = toml::parse_file(projectFile);
+    context->editorRuntime = metalView != nullptr;
 
     int resWidth = 1280;
     int resHeight = 720;
@@ -2972,18 +4041,22 @@ makeContextWithWindowOptions(std::string projectFile, void *metalView,
         editorControls = (*editorTable)["controls"].value_or(false);
     }
     Logger::getInstance().setConsoleFilter(false, true, true);
+    const bool embedded = metalView != nullptr;
 
     context->window = std::make_unique<Window>(WindowConfiguration{
         .title = "Atlas Runtime",
-        .width = resWidth,
-        .height = resHeight,
+        .width = embedded ? 1 : resWidth,
+        .height = embedded ? 1 : resHeight,
         .renderScale = 1.f,
-        .mouseCaptured = mouseCaptured,
+        .mouseCaptured = embedded ? false : mouseCaptured,
         .multisampling = multisampling,
+        .decorations = !embedded,
+        .resizable = !embedded,
         .ssaoScale = ssaoScale,
         .metalTargetView = metalView,
         .sdlInputWindow = sdlInputWindow,
         .editorControls = editorControls,
+        .showHostWindow = showHostWindow && !embedded,
     });
 
     context->projectFile =
@@ -3000,6 +4073,12 @@ makeContextWithWindowOptions(std::string projectFile, void *metalView,
 std::shared_ptr<Context> runtime::makeContext(std::string projectFile) {
     return makeContextWithWindowOptions(std::move(projectFile), nullptr,
                                         nullptr);
+}
+
+std::shared_ptr<Context>
+runtime::makeHiddenContext(std::string projectFile) {
+    return makeContextWithWindowOptions(std::move(projectFile), nullptr,
+                                        nullptr, false);
 }
 
 std::shared_ptr<Context>
@@ -3115,8 +4194,27 @@ bool Context::stepFrame() {
     if (scene == nullptr) {
         throw std::runtime_error("Scene is not initialized");
     }
+    if (editorRuntime) {
+        repairEditorCamera(*this);
+    }
+    for (const auto &renderable : objects) {
+        auto *object = dynamic_cast<GameObject *>(
+            renderable != nullptr ? renderable.get() : nullptr);
+        if (object != nullptr && isEditorLightObject(*this, *object)) {
+            syncEditorLightObject(*this, *object);
+        }
+    }
     window->setScene(scene.get());
-    return window->stepFrame();
+    auto previousRetiredObjects = std::move(retiredObjects);
+    try {
+        return window->stepFrame();
+    } catch (...) {
+        retiredObjects.insert(
+            retiredObjects.end(),
+            std::make_move_iterator(previousRetiredObjects.begin()),
+            std::make_move_iterator(previousRetiredObjects.end()));
+        throw;
+    }
 }
 
 bool Context::resize(int width, int height, float scale) {
@@ -3154,6 +4252,21 @@ bool Context::setEditorControlMode(int mode) {
     return true;
 }
 
+bool Context::setEditorShadingMode(int mode) {
+    if (window == nullptr) {
+        throw std::runtime_error("Window is not initialized");
+    }
+    if (mode < 0 || mode > 2) {
+        return false;
+    }
+    window->setEditorShadingMode(static_cast<EditorShadingMode>(mode));
+    return true;
+}
+
+float Context::frameRate() const {
+    return window != nullptr ? window->getFramesPerSecond() : 0.0f;
+}
+
 bool Context::editorPointerEvent(int action, float x, float y, int button,
                                  float scale) {
     if (window == nullptr) {
@@ -3163,12 +4276,55 @@ bool Context::editorPointerEvent(int action, float x, float y, int button,
     return true;
 }
 
+bool Context::editorScrollEvent(float delta, float scale) {
+    if (window == nullptr) {
+        throw std::runtime_error("Window is not initialized");
+    }
+    window->editorScrollEvent(delta, scale);
+    return true;
+}
+
 bool Context::editorKeyEvent(int key, bool pressed) {
     if (window == nullptr) {
         throw std::runtime_error("Window is not initialized");
     }
     window->editorKeyEvent(key, pressed);
     return true;
+}
+
+bool Context::beginEditorKeyboardTransform(int mode, float x, float y,
+                                           float scale) {
+    if (window == nullptr || mode < 1 || mode > 3)
+        return false;
+    return window->beginEditorKeyboardTransform(
+        static_cast<EditorControlMode>(mode), x, y, scale);
+}
+
+bool Context::setEditorKeyboardTransformAxes(int axes) {
+    if (window == nullptr || axes < 1 || axes > 7)
+        return false;
+    window->setEditorKeyboardTransformAxes(axes);
+    return true;
+}
+
+bool Context::finishEditorKeyboardTransform(bool commit) {
+    if (window == nullptr)
+        return false;
+    window->finishEditorKeyboardTransform(commit);
+    return true;
+}
+
+bool Context::toggleEditorTransformSpace() {
+    return window != nullptr && window->toggleEditorTransformSpace();
+}
+
+bool Context::toggleEditorTransformSnapping() {
+    return window != nullptr && window->toggleEditorTransformSnapping();
+}
+
+float Context::changeEditorTransformSnapIncrement(float factor) {
+    return window != nullptr ? window->changeEditorTransformSnapIncrement(factor)
+                             : 0.0f;
 }
 
 int Context::selectedObjectId() const {
@@ -3187,8 +4343,1321 @@ std::string Context::selectedObjectName() const {
     if (it != objectNames.end()) {
         return it->second;
     }
+    if (window != nullptr && window->getSelectedEditorObject() != nullptr &&
+        !window->getSelectedEditorObject()->name.empty()) {
+        return window->getSelectedEditorObject()->name;
+    }
     return std::to_string(id);
 }
+
+namespace {
+GameObject *findContextObject(const Context &context, int id) {
+    for (const auto &renderable : context.objects) {
+        if (renderable == nullptr) {
+            continue;
+        }
+        auto *object = dynamic_cast<GameObject *>(renderable.get());
+        if (object != nullptr && static_cast<int>(object->getId()) == id) {
+            return object;
+        }
+    }
+    return nullptr;
+}
+
+bool setJsonProperty(json &target, const std::string &propertyPath,
+                     const json &value) {
+    if (propertyPath.empty()) {
+        return false;
+    }
+    try {
+        const std::string pointerPath = propertyPath.front() == '/'
+                                            ? propertyPath
+                                            : '/' + propertyPath;
+        target[json::json_pointer(pointerPath)] = value;
+        return true;
+    } catch (const json::exception &) {
+        return false;
+    }
+}
+
+bool readEditorVec3(const json &value, Position3d &result) {
+    json wrapper = json::object();
+    wrapper["value"] = value;
+    return tryReadVec3Any(wrapper, {"value"}, result);
+}
+
+std::string editorObjectName(const Context &context, GameObject &object) {
+    if (!object.name.empty()) {
+        return object.name;
+    }
+    auto it = context.objectNames.find(static_cast<int>(object.getId()));
+    if (it != context.objectNames.end()) {
+        return it->second;
+    }
+    return std::to_string(object.getId());
+}
+
+std::string editorObjectType(const Context &context, GameObject &object) {
+    const int id = static_cast<int>(object.getId());
+    auto sceneType = context.objectSceneTypes.find(id);
+    if (sceneType != context.objectSceneTypes.end()) {
+        if (sceneType->second == "solid") {
+            auto solidType = context.objectSceneSolidTypes.find(id);
+            if (solidType != context.objectSceneSolidTypes.end() &&
+                !solidType->second.empty()) {
+                return solidType->second;
+            }
+        }
+        return sceneType->second;
+    }
+    if (dynamic_cast<CompoundObject *>(&object) != nullptr) {
+        return "compound";
+    }
+    if (dynamic_cast<Model *>(&object) != nullptr) {
+        return "model";
+    }
+    if (dynamic_cast<Terrain *>(&object) != nullptr) {
+        return "terrain";
+    }
+    if (dynamic_cast<ParticleEmitter *>(&object) != nullptr) {
+        return "particleEmitter";
+    }
+    if (dynamic_cast<Fluid *>(&object) != nullptr) {
+        return "fluid";
+    }
+    if (dynamic_cast<UIObject *>(&object) != nullptr) {
+        return "uiObject";
+    }
+    if (dynamic_cast<CoreObject *>(&object) != nullptr) {
+        return "solid";
+    }
+    return "gameObject";
+}
+
+json editorObjectBoundsSize(GameObject &object) {
+    const std::vector<CoreVertex> vertices = object.getVertices();
+    glm::vec3 size = glm::abs(object.getScale().toGlm());
+    if (!vertices.empty()) {
+        glm::vec3 minimum(std::numeric_limits<float>::max());
+        glm::vec3 maximum(std::numeric_limits<float>::lowest());
+        for (const CoreVertex &vertex : vertices) {
+            const glm::vec3 position = vertex.position.toGlm();
+            minimum = glm::min(minimum, position);
+            maximum = glm::max(maximum, position);
+        }
+        size *= maximum - minimum;
+    }
+    size.x = std::max(size.x, 0.05f);
+    size.y = std::max(size.y, 0.05f);
+    size.z = std::max(size.z, 0.05f);
+    return json::array({size.x, size.y, size.z});
+}
+
+GameObject *propertySyncObject(Context &context, const json &reference) {
+    if (reference.is_number_integer())
+        return findContextObject(context, reference.get<int>());
+    if (!reference.is_string())
+        return nullptr;
+    const std::string key = reference.get<std::string>();
+    auto object = context.objectReferences.find(key);
+    if (object == context.objectReferences.end())
+        object = context.objectReferences.find(normalizeToken(key));
+    return object != context.objectReferences.end() ? object->second : nullptr;
+}
+
+std::optional<json> propertySyncJsonValue(const json &value,
+                                          const std::string &path) {
+    try {
+        if (path.empty())
+            return value;
+        const std::string pointerPath =
+            path.front() == '/' ? path : '/' + path;
+        return value.at(json::json_pointer(pointerPath));
+    } catch (const json::exception &) {
+        return std::nullopt;
+    }
+}
+
+std::optional<json> propertySyncSourceValue(Context &context,
+                                            const json &source) {
+    if (!source.is_object())
+        return std::nullopt;
+    const std::string section =
+        normalizeToken(source.value("section", std::string()));
+    const std::string path = source.value("path", std::string());
+    auto withFallback = [&source](std::optional<json> value) {
+        return value.has_value()
+                   ? value
+                   : source.contains("fallback")
+                         ? std::optional<json>(source["fallback"])
+                         : std::nullopt;
+    };
+    if (section == "camera")
+        return withFallback(
+            propertySyncJsonValue(context.editorCameraData, path));
+    if (section == "environment")
+        return withFallback(
+            propertySyncJsonValue(context.editorEnvironmentData, path));
+    if (section != "object" || !source.contains("object"))
+        return std::nullopt;
+    GameObject *object = propertySyncObject(context, source["object"]);
+    if (object == nullptr)
+        return std::nullopt;
+    const int id = static_cast<int>(object->getId());
+    const std::string component =
+        normalizeToken(source.value("component", std::string()));
+    if (component == "bounds")
+        return editorObjectBoundsSize(*object);
+    if (component == "transform") {
+        const std::string property = normalizeToken(path);
+        if (property == "position")
+            return vec3ToJson(object->getPosition());
+        if (property == "rotation")
+            return rotationToJson(object->getRotation());
+        if (property == "scale")
+            return vec3ToJson(object->getScale());
+        return std::nullopt;
+    }
+    if (component == "object") {
+        auto sourceData = context.editorLightSourceData.find(id);
+        if (sourceData != context.editorLightSourceData.end())
+            return withFallback(
+                propertySyncJsonValue(sourceData->second, path));
+        auto objectData = context.editorObjectSourceData.find(id);
+        return withFallback(objectData != context.editorObjectSourceData.end()
+                                ? propertySyncJsonValue(objectData->second,
+                                                        path)
+                                : std::nullopt);
+    }
+    const int index = source.value("componentIndex", -1);
+    auto components = context.editorComponentData.find(id);
+    if (components == context.editorComponentData.end() ||
+        !components->second.is_array() || index < 0 ||
+        index >= static_cast<int>(components->second.size())) {
+        return source.contains("fallback")
+                   ? std::optional<json>(source["fallback"])
+                   : std::nullopt;
+    }
+    return withFallback(
+        propertySyncJsonValue(components->second[index], path));
+}
+
+bool applyPropertySyncTarget(Context &context, const json &target,
+                             const json &value, bool attachComponents) {
+    if (!target.is_object())
+        return false;
+    const std::string section =
+        normalizeToken(target.value("section", std::string()));
+    const std::string path = target.value("path", std::string());
+    if (section == "camera")
+        return context.setSceneProperty("camera", -1, path, value);
+    if (section == "environment")
+        return context.setSceneProperty("environment", -1, path, value);
+    if (section != "object" || !target.contains("object"))
+        return false;
+    GameObject *object = propertySyncObject(context, target["object"]);
+    if (object == nullptr)
+        return false;
+    const int id = static_cast<int>(object->getId());
+    const std::string component =
+        target.value("component", std::string());
+    const std::string normalized = normalizeToken(component);
+    const int index = target.value("componentIndex", -1);
+    if (!attachComponents && normalized != "transform" &&
+        normalized != "object") {
+        auto components = context.editorComponentData.find(id);
+        if (components == context.editorComponentData.end() ||
+            !components->second.is_array() || index < 0 ||
+            index >= static_cast<int>(components->second.size())) {
+            return false;
+        }
+        return setJsonProperty(components->second[index], path, value);
+    }
+    return context.setObjectProperty(id, component, index, path, value);
+}
+
+void applyPropertySyncs(Context &context, bool attachComponents) {
+    if (!context.editorPropertySyncs.is_array() ||
+        context.applyingPropertySyncs)
+        return;
+    context.applyingPropertySyncs = true;
+    for (const json &binding : context.editorPropertySyncs) {
+        if (!binding.is_object() || !binding.contains("target") ||
+            !binding.contains("source")) {
+            continue;
+        }
+        const std::optional<json> value =
+            propertySyncSourceValue(context, binding["source"]);
+        if (value.has_value())
+            applyPropertySyncTarget(context, binding["target"], *value,
+                                    attachComponents);
+    }
+    context.applyingPropertySyncs = false;
+}
+
+json canonicalPropertySyncEndpoint(Context &context, json endpoint) {
+    if (!endpoint.is_object() ||
+        normalizeToken(endpoint.value("section", std::string())) != "object" ||
+        !endpoint.contains("object")) {
+        return endpoint;
+    }
+    GameObject *object = propertySyncObject(context, endpoint["object"]);
+    if (object == nullptr)
+        return endpoint;
+    const int id = static_cast<int>(object->getId());
+    auto reference = context.objectSceneReferences.find(id);
+    endpoint["object"] =
+        reference != context.objectSceneReferences.end()
+            ? reference->second
+            : editorObjectName(context, *object);
+    return endpoint;
+}
+
+json editorObjectJson(const Context &context, GameObject &object,
+                      const std::unordered_map<int, std::vector<int>> &children,
+                      std::unordered_set<int> &visiting) {
+    const int id = static_cast<int>(object.getId());
+    json node = json::object();
+    node["id"] = id;
+    node["viewportId"] = id;
+    node["name"] = editorObjectName(context, object);
+    node["type"] = editorObjectType(context, object);
+    node["position"] = vec3ToJson(object.getPosition());
+    node["rotation"] = rotationToJson(object.getRotation());
+    node["scale"] = vec3ToJson(object.getScale());
+    node["boundsSize"] = editorObjectBoundsSize(object);
+    if (auto light = context.editorLightSourceData.find(id);
+        light != context.editorLightSourceData.end()) {
+        node["properties"] = light->second;
+    } else if (auto source = context.editorObjectSourceData.find(id);
+               source != context.editorObjectSourceData.end()) {
+        node["properties"] = source->second;
+    } else {
+        node["properties"] = json::object();
+    }
+    if (auto components = context.editorComponentData.find(id);
+        components != context.editorComponentData.end()) {
+        node["components"] = components->second;
+    } else {
+        node["components"] = json::array();
+    }
+
+    if (visiting.contains(id)) {
+        return node;
+    }
+    visiting.insert(id);
+
+    auto childrenIt = children.find(id);
+    if (childrenIt != children.end() && !childrenIt->second.empty()) {
+        node["children"] = json::array();
+        for (int childId : childrenIt->second) {
+            GameObject *child = findContextObject(context, childId);
+            if (child != nullptr) {
+                node["children"].push_back(
+                    editorObjectJson(context, *child, children, visiting));
+            }
+        }
+    }
+
+    visiting.erase(id);
+    return node;
+}
+
+std::string uniqueEditorObjectName(const Context &context,
+                                   const std::string &baseName) {
+    std::string base = baseName.empty() ? "Object" : baseName;
+    auto exists = [&](const std::string &name) {
+        const std::string normalized = normalizeToken(name);
+        for (const auto &[id, existingName] : context.objectNames) {
+            (void)id;
+            if (existingName == name ||
+                normalizeToken(existingName) == normalized) {
+                return true;
+            }
+        }
+        if (context.objectReferences.contains(name) ||
+            context.objectReferences.contains(normalized)) {
+            return true;
+        }
+        return false;
+    };
+
+    if (!exists(base)) {
+        return base;
+    }
+
+    for (int index = 2; index < 100000; ++index) {
+        std::string candidate = base + " " + std::to_string(index);
+        if (!exists(candidate)) {
+            return candidate;
+        }
+    }
+    return base + " " + std::to_string(context.objects.size() + 1);
+}
+} // namespace
+
+std::string Context::sceneObjectsJson() const {
+    json snapshot = json::object();
+    snapshot["name"] =
+        currentSceneName.empty()
+            ? std::filesystem::path(currentSceneFile).stem().string()
+            : currentSceneName;
+    snapshot["selectedId"] = selectedObjectId();
+    snapshot["objects"] = json::array();
+    snapshot["camera"] = serializedEditorCamera(*this);
+    snapshot["targets"] = editorTargetData;
+    snapshot["environment"] = editorEnvironmentData;
+    snapshot["propertySyncs"] = editorPropertySyncs;
+
+    std::unordered_map<int, std::vector<int>> children;
+    for (const auto &[childId, parentId] : objectParents) {
+        children[parentId].push_back(childId);
+    }
+
+    std::unordered_set<int> visiting;
+    for (const auto &renderable : objects) {
+        if (renderable == nullptr) {
+            continue;
+        }
+        auto *object = dynamic_cast<GameObject *>(renderable.get());
+        if (object == nullptr ||
+            objectParents.contains(static_cast<int>(object->getId()))) {
+            continue;
+        }
+        snapshot["objects"].push_back(
+            editorObjectJson(*this, *object, children, visiting));
+    }
+
+    return snapshot.dump();
+}
+
+bool Context::selectObject(int id, bool focusCamera) {
+    if (window == nullptr) {
+        return false;
+    }
+    if (id < 0) {
+        window->selectEditorObject(nullptr, false);
+        return true;
+    }
+    GameObject *object = findContextObject(*this, id);
+    if (object == nullptr) {
+        return false;
+    }
+    window->selectEditorObject(object, focusCamera);
+    return true;
+}
+
+bool Context::focusObjects(const std::vector<int> &ids) {
+    if (window == nullptr || ids.empty())
+        return false;
+    std::vector<GameObject *> selected;
+    for (int id : ids) {
+        if (GameObject *object = findContextObject(*this, id))
+            selected.push_back(object);
+    }
+    if (selected.empty())
+        return false;
+    window->focusEditorObjects(selected);
+    return true;
+}
+
+bool Context::renameObject(int id, const std::string &name) {
+    if (name.empty()) {
+        return false;
+    }
+    GameObject *object = findContextObject(*this, id);
+    if (object == nullptr) {
+        return false;
+    }
+
+    const std::string normalized = normalizeToken(name);
+    for (const auto &[key, referenced] : objectReferences) {
+        if ((key == name || key == normalized) && referenced != object) {
+            return false;
+        }
+    }
+
+    object->name = name;
+    objectNames[id] = name;
+    editorObjectSourceData[id]["name"] = name;
+    if (editorLightSourceData.contains(id)) {
+        editorLightSourceData[id]["name"] = name;
+    }
+    registerObjectReference(*this, name, object);
+    registerObjectReference(*this, std::to_string(id), object);
+    return true;
+}
+
+bool Context::setObjectProperty(int id, const std::string &component,
+                                int componentIndex,
+                                const std::string &propertyPath,
+                                const json &value) {
+    GameObject *object = findContextObject(*this, id);
+    if (object == nullptr) {
+        return false;
+    }
+
+    const std::string normalizedComponent = normalizeToken(component);
+    if (normalizedComponent == "transform") {
+        Position3d vector;
+        if (!readEditorVec3(value, vector)) {
+            return false;
+        }
+        const std::string property = normalizeToken(propertyPath);
+        if (property == "position") {
+            object->setPosition(vector);
+        } else if (property == "rotation") {
+            object->setRotation(Rotation3d{vector.x, vector.y, vector.z});
+        } else if (property == "scale") {
+            object->setScale(vector);
+        } else {
+            return false;
+        }
+        setJsonProperty(editorObjectSourceData[id], "/" + property, value);
+        syncEditorLightObject(*this, *object);
+        applyPropertySyncs(*this, true);
+        return true;
+    }
+
+    if (normalizedComponent == "object") {
+        json &source = editorLightSourceData.contains(id)
+                           ? editorLightSourceData[id]
+                           : editorObjectSourceData[id];
+        if (!setJsonProperty(source, propertyPath, value)) {
+            return false;
+        }
+        syncEditorLightObject(*this, *object);
+        applyPropertySyncs(*this, true);
+        return true;
+    }
+
+    auto components = editorComponentData.find(id);
+    if (components == editorComponentData.end() ||
+        !components->second.is_array() || componentIndex < 0 ||
+        componentIndex >= static_cast<int>(components->second.size())) {
+        return false;
+    }
+    json &componentData = components->second[componentIndex];
+    if (!componentData.is_object()) {
+        return false;
+    }
+    std::string storedType;
+    tryReadStringAny(componentData, {"type"}, storedType);
+    if (normalizeToken(storedType) != normalizedComponent) {
+        return false;
+    }
+    if (!setJsonProperty(componentData, propertyPath, value)) {
+        return false;
+    }
+
+    std::shared_ptr<Component> runtimeComponent;
+    auto runtimeComponents = editorRuntimeComponents.find(id);
+    if (runtimeComponents != editorRuntimeComponents.end() &&
+        componentIndex < static_cast<int>(runtimeComponents->second.size())) {
+        runtimeComponent =
+            runtimeComponents->second[static_cast<std::size_t>(componentIndex)]
+                .lock();
+    }
+
+    std::string componentBaseDir = sceneDir;
+    auto baseDirs = editorComponentBaseDirs.find(id);
+    if (baseDirs != editorComponentBaseDirs.end() &&
+        componentIndex < static_cast<int>(baseDirs->second.size())) {
+        componentBaseDir =
+            baseDirs->second[static_cast<std::size_t>(componentIndex)];
+    }
+    PendingComponent pending{
+        .object = object,
+        .objectType = objectSceneTypes.contains(id) ? objectSceneTypes[id] : "",
+        .baseDir = componentBaseDir,
+        .data = componentData,
+        .componentIndex = componentIndex,
+    };
+    try {
+        if (runtimeComponent == nullptr) {
+            runtimeComponent = attachComponent(*this, pending);
+            if (runtimeComponent != nullptr) {
+                runtimeComponent->init();
+            }
+        } else {
+            updateAttachedComponent(*this, *object, runtimeComponent,
+                                    componentData, componentBaseDir,
+                                    propertyPath);
+        }
+    } catch (const std::exception &error) {
+        RUNTIME_LOG("Component update is waiting for valid values: " +
+                    std::string(error.what()));
+    }
+    applyPropertySyncs(*this, true);
+    return true;
+}
+
+bool Context::setSceneProperty(const std::string &section, int index,
+                               const std::string &propertyPath,
+                               const json &value) {
+    const std::string normalizedSection = normalizeToken(section);
+    if (normalizedSection == "camera") {
+        if (!setJsonProperty(editorCameraData, propertyPath, value)) {
+            return false;
+        }
+        applyEditorCameraData(*this);
+        applyPropertySyncs(*this, true);
+        return true;
+    }
+    if (normalizedSection == "environment") {
+        const bool changed =
+            setJsonProperty(editorEnvironmentData, propertyPath, value);
+        if (changed)
+            applyPropertySyncs(*this, true);
+        return changed;
+    }
+    if (normalizedSection == "target" || normalizedSection == "targets") {
+        if (index < 0 && propertyPath.empty() && value.is_array()) {
+            editorTargetData = value;
+            return true;
+        }
+        if (!editorTargetData.is_array() || index < 0 ||
+            index >= static_cast<int>(editorTargetData.size()) ||
+            !editorTargetData[index].is_object()) {
+            return false;
+        }
+        return setJsonProperty(editorTargetData[index], propertyPath, value);
+    }
+    return false;
+}
+
+bool Context::setPropertySync(const json &target, const json &source) {
+    if (!target.is_object() || !source.is_object())
+        return false;
+    const json canonicalTarget = canonicalPropertySyncEndpoint(*this, target);
+    const json canonicalSource = canonicalPropertySyncEndpoint(*this, source);
+    if (!editorPropertySyncs.is_array())
+        editorPropertySyncs = json::array();
+    for (json &binding : editorPropertySyncs) {
+        if (binding.is_object() && binding.value("target", json()) ==
+                                       canonicalTarget) {
+            binding["source"] = canonicalSource;
+            applyPropertySyncs(*this, true);
+            return true;
+        }
+    }
+    editorPropertySyncs.push_back(
+        json{{"target", canonicalTarget}, {"source", canonicalSource}});
+    applyPropertySyncs(*this, true);
+    return true;
+}
+
+bool Context::clearPropertySync(const json &target) {
+    if (!target.is_object() || !editorPropertySyncs.is_array())
+        return false;
+    const json canonicalTarget = canonicalPropertySyncEndpoint(*this, target);
+    const auto previousSize = editorPropertySyncs.size();
+    editorPropertySyncs.erase(
+        std::remove_if(editorPropertySyncs.begin(), editorPropertySyncs.end(),
+                       [&canonicalTarget](const json &binding) {
+                           return binding.is_object() &&
+                                  binding.value("target", json()) ==
+                                      canonicalTarget;
+                       }),
+        editorPropertySyncs.end());
+    return editorPropertySyncs.size() != previousSize;
+}
+
+bool Context::setObjectMaterial(int id, const std::string &path) {
+    GameObject *object = findContextObject(*this, id);
+    if (object == nullptr || path.empty() ||
+        (dynamic_cast<CoreObject *>(object) == nullptr &&
+         dynamic_cast<Model *>(object) == nullptr)) {
+        return false;
+    }
+    try {
+        applyMaterial(*object, loadMaterialDefinition(path, sceneDir));
+    } catch (const std::exception &error) {
+        RUNTIME_LOG("Material could not be applied: " +
+                    std::string(error.what()));
+        return false;
+    }
+    std::string storedPath = path;
+    std::error_code error;
+    const std::filesystem::path relative =
+        std::filesystem::relative(path, sceneDir, error);
+    if (!error && !relative.empty()) {
+        storedPath = relative.generic_string();
+    }
+    editorObjectSourceData[id]["material"] = storedPath;
+    return true;
+}
+
+static json inheritedRigidbodyCollider(GameObject &object) {
+    return json{{"type", "box"}, {"size", editorObjectBoundsSize(object)}};
+}
+
+int Context::addObjectComponent(int id, const json &component) {
+    GameObject *object = findContextObject(*this, id);
+    if (object == nullptr || !component.is_object()) {
+        return -1;
+    }
+    std::string type;
+    if (!tryReadStringAny(component, {"type"}, type) || type.empty()) {
+        return -1;
+    }
+    const std::string normalizedType = normalizeToken(type);
+    static const std::unordered_set<std::string> supported{
+        "script",      "traitscript", "rigidbody", "audioplayer",
+        "joint",       "fixedjoint",  "hingejoint", "springjoint",
+        "vehicle",
+    };
+    if (!supported.contains(normalizedType)) {
+        return -1;
+    }
+
+    json storedComponent = component;
+    if (normalizedType == "rigidbody") {
+        json &collider = storedComponent["collider"];
+        const bool inheritObjectSize =
+            collider.is_object() &&
+            collider.value("inheritObjectSize", false);
+        if (inheritObjectSize) {
+            collider = inheritedRigidbodyCollider(*object);
+        }
+    }
+
+    json &components = editorComponentData[id];
+    if (!components.is_array()) {
+        components = json::array();
+        editorComponentBaseDirs[id].clear();
+        editorRuntimeComponents[id].clear();
+    }
+    if (normalizedType != "script" && normalizedType != "traitscript") {
+        for (const auto &existing : components) {
+            std::string existingType;
+            tryReadStringAny(existing, {"type"}, existingType);
+            if (normalizeToken(existingType) == normalizedType) {
+                return -1;
+            }
+        }
+    }
+
+    const int index = static_cast<int>(components.size());
+    components.push_back(storedComponent);
+    editorComponentBaseDirs[id].resize(static_cast<std::size_t>(index));
+    editorComponentBaseDirs[id].push_back(sceneDir);
+    PendingComponent pending{
+        .object = object,
+        .objectType = objectSceneTypes.contains(id) ? objectSceneTypes[id] : "",
+        .baseDir = sceneDir,
+        .data = storedComponent,
+        .componentIndex = index,
+    };
+    try {
+        std::shared_ptr<Component> attached = attachComponent(*this, pending);
+        if (attached != nullptr) {
+            attached->init();
+        }
+    } catch (const std::exception &error) {
+        RUNTIME_LOG("Component added and waiting for valid values: " +
+                    std::string(error.what()));
+    }
+    return index;
+}
+
+bool Context::removeObjectComponent(int id, int componentIndex) {
+    auto components = editorComponentData.find(id);
+    if (components == editorComponentData.end() ||
+        !components->second.is_array() || componentIndex < 0 ||
+        componentIndex >= static_cast<int>(components->second.size())) {
+        return false;
+    }
+
+    components->second.erase(components->second.begin() + componentIndex);
+    if (auto baseDirs = editorComponentBaseDirs.find(id);
+        baseDirs != editorComponentBaseDirs.end() &&
+        componentIndex < static_cast<int>(baseDirs->second.size())) {
+        baseDirs->second.erase(baseDirs->second.begin() + componentIndex);
+    }
+    if (auto runtimeComponents = editorRuntimeComponents.find(id);
+        runtimeComponents != editorRuntimeComponents.end() &&
+        componentIndex < static_cast<int>(runtimeComponents->second.size())) {
+        runtimeComponents->second.erase(runtimeComponents->second.begin() +
+                                        componentIndex);
+    }
+    return true;
+}
+
+bool Context::controlObjectAudio(int id, int componentIndex,
+                                 const std::string &action) {
+    auto components = editorRuntimeComponents.find(id);
+    if (components == editorRuntimeComponents.end() || componentIndex < 0 ||
+        componentIndex >= static_cast<int>(components->second.size())) {
+        return false;
+    }
+    auto component = components->second[componentIndex].lock();
+    auto audio = std::dynamic_pointer_cast<AudioPlayer>(component);
+    if (audio == nullptr) {
+        return false;
+    }
+    const std::string normalizedAction = normalizeToken(action);
+    if (normalizedAction == "play") {
+        audio->play();
+    } else if (normalizedAction == "pause") {
+        audio->pause();
+    } else if (normalizedAction == "stop") {
+        audio->stop();
+    } else {
+        return false;
+    }
+    return true;
+}
+
+bool Context::setObjectParent(int childId, int parentId) {
+    GameObject *child = findContextObject(*this, childId);
+    if (child == nullptr) {
+        return false;
+    }
+
+    GameObject *parent = nullptr;
+    if (parentId >= 0) {
+        parent = findContextObject(*this, parentId);
+        if (parent == nullptr || parent == child) {
+            return false;
+        }
+
+        int cursor = parentId;
+        while (cursor >= 0) {
+            if (cursor == childId) {
+                return false;
+            }
+            auto parentIt = objectParents.find(cursor);
+            if (parentIt == objectParents.end()) {
+                break;
+            }
+            cursor = parentIt->second;
+        }
+    }
+
+    if (parentId < 0) {
+        objectParents.erase(childId);
+        objectParentReferences.erase(childId);
+        editorObjectSourceData[childId].erase("parent");
+        if (window != nullptr) {
+            window->setEditorObjectParent(child, nullptr);
+        }
+        return true;
+    }
+
+    objectParents[childId] = parentId;
+    objectParentReferences[childId] = std::to_string(parentId);
+    editorObjectSourceData[childId]["parent"] =
+        objectNames.contains(parentId) ? objectNames[parentId]
+                                       : std::to_string(parentId);
+    if (window != nullptr) {
+        window->setEditorObjectParent(child, parent);
+    }
+
+    return true;
+}
+
+bool Context::deleteObject(int id) {
+    GameObject *object = findContextObject(*this, id);
+    if (object == nullptr) {
+        return false;
+    }
+
+    std::vector<int> childrenToDelete;
+    for (const auto &[childId, parentId] : objectParents) {
+        if (parentId == id) {
+            childrenToDelete.push_back(childId);
+        }
+    }
+    for (int childId : childrenToDelete) {
+        deleteObject(childId);
+    }
+
+    const std::string name = serializableObjectName(*this, *object);
+    const std::string reference = serializableObjectReference(*this, *object);
+    deletedObjectReferences.push_back({name, reference});
+
+    setObjectParent(id, -1);
+    for (auto it = objectParents.begin(); it != objectParents.end();) {
+        if (it->second == id) {
+            objectParentReferences.erase(it->first);
+            it = objectParents.erase(it);
+        } else {
+            ++it;
+        }
+    }
+
+    for (auto it = objectReferences.begin(); it != objectReferences.end();) {
+        if (it->second == object) {
+            it = objectReferences.erase(it);
+        } else {
+            ++it;
+        }
+    }
+
+    if (auto it = editorPointLights.find(id); it != editorPointLights.end()) {
+        Light *light = it->second;
+        if (scene != nullptr) {
+            scene->pointLights.erase(std::remove(scene->pointLights.begin(),
+                                                 scene->pointLights.end(),
+                                                 light),
+                                     scene->pointLights.end());
+        }
+        pointLights.erase(std::remove_if(pointLights.begin(), pointLights.end(),
+                                         [&](const auto &entry) {
+                                             return entry != nullptr &&
+                                                    entry.get() == light;
+                                         }),
+                          pointLights.end());
+        editorPointLights.erase(it);
+    }
+    if (auto it = editorSpotlights.find(id); it != editorSpotlights.end()) {
+        Spotlight *light = it->second;
+        if (scene != nullptr) {
+            scene->spotlights.erase(std::remove(scene->spotlights.begin(),
+                                                scene->spotlights.end(), light),
+                                    scene->spotlights.end());
+        }
+        spotlights.erase(std::remove_if(spotlights.begin(), spotlights.end(),
+                                        [&](const auto &entry) {
+                                            return entry != nullptr &&
+                                                   entry.get() == light;
+                                        }),
+                         spotlights.end());
+        editorSpotlights.erase(it);
+    }
+    if (auto it = editorAreaLights.find(id); it != editorAreaLights.end()) {
+        AreaLight *light = it->second;
+        if (scene != nullptr) {
+            scene->areaLights.erase(std::remove(scene->areaLights.begin(),
+                                                scene->areaLights.end(), light),
+                                    scene->areaLights.end());
+        }
+        areaLights.erase(std::remove_if(areaLights.begin(), areaLights.end(),
+                                        [&](const auto &entry) {
+                                            return entry != nullptr &&
+                                                   entry.get() == light;
+                                        }),
+                         areaLights.end());
+        editorAreaLights.erase(it);
+    }
+    if (auto it = editorDirectionalLights.find(id);
+        it != editorDirectionalLights.end()) {
+        DirectionalLight *light = it->second;
+        if (scene != nullptr) {
+            scene->directionalLights.erase(
+                std::remove(scene->directionalLights.begin(),
+                            scene->directionalLights.end(), light),
+                scene->directionalLights.end());
+        }
+        directionalLights.erase(
+            std::remove_if(directionalLights.begin(), directionalLights.end(),
+                           [&](const auto &entry) {
+                               return entry != nullptr && entry.get() == light;
+                           }),
+            directionalLights.end());
+        editorDirectionalLights.erase(it);
+    }
+    editorLightSourceData.erase(id);
+    editorObjectSourceData.erase(id);
+    editorComponentData.erase(id);
+    editorComponentBaseDirs.erase(id);
+    editorRuntimeComponents.erase(id);
+    objectNames.erase(id);
+    objectSceneReferences.erase(id);
+    objectSceneTypes.erase(id);
+    objectSceneSolidTypes.erase(id);
+    objectParentReferences.erase(id);
+
+    for (const auto &renderable : objects) {
+        auto *compound = dynamic_cast<CompoundObject *>(renderable.get());
+        if (compound == nullptr) {
+            continue;
+        }
+        auto &compoundObjects = compound->objects;
+        compoundObjects.erase(
+            std::remove(compoundObjects.begin(), compoundObjects.end(), object),
+            compoundObjects.end());
+    }
+
+    if (window != nullptr) {
+        window->removeObject(object);
+    }
+
+    auto objectIt = std::find_if(objects.begin(), objects.end(),
+                                 [&](const auto &renderable) {
+                                     return renderable != nullptr &&
+                                            renderable.get() == object;
+                                 });
+    if (objectIt != objects.end()) {
+        retiredObjects.push_back(std::move(*objectIt));
+        objects.erase(objectIt);
+    }
+    return true;
+}
+
+int Context::createObject(const std::string &type, const std::string &name) {
+    if (window == nullptr) {
+        return -1;
+    }
+
+    const std::string normalized = normalizeToken(type);
+    std::shared_ptr<GameObject> object;
+    std::string sceneType = "solid";
+    std::string solidType = normalized.empty() ? "cube" : normalized;
+    std::string fallbackName = solidType;
+
+    Position3d position = Position3d::zero();
+    if (window->getSelectedEditorObject() != nullptr) {
+        position = window->getSelectedEditorObject()->getPosition();
+        position.x += 1.25f;
+    } else if (window->getCamera() != nullptr) {
+        position = window->getCamera()->target;
+    }
+
+    if (solidType == "cube" || solidType == "box") {
+        solidType = "cube";
+        auto core = std::make_shared<CoreObject>();
+        *core = createBox({1.0f, 1.0f, 1.0f}, Color::white());
+        object = core;
+    } else if (solidType == "sphere") {
+        auto core = std::make_shared<CoreObject>();
+        *core = createSphere(0.5f, 36, 18, Color::white());
+        object = core;
+    } else if (solidType == "plane") {
+        auto core = std::make_shared<CoreObject>();
+        *core = createPlane({1.0f, 1.0f}, Color::white());
+        object = core;
+    } else if (solidType == "pyramid") {
+        auto core = std::make_shared<CoreObject>();
+        *core = createPyramid({1.0f, 1.0f, 1.0f}, Color::white());
+        object = core;
+    } else if (solidType == "capsule") {
+        auto core = std::make_shared<CoreObject>();
+        *core = createCapsulePrimitive(0.35f, 1.0f, Color::white());
+        object = core;
+    } else if (solidType == "group" || solidType == "empty" ||
+               solidType == "emptygameobject") {
+        sceneType = "compound";
+        fallbackName = "Group";
+        object = std::make_shared<CompoundObject>();
+        solidType.clear();
+    } else if (solidType == "camera") {
+        sceneType = "camera";
+        fallbackName = "Camera";
+        auto core = std::make_shared<CoreObject>();
+        *core = createPyramid({0.65f, 0.45f, 0.65f},
+                              Color{0.25f, 0.55f, 1.0f, 1.0f});
+        object = core;
+        solidType.clear();
+    } else if (solidType == "particleemitter" || solidType == "particles" ||
+               solidType == "particlegenerator") {
+        sceneType = "particleEmitter";
+        fallbackName = "Particle Emitter";
+        auto emitter = std::make_shared<ParticleEmitter>(100);
+        emitter->setPosition(position);
+        emitter->setSpawnRate(10.0f);
+        object = emitter;
+        solidType.clear();
+    } else if (solidType == "terrain" || solidType == "landscape") {
+        sceneType = "terrain";
+        fallbackName = "Terrain";
+        auto terrain = std::make_shared<Terrain>();
+        terrain->width = 32;
+        terrain->height = 32;
+        terrain->resolution = 64;
+        terrain->maxPeak = 1.0f;
+        terrain->seaLevel = 0.0f;
+        object = terrain;
+        solidType.clear();
+    } else if (solidType == "pointlight" || solidType == "light") {
+        auto light = std::make_unique<Light>(position, Color::white(), 50.0f,
+                                             Color::white(), 1.0f);
+        light->createDebugObject();
+        int id = registerEditorLightObject(*this, light->debugObject,
+                                           json::object(), "pointLight");
+        if (id < 0) {
+            return -1;
+        }
+        const std::string displayName =
+            uniqueEditorObjectName(*this, name.empty() ? "Point Light" : name);
+        light->debugObject->name = displayName;
+        objectNames[id] = displayName;
+        objectSceneReferences[id] = std::to_string(id);
+        registerObjectReference(*this, displayName, light->debugObject.get());
+        editorPointLights[id] = light.get();
+        scene->addLight(light.get());
+        pointLights.push_back(std::move(light));
+        window->selectEditorObject(light->debugObject.get(), true);
+        return id;
+    } else if (solidType == "spotlight" || solidType == "spot") {
+        auto light = std::make_unique<Spotlight>(position, Position3d::down(),
+                                                 Color::white(), 35.0f, 40.0f,
+                                                 Color::white(), 1.0f, 50.0f);
+        light->createDebugObject();
+        int id = registerEditorLightObject(*this, light->debugObject,
+                                           json::object(), "spotLight");
+        if (id < 0) {
+            return -1;
+        }
+        const std::string displayName =
+            uniqueEditorObjectName(*this, name.empty() ? "Spot Light" : name);
+        light->debugObject->name = displayName;
+        objectNames[id] = displayName;
+        objectSceneReferences[id] = std::to_string(id);
+        registerObjectReference(*this, displayName, light->debugObject.get());
+        editorSpotlights[id] = light.get();
+        scene->addSpotlight(light.get());
+        spotlights.push_back(std::move(light));
+        window->selectEditorObject(light->debugObject.get(), true);
+        return id;
+    } else if (solidType == "directionallight" || solidType == "directional" ||
+               solidType == "sun") {
+        auto light = std::make_unique<DirectionalLight>(
+            Position3d::down(), Color::white(), Color::white(), 1.0f);
+        auto proxy = createEditorLightProxy("directionalLight", Color::white(),
+                                            position);
+        proxy->lookAt(position + Position3d::down(), Position3d::up());
+        int id = registerEditorLightObject(*this, proxy, json::object(),
+                                           "directionalLight");
+        if (id < 0) {
+            return -1;
+        }
+        const std::string displayName = uniqueEditorObjectName(
+            *this, name.empty() ? "Directional Light" : name);
+        proxy->name = displayName;
+        objectNames[id] = displayName;
+        objectSceneReferences[id] = std::to_string(id);
+        registerObjectReference(*this, displayName, proxy.get());
+        editorDirectionalLights[id] = light.get();
+        scene->addDirectionalLight(light.get());
+        directionalLights.push_back(std::move(light));
+        window->selectEditorObject(proxy.get(), true);
+        return id;
+    } else if (solidType == "arealight" || solidType == "area") {
+        auto light = std::make_unique<AreaLight>();
+        light->position = position;
+        light->createDebugObject();
+        int id = registerEditorLightObject(*this, light->debugObject,
+                                           json::object(), "areaLight");
+        if (id < 0) {
+            return -1;
+        }
+        const std::string displayName =
+            uniqueEditorObjectName(*this, name.empty() ? "Area Light" : name);
+        light->debugObject->name = displayName;
+        objectNames[id] = displayName;
+        objectSceneReferences[id] = std::to_string(id);
+        registerObjectReference(*this, displayName, light->debugObject.get());
+        editorAreaLights[id] = light.get();
+        scene->addAreaLight(light.get());
+        areaLights.push_back(std::move(light));
+        window->selectEditorObject(light->debugObject.get(), true);
+        return id;
+    } else if (solidType == "ambientlight" || solidType == "ambient") {
+        scene->setAmbientColor(Color::white());
+        scene->setAmbientIntensity(2.0f);
+        auto proxy =
+            createEditorLightProxy("ambientLight", Color::white(), position);
+        int id = registerEditorLightObject(*this, proxy, json::object(),
+                                           "ambientLight");
+        if (id < 0) {
+            return -1;
+        }
+        const std::string displayName = uniqueEditorObjectName(
+            *this, name.empty() ? "Ambient Light" : name);
+        proxy->name = displayName;
+        objectNames[id] = displayName;
+        objectSceneReferences[id] = std::to_string(id);
+        registerObjectReference(*this, displayName, proxy.get());
+        window->selectEditorObject(proxy.get(), true);
+        return id;
+    } else {
+        return -1;
+    }
+
+    object->setPosition(position);
+
+    const int id = static_cast<int>(object->getId());
+    const std::string displayName =
+        uniqueEditorObjectName(*this, name.empty() ? fallbackName : name);
+    object->name = displayName;
+    objectNames[id] = displayName;
+    objectSceneReferences[id] = std::to_string(id);
+    objectSceneTypes[id] = sceneType;
+    if (!solidType.empty()) {
+        objectSceneSolidTypes[id] = solidType;
+    }
+    registerObjectReference(*this, displayName, object.get());
+    registerObjectReference(*this, std::to_string(id), object.get());
+
+    editorObjectSourceData[id] = json::object(
+        {{"id", id},
+         {"name", displayName},
+         {"type", sceneType},
+         {"position", vec3ToJson(position)},
+         {"rotation", rotationToJson(object->getRotation())},
+         {"scale", vec3ToJson(object->getScale())}});
+    if (!solidType.empty()) {
+        editorObjectSourceData[id]["solid_type"] = solidType;
+    }
+    editorComponentData[id] = json::array();
+    editorComponentBaseDirs[id] = {};
+
+    objects.push_back(object);
+    window->addObject(object.get());
+    window->selectEditorObject(object.get(), true);
+    return id;
+}
+
+std::string Context::objectDefinitionJson(int id) const {
+    GameObject *object = findContextObject(*this, id);
+    return object != nullptr ? serializeNewObject(*this, *object).dump()
+                             : std::string();
+}
+
+int Context::pasteObjectDefinition(const std::string &definition) {
+    if (window == nullptr || currentSceneFile.empty() || definition.empty() ||
+        !saveCurrentScene()) {
+        return -1;
+    }
+    try {
+        json objectData = json::parse(definition);
+        if (!objectData.is_object())
+            return -1;
+        const std::string baseName =
+            objectData.value("name", std::string("Object"));
+        const std::string name = uniqueEditorObjectName(*this, baseName);
+        objectData["name"] = name;
+        objectData.erase("id");
+        objectData.erase("parent");
+        if (objectData.contains("position") &&
+            objectData["position"].is_array() &&
+            objectData["position"].size() >= 3) {
+            objectData["position"][0] =
+                objectData["position"][0].get<double>() + 0.5;
+            objectData["position"][2] =
+                objectData["position"][2].get<double>() + 0.5;
+        }
+        json sceneData = loadJsonFile(currentSceneFile);
+        if (!sceneData.is_object())
+            return -1;
+        if (!sceneData.contains("objects") || !sceneData["objects"].is_array())
+            sceneData["objects"] = json::array();
+        sceneData["objects"].push_back(objectData);
+        std::ofstream output(currentSceneFile, std::ios::trunc);
+        if (!output.is_open())
+            return -1;
+        output << sceneData.dump(4) << '\n';
+        if (!output.good())
+            return -1;
+        output.close();
+        loadScene(*window, sceneData);
+        auto pasted = objectReferences.find(name);
+        if (pasted == objectReferences.end())
+            pasted = objectReferences.find(normalizeToken(name));
+        if (pasted == objectReferences.end() || pasted->second == nullptr)
+            return -1;
+        window->selectEditorObject(pasted->second, false);
+        return static_cast<int>(pasted->second->getId());
+    } catch (const std::exception &error) {
+        RUNTIME_LOG("Could not paste object: " + std::string(error.what()));
+        return -1;
+    }
+}
+
+bool Context::saveCurrentScene() {
+    if (currentSceneFile.empty()) {
+        return false;
+    }
+
+    json sceneData = loadJsonFile(currentSceneFile);
+    if (!sceneData.is_object()) {
+        return false;
+    }
+    if (!sceneData.contains("objects") || !sceneData["objects"].is_array()) {
+        sceneData["objects"] = json::array();
+    }
+    if (!sceneData.contains("lights") || !sceneData["lights"].is_array()) {
+        sceneData["lights"] = json::array();
+    }
+
+    for (const auto &[name, reference] : deletedObjectReferences) {
+        removeObjectNode(sceneData["objects"], name, reference);
+    }
+
+    json serializedLights = json::array();
+    for (const auto &renderable : objects) {
+        if (renderable == nullptr) {
+            continue;
+        }
+
+        auto *object = dynamic_cast<GameObject *>(renderable.get());
+        if (object == nullptr) {
+            continue;
+        }
+
+        if (isEditorLightObject(*this, *object)) {
+            serializedLights.push_back(
+                serializeEditorLightObject(*this, *object));
+            continue;
+        }
+
+        bool updated = false;
+        for (auto &objectNode : sceneData["objects"]) {
+            if (updateObjectNode(objectNode, *this, *object)) {
+                updated = true;
+                break;
+            }
+        }
+
+        if (!updated) {
+            sceneData["objects"].push_back(serializeNewObject(*this, *object));
+        }
+    }
+    sceneData["lights"] = serializedLights;
+    sceneData["camera"] = serializedEditorCamera(*this);
+    sceneData["targets"] = editorTargetData;
+    if (!editorEnvironmentData.empty()) {
+        sceneData["environment"] = editorEnvironmentData;
+    }
+    sceneData["property_syncs"] = editorPropertySyncs;
+
+    std::ofstream output(currentSceneFile, std::ios::trunc);
+    if (!output.is_open()) {
+        return false;
+    }
+    output << sceneData.dump(4) << '\n';
+    bool good = output.good();
+    if (good) {
+        deletedObjectReferences.clear();
+    }
+    return good;
+}
+
+bool Context::openSceneFile(const std::string &path) {
+    if (window == nullptr || path.empty())
+        return false;
+    try {
+        const std::filesystem::path requested(path);
+        const std::string resolved =
+            requested.is_absolute()
+                ? requested.lexically_normal().string()
+                : resolveRuntimePath(projectDir, path);
+        json sceneData = loadJsonFile(resolved);
+        if (!sceneData.is_object())
+            return false;
+        currentSceneFile = resolved;
+        sceneDir = std::filesystem::path(resolved).parent_path().string();
+        loadScene(*window, sceneData);
+        return true;
+    } catch (const std::exception &error) {
+        RUNTIME_LOG("Could not open scene: " + std::string(error.what()));
+        return false;
+    }
+}
+
+std::string Context::currentScenePath() const { return currentSceneFile; }
 
 void Context::end() {
     if (window == nullptr) {
@@ -3196,6 +5665,35 @@ void Context::end() {
     }
     window->close();
     window->endRunLoop();
+}
+
+Context::~Context() {
+    try {
+        end();
+    } catch (...) {
+    }
+    if (context != nullptr) {
+        runtime::scripting::clearSceneBindings(context, scriptHost);
+        editorRuntimeComponents.clear();
+        objects.clear();
+        renderTargets.clear();
+        directionalLights.clear();
+        pointLights.clear();
+        spotlights.clear();
+        areaLights.clear();
+        if (runtime != nullptr) {
+            JS_RunGC(runtime);
+        }
+        JS_SetContextOpaque(context, nullptr);
+        JS_FreeContext(context);
+        context = nullptr;
+    }
+    if (runtime != nullptr) {
+        JS_RunGC(runtime);
+        JS_FreeRuntime(runtime);
+        runtime = nullptr;
+    }
+    scriptHost.context = nullptr;
 }
 
 void Context::loadProject() {
@@ -3252,33 +5750,36 @@ void Context::loadProject() {
 }
 
 void RuntimeScene::update(Window &window) {
-    if (context == nullptr || context->camera == nullptr ||
-        !context->cameraAutomaticMoving) {
-        if (context != nullptr && context->context != nullptr) {
+    auto runtimeContext = context.lock();
+    if (runtimeContext == nullptr || runtimeContext->camera == nullptr ||
+        !runtimeContext->cameraAutomaticMoving) {
+        if (runtimeContext != nullptr && runtimeContext->context != nullptr) {
             runtime::scripting::dispatchInteractiveFrame(
-                context->context, context->scriptHost, window,
+                runtimeContext->context, runtimeContext->scriptHost, window,
                 window.getDeltaTime());
         }
         return;
     }
 
-    if (context->cameraActions.size() >= 3) {
-        context->camera->updateWithActions(window, context->cameraActions[0],
-                                           context->cameraActions[1],
-                                           context->cameraActions[2]);
+    if (runtimeContext->cameraActions.size() >= 3) {
+        runtimeContext->camera->updateWithActions(window,
+                                                  runtimeContext->cameraActions[0],
+                                                  runtimeContext->cameraActions[1],
+                                                  runtimeContext->cameraActions[2]);
     } else {
-        context->camera->update(window);
+        runtimeContext->camera->update(window);
     }
 
-    if (context->context != nullptr) {
+    if (runtimeContext->context != nullptr) {
         runtime::scripting::dispatchInteractiveFrame(
-            context->context, context->scriptHost, window,
+            runtimeContext->context, runtimeContext->scriptHost, window,
             window.getDeltaTime());
     }
 }
 
 void RuntimeScene::onMouseMove(Window &window, Movement2d movement) {
-    if (context != nullptr && context->context != nullptr) {
+    auto runtimeContext = context.lock();
+    if (runtimeContext != nullptr && runtimeContext->context != nullptr) {
         const auto [x, y] = window.getCursorPosition();
         MousePacket packet;
         packet.xpos = static_cast<float>(x);
@@ -3286,32 +5787,35 @@ void RuntimeScene::onMouseMove(Window &window, Movement2d movement) {
         packet.xoffset = movement.x;
         packet.yoffset = movement.y;
         packet.constrainPitch = true;
-        packet.firstMouse = context->scriptHost.interactiveFirstMouse;
+        packet.firstMouse = runtimeContext->scriptHost.interactiveFirstMouse;
         runtime::scripting::dispatchInteractiveMouseMove(
-            context->context, context->scriptHost, window, packet,
+            runtimeContext->context, runtimeContext->scriptHost, window, packet,
             window.getDeltaTime());
     }
 
-    if (context == nullptr || context->camera == nullptr ||
-        !context->cameraAutomaticMoving || context->cameraActions.size() >= 3) {
+    if (runtimeContext == nullptr || runtimeContext->camera == nullptr ||
+        !runtimeContext->cameraAutomaticMoving ||
+        runtimeContext->cameraActions.size() >= 3) {
         return;
     }
-    context->camera->updateLook(window, movement);
+    runtimeContext->camera->updateLook(window, movement);
 }
 
 void RuntimeScene::onMouseScroll(Window &window, Movement2d offset) {
-    if (context != nullptr && context->context != nullptr) {
+    auto runtimeContext = context.lock();
+    if (runtimeContext != nullptr && runtimeContext->context != nullptr) {
         MouseScrollPacket packet{offset.x, offset.y};
         runtime::scripting::dispatchInteractiveMouseScroll(
-            context->context, context->scriptHost, packet,
+            runtimeContext->context, runtimeContext->scriptHost, packet,
             window.getDeltaTime());
     }
 
-    if (context == nullptr || context->camera == nullptr ||
-        !context->cameraAutomaticMoving || context->cameraActions.size() >= 3) {
+    if (runtimeContext == nullptr || runtimeContext->camera == nullptr ||
+        !runtimeContext->cameraAutomaticMoving ||
+        runtimeContext->cameraActions.size() >= 3) {
         return;
     }
-    context->camera->updateZoom(window, offset);
+    runtimeContext->camera->updateZoom(window, offset);
 }
 
 void Context::loadMainScene(Window &window) {
@@ -3319,6 +5823,7 @@ void Context::loadMainScene(Window &window) {
     const std::string resolvedScenePath =
         resolveRuntimePath(projectDir, config.mainScene);
     json sceneData = loadJsonFile(resolvedScenePath);
+    currentSceneFile = resolvedScenePath;
     sceneDir = std::filesystem::path(resolvedScenePath).parent_path().string();
     currentSceneName = std::filesystem::path(resolvedScenePath).stem().string();
     auto sceneNameIt = sceneData.find("name");
@@ -3333,6 +5838,24 @@ void Context::loadScene(Window &window, const json &sceneData) {
     if (sceneNameIt != sceneData.end() && sceneNameIt->is_string()) {
         currentSceneName = sceneNameIt->get<std::string>();
     }
+    editorCameraData =
+        sceneData.contains("camera") && sceneData["camera"].is_object()
+            ? sceneData["camera"]
+            : json::object();
+    editorTargetData =
+        sceneData.contains("targets") && sceneData["targets"].is_array()
+            ? sceneData["targets"]
+            : json::array();
+    editorEnvironmentData =
+        sceneData.contains("environment") &&
+                sceneData["environment"].is_object()
+            ? sceneData["environment"]
+            : json::object();
+    editorPropertySyncs =
+        sceneData.contains("property_syncs") &&
+                sceneData["property_syncs"].is_array()
+            ? sceneData["property_syncs"]
+            : json::array();
 
     scene->atmosphere.resetRuntimeState();
     scene->setUseAtmosphereSkybox(false);
@@ -3366,9 +5889,27 @@ void Context::loadScene(Window &window, const json &sceneData) {
         }
     }
 
+    retiredObjects.insert(retiredObjects.end(),
+                          std::make_move_iterator(objects.begin()),
+                          std::make_move_iterator(objects.end()));
     objects.clear();
     objectReferences.clear();
     objectNames.clear();
+    objectSceneReferences.clear();
+    objectSceneTypes.clear();
+    objectSceneSolidTypes.clear();
+    objectParentReferences.clear();
+    objectParents.clear();
+    editorObjectSourceData.clear();
+    editorComponentData.clear();
+    editorComponentBaseDirs.clear();
+    editorRuntimeComponents.clear();
+    editorPointLights.clear();
+    editorSpotlights.clear();
+    editorAreaLights.clear();
+    editorDirectionalLights.clear();
+    editorLightSourceData.clear();
+    deletedObjectReferences.clear();
     renderTargets.clear();
     directionalLights.clear();
     pointLights.clear();
@@ -3496,6 +6037,8 @@ void Context::loadScene(Window &window, const json &sceneData) {
         }
     }
 
+    applyEditorCameraData(*this);
+
     window.setCamera(camera.get());
 
     if (sceneData.contains("lights") && sceneData["lights"].is_array()) {
@@ -3519,6 +6062,15 @@ void Context::loadScene(Window &window, const json &sceneData) {
                 JSON_READ_FLOAT(lightData, "intensity", intensity);
                 scene->setAmbientColor(ambientColor);
                 scene->setAmbientIntensity(intensity * 4.0f);
+                if (editorRuntime) {
+                    Position3d position = Position3d::zero();
+                    tryReadVec3(lightData, "position", position);
+                    auto object = createEditorLightProxy(
+                        "ambientLight", ambientColor, position);
+                    int id = registerEditorLightObject(*this, object, lightData,
+                                                       "ambientLight");
+                    (void)id;
+                }
                 continue;
             }
 
@@ -3542,6 +6094,19 @@ void Context::loadScene(Window &window, const json &sceneData) {
                     direction.normalized(), color, shineColor, intensity);
                 if (castsShadows) {
                     light->castShadows(window, shadowResolution);
+                }
+                if (editorRuntime) {
+                    Position3d position = Position3d::zero();
+                    tryReadVec3(lightData, "position", position);
+                    auto object = createEditorLightProxy("directionalLight",
+                                                         color, position);
+                    object->lookAt(position + direction.normalized(),
+                                   Position3d::up());
+                    int id = registerEditorLightObject(*this, object, lightData,
+                                                       "directionalLight");
+                    if (id >= 0) {
+                        editorDirectionalLights[id] = light.get();
+                    }
                 }
                 scene->addDirectionalLight(light.get());
                 directionalLights.push_back(std::move(light));
@@ -3572,9 +6137,19 @@ void Context::loadScene(Window &window, const json &sceneData) {
                 if (castsShadows) {
                     light->castShadows(window, shadowResolution);
                 }
-                if (addDebugObject) {
+                if (editorRuntime) {
                     light->createDebugObject();
-                    light->addDebugObject(window);
+                    if (light->debugObject != nullptr) {
+                        int id = registerEditorLightObject(
+                            *this, light->debugObject, lightData, "pointLight");
+                        if (id >= 0) {
+                            editorPointLights[id] = light.get();
+                            if (addDebugObject) {
+                                editorLightSourceData[id]["addDebugObject"] =
+                                    true;
+                            }
+                        }
+                    }
                 }
                 scene->addLight(light.get());
                 pointLights.push_back(std::move(light));
@@ -3612,9 +6187,19 @@ void Context::loadScene(Window &window, const json &sceneData) {
                 if (castsShadows) {
                     light->castShadows(window, shadowResolution);
                 }
-                if (addDebugObject) {
+                if (editorRuntime) {
                     light->createDebugObject();
-                    light->addDebugObject(window);
+                    if (light->debugObject != nullptr) {
+                        int id = registerEditorLightObject(
+                            *this, light->debugObject, lightData, "spotLight");
+                        if (id >= 0) {
+                            editorSpotlights[id] = light.get();
+                            if (addDebugObject) {
+                                editorLightSourceData[id]["addDebugObject"] =
+                                    true;
+                            }
+                        }
+                    }
                 }
                 scene->addSpotlight(light.get());
                 spotlights.push_back(std::move(light));
@@ -3655,9 +6240,19 @@ void Context::loadScene(Window &window, const json &sceneData) {
                 if (castsShadows) {
                     light->castShadows(window, shadowResolution);
                 }
-                if (addDebugObject) {
+                if (editorRuntime) {
                     light->createDebugObject();
-                    light->addDebugObject(window);
+                    if (light->debugObject != nullptr) {
+                        int id = registerEditorLightObject(
+                            *this, light->debugObject, lightData, "areaLight");
+                        if (id >= 0) {
+                            editorAreaLights[id] = light.get();
+                            if (addDebugObject) {
+                                editorLightSourceData[id]["addDebugObject"] =
+                                    true;
+                            }
+                        }
+                    }
                 }
                 scene->addAreaLight(light.get());
                 areaLights.push_back(std::move(light));
@@ -3688,6 +6283,40 @@ void Context::loadScene(Window &window, const json &sceneData) {
                 standardComponents, jointComponents));
         }
     }
+
+    resolveObjectParentReferences(*this);
+    for (const auto &[childId, parentId] : objectParents) {
+        GameObject *child = findContextObject(*this, childId);
+        GameObject *parent = findContextObject(*this, parentId);
+        if (auto *compound = dynamic_cast<CompoundObject *>(parent);
+            compound != nullptr &&
+            std::ranges::find(compound->objects, child) !=
+                compound->objects.end()) {
+            continue;
+        }
+        window.setEditorObjectParent(child, parent);
+    }
+
+    applyPropertySyncs(*this, false);
+
+    auto refreshPendingSyncValues = [this](std::vector<PendingComponent> &list) {
+        for (PendingComponent &pending : list) {
+            if (pending.object == nullptr)
+                continue;
+            const int id = static_cast<int>(pending.object->getId());
+            auto components = editorComponentData.find(id);
+            if (components == editorComponentData.end() ||
+                !components->second.is_array() || pending.componentIndex < 0 ||
+                pending.componentIndex >=
+                    static_cast<int>(components->second.size())) {
+                continue;
+            }
+            pending.data = components->second[pending.componentIndex];
+        }
+    };
+    refreshPendingSyncValues(rigidbodyComponents);
+    refreshPendingSyncValues(standardComponents);
+    refreshPendingSyncValues(jointComponents);
 
     for (const auto &pending : rigidbodyComponents) {
         try {
@@ -3723,6 +6352,19 @@ void Context::loadScene(Window &window, const json &sceneData) {
             skybox != nullptr) {
             scene->setSkybox(skybox);
             continue;
+        }
+
+        if (auto object = std::dynamic_pointer_cast<GameObject>(renderable);
+            object != nullptr) {
+            auto parentIt =
+                objectParents.find(static_cast<int>(object->getId()));
+            if (parentIt != objectParents.end()) {
+                if (auto *parentObject =
+                        findContextObject(*this, parentIt->second);
+                    dynamic_cast<CompoundObject *>(parentObject) != nullptr) {
+                    continue;
+                }
+            }
         }
 
         window.addObject(renderable.get());

@@ -182,6 +182,12 @@ class Renderable {
      * pass and rendered only after all standard forward elements.
      */
     bool renderLateForward = false;
+
+    /**
+     * @brief Whether the object is an editor-only object (like light debug markers).
+     * Objects flagged here will not be rendered if editor controls are disabled.
+     */
+    bool editorOnly = false;
 };
 
 #endif // ATLAS_RENDERABLE_H

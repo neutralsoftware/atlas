@@ -30,7 +30,7 @@ class Context;
 
 class RuntimeScene : public Scene {
   public:
-    std::shared_ptr<Context> context;
+    std::weak_ptr<Context> context;
 
     void update(Window &window) override;
     void initialize(Window &window) override;
@@ -53,9 +53,11 @@ class ProjectConfig {
 class Context {
   public:
     Context() = default;
+    ~Context();
     std::string projectFile;
     std::string projectDir;
     std::string sceneDir;
+    std::string currentSceneFile;
     std::string currentSceneName;
     std::shared_ptr<RuntimeScene> scene;
 
@@ -74,11 +76,34 @@ class Context {
     std::vector<std::unique_ptr<AreaLight>> areaLights;
     std::vector<std::string> cameraActions;
     bool cameraAutomaticMoving = false;
+    bool editorRuntime = false;
 
     std::unique_ptr<Window> window;
     std::vector<std::shared_ptr<Renderable>> objects;
+    std::vector<std::shared_ptr<Renderable>> retiredObjects;
     std::unordered_map<std::string, GameObject *> objectReferences;
     std::unordered_map<int, std::string> objectNames;
+    std::unordered_map<int, std::string> objectSceneReferences;
+    std::unordered_map<int, std::string> objectSceneTypes;
+    std::unordered_map<int, std::string> objectSceneSolidTypes;
+    std::unordered_map<int, std::string> objectParentReferences;
+    std::unordered_map<int, int> objectParents;
+    std::unordered_map<int, json> editorObjectSourceData;
+    std::unordered_map<int, json> editorComponentData;
+    std::unordered_map<int, std::vector<std::string>> editorComponentBaseDirs;
+    std::unordered_map<int, std::vector<std::weak_ptr<Component>>>
+        editorRuntimeComponents;
+    std::unordered_map<int, Light *> editorPointLights;
+    std::unordered_map<int, Spotlight *> editorSpotlights;
+    std::unordered_map<int, AreaLight *> editorAreaLights;
+    std::unordered_map<int, DirectionalLight *> editorDirectionalLights;
+    std::unordered_map<int, json> editorLightSourceData;
+    json editorCameraData = json::object();
+    json editorTargetData = json::array();
+    json editorEnvironmentData = json::object();
+    json editorPropertySyncs = json::array();
+    bool applyingPropertySyncs = false;
+    std::vector<std::pair<std::string, std::string>> deletedObjectReferences;
 
     ProjectConfig config;
 
@@ -88,11 +113,44 @@ class Context {
     bool setEditorControlsEnabled(bool enabled);
     bool setEditorSimulationEnabled(bool enabled);
     bool setEditorControlMode(int mode);
+    bool setEditorShadingMode(int mode);
+    float frameRate() const;
     bool editorPointerEvent(int action, float x, float y, int button,
                             float scale);
+    bool editorScrollEvent(float delta, float scale);
     bool editorKeyEvent(int key, bool pressed);
+    bool beginEditorKeyboardTransform(int mode, float x, float y, float scale);
+    bool setEditorKeyboardTransformAxes(int axes);
+    bool finishEditorKeyboardTransform(bool commit);
+    bool toggleEditorTransformSpace();
+    bool toggleEditorTransformSnapping();
+    float changeEditorTransformSnapIncrement(float factor);
     int selectedObjectId() const;
     std::string selectedObjectName() const;
+    std::string sceneObjectsJson() const;
+    bool selectObject(int id, bool focusCamera);
+    bool focusObjects(const std::vector<int> &ids);
+    bool renameObject(int id, const std::string &name);
+    bool setObjectProperty(int id, const std::string &component,
+                           int componentIndex, const std::string &propertyPath,
+                           const json &value);
+    bool setSceneProperty(const std::string &section, int index,
+                          const std::string &propertyPath, const json &value);
+    bool setPropertySync(const json &target, const json &source);
+    bool clearPropertySync(const json &target);
+    bool setObjectMaterial(int id, const std::string &path);
+    int addObjectComponent(int id, const json &component);
+    bool removeObjectComponent(int id, int componentIndex);
+    bool controlObjectAudio(int id, int componentIndex,
+                            const std::string &action);
+    bool setObjectParent(int childId, int parentId);
+    bool deleteObject(int id);
+    int createObject(const std::string &type, const std::string &name);
+    std::string objectDefinitionJson(int id) const;
+    int pasteObjectDefinition(const std::string &definition);
+    bool saveCurrentScene();
+    bool openSceneFile(const std::string &path);
+    std::string currentScenePath() const;
     void end();
     void loadProject();
     void loadMainScene(Window &window);
@@ -104,6 +162,7 @@ class Context {
 
 namespace runtime {
 std::shared_ptr<Context> makeContext(std::string projectFile);
+std::shared_ptr<Context> makeHiddenContext(std::string projectFile);
 std::shared_ptr<Context>
 makeContextForMetalView(std::string projectFile, void *metalView,
                         CoreWindowReference sdlInputWindow = nullptr);

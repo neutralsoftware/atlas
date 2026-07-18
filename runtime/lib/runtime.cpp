@@ -12,21 +12,26 @@
 
 void RuntimeScene::initialize(Window &window) {
     // Set the properties of the project
-    if (context->config.renderer == "deferred") {
+    auto runtimeContext = context.lock();
+    if (runtimeContext == nullptr) {
+        return;
+    }
+
+    if (runtimeContext->config.renderer == "deferred") {
         window.useDeferredRendering();
 
-        if (context->config.globalIllumination) {
+        if (runtimeContext->config.globalIllumination) {
             window.enableGlobalIllumination();
         }
-    } else if (context->config.renderer == "pathtracing") {
+    } else if (runtimeContext->config.renderer == "pathtracing") {
         window.enablePathTracing();
     }
 
-    if (context->config.useUpscaling) {
+    if (runtimeContext->config.useUpscaling) {
 #ifdef METAL
         window.useMetalUpscaling();
 #endif
     }
 
-    context->loadMainScene(window);
+    runtimeContext->loadMainScene(window);
 }

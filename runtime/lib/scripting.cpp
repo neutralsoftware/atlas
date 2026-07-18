@@ -604,6 +604,8 @@ void assignObjectName(Context &context, GameObject &object,
 
     if (name.empty()) {
         context.objectNames.erase(objectId);
+        context.objectSceneReferences.erase(objectId);
+        object.name.clear();
         return;
     }
 
@@ -624,6 +626,7 @@ void assignObjectName(Context &context, GameObject &object,
     context.objectReferences[name] = &object;
     context.objectReferences[normalized] = &object;
     context.objectNames[objectId] = name;
+    object.name = name;
 }
 
 void cachePrototype(JSContext *ctx, JSValueConst ns, const char *exportName,
@@ -4206,6 +4209,9 @@ JSValue syncObjectWrapper(JSContext *ctx, ScriptHost &host,
         if (nameIt != host.context->objectNames.end()) {
             name = nameIt->second;
         }
+    }
+    if (name.empty()) {
+        name = object.name;
     }
     setProperty(ctx, wrapper, "name", JS_NewString(ctx, name.c_str()));
 
@@ -15328,6 +15334,47 @@ void runtime::scripting::clearSceneBindings(JSContext *ctx, ScriptHost &host) {
         JS_FreeValue(ctx, host.springJointPrototype);
         host.springJointPrototype = JS_UNDEFINED;
     }
+
+    auto freeHostValue = [ctx](JSValue &value) {
+        if (!JS_IsUndefined(value)) {
+            JS_FreeValue(ctx, value);
+            value = JS_UNDEFINED;
+        }
+    };
+    freeHostValue(host.atlasNamespace);
+    freeHostValue(host.atlasInputNamespace);
+    freeHostValue(host.atlasUnitsNamespace);
+    freeHostValue(host.atlasGraphicsNamespace);
+    freeHostValue(host.componentPrototype);
+    freeHostValue(host.gameObjectPrototype);
+    freeHostValue(host.coreObjectPrototype);
+    freeHostValue(host.modelPrototype);
+    freeHostValue(host.materialPrototype);
+    freeHostValue(host.instancePrototype);
+    freeHostValue(host.coreVertexPrototype);
+    freeHostValue(host.resourcePrototype);
+    freeHostValue(host.windowPrototype);
+    freeHostValue(host.monitorPrototype);
+    freeHostValue(host.gamepadPrototype);
+    freeHostValue(host.joystickPrototype);
+    freeHostValue(host.cameraPrototype);
+    freeHostValue(host.scenePrototype);
+    freeHostValue(host.texturePrototype);
+    freeHostValue(host.cubemapPrototype);
+    freeHostValue(host.skyboxPrototype);
+    freeHostValue(host.renderTargetPrototype);
+    freeHostValue(host.pointLightPrototype);
+    freeHostValue(host.directionalLightPrototype);
+    freeHostValue(host.spotLightPrototype);
+    freeHostValue(host.areaLightPrototype);
+    freeHostValue(host.position3dPrototype);
+    freeHostValue(host.position2dPrototype);
+    freeHostValue(host.colorPrototype);
+    freeHostValue(host.size2dPrototype);
+    freeHostValue(host.quaternionPrototype);
+    freeHostValue(host.triggerPrototype);
+    freeHostValue(host.axisTriggerPrototype);
+    freeHostValue(host.inputActionPrototype);
 
     for (JSValue &interactive : host.interactiveValues) {
         JS_FreeValue(ctx, interactive);

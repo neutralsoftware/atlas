@@ -207,6 +207,8 @@ void Context::setSamples(int value) { samples = value; }
 
 void Context::setHighPixelDensity(bool enabled) { highPixelDensity = enabled; }
 
+void Context::setHidden(bool enabled) { hidden = enabled; }
+
 void Context::makeCurrent() {
     if (this->window != nullptr && this->glContext != nullptr) {
         SDL_GL_MakeCurrent(this->window, this->glContext);
@@ -252,6 +254,9 @@ SDL_Window *Context::makeWindow(int width, int height, const char *title,
     }
     if (highPixelDensity) {
         windowFlags |= SDL_WINDOW_HIGH_PIXEL_DENSITY;
+    }
+    if (hidden) {
+        windowFlags |= SDL_WINDOW_HIDDEN;
     }
 
     this->window = SDL_CreateWindow(title, width, height, windowFlags);
@@ -330,6 +335,12 @@ DeviceInfo Device::getDeviceInfo() {
     return info;
 #endif
 }
+
+#ifdef METAL
+MTL::Device *Device::getMetalDevice() const {
+    return metal::deviceState(const_cast<Device *>(this)).device;
+}
+#endif
 
 std::shared_ptr<Device>
 Device::acquire([[maybe_unused]] const std::shared_ptr<Context> &context) {

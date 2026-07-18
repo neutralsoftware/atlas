@@ -13,6 +13,7 @@
 #include "atlas/units.h"
 #include "atlas/workspace.h"
 #include "finewave/effect.h"
+#include <AL/alc.h>
 #include <memory>
 #include <string>
 #include <vector>
@@ -35,6 +36,7 @@ class AudioEngine {
      *
      */
     void shutdown();
+    ~AudioEngine();
 
     /**
      * @brief Sets the position of the audio listener in 3D space.
@@ -66,6 +68,10 @@ class AudioEngine {
      * @brief Name of the currently selected playback device.
      */
     std::string deviceName;
+
+  private:
+    ALCdevice *device = nullptr;
+    ALCcontext *context = nullptr;
 };
 
 /**

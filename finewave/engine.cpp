@@ -44,8 +44,11 @@ const char *getALErrorStringSourceEngine(ALenum error) {
     }
 
 bool AudioEngine::initialize() {
+    if (context != nullptr) {
+        return true;
+    }
     atlas_log("Initializing audio engine");
-    ALCdevice *device = alcOpenDevice(nullptr);
+    device = alcOpenDevice(nullptr);
     if (device == nullptr) {
         atlas_error("Failed to open OpenAL device");
         return false;
@@ -55,13 +58,15 @@ bool AudioEngine::initialize() {
     if (alcError != ALC_NO_ERROR) {
         std::cout << "OpenAL error: " << alcError << std::endl;
         alcCloseDevice(device);
+        device = nullptr;
         return false;
     }
 
-    ALCcontext *context = alcCreateContext(device, nullptr);
+    context = alcCreateContext(device, nullptr);
     if (context == nullptr) {
         atlas_error("Failed to create OpenAL context");
         alcCloseDevice(device);
+        device = nullptr;
         return false;
     }
     alcError = alcGetError(device);
@@ -70,12 +75,16 @@ bool AudioEngine::initialize() {
                   << std::endl;
         alcDestroyContext(context);
         alcCloseDevice(device);
+        context = nullptr;
+        device = nullptr;
         return false;
     }
 
     if (!alcMakeContextCurrent(context)) {
         alcDestroyContext(context);
         alcCloseDevice(device);
+        context = nullptr;
+        device = nullptr;
         return false;
     }
 
@@ -83,8 +92,11 @@ bool AudioEngine::initialize() {
     if (alcError != ALC_NO_ERROR) {
         std::cerr << "ALC error after making context current: " << alcError
                   << std::endl;
+        alcMakeContextCurrent(nullptr);
         alcDestroyContext(context);
         alcCloseDevice(device);
+        context = nullptr;
+        device = nullptr;
         return false;
     }
 
@@ -111,17 +123,22 @@ bool AudioEngine::initialize() {
 }
 
 void AudioEngine::shutdown() {
-    ALCcontext *context = alcGetCurrentContext();
-    ALCdevice *device = alcGetContextsDevice(context);
-
     if (context != nullptr) {
-        alcMakeContextCurrent(nullptr);
+        if (alcGetCurrentContext() == context) {
+            alcMakeContextCurrent(nullptr);
+        }
         alcDestroyContext(context);
+        context = nullptr;
     }
 
     if (device != nullptr) {
         alcCloseDevice(device);
+        device = nullptr;
     }
+}
+
+AudioEngine::~AudioEngine() {
+    shutdown();
 }
 
 void AudioEngine::setListenerPosition(Position3d position) {

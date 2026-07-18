@@ -849,7 +849,10 @@ void Skybox::render(float, std::shared_ptr<opal::CommandBuffer> commandBuffer,
     if (TracerServices::getInstance().isOk()) {
         DebugObjectPacket debugPacket;
         debugPacket.drawCallsForObject = 1;
-        debugPacket.frameCount = Window::mainWindow->device->frameCount;
+        debugPacket.frameCount =
+            Window::mainWindow != nullptr && Window::mainWindow->device != nullptr
+                ? Window::mainWindow->device->frameCount
+                : 0;
         debugPacket.triangleCount =
             static_cast<unsigned int>(obj->indices.size()) / 3;
         debugPacket.vertexBufferSizeMb =

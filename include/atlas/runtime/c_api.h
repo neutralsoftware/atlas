@@ -54,10 +54,30 @@ bool atlas_runtime_set_editor_control_mode(void *runtimeContext, int mode);
 bool atlas_runtime_editor_pointer_event(void *runtimeContext, int action,
                                         float x, float y, int button,
                                         float scale);
+bool atlas_runtime_editor_scroll_event(void *runtimeContext, float delta,
+                                       float scale);
 bool atlas_runtime_editor_key_event(void *runtimeContext, int key,
                                     bool pressed);
 int atlas_runtime_get_selected_object_id(void *runtimeContext);
 const char *atlas_runtime_get_selected_object_name(void *runtimeContext);
+const char *atlas_runtime_get_scene_objects(void *runtimeContext);
+bool atlas_runtime_select_object(void *runtimeContext, int id,
+                                 bool focusCamera);
+bool atlas_runtime_rename_object(void *runtimeContext, int id,
+                                 const char *name);
+bool atlas_runtime_set_object_property(void *runtimeContext, int id,
+                                       const char *component,
+                                       int componentIndex,
+                                       const char *propertyPath,
+                                       const char *jsonValue);
+int atlas_runtime_add_object_component(void *runtimeContext, int id,
+                                       const char *jsonComponent);
+bool atlas_runtime_set_object_parent(void *runtimeContext, int childId,
+                                     int parentId);
+bool atlas_runtime_delete_object(void *runtimeContext, int id);
+int atlas_runtime_create_object(void *runtimeContext, const char *type,
+                                const char *name);
+bool atlas_runtime_save_current_scene(void *runtimeContext);
 
 /**
  * @brief Requests shutdown and releases frame-loop resources.

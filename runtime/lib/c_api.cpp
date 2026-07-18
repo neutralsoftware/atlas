@@ -172,6 +172,24 @@ bool atlas_runtime_editor_pointer_event(void *runtimeContext, int action,
     }
 }
 
+bool atlas_runtime_editor_scroll_event(void *runtimeContext, float delta,
+                                       float scale) {
+    if (runtimeContext == nullptr) {
+        return false;
+    }
+    try {
+        auto *handle = reinterpret_cast<RuntimeContextHandle *>(runtimeContext);
+        if (*handle == nullptr) {
+            return false;
+        }
+        return (*handle)->editorScrollEvent(delta, scale);
+    } catch (const std::exception &) {
+        return false;
+    } catch (...) {
+        return false;
+    }
+}
+
 bool atlas_runtime_editor_key_event(void *runtimeContext, int key,
                                     bool pressed) {
     if (runtimeContext == nullptr) {
@@ -224,6 +242,175 @@ const char *atlas_runtime_get_selected_object_name(void *runtimeContext) {
         return selectedName.c_str();
     } catch (...) {
         return selectedName.c_str();
+    }
+}
+
+const char *atlas_runtime_get_scene_objects(void *runtimeContext) {
+    static thread_local std::string sceneObjects;
+    sceneObjects = "{\"name\":\"Scene\",\"objects\":[],\"selectedId\":-1}";
+    if (runtimeContext == nullptr) {
+        return sceneObjects.c_str();
+    }
+    try {
+        auto *handle = reinterpret_cast<RuntimeContextHandle *>(runtimeContext);
+        if (*handle == nullptr) {
+            return sceneObjects.c_str();
+        }
+        sceneObjects = (*handle)->sceneObjectsJson();
+        return sceneObjects.c_str();
+    } catch (const std::exception &) {
+        return sceneObjects.c_str();
+    } catch (...) {
+        return sceneObjects.c_str();
+    }
+}
+
+bool atlas_runtime_select_object(void *runtimeContext, int id,
+                                 bool focusCamera) {
+    if (runtimeContext == nullptr) {
+        return false;
+    }
+    try {
+        auto *handle = reinterpret_cast<RuntimeContextHandle *>(runtimeContext);
+        if (*handle == nullptr) {
+            return false;
+        }
+        return (*handle)->selectObject(id, focusCamera);
+    } catch (const std::exception &) {
+        return false;
+    } catch (...) {
+        return false;
+    }
+}
+
+bool atlas_runtime_rename_object(void *runtimeContext, int id,
+                                 const char *name) {
+    if (runtimeContext == nullptr || name == nullptr || name[0] == '\0') {
+        return false;
+    }
+    try {
+        auto *handle = reinterpret_cast<RuntimeContextHandle *>(runtimeContext);
+        if (*handle == nullptr) {
+            return false;
+        }
+        return (*handle)->renameObject(id, name);
+    } catch (const std::exception &) {
+        return false;
+    } catch (...) {
+        return false;
+    }
+}
+
+bool atlas_runtime_set_object_property(void *runtimeContext, int id,
+                                       const char *component,
+                                       int componentIndex,
+                                       const char *propertyPath,
+                                       const char *jsonValue) {
+    if (runtimeContext == nullptr || component == nullptr ||
+        propertyPath == nullptr || jsonValue == nullptr) {
+        return false;
+    }
+    try {
+        auto *handle = reinterpret_cast<RuntimeContextHandle *>(runtimeContext);
+        if (*handle == nullptr) {
+            return false;
+        }
+        return (*handle)->setObjectProperty(
+            id, component, componentIndex, propertyPath,
+            nlohmann::json::parse(jsonValue));
+    } catch (const std::exception &) {
+        return false;
+    } catch (...) {
+        return false;
+    }
+}
+
+int atlas_runtime_add_object_component(void *runtimeContext, int id,
+                                       const char *jsonComponent) {
+    if (runtimeContext == nullptr || jsonComponent == nullptr) {
+        return -1;
+    }
+    try {
+        auto *handle = reinterpret_cast<RuntimeContextHandle *>(runtimeContext);
+        if (*handle == nullptr) {
+            return -1;
+        }
+        return (*handle)->addObjectComponent(
+            id, nlohmann::json::parse(jsonComponent));
+    } catch (const std::exception &) {
+        return -1;
+    } catch (...) {
+        return -1;
+    }
+}
+
+bool atlas_runtime_set_object_parent(void *runtimeContext, int childId,
+                                     int parentId) {
+    if (runtimeContext == nullptr) {
+        return false;
+    }
+    try {
+        auto *handle = reinterpret_cast<RuntimeContextHandle *>(runtimeContext);
+        if (*handle == nullptr) {
+            return false;
+        }
+        return (*handle)->setObjectParent(childId, parentId);
+    } catch (const std::exception &) {
+        return false;
+    } catch (...) {
+        return false;
+    }
+}
+
+bool atlas_runtime_delete_object(void *runtimeContext, int id) {
+    if (runtimeContext == nullptr) {
+        return false;
+    }
+    try {
+        auto *handle = reinterpret_cast<RuntimeContextHandle *>(runtimeContext);
+        if (*handle == nullptr) {
+            return false;
+        }
+        return (*handle)->deleteObject(id);
+    } catch (const std::exception &) {
+        return false;
+    } catch (...) {
+        return false;
+    }
+}
+
+int atlas_runtime_create_object(void *runtimeContext, const char *type,
+                                const char *name) {
+    if (runtimeContext == nullptr || type == nullptr) {
+        return -1;
+    }
+    try {
+        auto *handle = reinterpret_cast<RuntimeContextHandle *>(runtimeContext);
+        if (*handle == nullptr) {
+            return -1;
+        }
+        return (*handle)->createObject(type, name != nullptr ? name : "");
+    } catch (const std::exception &) {
+        return -1;
+    } catch (...) {
+        return -1;
+    }
+}
+
+bool atlas_runtime_save_current_scene(void *runtimeContext) {
+    if (runtimeContext == nullptr) {
+        return false;
+    }
+    try {
+        auto *handle = reinterpret_cast<RuntimeContextHandle *>(runtimeContext);
+        if (*handle == nullptr) {
+            return false;
+        }
+        return (*handle)->saveCurrentScene();
+    } catch (const std::exception &) {
+        return false;
+    } catch (...) {
+        return false;
     }
 }
 

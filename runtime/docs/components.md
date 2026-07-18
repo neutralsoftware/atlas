@@ -35,6 +35,9 @@ An audio player component is a component that can be added to an object to make 
 * `source`: The source of the audio, which is a reference to an audio file (e.g., `.mp3`, `.wav`, etc.) that defines the sound that will be played by the audio player.
 * `position`: The position of the audio player in the scene, defined as an array of three numbers representing the x, y and z coordinates. This can be used to create spatial audio effects, where the sound will be louder when the listener is closer to the audio player and quieter when the listener is farther away.
 * `useSpatialization`: A boolean value that indicates whether to use spatialization for the audio or not. If `true`, the audio will be spatialized based on the position of the audio player and the listener in the scene. If `false`, the audio will be played as a non-spatialized sound, which means that it will be heard at the same volume regardless of the position of the audio player and the listener in the scene.
+* `volume`: A number that controls the playback volume.
+* `loop`: A boolean value that controls whether playback repeats after reaching the end.
+* `autoplay`: A boolean value that controls whether playback starts when the component is initialized.
 
 ## Joint (`type = "joint"`)
 

@@ -23,3 +23,27 @@ Each scene format file has these main sections:
 * `objects`: An array of objects that are present in the scene, which can be of different types (solid, compound, model, particle emitter, terrain, etc.). Each object is defined as an object with a `type` property that specifies the type of the object, and other properties that define the values for that object.
 * `lights`: An array of lights that are present in the scene, which can be of different types (point light, directional light, spotlight, etc.). Each light is defined as an object with a `type` property that specifies the type of the light, and other properties that define the values for that light.
 * `camera`: An object that defines the properties of the camera in the scene, such as its position, rotation, field of view, etc. The camera is defined as an object with a `type` property that specifies the type of the camera (e.g., perspective, orthographic, etc.), and other properties that define the values for that camera.
+* `property_syncs`: An array of persistent property bindings. Each entry contains a `target` endpoint and a `source` endpoint. Atlas resolves these bindings whenever the scene is loaded, after objects exist and before components are initialized, so physics and scripts receive the synchronized values from their first frame.
+
+Property endpoints use `section` (`object`, `camera`, or `environment`) and a JSON-pointer `path`. Object endpoints also store the stable object reference, component type, and component index. The special `bounds` component exposes the rendered object size. For example, a rigidbody collider can follow its object's bounds:
+
+```json
+"property_syncs": [
+    {
+        "target": {
+            "section": "object",
+            "object": "Cube",
+            "component": "rigidbody",
+            "componentIndex": 0,
+            "path": "/collider/size"
+        },
+        "source": {
+            "section": "object",
+            "object": "Cube",
+            "component": "bounds",
+            "componentIndex": -1,
+            "path": ""
+        }
+    }
+]
+```

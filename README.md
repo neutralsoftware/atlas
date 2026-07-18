@@ -92,9 +92,9 @@ Each archive bundles Atlas and its internal engine modules into one static archi
 
 ### Build / Run / Pack / Clangd
 
-- `atlas build` configures and builds using backend from `atlas.toml`.
+- `atlas build` configures and builds using the backend from `project.atlas`.
 - `atlas run` builds then runs the produced executable.
-- `atlas pack` builds and creates distributable output:
+- `atlas pack` creates distributable output from the configured Atlas runtime and project resources:
   - macOS: `.app` bundle in `dist/`
   - other platforms: executable in `dist/`
 - `atlas clangd` generates `build/compile_commands.json` and exposes it at project root as `compile_commands.json`.

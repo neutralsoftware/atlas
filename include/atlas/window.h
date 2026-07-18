@@ -47,6 +47,12 @@ enum class EditorControlMode {
     Scale = 3,
 };
 
+enum class EditorShadingMode {
+    Lit = 0,
+    Wireframe = 1,
+    Points = 2,
+};
+
 /**
  * @brief Structure representing the configuration options for creating a
  * window.
@@ -155,6 +161,7 @@ struct WindowConfiguration {
     CoreWindowReference sdlInputWindow = nullptr;
 
     bool editorControls = false;
+    bool showHostWindow = true;
 };
 
 /**
@@ -437,11 +444,24 @@ class Window {
     bool isEditorSimulationEnabled() const { return editorSimulationEnabled; }
     void setEditorControlMode(EditorControlMode mode);
     EditorControlMode getEditorControlMode() const { return editorControlMode; }
+    void setEditorShadingMode(EditorShadingMode mode);
+    EditorShadingMode getEditorShadingMode() const { return editorShadingMode; }
     void editorPointerEvent(int action, float x, float y, int button,
                             float scale = 1.0f);
+    void editorScrollEvent(float delta, float scale = 1.0f);
     void editorKeyEvent(int key, bool pressed);
+    bool beginEditorKeyboardTransform(EditorControlMode mode, float x, float y,
+                                      float scale = 1.0f);
+    void setEditorKeyboardTransformAxes(int axes);
+    void finishEditorKeyboardTransform(bool commit);
+    bool toggleEditorTransformSpace();
+    bool toggleEditorTransformSnapping();
+    float changeEditorTransformSnapIncrement(float factor);
     GameObject *getSelectedEditorObject() const { return selectedEditorObject; }
     unsigned int getSelectedEditorObjectId() const;
+    void selectEditorObject(GameObject *object, bool focusCamera = false);
+    void focusEditorObjects(const std::vector<GameObject *> &objects);
+    void setEditorObjectParent(GameObject *child, GameObject *parent);
     /**
      * @brief Tears down state created by stepFrame()/run().
      */
@@ -618,6 +638,9 @@ class Window {
      * @param target The render target to add.
      */
     void addRenderTarget(RenderTarget *target);
+    void removeRenderTarget(RenderTarget *target);
+    void setHostWindowVisible(bool visible);
+    void setDefaultFramebufferRenderingEnabled(bool enabled);
 
     /**
      * @brief Gets the framebuffer size of the window.
@@ -821,6 +844,7 @@ class Window {
     std::vector<Fluid *> lateFluids;
     std::vector<RenderTarget *> renderTargets;
     std::shared_ptr<RenderTarget> screenRenderTarget;
+    std::unique_ptr<RenderTarget> modeScreenTarget;
 
     std::shared_ptr<RenderTarget> gBuffer;
     std::shared_ptr<RenderTarget> ssaoBuffer;
@@ -874,11 +898,20 @@ class Window {
     void updateBackbufferTarget(int backbufferWidth, int backbufferHeight);
     void renderEditorControls(
         const std::shared_ptr<opal::CommandBuffer> &commandBuffer);
+    void renderEditorGrid(
+        const std::shared_ptr<opal::CommandBuffer> &commandBuffer);
+    void renderEditorOverlays(
+        const std::shared_ptr<opal::CommandBuffer> &commandBuffer);
     void updateEditorControlGeometry();
     void selectEditorObjectAt(float x, float y, float scale);
+    int hitTestEditorGizmoAxis(float x, float y, float scale);
     void updateEditorDrag(float x, float y, float scale);
     void updateEditorCameraDrag(float x, float y, float scale);
+    void updateEditorCameraPan(float x, float y, float scale);
     void updateEditorCameraMovement(float deltaTime);
+    void applyEditorOrbitDelta(float yawDelta, float pitchDelta);
+    void applyEditorZoomDelta(float scrollAmount);
+    void updateEditorCameraInertia(float deltaTime);
     void queryDrawableSizeInPixels(int *width, int *height) const;
     void initializeRunLoop();
     void pollEvents();
@@ -937,6 +970,7 @@ class Window {
     float metalUpscalingRatio = 1.0f;
     bool renderToExternalMetalView = false;
     bool showHostWindow = true;
+    bool renderDefaultFramebuffer = true;
     void *externalMetalView = nullptr;
     unsigned int bloomBlurPasses = 4;
     int ssaoKernelSize = 32;
@@ -963,17 +997,35 @@ class Window {
     bool editorControlsEnabled = false;
     bool editorSimulationEnabled = true;
     EditorControlMode editorControlMode = EditorControlMode::None;
+    EditorShadingMode editorShadingMode = EditorShadingMode::Lit;
     GameObject *selectedEditorObject = nullptr;
     bool editorDragging = false;
+    bool editorKeyboardTransform = false;
+    bool editorLocalTransformSpace = false;
+    bool editorTransformSnapping = false;
+    float editorTransformSnapIncrement = 0.5f;
+    int editorKeyboardTransformAxes = 7;
+    float editorKeyboardLastX = 0.0f;
+    float editorKeyboardLastY = 0.0f;
+    float editorKeyboardAccumulatedX = 0.0f;
+    float editorKeyboardAccumulatedY = 0.0f;
     bool editorCameraDragging = false;
+    bool editorCameraPanning = false;
+    int editorActiveGizmoAxis = 0;
     float editorDragStartX = 0.0f;
     float editorDragStartY = 0.0f;
     float editorCameraLastX = 0.0f;
     float editorCameraLastY = 0.0f;
+    float editorOrbitVelocityX = 0.0f;
+    float editorOrbitVelocityY = 0.0f;
+    float editorZoomVelocity = 0.0f;
     float editorDragStartScale = 1.0f;
     Position3d editorDragStartPosition;
     Rotation3d editorDragStartRotation;
     Scale3d editorDragStartObjectScale;
+    Position3d editorOrbitPivot;
+    float editorOrbitDistance = 3.0f;
+    bool editorOrbitPivotInitialized = false;
     std::unique_ptr<CoreObject> editorGridObject;
     std::unique_ptr<CoreObject> editorOutlineObject;
     std::unique_ptr<CoreObject> editorGizmoObject;
@@ -981,9 +1033,17 @@ class Window {
     bool editorOutlineInitialized = false;
     bool editorGizmoInitialized = false;
     std::array<bool, 6> editorCameraKeys{};
+    std::unordered_map<GameObject *, GameObject *> editorObjectParents;
+    std::unordered_map<GameObject *, std::vector<GameObject *>>
+        editorObjectChildren;
 
     void prepareDefaultPipeline(Renderable *renderable, int fbWidth,
                                 int fbHeight);
+    bool editorSelectionBounds(GameObject *object, glm::vec3 &boundsMin,
+                               glm::vec3 &boundsMax);
+    void moveEditorObjectChildren(GameObject *object,
+                                  const Position3d &deltaPosition);
+    void updateEditorKeyboardTransform(float x, float y, float scale);
 
     uint64_t pipelineStateVersion = 1;
     std::unordered_map<Renderable *, uint64_t> renderablePipelineVersions;
