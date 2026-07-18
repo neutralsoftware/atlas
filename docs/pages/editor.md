@@ -65,3 +65,20 @@ Shift-click selects multiple hierarchy objects. Dropping OBJ, FBX, glTF, GLB, or
 | Command palette | Command Shift P |
 
 The command palette lists available commands and their shortcuts and supports keyboard filtering, arrow navigation, and Enter. Scripts are watched for changes and the editor reloads the runtime automatically when JavaScript or TypeScript files change.
+
+## Packaging Atlas Engine
+
+Run the macOS packer from the repository root:
+
+```shell
+./scripts/package_app.py --debug --macOS
+./scripts/package_app.py --release --macOS
+```
+
+The equivalent `just` recipes are `just package-debug-macos` and `just package-release-macos`. Products are written below `dist/macOS/<configuration>` and intermediate files are written below `build/package`; both directories are ignored by version control.
+
+The package is self-contained and includes Qt, the Atlas CLI, and `runtime.dylib`. On first launch, Atlas Engine offers to install the bundled CLI and runtime into `~/Library/Application Support/Atlas Engine/toolchains/alpha9` and registers them in `~/.atlas/config.json`. Installation does not require administrator access and preserves other configured Atlas versions.
+
+Development packages use an ad-hoc signature. For a Developer ID package, set `ATLAS_SIGNING_IDENTITY` to the certificate name. Set `ATLAS_NOTARY_PROFILE` to a `notarytool` keychain profile to submit, wait for notarization, and staple the result automatically.
+
+The packer builds the host architecture by default. Set `ATLAS_MACOS_ARCHITECTURES='arm64;x86_64'` when the selected Qt installation contains both architectures to create a universal archive. `ATLAS_MACOS_DEPLOYMENT_TARGET` changes the default macOS 14.0 deployment target, and `ATLAS_MACDEPLOYQT` can select a specific `macdeployqt` executable.

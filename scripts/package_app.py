@@ -75,12 +75,32 @@ def macho_dependencies(bundle):
     for path in bundle.rglob("*"):
         if not path.is_file() or path.is_symlink():
             continue
-        kind = run([file_tool, "-b", path], capture=True).stdout
+        kind = subprocess.run(
+            [file_tool, "-b", path],
+            check=True,
+            text=True,
+            capture_output=True,
+        ).stdout
         if "Mach-O" not in kind:
             continue
-        output = run([otool, "-L", path], capture=True).stdout.splitlines()[1:]
+        install_ids = set(
+            subprocess.run(
+                [otool, "-D", path],
+                check=False,
+                text=True,
+                capture_output=True,
+            ).stdout.splitlines()[1:]
+        )
+        output = subprocess.run(
+            [otool, "-L", path],
+            check=True,
+            text=True,
+            capture_output=True,
+        ).stdout.splitlines()[1:]
         for line in output:
             dependency = line.strip().split(" (", 1)[0]
+            if dependency in install_ids:
+                continue
             if dependency.startswith(("@", "/System/Library/", "/usr/lib/")):
                 continue
             invalid.append((path, dependency))
@@ -218,6 +238,8 @@ def main():
         plist = plistlib.load(stream)
     if plist.get("CFBundleIdentifier") != "neutralsoftware.atlas":
         raise RuntimeError("Packaged app has the wrong bundle identifier")
+    if plist.get("LSMinimumSystemVersion") != deployment_target:
+        raise RuntimeError("Packaged app has the wrong minimum macOS version")
     if not (packaged_app / "Contents" / "Helpers" / "atlas").is_file():
         raise RuntimeError("Packaged app is missing the Atlas CLI")
     if not (packaged_app / "Contents" / "Frameworks" / "runtime.dylib").is_file():
