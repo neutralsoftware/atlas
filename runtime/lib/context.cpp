@@ -4314,6 +4314,19 @@ bool Context::finishEditorKeyboardTransform(bool commit) {
     return true;
 }
 
+bool Context::toggleEditorTransformSpace() {
+    return window != nullptr && window->toggleEditorTransformSpace();
+}
+
+bool Context::toggleEditorTransformSnapping() {
+    return window != nullptr && window->toggleEditorTransformSnapping();
+}
+
+float Context::changeEditorTransformSnapIncrement(float factor) {
+    return window != nullptr ? window->changeEditorTransformSnapIncrement(factor)
+                             : 0.0f;
+}
+
 int Context::selectedObjectId() const {
     if (window == nullptr || window->getSelectedEditorObject() == nullptr) {
         return -1;
@@ -4472,10 +4485,19 @@ std::optional<json> propertySyncSourceValue(Context &context,
     const std::string section =
         normalizeToken(source.value("section", std::string()));
     const std::string path = source.value("path", std::string());
+    auto withFallback = [&source](std::optional<json> value) {
+        return value.has_value()
+                   ? value
+                   : source.contains("fallback")
+                         ? std::optional<json>(source["fallback"])
+                         : std::nullopt;
+    };
     if (section == "camera")
-        return propertySyncJsonValue(context.editorCameraData, path);
+        return withFallback(
+            propertySyncJsonValue(context.editorCameraData, path));
     if (section == "environment")
-        return propertySyncJsonValue(context.editorEnvironmentData, path);
+        return withFallback(
+            propertySyncJsonValue(context.editorEnvironmentData, path));
     if (section != "object" || !source.contains("object"))
         return std::nullopt;
     GameObject *object = propertySyncObject(context, source["object"]);
@@ -4499,20 +4521,25 @@ std::optional<json> propertySyncSourceValue(Context &context,
     if (component == "object") {
         auto sourceData = context.editorLightSourceData.find(id);
         if (sourceData != context.editorLightSourceData.end())
-            return propertySyncJsonValue(sourceData->second, path);
+            return withFallback(
+                propertySyncJsonValue(sourceData->second, path));
         auto objectData = context.editorObjectSourceData.find(id);
-        return objectData != context.editorObjectSourceData.end()
-                   ? propertySyncJsonValue(objectData->second, path)
-                   : std::nullopt;
+        return withFallback(objectData != context.editorObjectSourceData.end()
+                                ? propertySyncJsonValue(objectData->second,
+                                                        path)
+                                : std::nullopt);
     }
     const int index = source.value("componentIndex", -1);
     auto components = context.editorComponentData.find(id);
     if (components == context.editorComponentData.end() ||
         !components->second.is_array() || index < 0 ||
         index >= static_cast<int>(components->second.size())) {
-        return std::nullopt;
+        return source.contains("fallback")
+                   ? std::optional<json>(source["fallback"])
+                   : std::nullopt;
     }
-    return propertySyncJsonValue(components->second[index], path);
+    return withFallback(
+        propertySyncJsonValue(components->second[index], path));
 }
 
 bool applyPropertySyncTarget(Context &context, const json &target,
@@ -4550,8 +4577,10 @@ bool applyPropertySyncTarget(Context &context, const json &target,
 }
 
 void applyPropertySyncs(Context &context, bool attachComponents) {
-    if (!context.editorPropertySyncs.is_array())
+    if (!context.editorPropertySyncs.is_array() ||
+        context.applyingPropertySyncs)
         return;
+    context.applyingPropertySyncs = true;
     for (const json &binding : context.editorPropertySyncs) {
         if (!binding.is_object() || !binding.contains("target") ||
             !binding.contains("source")) {
@@ -4563,6 +4592,7 @@ void applyPropertySyncs(Context &context, bool attachComponents) {
             applyPropertySyncTarget(context, binding["target"], *value,
                                     attachComponents);
     }
+    context.applyingPropertySyncs = false;
 }
 
 json canonicalPropertySyncEndpoint(Context &context, json endpoint) {
@@ -4717,6 +4747,20 @@ bool Context::selectObject(int id, bool focusCamera) {
     return true;
 }
 
+bool Context::focusObjects(const std::vector<int> &ids) {
+    if (window == nullptr || ids.empty())
+        return false;
+    std::vector<GameObject *> selected;
+    for (int id : ids) {
+        if (GameObject *object = findContextObject(*this, id))
+            selected.push_back(object);
+    }
+    if (selected.empty())
+        return false;
+    window->focusEditorObjects(selected);
+    return true;
+}
+
 bool Context::renameObject(int id, const std::string &name) {
     if (name.empty()) {
         return false;
@@ -4771,6 +4815,7 @@ bool Context::setObjectProperty(int id, const std::string &component,
         }
         setJsonProperty(editorObjectSourceData[id], "/" + property, value);
         syncEditorLightObject(*this, *object);
+        applyPropertySyncs(*this, true);
         return true;
     }
 
@@ -4782,6 +4827,7 @@ bool Context::setObjectProperty(int id, const std::string &component,
             return false;
         }
         syncEditorLightObject(*this, *object);
+        applyPropertySyncs(*this, true);
         return true;
     }
 
@@ -4842,6 +4888,7 @@ bool Context::setObjectProperty(int id, const std::string &component,
         RUNTIME_LOG("Component update is waiting for valid values: " +
                     std::string(error.what()));
     }
+    applyPropertySyncs(*this, true);
     return true;
 }
 
@@ -4854,10 +4901,15 @@ bool Context::setSceneProperty(const std::string &section, int index,
             return false;
         }
         applyEditorCameraData(*this);
+        applyPropertySyncs(*this, true);
         return true;
     }
     if (normalizedSection == "environment") {
-        return setJsonProperty(editorEnvironmentData, propertyPath, value);
+        const bool changed =
+            setJsonProperty(editorEnvironmentData, propertyPath, value);
+        if (changed)
+            applyPropertySyncs(*this, true);
+        return changed;
     }
     if (normalizedSection == "target" || normalizedSection == "targets") {
         if (index < 0 && propertyPath.empty() && value.is_array()) {
@@ -5458,6 +5510,62 @@ int Context::createObject(const std::string &type, const std::string &name) {
     return id;
 }
 
+std::string Context::objectDefinitionJson(int id) const {
+    GameObject *object = findContextObject(*this, id);
+    return object != nullptr ? serializeNewObject(*this, *object).dump()
+                             : std::string();
+}
+
+int Context::pasteObjectDefinition(const std::string &definition) {
+    if (window == nullptr || currentSceneFile.empty() || definition.empty() ||
+        !saveCurrentScene()) {
+        return -1;
+    }
+    try {
+        json objectData = json::parse(definition);
+        if (!objectData.is_object())
+            return -1;
+        const std::string baseName =
+            objectData.value("name", std::string("Object"));
+        const std::string name = uniqueEditorObjectName(*this, baseName);
+        objectData["name"] = name;
+        objectData.erase("id");
+        objectData.erase("parent");
+        if (objectData.contains("position") &&
+            objectData["position"].is_array() &&
+            objectData["position"].size() >= 3) {
+            objectData["position"][0] =
+                objectData["position"][0].get<double>() + 0.5;
+            objectData["position"][2] =
+                objectData["position"][2].get<double>() + 0.5;
+        }
+        json sceneData = loadJsonFile(currentSceneFile);
+        if (!sceneData.is_object())
+            return -1;
+        if (!sceneData.contains("objects") || !sceneData["objects"].is_array())
+            sceneData["objects"] = json::array();
+        sceneData["objects"].push_back(objectData);
+        std::ofstream output(currentSceneFile, std::ios::trunc);
+        if (!output.is_open())
+            return -1;
+        output << sceneData.dump(4) << '\n';
+        if (!output.good())
+            return -1;
+        output.close();
+        loadScene(*window, sceneData);
+        auto pasted = objectReferences.find(name);
+        if (pasted == objectReferences.end())
+            pasted = objectReferences.find(normalizeToken(name));
+        if (pasted == objectReferences.end() || pasted->second == nullptr)
+            return -1;
+        window->selectEditorObject(pasted->second, false);
+        return static_cast<int>(pasted->second->getId());
+    } catch (const std::exception &error) {
+        RUNTIME_LOG("Could not paste object: " + std::string(error.what()));
+        return -1;
+    }
+}
+
 bool Context::saveCurrentScene() {
     if (currentSceneFile.empty()) {
         return false;
@@ -5526,6 +5634,30 @@ bool Context::saveCurrentScene() {
     }
     return good;
 }
+
+bool Context::openSceneFile(const std::string &path) {
+    if (window == nullptr || path.empty())
+        return false;
+    try {
+        const std::filesystem::path requested(path);
+        const std::string resolved =
+            requested.is_absolute()
+                ? requested.lexically_normal().string()
+                : resolveRuntimePath(projectDir, path);
+        json sceneData = loadJsonFile(resolved);
+        if (!sceneData.is_object())
+            return false;
+        currentSceneFile = resolved;
+        sceneDir = std::filesystem::path(resolved).parent_path().string();
+        loadScene(*window, sceneData);
+        return true;
+    } catch (const std::exception &error) {
+        RUNTIME_LOG("Could not open scene: " + std::string(error.what()));
+        return false;
+    }
+}
+
+std::string Context::currentScenePath() const { return currentSceneFile; }
 
 void Context::end() {
     if (window == nullptr) {

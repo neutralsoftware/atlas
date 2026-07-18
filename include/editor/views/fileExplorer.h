@@ -29,10 +29,21 @@ class ContentBrowserPanel : public QWidget {
 
     void setRootPath(const QString &path);
     void clearSelection();
+    void focusSearch();
+    void renameSelection();
+    void deleteSelection();
+    void duplicateSelection();
+    void cutSelection();
+    void copySelection();
+    void pasteSelection();
+    void refreshAssets();
+    void selectAllAssets();
+    QString selectedPath() const;
 
   signals:
     void selectionChanged(const QString &path);
     void assetActivated(const QString &path);
+    void sceneActivated(const QString &path);
 
   private:
     void navigateTo(const QString &path, bool recordHistory = true);
@@ -43,11 +54,8 @@ class ContentBrowserPanel : public QWidget {
     void createScene();
     void createScript();
     void createMaterial();
-    void renameSelection();
-    void deleteSelection();
     void revealSelection() const;
     void copySelectionPath() const;
-    QString selectedPath() const;
     QString uniquePath(const QString &baseName) const;
     bool isInsideProject(const QString &path) const;
     void updateNavigationState();
@@ -66,6 +74,8 @@ class ContentBrowserPanel : public QWidget {
     QString currentPath;
     QStringList history;
     int historyIndex = -1;
+    QStringList clipboardPaths;
+    bool cutClipboard = false;
 };
 
 #endif

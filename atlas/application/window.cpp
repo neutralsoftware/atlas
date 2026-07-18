@@ -2017,11 +2017,35 @@ bool Window::beginEditorKeyboardTransform(EditorControlMode mode, float x,
     editorActiveGizmoAxis = 0;
     editorDragStartX = x;
     editorDragStartY = y;
+    editorKeyboardLastX = x;
+    editorKeyboardLastY = y;
+    editorKeyboardAccumulatedX = 0.0f;
+    editorKeyboardAccumulatedY = 0.0f;
     editorDragStartScale = scale > 0.0f ? scale : 1.0f;
     editorDragStartPosition = selectedEditorObject->getPosition();
     editorDragStartRotation = selectedEditorObject->getRotation();
     editorDragStartObjectScale = selectedEditorObject->getScale();
     return true;
+}
+
+bool Window::toggleEditorTransformSpace() {
+    editorLocalTransformSpace = !editorLocalTransformSpace;
+    return editorLocalTransformSpace;
+}
+
+bool Window::toggleEditorTransformSnapping() {
+    editorTransformSnapping = !editorTransformSnapping;
+    return editorTransformSnapping;
+}
+
+float Window::changeEditorTransformSnapIncrement(float factor) {
+    if (factor > 0.0f) {
+        editorTransformSnapIncrement =
+            std::clamp(editorTransformSnapIncrement * factor, 0.001f, 1000.0f);
+        if (std::abs(factor - 1.0f) > 0.000001f)
+            editorTransformSnapping = true;
+    }
+    return editorTransformSnapIncrement;
 }
 
 void Window::setEditorKeyboardTransformAxes(int axes) {
@@ -2094,6 +2118,41 @@ void Window::selectEditorObject(GameObject *object, bool focusCamera) {
     }
 
     float distance = std::max(3.0f, radius * 3.2f);
+    camera->position = Position3d::fromGlm(center + offset * distance);
+    camera->lookAt(Position3d::fromGlm(center));
+    editorOrbitPivot = Position3d::fromGlm(center);
+    editorOrbitDistance = distance;
+    editorOrbitPivotInitialized = true;
+    shadowMapsDirty = true;
+    ssaoMapsDirty = true;
+}
+
+void Window::focusEditorObjects(const std::vector<GameObject *> &objects) {
+    if (camera == nullptr || objects.empty())
+        return;
+    bool found = false;
+    glm::vec3 boundsMin(0.0f);
+    glm::vec3 boundsMax(0.0f);
+    for (GameObject *object : objects) {
+        glm::vec3 objectMin;
+        glm::vec3 objectMax;
+        if (!editorSelectionBounds(object, objectMin, objectMax))
+            continue;
+        boundsMin = found ? glm::min(boundsMin, objectMin) : objectMin;
+        boundsMax = found ? glm::max(boundsMax, objectMax) : objectMax;
+        found = true;
+    }
+    if (!found)
+        return;
+    const glm::vec3 center = (boundsMin + boundsMax) * 0.5f;
+    const float radius =
+        std::max(0.5f, glm::length(boundsMax - boundsMin) * 0.5f);
+    glm::vec3 offset = camera->position.toGlm() - camera->target.toGlm();
+    if (glm::length(offset) < 0.000001f)
+        offset = glm::vec3(0.0f, 0.0f, 1.0f);
+    else
+        offset = glm::normalize(offset);
+    const float distance = std::max(3.0f, radius * 3.2f);
     camera->position = Position3d::fromGlm(center + offset * distance);
     camera->lookAt(Position3d::fromGlm(center));
     editorOrbitPivot = Position3d::fromGlm(center);
@@ -2347,7 +2406,7 @@ int Window::hitTestEditorGizmoAxis(float x, float y, float scale) {
         editorControlMode == EditorControlMode::Scale) {
         for (int axis = 1; axis <= 3; ++axis) {
             glm::vec3 axisVector =
-                editorControlMode == EditorControlMode::Scale
+                editorLocalTransformSpace
                     ? editorScaleAxisVector(selectedEditorObject, axis)
                     : editorAxisVector(axis);
             glm::vec2 from;
@@ -2395,6 +2454,12 @@ int Window::hitTestEditorGizmoAxis(float x, float y, float scale) {
                      glm::vec3(std::cos(a0), std::sin(a0), 0) * ringRadius;
                 p1 = center +
                      glm::vec3(std::cos(a1), std::sin(a1), 0) * ringRadius;
+            }
+            if (editorLocalTransformSpace) {
+                const glm::quat rotation =
+                    selectedEditorObject->getRotation().toGlmQuat();
+                p0 = center + rotation * (p0 - center);
+                p1 = center + rotation * (p1 - center);
             }
 
             glm::vec2 from;
@@ -2474,10 +2539,10 @@ void Window::updateEditorDrag(float x, float y, float scale) {
     float effectiveScale = scale > 0.0f ? scale : editorDragStartScale;
     float dx = (x - editorDragStartX) / effectiveScale;
     float dy = (y - editorDragStartY) / effectiveScale;
-    glm::vec3 axis = editorControlMode == EditorControlMode::Scale
-                         ? editorScaleAxisVector(selectedEditorObject,
-                                                 editorActiveGizmoAxis)
-                         : editorAxisVector(editorActiveGizmoAxis);
+    glm::vec3 axis =
+        editorLocalTransformSpace
+            ? editorScaleAxisVector(selectedEditorObject, editorActiveGizmoAxis)
+            : editorAxisVector(editorActiveGizmoAxis);
     if (glm::length(axis) < 0.000001f) {
         return;
     }
@@ -2510,8 +2575,12 @@ void Window::updateEditorDrag(float x, float y, float scale) {
             worldDelta = (dx + dy) * std::max(0.01f, distance * 0.0025f);
         }
         glm::vec3 delta = axis * worldDelta;
-        Position3d nextPosition =
-            Position3d::fromGlm(editorDragStartPosition.toGlm() + delta);
+        glm::vec3 nextVector = editorDragStartPosition.toGlm() + delta;
+        if (editorTransformSnapping) {
+            nextVector = glm::round(nextVector / editorTransformSnapIncrement) *
+                         editorTransformSnapIncrement;
+        }
+        Position3d nextPosition = Position3d::fromGlm(nextVector);
         Position3d childDelta =
             nextPosition - selectedEditorObject->getPosition();
         selectedEditorObject->setPosition(nextPosition);
@@ -2542,8 +2611,11 @@ void Window::updateEditorDrag(float x, float y, float scale) {
             }
         }
         if (std::abs(angle) < 0.000001f) {
-            angle = (dx + dy) * 0.25f;
+            angle = (dx - dy) * 0.25f;
         }
+        if (editorTransformSnapping)
+            angle = std::round(angle / editorTransformSnapIncrement) *
+                    editorTransformSnapIncrement;
         Rotation3d rotation = editorDragStartRotation;
         if (editorActiveGizmoAxis == 1) {
             rotation.pitch = editorDragStartRotation.pitch + angle;
@@ -2589,6 +2661,17 @@ void Window::updateEditorDrag(float x, float y, float scale) {
             nextScale.z =
                 std::max(0.05f, editorDragStartObjectScale.z + scaleDelta);
         }
+        if (editorTransformSnapping) {
+            nextScale.x = std::round(nextScale.x / editorTransformSnapIncrement) *
+                          editorTransformSnapIncrement;
+            nextScale.y = std::round(nextScale.y / editorTransformSnapIncrement) *
+                          editorTransformSnapIncrement;
+            nextScale.z = std::round(nextScale.z / editorTransformSnapIncrement) *
+                          editorTransformSnapIncrement;
+            nextScale.x = std::max(0.001f, nextScale.x);
+            nextScale.y = std::max(0.001f, nextScale.y);
+            nextScale.z = std::max(0.001f, nextScale.z);
+        }
         selectedEditorObject->setScale(nextScale);
     }
     shadowMapsDirty = true;
@@ -2601,8 +2684,24 @@ void Window::updateEditorKeyboardTransform(float x, float y, float scale) {
         return;
 
     const float effectiveScale = scale > 0.0f ? scale : editorDragStartScale;
-    const float dx = (x - editorDragStartX) / effectiveScale;
-    const float dy = (y - editorDragStartY) / effectiveScale;
+    float stepX = x - editorKeyboardLastX;
+    float stepY = y - editorKeyboardLastY;
+    const float wrapWidth = std::max(1.0f, static_cast<float>(width));
+    const float wrapHeight = std::max(1.0f, static_cast<float>(height));
+    if (stepX > wrapWidth * 0.5f)
+        stepX -= wrapWidth;
+    else if (stepX < -wrapWidth * 0.5f)
+        stepX += wrapWidth;
+    if (stepY > wrapHeight * 0.5f)
+        stepY -= wrapHeight;
+    else if (stepY < -wrapHeight * 0.5f)
+        stepY += wrapHeight;
+    editorKeyboardAccumulatedX += stepX;
+    editorKeyboardAccumulatedY += stepY;
+    editorKeyboardLastX = x;
+    editorKeyboardLastY = y;
+    const float dx = editorKeyboardAccumulatedX / effectiveScale;
+    const float dy = editorKeyboardAccumulatedY / effectiveScale;
     const int axes = editorKeyboardTransformAxes;
     const float distance = glm::length(editorDragStartPosition.toGlm() -
                                        camera->position.toGlm());
@@ -2631,7 +2730,11 @@ void Window::updateEditorKeyboardTransform(float x, float y, float scale) {
             for (int axisIndex = 0; axisIndex < 3; ++axisIndex) {
                 if ((axes & (1 << axisIndex)) == 0)
                     continue;
-                const glm::vec3 axis = editorAxisVector(axisIndex + 1);
+                const glm::vec3 axis =
+                    editorLocalTransformSpace
+                        ? editorScaleAxisVector(selectedEditorObject,
+                                                axisIndex + 1)
+                        : editorAxisVector(axisIndex + 1);
                 glm::vec2 centerScreen;
                 glm::vec2 axisScreen;
                 float depth = 0.0f;
@@ -2652,14 +2755,18 @@ void Window::updateEditorKeyboardTransform(float x, float y, float scale) {
                 }
             }
         }
-        const Position3d next =
-            Position3d::fromGlm(editorDragStartPosition.toGlm() + delta);
+        glm::vec3 nextVector = editorDragStartPosition.toGlm() + delta;
+        if (editorTransformSnapping) {
+            nextVector = glm::round(nextVector / editorTransformSnapIncrement) *
+                         editorTransformSnapIncrement;
+        }
+        const Position3d next = Position3d::fromGlm(nextVector);
         const Position3d childDelta =
             next - selectedEditorObject->getPosition();
         selectedEditorObject->setPosition(next);
         moveEditorObjectChildren(selectedEditorObject, childDelta);
     } else if (editorControlMode == EditorControlMode::Scale) {
-        const float amount = (dx + dy) * 0.01f;
+        const float amount = (dx - dy) * 0.01f;
         Scale3d next = editorDragStartObjectScale;
         if ((axes & 1) != 0)
             next.x = std::max(0.05f, next.x + amount);
@@ -2667,9 +2774,23 @@ void Window::updateEditorKeyboardTransform(float x, float y, float scale) {
             next.y = std::max(0.05f, next.y + amount);
         if ((axes & 4) != 0)
             next.z = std::max(0.05f, next.z + amount);
+        if (editorTransformSnapping) {
+            next.x = std::round(next.x / editorTransformSnapIncrement) *
+                     editorTransformSnapIncrement;
+            next.y = std::round(next.y / editorTransformSnapIncrement) *
+                     editorTransformSnapIncrement;
+            next.z = std::round(next.z / editorTransformSnapIncrement) *
+                     editorTransformSnapIncrement;
+            next.x = std::max(0.001f, next.x);
+            next.y = std::max(0.001f, next.y);
+            next.z = std::max(0.001f, next.z);
+        }
         selectedEditorObject->setScale(next);
     } else if (editorControlMode == EditorControlMode::Rotate) {
-        const float angle = (dx + dy) * 0.25f;
+        float angle = (dx - dy) * 0.25f;
+        if (editorTransformSnapping)
+            angle = std::round(angle / editorTransformSnapIncrement) *
+                    editorTransformSnapIncrement;
         Rotation3d next = editorDragStartRotation;
         if ((axes & 1) != 0)
             next.pitch += angle;
@@ -3012,9 +3133,15 @@ void Window::updateEditorControlGeometry() {
     Color active{1.0f, 0.86f, 0.08f, 1.0f};
 
     if (editorControlMode == EditorControlMode::Move) {
-        glm::vec3 xAxis(1.0f, 0.0f, 0.0f);
-        glm::vec3 yAxis(0.0f, 1.0f, 0.0f);
-        glm::vec3 zAxis(0.0f, 0.0f, 1.0f);
+        glm::vec3 xAxis = editorLocalTransformSpace
+                              ? editorScaleAxisVector(selectedEditorObject, 1)
+                              : editorAxisVector(1);
+        glm::vec3 yAxis = editorLocalTransformSpace
+                              ? editorScaleAxisVector(selectedEditorObject, 2)
+                              : editorAxisVector(2);
+        glm::vec3 zAxis = editorLocalTransformSpace
+                              ? editorScaleAxisVector(selectedEditorObject, 3)
+                              : editorAxisVector(3);
         glm::vec3 xTip = center + xAxis * axisLength;
         glm::vec3 yTip = center + yAxis * axisLength;
         glm::vec3 zTip = center + zAxis * axisLength;
@@ -3034,9 +3161,15 @@ void Window::updateEditorControlGeometry() {
                          cameraPosition, zColor);
         appendArrowHead(gizmoVertices, zTip, zAxis, arrowSize, zColor);
     } else if (editorControlMode == EditorControlMode::Scale) {
-        glm::vec3 xAxis = editorScaleAxisVector(selectedEditorObject, 1);
-        glm::vec3 yAxis = editorScaleAxisVector(selectedEditorObject, 2);
-        glm::vec3 zAxis = editorScaleAxisVector(selectedEditorObject, 3);
+        glm::vec3 xAxis = editorLocalTransformSpace
+                              ? editorScaleAxisVector(selectedEditorObject, 1)
+                              : editorAxisVector(1);
+        glm::vec3 yAxis = editorLocalTransformSpace
+                              ? editorScaleAxisVector(selectedEditorObject, 2)
+                              : editorAxisVector(2);
+        glm::vec3 zAxis = editorLocalTransformSpace
+                              ? editorScaleAxisVector(selectedEditorObject, 3)
+                              : editorAxisVector(3);
         glm::vec3 xTip = center + xAxis * axisLength;
         glm::vec3 yTip = center + yAxis * axisLength;
         glm::vec3 zTip = center + zAxis * axisLength;
@@ -3085,6 +3218,12 @@ void Window::updateEditorControlGeometry() {
                          glm::vec3(std::cos(a0), std::sin(a0), 0) * ringRadius;
                     p1 = center +
                          glm::vec3(std::cos(a1), std::sin(a1), 0) * ringRadius;
+                }
+                if (editorLocalTransformSpace) {
+                    const glm::quat rotation =
+                        selectedEditorObject->getRotation().toGlmQuat();
+                    p0 = center + rotation * (p0 - center);
+                    p1 = center + rotation * (p1 - center);
                 }
                 appendRibbonLine(gizmoVertices, p0, p1, gizmoThickness,
                                  cameraPosition, color);

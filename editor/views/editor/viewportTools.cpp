@@ -4,20 +4,34 @@
 
 #include <QActionGroup>
 #include <QComboBox>
+#include <QDirIterator>
+#include <QFileInfo>
 #include <QHBoxLayout>
 #include <QLabel>
 #include <QKeySequence>
 #include <QList>
+#include <QSignalBlocker>
 #include <QStyle>
+#include <QTabBar>
 #include <QToolButton>
 #include <QVBoxLayout>
 
-ViewportTools::ViewportTools(ViewportPanel *viewport, QWidget *parent)
-    : QWidget(parent), viewport(viewport) {
+ViewportTools::ViewportTools(ViewportPanel *viewport,
+                             const QString &projectFile, QWidget *parent)
+    : QWidget(parent), viewport(viewport),
+      projectRoot(QFileInfo(projectFile).absolutePath()) {
     setObjectName("viewportTools");
     auto *layout = new QVBoxLayout(this);
     layout->setContentsMargins(0, 0, 0, 0);
     layout->setSpacing(0);
+
+    sceneTabs = new QTabBar(this);
+    sceneTabs->setObjectName("sceneTabs");
+    sceneTabs->setDocumentMode(true);
+    sceneTabs->setExpanding(false);
+    sceneTabs->setMovable(true);
+    sceneTabs->setTabsClosable(true);
+    layout->addWidget(sceneTabs);
 
     auto *toolbar = new QWidget(this);
     toolbar->setObjectName("viewportToolbar");
@@ -59,9 +73,9 @@ ViewportTools::ViewportTools(ViewportPanel *viewport, QWidget *parent)
 
     auto *transformGroup = new QActionGroup(toolbar);
     transformGroup->setExclusive(true);
-    const QStringList transformNames{"Move", "Rotate", "Scale"};
+    const QStringList transformNames{"Select", "Move", "Rotate", "Scale"};
     const QList<QStyle::StandardPixmap> transformIcons{
-        QStyle::SP_ArrowRight, QStyle::SP_BrowserReload,
+        QStyle::SP_ArrowUp, QStyle::SP_ArrowRight, QStyle::SP_BrowserReload,
         QStyle::SP_TitleBarMaxButton};
     for (int index = 0; index < transformNames.size(); ++index) {
         auto *button = new QToolButton(toolbar);
@@ -71,7 +85,7 @@ ViewportTools::ViewportTools(ViewportPanel *viewport, QWidget *parent)
         button->setCheckable(true);
         auto *action = new QAction(transformNames.at(index), button);
         action->setCheckable(true);
-        action->setData(index + 1);
+        action->setData(index);
         button->setDefaultAction(action);
         transformGroup->addAction(action);
         tools->addWidget(button);
@@ -79,6 +93,14 @@ ViewportTools::ViewportTools(ViewportPanel *viewport, QWidget *parent)
             action->setChecked(true);
         }
     }
+
+    tools->addSpacing(10);
+    spaceButton = new QToolButton(toolbar);
+    spaceButton->setObjectName("viewportOptionButton");
+    spaceButton->setText("World");
+    spaceButton->setToolButtonStyle(Qt::ToolButtonTextOnly);
+    spaceButton->setToolTip("Transform space (Shift+T)");
+    tools->addWidget(spaceButton);
 
     tools->addSpacing(10);
     auto *shading = new QComboBox(toolbar);
@@ -125,6 +147,12 @@ ViewportTools::ViewportTools(ViewportPanel *viewport, QWidget *parent)
             });
     connect(shading, &QComboBox::currentIndexChanged, viewport,
             &ViewportPanel::setRuntimeShadingMode);
+    connect(spaceButton, &QToolButton::clicked, viewport,
+            &ViewportPanel::toggleTransformSpace);
+    connect(viewport, &ViewportPanel::transformSpaceChanged, this,
+            [this](bool local) {
+                spaceButton->setText(local ? "Local" : "World");
+            });
     connect(fpsButton, &QToolButton::toggled, fpsLabel, &QWidget::setVisible);
     connect(viewport, &ViewportPanel::frameRateChanged, this,
             [this](float fps) {
@@ -139,7 +167,65 @@ ViewportTools::ViewportTools(ViewportPanel *viewport, QWidget *parent)
                 runtimeAvailable = available;
                 updatePlaybackState(playbackState);
             });
+    connect(sceneTabs, &QTabBar::currentChanged, this, [this](int index) {
+        if (index >= 0 && index < scenePaths.size() && viewport != nullptr)
+            viewport->openRuntimeScene(scenePaths.at(index));
+    });
+    connect(sceneTabs, &QTabBar::tabCloseRequested, this, [this](int index) {
+        if (sceneTabs->count() <= 1 || index < 0 || index >= scenePaths.size())
+            return;
+        scenePaths.removeAt(index);
+        sceneTabs->removeTab(index);
+    });
+    connect(viewport, &ViewportPanel::sceneOpened, this,
+            &ViewportTools::openSceneTab);
+    refreshSceneTabs();
     updatePlaybackState(0);
+}
+
+void ViewportTools::refreshSceneTabs() {
+    const QString current = viewport != nullptr ? viewport->currentRuntimeScene()
+                                                : QString();
+    QStringList paths;
+    QDirIterator iterator(projectRoot, {"*.ascene"}, QDir::Files,
+                          QDirIterator::Subdirectories);
+    while (iterator.hasNext())
+        paths.append(QFileInfo(iterator.next()).absoluteFilePath());
+    paths.sort(Qt::CaseInsensitive);
+    const QSignalBlocker blocker(sceneTabs);
+    while (sceneTabs->count() > 0)
+        sceneTabs->removeTab(0);
+    scenePaths = paths;
+    for (const QString &path : scenePaths) {
+        const int index = sceneTabs->addTab(QFileInfo(path).completeBaseName());
+        sceneTabs->setTabToolTip(index, path);
+    }
+    int currentIndex = scenePaths.indexOf(QFileInfo(current).absoluteFilePath());
+    if (currentIndex < 0 && !scenePaths.isEmpty())
+        currentIndex = 0;
+    sceneTabs->setCurrentIndex(currentIndex);
+    sceneTabs->setTabsClosable(sceneTabs->count() > 1);
+}
+
+void ViewportTools::openSceneTab(const QString &path) {
+    const QString absolute = QFileInfo(path).absoluteFilePath();
+    int index = scenePaths.indexOf(absolute);
+    if (index < 0) {
+        scenePaths.append(absolute);
+        index = sceneTabs->addTab(QFileInfo(absolute).completeBaseName());
+        sceneTabs->setTabToolTip(index, absolute);
+    }
+    const QSignalBlocker blocker(sceneTabs);
+    sceneTabs->setCurrentIndex(index);
+    sceneTabs->setTabsClosable(sceneTabs->count() > 1);
+}
+
+void ViewportTools::closeCurrentSceneTab() {
+    if (sceneTabs->count() <= 1)
+        return;
+    const int index = sceneTabs->currentIndex();
+    scenePaths.removeAt(index);
+    sceneTabs->removeTab(index);
 }
 
 void ViewportTools::updatePlaybackState(int state) {

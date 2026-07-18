@@ -192,6 +192,29 @@ QToolButton::menu-indicator {
     padding: 4px 8px;
 }
 
+#sceneTabs {
+    background-color: #171A1C;
+    border-bottom: 1px solid #343A3E;
+}
+
+#sceneTabs::tab {
+    background-color: #202427;
+    border-right: 1px solid #343A3E;
+    color: #98A3A9;
+    min-width: 120px;
+    padding: 5px 10px;
+}
+
+#sceneTabs::tab:selected {
+    background-color: #2B3134;
+    color: #EDF2F4;
+    border-bottom: 2px solid #4EA4E8;
+}
+
+#sceneTabs::close-button {
+    subcontrol-position: right;
+}
+
 #materialEditorHeader {
     background-color: #1B1E20;
     border-bottom: 1px solid #363C3F;

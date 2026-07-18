@@ -1048,6 +1048,7 @@ void collectSyncOptions(const QString &label, const QJsonValue &value,
     if (value.isDouble()) {
         QJsonObject endpoint = source;
         endpoint.insert("path", path);
+        endpoint.insert("fallback", value);
         options.append({label, value, endpoint});
         return;
     }
@@ -1056,6 +1057,7 @@ void collectSyncOptions(const QString &label, const QJsonValue &value,
         if (!array.isEmpty() && isNumericArray(array)) {
             QJsonObject endpoint = source;
             endpoint.insert("path", path);
+            endpoint.insert("fallback", value);
             options.append({label, value, endpoint});
             return;
         }

@@ -23,11 +23,16 @@ namespace ads {
 
 class ViewportPanel;
 class InspectorPanel;
+class HierarchyPanel;
+class ContentBrowserPanel;
+class ViewportTools;
 class MaterialEditorPanel;
 class PostProcessingPanel;
 class QMenu;
 class QShowEvent;
 class QTimer;
+class QFileSystemWatcher;
+class QEvent;
 
 class EditorWindow : public QMainWindow {
     Q_OBJECT
@@ -50,6 +55,17 @@ private:
     void configureDockSplitters();
     void scheduleLayoutSave();
     void updateWindowTitle(bool dirty);
+    void createScene();
+    void openScene();
+    void saveSceneAs();
+    void showProjectSettings();
+    void showExportDialog();
+    void showCommandPalette();
+    void showGlobalSearch();
+    void runProjectCommand(bool buildOnly);
+    void takeViewportScreenshot();
+    void refreshScriptWatcher();
+    bool contentBrowserHasFocus() const;
 
     EditorDockManager* dockManager = nullptr;
     ads::CDockManager* coreManager = nullptr;
@@ -57,9 +73,13 @@ private:
     InspectorPanel* inspectorPanel = nullptr;
     MaterialEditorPanel* materialEditorPanel = nullptr;
     PostProcessingPanel* postProcessingPanel = nullptr;
+    HierarchyPanel* hierarchyPanel = nullptr;
+    ContentBrowserPanel* contentBrowser = nullptr;
+    ViewportTools* viewportTools = nullptr;
     QMenu* viewMenu = nullptr;
     QMenu* windowMenu = nullptr;
     QTimer* layoutSaveTimer = nullptr;
+    QFileSystemWatcher* scriptWatcher = nullptr;
     QByteArray defaultDockState;
     QString projectFile;
     QString projectName;
@@ -67,9 +87,11 @@ private:
     bool restoringLayout = false;
     bool startupQueued = false;
     bool startupComplete = false;
+    qint64 lastShiftPress = 0;
 
     void closeEvent(QCloseEvent* event) override;
     void showEvent(QShowEvent* event) override;
+    bool eventFilter(QObject* watched, QEvent* event) override;
 };
 
 #endif //ATLAS_EDITORWINDOW_H
