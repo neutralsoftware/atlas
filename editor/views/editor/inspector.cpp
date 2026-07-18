@@ -974,7 +974,9 @@ void addPropertyRows(QVBoxLayout *layout, const QJsonObject &properties,
                 title->setObjectName("inspectorNestedTitle");
                 auto *add = new QToolButton(heading);
                 add->setObjectName("inspectorArrayButton");
-                add->setText("+");
+                add->setIcon(
+                    styling::icon(styling::Icon::Plus, "#A78BFA"));
+                add->setToolTip("Add item");
                 add->setToolTip(QStringLiteral("Add %1").arg(humanize(key)));
                 headingLayout->addWidget(title, 1);
                 headingLayout->addWidget(add);
@@ -1004,7 +1006,9 @@ void addPropertyRows(QVBoxLayout *layout, const QJsonObject &properties,
                     itemTitle->setObjectName("inspectorArrayTitle");
                     auto *remove = new QToolButton(itemHeading);
                     remove->setObjectName("inspectorArrayButton");
-                    remove->setText("−");
+                    remove->setIcon(
+                        styling::icon(styling::Icon::Trash, "#FF6B7A"));
+                    remove->setToolTip("Remove item");
                     remove->setToolTip("Remove");
                     itemHeadingLayout->addWidget(itemTitle, 1);
                     itemHeadingLayout->addWidget(remove);
@@ -1158,7 +1162,7 @@ QFrame *componentCard(const QString &title, const QJsonObject &properties,
     header->setText(title);
     header->setCheckable(true);
     header->setChecked(true);
-    header->setArrowType(Qt::DownArrow);
+    header->setIcon(styling::icon(styling::Icon::CaretDown, "#8490A4"));
     header->setToolButtonStyle(Qt::ToolButtonTextBesideIcon);
     headerLayout->addWidget(header, 1);
     if (remove) {
@@ -1181,7 +1185,9 @@ QFrame *componentCard(const QString &title, const QJsonObject &properties,
     QObject::connect(
         header, &QToolButton::toggled, card, [header, body](bool expanded) {
             body->setVisible(expanded);
-            header->setArrowType(expanded ? Qt::DownArrow : Qt::RightArrow);
+            header->setIcon(styling::icon(
+                expanded ? styling::Icon::CaretDown : styling::Icon::CaretRight,
+                "#8490A4"));
         });
     return card;
 }

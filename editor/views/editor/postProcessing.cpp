@@ -257,7 +257,9 @@ void PostProcessingPanel::rebuildEditor() {
         "posterization",      "pixelation",     "dilation",
         "film_grain"};
     for (const QString &effect : effects) {
-        effectMenu->addAction(effectTitle(effect), this,
+        effectMenu->addAction(
+            styling::icon(styling::Icon::Sparkle, "#52D273"),
+            effectTitle(effect), this,
                               [this, effect] { addEffect(effect); });
     }
     addEffectButton->setMenu(effectMenu);
@@ -327,12 +329,21 @@ void PostProcessingPanel::rebuildEditor() {
         actionsLayout->setSpacing(4);
         auto *moveUp = new QToolButton(actions);
         moveUp->setText("Move Up");
+        moveUp->setIcon(
+            styling::icon(styling::Icon::CaretUp, "#55C2FF"));
+        moveUp->setToolButtonStyle(Qt::ToolButtonTextBesideIcon);
         moveUp->setEnabled(effectIndex > 0);
         auto *moveDown = new QToolButton(actions);
         moveDown->setText("Move Down");
+        moveDown->setIcon(
+            styling::icon(styling::Icon::CaretDown, "#55C2FF"));
+        moveDown->setToolButtonStyle(Qt::ToolButtonTextBesideIcon);
         moveDown->setEnabled(effectIndex + 1 < effectStack.size());
         auto *remove = new QToolButton(actions);
         remove->setText("Remove Effect");
+        remove->setIcon(
+            styling::icon(styling::Icon::Trash, "#FF6B7A"));
+        remove->setToolButtonStyle(Qt::ToolButtonTextBesideIcon);
         actionsLayout->addStretch();
         actionsLayout->addWidget(moveUp);
         actionsLayout->addWidget(moveDown);

@@ -432,12 +432,16 @@ void HierarchyPanel::showContextMenu(const QPoint &position) {
     }
     if (index.isValid() && selectedObjectId() >= 0) {
         menu.addSeparator();
-        menu.addAction("Focus", this, &HierarchyPanel::focusSelectedObject);
-        menu.addAction("Rename", this, &HierarchyPanel::renameSelectedObject);
-        menu.addAction("Move to Scene Root", this,
+        menu.addAction(styling::icon(styling::Icon::Crosshair, "#55C2FF"),
+                       "Focus", this, &HierarchyPanel::focusSelectedObject);
+        menu.addAction(styling::icon(styling::Icon::File, "#A78BFA"),
+                       "Rename", this, &HierarchyPanel::renameSelectedObject);
+        menu.addAction(styling::icon(styling::Icon::TreeStructure, "#52D273"),
+                       "Move to Scene Root", this,
                        &HierarchyPanel::moveSelectedObjectToRoot);
         menu.addSeparator();
-        menu.addAction("Delete", this, &HierarchyPanel::deleteSelectedObject);
+        menu.addAction(styling::icon(styling::Icon::Trash, "#FF6B7A"),
+                       "Delete", this, &HierarchyPanel::deleteSelectedObject);
     }
     menu.exec(treeView->viewport()->mapToGlobal(position));
 }

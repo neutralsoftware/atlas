@@ -4,7 +4,6 @@
     color: #E7ECF3;
     selection-background-color: #6F55E8;
     selection-color: #FFFFFF;
-    outline: none;
 }
 
 QWidget {
@@ -422,6 +421,31 @@ QStatusBar {
     color: #8490A4;
 }
 
+#atlasStatusBar {
+    min-height: 21px;
+    padding: 0 6px;
+}
+
+#statusRuntimeIcon {
+    padding: 0 4px;
+}
+
+#statusRenderer {
+    background-color: #192B22;
+    border: 1px solid #2C573B;
+    border-radius: 4px;
+    color: #8DE2A5;
+    font-size: 9px;
+    font-weight: 700;
+    padding: 2px 6px;
+}
+
+#statusVersion {
+    color: #68758A;
+    font-size: 9px;
+    padding: 0 6px;
+}
+
 #workspaceBar {
     background-color: #10151C;
     border: none;
@@ -443,7 +467,6 @@ QStatusBar {
     color: #F5F7FA;
     font-size: 12px;
     font-weight: 800;
-    letter-spacing: 1px;
 }
 
 #workspaceProject {
@@ -817,7 +840,6 @@ QScrollArea#inspectorScroll,
 
 #inspectorEmptyHint {
     color: #728096;
-    line-height: 1.4;
 }
 
 #inspectorOpenAssetButton,
@@ -1236,6 +1258,51 @@ QPushButton[secondary="true"] {
 QPushButton[secondary="true"]:hover {
     background-color: #222C3C;
     border-color: #4A5870;
+}
+
+#projectSettingsDialog,
+#exportDialog {
+    background-color: #0D1117;
+}
+
+#dialogHero {
+    background-color: #141A23;
+    border: 1px solid #293445;
+    border-radius: 8px;
+    padding: 7px;
+}
+
+#dialogHeroIcon {
+    background-color: #211C3B;
+    border: 1px solid #493A86;
+    border-radius: 7px;
+    padding: 8px;
+}
+
+#dialogHeroTitle {
+    color: #F3F6FA;
+    font-size: 17px;
+    font-weight: 750;
+}
+
+#dialogHeroSubtitle,
+#exportSummary {
+    color: #7F8B9D;
+}
+
+#exportSummary {
+    background-color: #121923;
+    border: 1px solid #273141;
+    border-radius: 6px;
+    padding: 8px;
+}
+
+#exportLog {
+    background-color: #090D12;
+    border-color: #263142;
+    color: #9CE2AF;
+    font-family: "Menlo";
+    font-size: 10px;
 }
 
 #commandPaletteDialog,

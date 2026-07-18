@@ -26,6 +26,7 @@
 #include <QFile>
 #include <QFileDialog>
 #include <QFileSystemWatcher>
+#include <QFrame>
 #include <QList>
 #include <QKeySequence>
 #include <QKeyEvent>
@@ -48,6 +49,7 @@
 #include <QStyle>
 #include <QSettings>
 #include <QStandardPaths>
+#include <QStatusBar>
 #include <QShowEvent>
 #include <QShortcut>
 #include <QSplitter>
@@ -237,7 +239,8 @@ void EditorWindow::setupWindow() {
     const auto project = ProjectStore::projectInfo(projectFile);
     projectName = project.has_value() ? project->name : QStringLiteral("Project");
     updateWindowTitle(false);
-    resize(1280, 720);
+    setMinimumSize(1100, 700);
+    resize(1440, 900);
     menuBar()->setNativeMenuBar(false);
     menuBar()->setObjectName("atlasMenuBar");
 
@@ -806,6 +809,33 @@ void EditorWindow::setupWorkspaceBar() {
     bar->addWidget(launch);
     connect(launch, &QToolButton::clicked, this,
             [this] { runProjectCommand(false); });
+
+    statusBar()->setObjectName("atlasStatusBar");
+    statusBar()->showMessage("Ready");
+    auto *runtimeIcon = new QLabel(statusBar());
+    runtimeIcon->setObjectName("statusRuntimeIcon");
+    runtimeIcon->setPixmap(
+        styling::icon(styling::Icon::Check, "#52D273").pixmap(14, 14));
+    auto *renderer = new QLabel(statusBar());
+    renderer->setObjectName("statusRenderer");
+    const auto projectInfo = ProjectStore::projectInfo(projectFile);
+    renderer->setText(projectInfo.has_value() ? projectInfo->renderer
+                                               : QStringLiteral("ATLAS"));
+    auto *version = new QLabel(QStringLiteral(ATLAS_VERSION), statusBar());
+    version->setObjectName("statusVersion");
+    statusBar()->addPermanentWidget(runtimeIcon);
+    statusBar()->addPermanentWidget(renderer);
+    statusBar()->addPermanentWidget(version);
+    connect(viewportPanel, &ViewportPanel::runtimeAvailabilityChanged, this,
+            [this, runtimeIcon](bool available) {
+                runtimeIcon->setPixmap(styling::icon(
+                    available ? styling::Icon::Check : styling::Icon::Warning,
+                    available ? QColor("#52D273") : QColor("#F5B942"))
+                                           .pixmap(14, 14));
+                statusBar()->showMessage(available ? "Runtime ready"
+                                                   : "Runtime unavailable",
+                                         3000);
+            });
 }
 
 void EditorWindow::createScene() {
@@ -874,23 +904,44 @@ void EditorWindow::saveSceneAs() {
 
 void EditorWindow::showProjectSettings() {
     QDialog dialog(this);
+    dialog.setObjectName("projectSettingsDialog");
     dialog.setWindowTitle("Project Settings");
     dialog.resize(720, 520);
     auto *layout = new QVBoxLayout(&dialog);
+    auto *header = new QFrame(&dialog);
+    header->setObjectName("dialogHero");
+    auto *headerLayout = new QHBoxLayout(header);
+    auto *headerIcon = new QLabel(header);
+    headerIcon->setObjectName("dialogHeroIcon");
+    headerIcon->setPixmap(
+        styling::icon(styling::Icon::Gear, "#A78BFA").pixmap(28, 28));
+    auto *headerCopy = new QVBoxLayout();
+    auto *headerTitle = new QLabel("Project Settings", header);
+    headerTitle->setObjectName("dialogHeroTitle");
+    auto *headerSubtitle = new QLabel(
+        "Configure runtime, rendering, controls, and packaging for this project.",
+        header);
+    headerSubtitle->setObjectName("dialogHeroSubtitle");
+    headerCopy->addWidget(headerTitle);
+    headerCopy->addWidget(headerSubtitle);
+    headerLayout->addWidget(headerIcon);
+    headerLayout->addLayout(headerCopy, 1);
+    layout->addWidget(header);
     auto *tabs = new QTabWidget(&dialog);
     const QString settingsDirectory =
         QDir(QFileInfo(projectFile).absolutePath()).filePath(".atlas");
     QDir().mkpath(settingsDirectory);
     QSettings settings(QDir(settingsDirectory).filePath("project-settings.ini"),
                        QSettings::IniFormat);
-    auto addPage = [tabs](const QString &name) {
+    auto addPage = [tabs](const QString &name, styling::Icon icon,
+                          const QColor &color) {
         auto *page = new QWidget(tabs);
         auto *form = new QFormLayout(page);
         form->setFieldGrowthPolicy(QFormLayout::ExpandingFieldsGrow);
-        tabs->addTab(page, name);
+        tabs->addTab(page, styling::icon(icon, color), name);
         return form;
     };
-    auto *general = addPage("General");
+    auto *general = addPage("General", styling::Icon::Gear, "#A78BFA");
     auto *defaultScene = new QComboBox(&dialog);
     QDirIterator sceneIterator(QFileInfo(projectFile).absolutePath(),
                                {"*.ascene"}, QDir::Files,
@@ -927,7 +978,8 @@ void EditorWindow::showProjectSettings() {
     general->addRow("Window width", windowWidth);
     general->addRow("Window height", windowHeight);
     general->addRow(QString(), fullscreen);
-    auto *rendering = addPage("Rendering");
+    auto *rendering =
+        addPage("Rendering", styling::Icon::Aperture, "#F472B6");
     auto *renderer = new QComboBox(&dialog);
     renderer->addItems({"PBR", "PBR + DDGI", "Path Tracing"});
     renderer->setCurrentText(settings.value("project/renderer", "PBR").toString());
@@ -936,31 +988,33 @@ void EditorWindow::showProjectSettings() {
     frameLimit->setValue(settings.value("project/frameLimit", 0).toInt());
     rendering->addRow("Renderer", renderer);
     rendering->addRow("Frame limit (0 = unlimited)", frameLimit);
-    auto *physics = addPage("Physics");
+    auto *physics = addPage("Physics", styling::Icon::Wrench, "#F5B942");
     auto *gravity = new QLineEdit(settings.value("project/gravity", "0, -9.81, 0").toString(), &dialog);
     auto *fixedStep = new QLineEdit(settings.value("project/fixedStep", "0.0166667").toString(), &dialog);
     physics->addRow("Gravity", gravity);
     physics->addRow("Fixed timestep", fixedStep);
-    auto *input = addPage("Input");
+    auto *input =
+        addPage("Input", styling::Icon::GameController, "#52D273");
     auto *inputMap = new QLineEdit(settings.value("project/inputMap", "input.json").toString(), &dialog);
     auto *controller = new QComboBox(&dialog);
     controller->addItems({"Automatic", "Keyboard + Mouse", "Gamepad"});
     controller->setCurrentText(settings.value("project/controller", "Automatic").toString());
     input->addRow("Input map", inputMap);
     input->addRow("Primary controller", controller);
-    auto *build = addPage("Build & Run");
+    auto *build = addPage("Build & Run", styling::Icon::Package, "#F5B942");
     auto *buildCommand = new QLineEdit(settings.value("project/buildCommand", "atlas pack --backend METAL").toString(), &dialog);
     auto *runCommand = new QLineEdit(settings.value("project/runCommand", "atlas run project.atlas").toString(), &dialog);
     build->addRow("Build command", buildCommand);
     build->addRow("Run command", runCommand);
-    auto *editor = addPage("Editor");
+    auto *editor = addPage("Editor", styling::Icon::Layout, "#55C2FF");
     auto *autosave = new QSpinBox(&dialog);
     autosave->setRange(0, 120);
     autosave->setValue(settings.value("project/autosaveMinutes", 5).toInt());
     auto *snap = new QLineEdit(settings.value("project/snapIncrement", "0.5").toString(), &dialog);
     editor->addRow("Autosave interval (minutes)", autosave);
     editor->addRow("Transform snapping", snap);
-    auto *packaging = addPage("Packaging");
+    auto *packaging =
+        addPage("Packaging", styling::Icon::Export, "#A78BFA");
     auto *identifier = new QLineEdit(
         settings.value("project/bundleIdentifier",
                        "org.atlasengine." + projectName.toLower().replace(' ', '-'))
@@ -978,6 +1032,8 @@ void EditorWindow::showProjectSettings() {
     layout->addWidget(tabs);
     auto *buttons = new QDialogButtonBox(
         QDialogButtonBox::Cancel | QDialogButtonBox::Save, &dialog);
+    buttons->button(QDialogButtonBox::Save)
+        ->setIcon(styling::icon(styling::Icon::FloppyDisk, "#F5B942"));
     layout->addWidget(buttons);
     connect(buttons, &QDialogButtonBox::rejected, &dialog, &QDialog::reject);
     connect(buttons, &QDialogButtonBox::accepted, &dialog, &QDialog::accept);
@@ -1046,9 +1102,29 @@ void EditorWindow::showProjectSettings() {
 
 void EditorWindow::showExportDialog() {
     QDialog dialog(this);
+    dialog.setObjectName("exportDialog");
     dialog.setWindowTitle("Export Atlas Project");
     dialog.resize(660, 460);
     auto *layout = new QVBoxLayout(&dialog);
+    auto *header = new QFrame(&dialog);
+    header->setObjectName("dialogHero");
+    auto *headerLayout = new QHBoxLayout(header);
+    auto *headerIcon = new QLabel(header);
+    headerIcon->setObjectName("dialogHeroIcon");
+    headerIcon->setPixmap(
+        styling::icon(styling::Icon::Export, "#52D273").pixmap(28, 28));
+    auto *headerCopy = new QVBoxLayout();
+    auto *headerTitle = new QLabel("Export Project", header);
+    headerTitle->setObjectName("dialogHeroTitle");
+    auto *headerSubtitle = new QLabel(
+        "Package the current project into a distributable application.",
+        header);
+    headerSubtitle->setObjectName("dialogHeroSubtitle");
+    headerCopy->addWidget(headerTitle);
+    headerCopy->addWidget(headerSubtitle);
+    headerLayout->addWidget(headerIcon);
+    headerLayout->addLayout(headerCopy, 1);
+    layout->addWidget(header);
     auto *form = new QFormLayout;
     auto *platform = new QComboBox(&dialog);
 #ifdef Q_OS_MACOS
@@ -1079,6 +1155,8 @@ void EditorWindow::showExportDialog() {
             .toString(),
         &dialog);
     auto *browse = new QPushButton("Choose…", &dialog);
+    browse->setIcon(
+        styling::icon(styling::Icon::FolderOpen, "#55C2FF"));
     auto *outputRow = new QWidget(&dialog);
     auto *outputLayout = new QHBoxLayout(outputRow);
     outputLayout->setContentsMargins(0, 0, 0, 0);
@@ -1092,6 +1170,7 @@ void EditorWindow::showExportDialog() {
     auto *summary = new QLabel(
         "Atlas will save the current scene and package the configured runtime with the project resources.",
         &dialog);
+    summary->setObjectName("exportSummary");
     summary->setWordWrap(true);
     layout->addWidget(summary);
     auto *progress = new QProgressBar(&dialog);
@@ -1099,12 +1178,17 @@ void EditorWindow::showExportDialog() {
     progress->setVisible(false);
     layout->addWidget(progress);
     auto *log = new QPlainTextEdit(&dialog);
+    log->setObjectName("exportLog");
     log->setReadOnly(true);
     log->setPlaceholderText("Packaging output will appear here.");
     layout->addWidget(log, 1);
     auto *buttons = new QDialogButtonBox(QDialogButtonBox::Cancel, &dialog);
     auto *exportButton = buttons->addButton("Export", QDialogButtonBox::AcceptRole);
+    exportButton->setIcon(
+        styling::icon(styling::Icon::RocketLaunch, "#52D273"));
     auto *revealButton = buttons->addButton("Reveal Export", QDialogButtonBox::ActionRole);
+    revealButton->setIcon(
+        styling::icon(styling::Icon::FolderOpen, "#55C2FF"));
     revealButton->setEnabled(false);
     layout->addWidget(buttons);
     connect(browse, &QPushButton::clicked, &dialog, [&dialog, output] {
@@ -1611,7 +1695,7 @@ void EditorWindow::configureDockSplitters() {
     if (coreManager == nullptr)
         return;
     for (QSplitter *splitter : coreManager->findChildren<QSplitter *>()) {
-        splitter->setHandleWidth(6);
+        splitter->setHandleWidth(4);
         splitter->setOpaqueResize(true);
         splitter->setChildrenCollapsible(false);
         if (!splitter->property("atlasLayoutTracking").toBool()) {

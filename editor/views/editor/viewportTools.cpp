@@ -105,7 +105,8 @@ ViewportTools::ViewportTools(ViewportPanel *viewport,
     spaceButton = new QToolButton(toolbar);
     spaceButton->setObjectName("viewportOptionButton");
     spaceButton->setText("World");
-    spaceButton->setToolButtonStyle(Qt::ToolButtonTextOnly);
+    spaceButton->setIcon(styling::icon(styling::Icon::Globe, "#55C2FF"));
+    spaceButton->setToolButtonStyle(Qt::ToolButtonTextBesideIcon);
     spaceButton->setToolTip("Transform space (Shift+T)");
     tools->addWidget(spaceButton);
 
@@ -114,6 +115,12 @@ ViewportTools::ViewportTools(ViewportPanel *viewport,
     shading->setObjectName("viewportShadingMode");
     shading->addItems({"Lit", "Wireframe", "Points"});
     shading->setToolTip("Viewport shading");
+    auto *shadingIcon = new QLabel(toolbar);
+    shadingIcon->setObjectName("viewportShadingIcon");
+    shadingIcon->setPixmap(
+        styling::icon(styling::Icon::Sphere, "#F472B6").pixmap(17, 17));
+    shadingIcon->setToolTip("Viewport shading");
+    tools->addWidget(shadingIcon);
     tools->addWidget(shading);
 
     auto *fpsButton = new QToolButton(toolbar);
@@ -162,6 +169,9 @@ ViewportTools::ViewportTools(ViewportPanel *viewport,
     connect(viewport, &ViewportPanel::transformSpaceChanged, this,
             [this](bool local) {
                 spaceButton->setText(local ? "Local" : "World");
+                spaceButton->setIcon(styling::icon(
+                    local ? styling::Icon::Cube : styling::Icon::Globe,
+                    local ? QColor("#A78BFA") : QColor("#55C2FF")));
             });
     connect(fpsButton, &QToolButton::toggled, fpsLabel, &QWidget::setVisible);
     connect(viewport, &ViewportPanel::frameRateChanged, this,

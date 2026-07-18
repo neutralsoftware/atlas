@@ -123,6 +123,8 @@ public:
         return styling::icon(styling::Icon::File, "#8490A4");
     }
 };
+
+AtlasFileIconProvider atlasFileIconProvider;
 } // namespace
 
 ContentBrowserPanel::ContentBrowserPanel(const QString &projectFile,
@@ -201,7 +203,7 @@ ContentBrowserPanel::ContentBrowserPanel(const QString &projectFile,
     layout->addWidget(toolbar);
 
     model = new QFileSystemModel(this);
-    model->setIconProvider(new AtlasFileIconProvider());
+    model->setIconProvider(&atlasFileIconProvider);
     model->setFilter(QDir::AllDirs | QDir::Files | QDir::NoDotAndDotDot);
     model->setReadOnly(false);
     model->setRootPath(projectRoot);
@@ -215,8 +217,8 @@ ContentBrowserPanel::ContentBrowserPanel(const QString &projectFile,
     gridView->setWrapping(true);
     gridView->setResizeMode(QListView::Adjust);
     gridView->setMovement(QListView::Static);
-    gridView->setGridSize(QSize(176, 142));
-    gridView->setIconSize(QSize(64, 64));
+    gridView->setGridSize(QSize(154, 118));
+    gridView->setIconSize(QSize(50, 50));
     gridView->setWordWrap(true);
     gridView->setTextElideMode(Qt::ElideNone);
     gridView->setSelectionMode(QAbstractItemView::ExtendedSelection);
@@ -243,17 +245,24 @@ ContentBrowserPanel::ContentBrowserPanel(const QString &projectFile,
     createButton->setMenu(createMenu);
 
     auto *moreMenu = new QMenu(moreButton);
-    moreMenu->addAction("Open", this, [this] {
+    moreMenu->addAction(
+        styling::icon(styling::Icon::FolderOpen, "#55C2FF"), "Open", this, [this] {
         if (gridView->currentIndex().isValid()) {
             openIndex(gridView->currentIndex());
         }
     });
-    moreMenu->addAction("Rename", this, &ContentBrowserPanel::renameSelection);
-    moreMenu->addAction("Delete", this, &ContentBrowserPanel::deleteSelection);
+    moreMenu->addAction(styling::icon(styling::Icon::File, "#A78BFA"),
+                        "Rename", this,
+                        &ContentBrowserPanel::renameSelection);
+    moreMenu->addAction(styling::icon(styling::Icon::Trash, "#FF6B7A"),
+                        "Delete", this,
+                        &ContentBrowserPanel::deleteSelection);
     moreMenu->addSeparator();
-    moreMenu->addAction("Reveal in Finder", this,
+    moreMenu->addAction(styling::icon(styling::Icon::FolderOpen, "#55C2FF"),
+                        "Reveal in Finder", this,
                         &ContentBrowserPanel::revealSelection);
-    moreMenu->addAction("Copy Path", this,
+    moreMenu->addAction(styling::icon(styling::Icon::FileCode, "#8490A4"),
+                        "Copy Path", this,
                         &ContentBrowserPanel::copySelectionPath);
     moreButton->setMenu(moreMenu);
 

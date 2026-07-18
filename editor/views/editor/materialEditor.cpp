@@ -607,8 +607,11 @@ void MaterialEditorPanel::showMaterial() {
         field->setPlaceholderText("No image");
         auto *choose = new QToolButton(row);
         choose->setText("Choose…");
+        choose->setIcon(
+            styling::icon(styling::Icon::FolderOpen, "#55C2FF"));
+        choose->setToolButtonStyle(Qt::ToolButtonTextBesideIcon);
         auto *clear = new QToolButton(row);
-        clear->setText("×");
+        clear->setIcon(styling::icon(styling::Icon::Close, "#FF6B7A"));
         clear->setToolTip("Remove texture");
         auto *identity = new QWidget(row);
         auto *identityLayout = new QVBoxLayout(identity);

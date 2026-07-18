@@ -539,12 +539,18 @@ void ProjectBrowser::showProjectMenu(const QPoint& position) {
     const bool available = ProjectStore::isProjectFile(projectFile);
 
     QMenu menu(this);
-    QAction* open = menu.addAction("Open project");
+    QAction* open = menu.addAction(
+        styling::icon(styling::Icon::GameController, "#A78BFA"),
+        "Open project");
     open->setEnabled(available);
-    QAction* reveal = menu.addAction("Show in Finder");
+    QAction* reveal = menu.addAction(
+        styling::icon(styling::Icon::FolderOpen, "#55C2FF"),
+        "Show in Finder");
     reveal->setEnabled(QFileInfo::exists(QFileInfo(projectFile).absolutePath()));
     menu.addSeparator();
-    QAction* remove = menu.addAction("Remove from list");
+    QAction* remove = menu.addAction(
+        styling::icon(styling::Icon::Trash, "#FF6B7A"),
+        "Remove from list");
     QAction* selected = menu.exec(projectList->viewport()->mapToGlobal(position));
     if (selected == open) {
         openSelectedProject();
