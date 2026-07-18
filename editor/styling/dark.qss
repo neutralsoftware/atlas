@@ -772,6 +772,19 @@ QScrollArea#inspectorScroll {
     background-color: #30373A;
 }
 
+#inspectorSyncButton[matched="true"] {
+    background-color: #242A2D;
+    border: 1px solid #465158;
+    color: #D5DDE1;
+    padding: 2px 6px;
+    text-align: left;
+}
+
+#inspectorSyncButton[matched="true"]:hover {
+    background-color: #30383C;
+    border-color: #5B6A72;
+}
+
 #inspectorColorSwatch {
     border: 1px solid #566167;
     border-radius: 4px;
