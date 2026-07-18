@@ -1,5 +1,6 @@
 #include <editor/views/materialEditor.h>
 #include <editor/widgets/scrubbableSpinBox.h>
+#include <editor/styling/icons.h>
 
 #include <editor/views/viewport.h>
 
@@ -59,14 +60,12 @@ QJsonArray colorJson(const QColor &color) {
 
 void displayColor(QPushButton *button, const QColor &color) {
     button->setProperty("materialColor", color);
-    button->setText(color.name(QColor::HexRgb).toUpper());
-    button->setStyleSheet(
-        QStringLiteral("background-color: rgba(%1,%2,%3,%4); color: %5;")
-            .arg(color.red())
-            .arg(color.green())
-            .arg(color.blue())
-            .arg(color.alpha())
-            .arg(color.lightnessF() > 0.55 ? "#111111" : "#FFFFFF"));
+    button->setObjectName("materialColorButton");
+    button->setText(color.name(color.alpha() < 255 ? QColor::HexArgb
+                                                   : QColor::HexRgb)
+                        .toUpper());
+    button->setIcon(styling::colorSwatch(color, QSize(18, 18)));
+    button->setIconSize(QSize(18, 18));
 }
 
 QDoubleSpinBox *scalarField(double minimum, double maximum, double step,
@@ -363,10 +362,12 @@ MaterialEditorPanel::MaterialEditorPanel(ViewportPanel *viewport,
     statusLabel->setObjectName("materialEditorStatus");
     auto *saveButton = new QPushButton("Save", header);
     saveButton->setObjectName("materialSaveButton");
-    saveButton->setIcon(style()->standardIcon(QStyle::SP_DialogSaveButton));
+    saveButton->setIcon(
+        styling::icon(styling::Icon::FloppyDisk, "#A1957D"));
     auto *assignButton = new QPushButton("Assign to Selected", header);
     assignButton->setObjectName("materialAssignButton");
-    assignButton->setIcon(style()->standardIcon(QStyle::SP_ArrowRight));
+    assignButton->setIcon(
+        styling::icon(styling::Icon::Assign, "#9E897D"));
     headerLayout->addWidget(titleLabel, 1);
     headerLayout->addWidget(statusLabel);
     headerLayout->addWidget(assignButton);
@@ -604,8 +605,11 @@ void MaterialEditorPanel::showMaterial() {
         field->setPlaceholderText("No image");
         auto *choose = new QToolButton(row);
         choose->setText("Choose…");
+        choose->setIcon(
+            styling::icon(styling::Icon::FolderOpen, "#7E929C"));
+        choose->setToolButtonStyle(Qt::ToolButtonTextBesideIcon);
         auto *clear = new QToolButton(row);
-        clear->setText("×");
+        clear->setIcon(styling::icon(styling::Icon::Close, "#A17F7F"));
         clear->setToolTip("Remove texture");
         auto *identity = new QWidget(row);
         auto *identityLayout = new QVBoxLayout(identity);

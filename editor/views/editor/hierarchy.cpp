@@ -8,6 +8,7 @@
  */
 
 #include <editor/views/hierarchyPanel.h>
+#include <editor/styling/icons.h>
 
 #include <QAction>
 #include <QAbstractItemView>
@@ -40,43 +41,27 @@ namespace {
 constexpr int ObjectIdRole = Qt::UserRole + 1;
 constexpr int ObjectTypeRole = Qt::UserRole + 2;
 
-QIcon hierarchyIcon(QWidget *widget, const QString &type) {
+QIcon hierarchyIcon(QWidget *, const QString &type) {
     const QString normalized = type.toLower();
-    QStyle::StandardPixmap fallback = QStyle::SP_FileIcon;
-    QString themeName = "application-x-executable";
-
-    if (normalized == "scene") {
-        fallback = QStyle::SP_DesktopIcon;
-        themeName = "view-grid";
-    } else if (normalized == "compound" || normalized == "group") {
-        fallback = QStyle::SP_DirClosedIcon;
-        themeName = "folder";
-    } else if (normalized == "camera") {
-        fallback = QStyle::SP_ComputerIcon;
-        themeName = "camera-photo";
-    } else if (normalized == "environment") {
-        fallback = QStyle::SP_DesktopIcon;
-        themeName = "weather-clear";
-    } else if (normalized.contains("light") || normalized == "sun") {
-        fallback = QStyle::SP_MessageBoxInformation;
-        themeName = "weather-clear";
-    } else if (normalized == "terrain" || normalized == "landscape") {
-        fallback = QStyle::SP_DriveHDIcon;
-        themeName = "applications-graphics";
-    } else if (normalized == "particleemitter" || normalized == "particles") {
-        fallback = QStyle::SP_BrowserReload;
-        themeName = "weather-showers-scattered";
-    } else if (normalized == "model") {
-        fallback = QStyle::SP_FileDialogContentsView;
-        themeName = "model";
-    } else if (normalized == "cube" || normalized == "sphere" ||
-               normalized == "plane" || normalized == "pyramid" ||
-               normalized == "capsule" || normalized == "solid") {
-        fallback = QStyle::SP_DirIcon;
-        themeName = "applications-games";
-    }
-
-    return QIcon::fromTheme(themeName, widget->style()->standardIcon(fallback));
+    if (normalized == "scene")
+        return styling::icon(styling::Icon::CubeFocus, "#7E929C");
+    if (normalized == "compound" || normalized == "group")
+        return styling::icon(styling::Icon::Folder, "#8490A4");
+    if (normalized == "camera")
+        return styling::icon(styling::Icon::Camera, "#9E897D");
+    if (normalized == "environment")
+        return styling::icon(styling::Icon::Globe, "#7E929C");
+    if (normalized.contains("light") || normalized == "sun")
+        return styling::icon(styling::Icon::Lightbulb, "#A1957D");
+    if (normalized == "terrain" || normalized == "landscape")
+        return styling::icon(styling::Icon::Mountains, "#849589");
+    if (normalized == "particleemitter" || normalized == "particles")
+        return styling::icon(styling::Icon::Sparkle, "#8498A8");
+    if (normalized == "model")
+        return styling::icon(styling::Icon::Cube, "#7E929C");
+    if (normalized == "sphere")
+        return styling::icon(styling::Icon::Sphere, "#8498A8");
+    return styling::icon(styling::Icon::Cube, "#8498A8");
 }
 
 QString objectSignature(const QJsonArray &objects) {
@@ -109,7 +94,7 @@ HierarchyPanel::HierarchyPanel(ViewportPanel *viewport, QWidget *parent)
 
     addButton = new QToolButton(toolbar);
     addButton->setObjectName("panelAddButton");
-    addButton->setIcon(style()->standardIcon(QStyle::SP_FileDialogNewFolder));
+    addButton->setIcon(styling::icon(styling::Icon::Plus, "#8498A8"));
     addButton->setText("Add");
     addButton->setToolButtonStyle(Qt::ToolButtonTextBesideIcon);
     addButton->setPopupMode(QToolButton::InstantPopup);
@@ -118,7 +103,7 @@ HierarchyPanel::HierarchyPanel(ViewportPanel *viewport, QWidget *parent)
     moreButton = new QToolButton(toolbar);
     moreButton->setObjectName("panelMoreButton");
     moreButton->setIcon(
-        style()->standardIcon(QStyle::SP_ToolBarHorizontalExtensionButton));
+        styling::icon(styling::Icon::DotsVertical, "#8490A4"));
     moreButton->setPopupMode(QToolButton::InstantPopup);
     moreButton->setToolTip("Hierarchy actions");
 
@@ -447,12 +432,16 @@ void HierarchyPanel::showContextMenu(const QPoint &position) {
     }
     if (index.isValid() && selectedObjectId() >= 0) {
         menu.addSeparator();
-        menu.addAction("Focus", this, &HierarchyPanel::focusSelectedObject);
-        menu.addAction("Rename", this, &HierarchyPanel::renameSelectedObject);
-        menu.addAction("Move to Scene Root", this,
+        menu.addAction(styling::icon(styling::Icon::Crosshair, "#7E929C"),
+                       "Focus", this, &HierarchyPanel::focusSelectedObject);
+        menu.addAction(styling::icon(styling::Icon::File, "#8498A8"),
+                       "Rename", this, &HierarchyPanel::renameSelectedObject);
+        menu.addAction(styling::icon(styling::Icon::TreeStructure, "#849589"),
+                       "Move to Scene Root", this,
                        &HierarchyPanel::moveSelectedObjectToRoot);
         menu.addSeparator();
-        menu.addAction("Delete", this, &HierarchyPanel::deleteSelectedObject);
+        menu.addAction(styling::icon(styling::Icon::Trash, "#A17F7F"),
+                       "Delete", this, &HierarchyPanel::deleteSelectedObject);
     }
     menu.exec(treeView->viewport()->mapToGlobal(position));
 }

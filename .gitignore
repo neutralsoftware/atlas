@@ -16,10 +16,8 @@ libhydra.a
 lib/*
 build
 .vscode
-Cargo.lock
 target
 cli/target
-cli/Cargo.lock
 libfinewave.a
 _deps
 docs/html

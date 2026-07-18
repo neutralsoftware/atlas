@@ -8,6 +8,7 @@
  */
 
 #include "editor/views/fileExplorer.h"
+#include "editor/styling/icons.h"
 
 #include <QAbstractItemView>
 #include <QAction>
@@ -17,6 +18,7 @@
 #include <QDir>
 #include <QFile>
 #include <QFileInfo>
+#include <QFileIconProvider>
 #include <QFileSystemModel>
 #include <QHBoxLayout>
 #include <QInputDialog>
@@ -92,6 +94,37 @@ bool copyEntry(const QString &source, const QString &destination) {
     }
     return QFile::copy(source, destination);
 }
+
+class AtlasFileIconProvider : public QFileIconProvider {
+public:
+    QIcon icon(const QFileInfo &info) const override {
+        if (info.isDir())
+            return styling::icon(styling::Icon::Folder, "#7E929C");
+        const QString suffix = info.suffix().toLower();
+        if (suffix == "ascene")
+            return styling::icon(styling::Icon::CubeFocus, "#8498A8");
+        if (suffix == "amat" || suffix == "material")
+            return styling::icon(styling::Icon::Material, "#9E897D");
+        if (suffix == "ts" || suffix == "js" || suffix == "cpp" ||
+            suffix == "h" || suffix == "json")
+            return styling::icon(styling::Icon::FileCode, "#7E929C");
+        if (suffix == "png" || suffix == "jpg" || suffix == "jpeg" ||
+            suffix == "hdr")
+            return styling::icon(styling::Icon::Image, "#A1957D");
+        if (suffix == "wav" || suffix == "mp3" || suffix == "ogg" ||
+            suffix == "flac")
+            return styling::icon(styling::Icon::MusicNote, "#849589");
+        return styling::icon(styling::Icon::File, "#8490A4");
+    }
+
+    QIcon icon(IconType type) const override {
+        if (type == Folder || type == Drive)
+            return styling::icon(styling::Icon::Folder, "#7E929C");
+        return styling::icon(styling::Icon::File, "#8490A4");
+    }
+};
+
+AtlasFileIconProvider atlasFileIconProvider;
 } // namespace
 
 ContentBrowserPanel::ContentBrowserPanel(const QString &projectFile,
@@ -116,15 +149,17 @@ ContentBrowserPanel::ContentBrowserPanel(const QString &projectFile,
 
     backButton = new QToolButton(toolbar);
     backButton->setObjectName("browserNavigationButton");
-    backButton->setIcon(style()->standardIcon(QStyle::SP_ArrowBack));
+    backButton->setIcon(
+        styling::icon(styling::Icon::ArrowLeft, "#AAB4C4"));
     backButton->setToolTip("Back");
     forwardButton = new QToolButton(toolbar);
     forwardButton->setObjectName("browserNavigationButton");
-    forwardButton->setIcon(style()->standardIcon(QStyle::SP_ArrowForward));
+    forwardButton->setIcon(
+        styling::icon(styling::Icon::ArrowRight, "#AAB4C4"));
     forwardButton->setToolTip("Forward");
     upButton = new QToolButton(toolbar);
     upButton->setObjectName("browserNavigationButton");
-    upButton->setIcon(style()->standardIcon(QStyle::SP_ArrowUp));
+    upButton->setIcon(styling::icon(styling::Icon::ArrowUp, "#AAB4C4"));
     upButton->setToolTip("Parent Folder");
 
     pathField = new QLineEdit(toolbar);
@@ -139,21 +174,21 @@ ContentBrowserPanel::ContentBrowserPanel(const QString &projectFile,
 
     createButton = new QToolButton(toolbar);
     createButton->setObjectName("panelAddButton");
-    createButton->setIcon(
-        style()->standardIcon(QStyle::SP_FileDialogNewFolder));
+    createButton->setIcon(styling::icon(styling::Icon::Plus, "#8498A8"));
     createButton->setText("Create");
     createButton->setToolButtonStyle(Qt::ToolButtonTextBesideIcon);
     createButton->setPopupMode(QToolButton::InstantPopup);
 
     revealButton = new QToolButton(toolbar);
     revealButton->setObjectName("browserRevealButton");
-    revealButton->setIcon(style()->standardIcon(QStyle::SP_DirOpenIcon));
+    revealButton->setIcon(
+        styling::icon(styling::Icon::FolderOpen, "#7E929C"));
     revealButton->setToolTip("Reveal in Finder");
 
     moreButton = new QToolButton(toolbar);
     moreButton->setObjectName("panelMoreButton");
     moreButton->setIcon(
-        style()->standardIcon(QStyle::SP_ToolBarHorizontalExtensionButton));
+        styling::icon(styling::Icon::DotsVertical, "#8490A4"));
     moreButton->setPopupMode(QToolButton::InstantPopup);
     moreButton->setToolTip("Content actions");
 
@@ -168,6 +203,7 @@ ContentBrowserPanel::ContentBrowserPanel(const QString &projectFile,
     layout->addWidget(toolbar);
 
     model = new QFileSystemModel(this);
+    model->setIconProvider(&atlasFileIconProvider);
     model->setFilter(QDir::AllDirs | QDir::Files | QDir::NoDotAndDotDot);
     model->setReadOnly(false);
     model->setRootPath(projectRoot);
@@ -181,8 +217,8 @@ ContentBrowserPanel::ContentBrowserPanel(const QString &projectFile,
     gridView->setWrapping(true);
     gridView->setResizeMode(QListView::Adjust);
     gridView->setMovement(QListView::Static);
-    gridView->setGridSize(QSize(176, 142));
-    gridView->setIconSize(QSize(64, 64));
+    gridView->setGridSize(QSize(154, 118));
+    gridView->setIconSize(QSize(50, 50));
     gridView->setWordWrap(true);
     gridView->setTextElideMode(Qt::ElideNone);
     gridView->setSelectionMode(QAbstractItemView::ExtendedSelection);
@@ -195,31 +231,38 @@ ContentBrowserPanel::ContentBrowserPanel(const QString &projectFile,
     layout->addWidget(gridView, 1);
 
     auto *createMenu = new QMenu(createButton);
-    createMenu->addAction(style()->standardIcon(QStyle::SP_DirIcon), "Folder",
+    createMenu->addAction(styling::icon(styling::Icon::Folder, "#7E929C"), "Folder",
                           this, &ContentBrowserPanel::createFolder);
     createMenu->addSeparator();
-    createMenu->addAction(style()->standardIcon(QStyle::SP_FileIcon), "Scene",
+    createMenu->addAction(styling::icon(styling::Icon::CubeFocus, "#8498A8"), "Scene",
                           this, &ContentBrowserPanel::createScene);
-    createMenu->addAction(style()->standardIcon(QStyle::SP_FileIcon),
+    createMenu->addAction(styling::icon(styling::Icon::Material, "#9E897D"),
                           "Material", this,
                           &ContentBrowserPanel::createMaterial);
-    createMenu->addAction(style()->standardIcon(QStyle::SP_FileIcon),
+    createMenu->addAction(styling::icon(styling::Icon::FileCode, "#7E929C"),
                           "TypeScript Script", this,
                           &ContentBrowserPanel::createScript);
     createButton->setMenu(createMenu);
 
     auto *moreMenu = new QMenu(moreButton);
-    moreMenu->addAction("Open", this, [this] {
+    moreMenu->addAction(
+        styling::icon(styling::Icon::FolderOpen, "#7E929C"), "Open", this, [this] {
         if (gridView->currentIndex().isValid()) {
             openIndex(gridView->currentIndex());
         }
     });
-    moreMenu->addAction("Rename", this, &ContentBrowserPanel::renameSelection);
-    moreMenu->addAction("Delete", this, &ContentBrowserPanel::deleteSelection);
+    moreMenu->addAction(styling::icon(styling::Icon::File, "#8498A8"),
+                        "Rename", this,
+                        &ContentBrowserPanel::renameSelection);
+    moreMenu->addAction(styling::icon(styling::Icon::Trash, "#A17F7F"),
+                        "Delete", this,
+                        &ContentBrowserPanel::deleteSelection);
     moreMenu->addSeparator();
-    moreMenu->addAction("Reveal in Finder", this,
+    moreMenu->addAction(styling::icon(styling::Icon::FolderOpen, "#7E929C"),
+                        "Reveal in Finder", this,
                         &ContentBrowserPanel::revealSelection);
-    moreMenu->addAction("Copy Path", this,
+    moreMenu->addAction(styling::icon(styling::Icon::FileCode, "#8490A4"),
+                        "Copy Path", this,
                         &ContentBrowserPanel::copySelectionPath);
     moreButton->setMenu(moreMenu);
 

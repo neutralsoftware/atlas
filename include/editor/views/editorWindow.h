@@ -29,6 +29,8 @@ class ViewportTools;
 class MaterialEditorPanel;
 class PostProcessingPanel;
 class QMenu;
+class QButtonGroup;
+class QStackedWidget;
 class QShowEvent;
 class QTimer;
 class QFileSystemWatcher;
@@ -49,6 +51,8 @@ private:
     void setupWindow();
     void setupMenus();
     void setupDocks();
+    void setupWorkspaceBar();
+    void activateWorkspace(int index);
 
     void saveLayout();
     void restoreLayout();
@@ -76,6 +80,8 @@ private:
     HierarchyPanel* hierarchyPanel = nullptr;
     ContentBrowserPanel* contentBrowser = nullptr;
     ViewportTools* viewportTools = nullptr;
+    QStackedWidget* workspaceStack = nullptr;
+    QButtonGroup* workspaceModeGroup = nullptr;
     QMenu* viewMenu = nullptr;
     QMenu* windowMenu = nullptr;
     QTimer* layoutSaveTimer = nullptr;

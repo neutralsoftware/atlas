@@ -74,9 +74,10 @@ int runtimeMouseButton(Qt::MouseButton button) {
     }
 }
 
-int activeRuntimeMouseButton(Qt::MouseButtons buttons) {
+int activeRuntimeMouseButton(Qt::MouseButtons buttons,
+                             int rightDragRuntimeButton) {
     if (buttons.testFlag(Qt::RightButton)) {
-        return runtimeMouseButton(Qt::RightButton);
+        return rightDragRuntimeButton;
     }
     if (buttons.testFlag(Qt::MiddleButton)) {
         return runtimeMouseButton(Qt::MiddleButton);
@@ -412,9 +413,16 @@ void ViewportPanel::mousePressEvent(QMouseEvent *event) {
                     .toArray(),
                 selected);
     }
+    int pointerButton = runtimeMouseButton(event->button());
+    if (event->button() == Qt::RightButton) {
+        rightDragRuntimeButton =
+            event->modifiers().testFlag(Qt::ShiftModifier)
+                ? runtimeMouseButton(Qt::RightButton)
+                : runtimeMouseButton(Qt::MiddleButton);
+        pointerButton = rightDragRuntimeButton;
+    }
     sendPointerEvent(0, static_cast<float>(event->position().x()),
-                     static_cast<float>(event->position().y()),
-                     runtimeMouseButton(event->button()));
+                     static_cast<float>(event->position().y()), pointerButton);
     if (event->button() == Qt::LeftButton && runtimeContext != nullptr) {
         emit runtimeObjectActivated(runtimeContext->selectedObjectId());
     }
@@ -426,7 +434,8 @@ void ViewportPanel::mouseMoveEvent(QMouseEvent *event) {
         leftPointerMoved = true;
     sendPointerEvent(1, static_cast<float>(event->position().x()),
                      static_cast<float>(event->position().y()),
-                     activeRuntimeMouseButton(event->buttons()));
+                     activeRuntimeMouseButton(event->buttons(),
+                                              rightDragRuntimeButton));
     if (keyboardTransformActive) {
         const QRect bounds(mapToGlobal(QPoint(0, 0)), size());
         QPoint cursor = event->globalPosition().toPoint();
@@ -452,9 +461,11 @@ void ViewportPanel::mouseMoveEvent(QMouseEvent *event) {
 }
 
 void ViewportPanel::mouseReleaseEvent(QMouseEvent *event) {
+    const int pointerButton = event->button() == Qt::RightButton
+                                  ? rightDragRuntimeButton
+                                  : runtimeMouseButton(event->button());
     sendPointerEvent(2, static_cast<float>(event->position().x()),
-                     static_cast<float>(event->position().y()),
-                     runtimeMouseButton(event->button()));
+                     static_cast<float>(event->position().y()), pointerButton);
     if (event->button() == Qt::LeftButton && leftPointerMoved &&
         runtimeContext != nullptr && selectedRuntimeObjectId() >= 0) {
         const int selected = selectedRuntimeObjectId();
@@ -466,6 +477,8 @@ void ViewportPanel::mouseReleaseEvent(QMouseEvent *event) {
         emit runtimeObjectActivated(selected);
     }
     leftPointerMoved = false;
+    if (event->button() == Qt::RightButton)
+        rightDragRuntimeButton = 0;
     event->accept();
 }
 
