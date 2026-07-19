@@ -14,27 +14,27 @@
         "orthoSize": 5.0,
         "orthographic": false,
         "position": [
-            2.4182076454162598,
-            0.7414431571960449,
-            2.6619606018066406
+            2.644721508026123,
+            1.1444071531295776,
+            3.9767873287200928
         ],
         "target": [
-            1.25,
-            0.0,
-            0.0
+            -0.3924787640571594,
+            -0.1557551771402359,
+            1.7118041515350342
         ]
     },
     "environment": {
         "atmosphere": {
-            "enabled": true,
+            "enabled": false,
             "globalLight": {
                 "castsShadows": true,
-                "enabled": true,
+                "enabled": false,
                 "shadowResolution": 4096
             }
         },
-        "atmosphereSky": true,
-        "automaticAmbient": true
+        "atmosphereSky": false,
+        "automaticAmbient": false
     },
     "id": "main_scene",
     "lights": [
@@ -46,7 +46,7 @@
                 1.0
             ],
             "id": "ambientLight_0",
-            "intensity": 0.25,
+            "intensity": 0.05,
             "name": "ambientLight_0",
             "position": [
                 0.0,
@@ -102,6 +102,29 @@
                 1.0
             ],
             "solid_type": "cube",
+            "type": "solid"
+        },
+        {
+            "components": [],
+            "id": 1966546454,
+            "material": "assets/materials/Emissive Ball.amat",
+            "name": "Sphere",
+            "position": [
+                0.6134507656097412,
+                0.17499999701976776,
+                1.8578729629516602
+            ],
+            "rotation": [
+                0.0,
+                0.0,
+                0.0
+            ],
+            "scale": [
+                1.0,
+                1.0,
+                1.0
+            ],
+            "solid_type": "sphere",
             "type": "solid"
         }
     ],

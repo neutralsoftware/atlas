@@ -30,3 +30,4 @@ __pycache__
 build_verify
 dist
 node_modules
+.obsidian

@@ -1,0 +1,25 @@
+{
+    "material": {
+        "albedo": [
+            0.8,
+            0.8,
+            0.8,
+            1
+        ],
+        "ao": 1,
+        "emissiveColor": [
+            1,
+            1,
+            1,
+            1
+        ],
+        "emissiveIntensity": 100,
+        "ior": 1.45,
+        "metallic": 0,
+        "normalMapStrength": 1,
+        "reflectivity": 0.5,
+        "roughness": 0.5,
+        "transmittance": 0,
+        "useNormalMap": true
+    }
+}
