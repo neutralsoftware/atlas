@@ -14,9 +14,9 @@
         "orthoSize": 5.0,
         "orthographic": false,
         "position": [
-            2.644721508026123,
-            1.1444071531295776,
-            3.9767873287200928
+            -2.715547800064087,
+            1.4940226078033447,
+            4.527331352233887
         ],
         "target": [
             -0.3924787640571594,
@@ -26,14 +26,14 @@
     },
     "environment": {
         "atmosphere": {
-            "enabled": false,
+            "enabled": true,
             "globalLight": {
                 "castsShadows": true,
                 "enabled": false,
                 "shadowResolution": 4096
             }
         },
-        "atmosphereSky": false,
+        "atmosphereSky": true,
         "automaticAmbient": false
     },
     "id": "main_scene",

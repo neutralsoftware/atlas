@@ -865,8 +865,8 @@ void bindComputeTextures(const std::shared_ptr<Pipeline> &pipeline,
     }
 
     auto &pipelineState = metal::pipelineState(pipeline.get());
-    std::array<MTL::Texture *, 32> desiredTextures{};
-    std::array<MTL::SamplerState *, 32> desiredSamplers{};
+    std::array<MTL::Texture *, 64> desiredTextures{};
+    std::array<MTL::SamplerState *, 16> desiredSamplers{};
     desiredTextures.fill(nullptr);
     desiredSamplers.fill(nullptr);
 
@@ -881,11 +881,13 @@ void bindComputeTextures(const std::shared_ptr<Pipeline> &pipeline,
         if (textureState.texture == nullptr) {
             continue;
         }
-        if (textureState.sampler == nullptr) {
-            metal::rebuildTextureSampler(texture.get(), device);
-        }
         desiredTextures[static_cast<size_t>(unit)] = textureState.texture;
-        desiredSamplers[static_cast<size_t>(unit)] = textureState.sampler;
+        if (unit < static_cast<int>(desiredSamplers.size())) {
+            if (textureState.sampler == nullptr) {
+                metal::rebuildTextureSampler(texture.get(), device);
+            }
+            desiredSamplers[static_cast<size_t>(unit)] = textureState.sampler;
+        }
     }
 
     if (pipeline->shaderProgram != nullptr) {
@@ -907,20 +909,21 @@ void bindComputeTextures(const std::shared_ptr<Pipeline> &pipeline,
             if (fallbackState.texture == nullptr) {
                 continue;
             }
-            if (fallbackState.sampler == nullptr) {
-                metal::rebuildTextureSampler(fallback.get(), device);
-            }
             desiredTextures[unitIndex] = fallbackState.texture;
-            desiredSamplers[unitIndex] = fallbackState.sampler;
+            if (unitIndex < desiredSamplers.size()) {
+                if (fallbackState.sampler == nullptr) {
+                    metal::rebuildTextureSampler(fallback.get(), device);
+                }
+                desiredSamplers[unitIndex] = fallbackState.sampler;
+            }
         }
     }
 
-    constexpr size_t kMaxComputeTextureUnits = 16;
-    const size_t computeUnitCount =
-        std::min(desiredTextures.size(), kMaxComputeTextureUnits);
-    for (size_t unit = 0; unit < computeUnitCount; ++unit) {
+    for (size_t unit = 0; unit < desiredTextures.size(); ++unit) {
         encoder->setTexture(desiredTextures[unit],
                             static_cast<NS::UInteger>(unit));
+    }
+    for (size_t unit = 0; unit < desiredSamplers.size(); ++unit) {
         encoder->setSamplerState(desiredSamplers[unit],
                                  static_cast<NS::UInteger>(unit));
     }
