@@ -124,6 +124,9 @@ HierarchyPanel::HierarchyPanel(ViewportPanel *viewport, QWidget *parent)
     treeView->setAnimated(true);
     treeView->setEditTriggers(QAbstractItemView::NoEditTriggers);
     treeView->setSelectionMode(QAbstractItemView::ExtendedSelection);
+    treeView->setSelectionBehavior(QAbstractItemView::SelectRows);
+    treeView->setIndentation(16);
+    treeView->setIconSize(QSize(18, 18));
     treeView->setContextMenuPolicy(Qt::CustomContextMenu);
     treeView->setUniformRowHeights(true);
     treeView->setAcceptDrops(true);
@@ -182,8 +185,10 @@ HierarchyPanel::HierarchyPanel(ViewportPanel *viewport, QWidget *parent)
     });
     moreButton->setMenu(moreMenu);
 
-    connect(treeView, &QTreeView::clicked, this,
-            [this](const QModelIndex &) { focusSelectedObject(); });
+    connect(treeView->selectionModel(), &QItemSelectionModel::currentChanged,
+            this, [this](const QModelIndex &, const QModelIndex &) {
+                focusSelectedObject();
+            });
     connect(treeView, &QTreeView::doubleClicked, this,
             [this](const QModelIndex &) { renameSelectedObject(); });
     connect(treeView, &QTreeView::customContextMenuRequested, this,
@@ -213,6 +218,13 @@ HierarchyPanel::HierarchyPanel(ViewportPanel *viewport, QWidget *parent)
     connect(deleteAction, &QAction::triggered, this,
             &HierarchyPanel::deleteSelectedObject);
     addAction(deleteAction);
+
+    auto *deleteWithXAction = new QAction(treeView);
+    deleteWithXAction->setShortcut(QKeySequence(Qt::Key_X));
+    deleteWithXAction->setShortcutContext(Qt::WidgetWithChildrenShortcut);
+    connect(deleteWithXAction, &QAction::triggered, this,
+            &HierarchyPanel::deleteSelectedObject);
+    treeView->addAction(deleteWithXAction);
 
     auto *renameAction = new QAction(this);
     renameAction->setShortcuts({QKeySequence(Qt::Key_Return),
@@ -480,7 +492,9 @@ void HierarchyPanel::deleteSelectedObject() {
     if (viewport == nullptr) {
         return;
     }
-    const QList<int> ids = selectedObjectIds();
+    QList<int> ids = selectedObjectIds();
+    if (ids.isEmpty() && viewport->selectedRuntimeObjectId() >= 0)
+        ids.append(viewport->selectedRuntimeObjectId());
     for (int id : ids)
         viewport->deleteRuntimeObject(id);
 }

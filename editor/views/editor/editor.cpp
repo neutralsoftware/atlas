@@ -78,6 +78,7 @@
 #include "editor/views/fileExplorer.h"
 #include "editor/views/hierarchyPanel.h"
 #include "editor/views/inspectorView.h"
+#include "editor/views/inputActionsDialog.h"
 #include "editor/views/materialEditor.h"
 #include "editor/views/postProcessing.h"
 #include "editor/views/viewport.h"
@@ -550,6 +551,8 @@ void EditorWindow::setupMenus() {
         addCommand(toolsMenu, "Project Settings…", QString(),
                    [this] { showProjectSettings(); });
     toolsSettings->setMenuRole(QAction::NoRole);
+    addCommand(toolsMenu, "Input Actions…", QString(),
+               [this] { showInputActions(); });
     addCommand(toolsMenu, "Install Atlas Toolchain…", QString(),
                [this] { ToolchainInstaller::install(this); });
     addCommand(toolsMenu, "Command Palette…", "Meta+Shift+P",
@@ -569,6 +572,12 @@ void EditorWindow::setupMenus() {
     });
     aboutAction->setIcon(styling::icon(styling::Icon::Info, "#7E929C"));
     aboutAction->setMenuRole(QAction::AboutRole);
+}
+
+void EditorWindow::showInputActions() {
+    InputActionsDialog dialog(projectFile, this);
+    if (dialog.exec() == QDialog::Accepted && viewportPanel != nullptr)
+        viewportPanel->reloadRuntime();
 }
 
 void EditorWindow::setupDocks() {

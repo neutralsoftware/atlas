@@ -5717,6 +5717,8 @@ void Context::loadProject() {
 
     if (auto *gameTable = configTable["game"].as_table()) {
         mainScene = (*gameTable)["main_scene"].value_or("main.ascene");
+        config.inputActions =
+            (*gameTable)["input_actions"].value_or(std::string());
 
         assetDirectories.clear();
         if (auto *assets = (*gameTable)["assets"].as_array()) {
@@ -5926,6 +5928,9 @@ void Context::loadScene(Window &window, const json &sceneData) {
     }
 
     const std::string baseDir = sceneDir.empty() ? projectDir : sceneDir;
+    if (!config.inputActions.empty()) {
+        loadInputActionsFromJson(window, config.inputActions, projectDir);
+    }
     RuntimeEnvironmentDefinition environmentDefinition =
         loadEnvironmentDefinition(sceneData, baseDir);
     scene->setEnvironment(std::move(environmentDefinition.environment));

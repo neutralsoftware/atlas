@@ -519,6 +519,11 @@ void ViewportPanel::keyPressEvent(QKeyEvent *event) {
                 event->accept();
                 return;
             }
+        } else if (event->key() == Qt::Key_X &&
+                   selectedRuntimeObjectId() >= 0) {
+            deleteRuntimeObject(selectedRuntimeObjectId());
+            event->accept();
+            return;
         } else if (event->key() == Qt::Key_G ||
                    event->key() == Qt::Key_R ||
                    event->key() == Qt::Key_S) {
@@ -1401,7 +1406,7 @@ void ViewportPanel::finishKeyboardTransform(bool commit) {
     keyboardTransformAxes = 7;
     transformUndoBefore = {};
     emit transformHintChanged(
-        "Tab Frame · Right-Drag Pan · Middle-Drag Orbit · G Move · R Rotate · S Scale");
+        "Tab Frame · Right-Drag Pan · Middle-Drag Orbit · G Move · R Rotate · S Scale · X Delete");
 }
 
 void ViewportPanel::pushTransformUndo(int objectId,

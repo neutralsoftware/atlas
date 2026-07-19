@@ -650,13 +650,19 @@ QTreeView#hierarchyTree {
 }
 
 QTreeView#hierarchyTree::item {
-    min-height: 24px;
-    padding: 3px 5px;
+    min-height: 26px;
+    padding: 3px 7px;
+}
+
+QTreeView#hierarchyTree::item:hover {
+    background-color: #2B2E31;
+    border-color: #43474B;
 }
 
 QTreeView#hierarchyTree::item:selected {
     background-color: #343C43;
-    border-left: 2px solid #8498A8;
+    border-color: #66737C;
+    color: #FFFFFF;
 }
 
 QListView#contentGrid {

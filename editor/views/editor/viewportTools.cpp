@@ -148,7 +148,7 @@ ViewportTools::ViewportTools(ViewportPanel *viewport,
     layout->addWidget(toolbar);
     layout->addWidget(viewport, 1);
     shortcutHint = new QLabel(
-        "Tab Frame · Right-Drag Orbit · Shift + Right-Drag Pan · G Move · R Rotate · S Scale",
+        "Tab Frame · Right-Drag Pan · Middle-Drag Orbit · G Move · R Rotate · S Scale · X Delete",
         this);
     shortcutHint->setObjectName("viewportShortcutHint");
     shortcutHint->setTextInteractionFlags(Qt::NoTextInteraction);

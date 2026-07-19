@@ -43,6 +43,7 @@ class ProjectConfig {
     std::string renderer;
     bool globalIllumination;
     std::string mainScene;
+    std::string inputActions;
     bool useUpscaling = false;
     std::vector<std::string> assetDirectories;
 };
