@@ -13,6 +13,7 @@
 #include "atlas/window.h"
 #include "opal/opal.h"
 #include <algorithm>
+#include <cmath>
 #include <iostream>
 #include <memory>
 #include <optional>
@@ -47,7 +48,7 @@ class CompoundObject::LateCompoundRenderable : public Renderable {
         parent.setLatePipeline(pipeline);
     }
 
-    bool canCastShadows() const override { return parent.lateCanCastShadows(); }
+    bool canCastShadows() const override { return false; }
     bool canUseDeferredRendering() override { return false; }
 
   private:
@@ -64,22 +65,74 @@ Renderable *CompoundObject::getLateRenderable() {
     return lateRenderableProxy.get();
 }
 
-void CompoundObject::initialize() {
-    init();
-    for (auto &component : components) {
-        component->init();
+void CompoundObject::addObject(GameObject *obj, bool childInitialized) {
+    if (obj == nullptr || obj == this || containsObject(obj)) {
+        return;
     }
+    objects.push_back(obj);
+    if (obj->renderLateForward) {
+        lateForwardObjects.push_back(obj);
+    }
+    if (childInitialized) {
+        initializedObjects.insert(obj);
+    } else if (initialized) {
+        obj->initialize();
+        initializedObjects.insert(obj);
+    }
+    syncLateRenderableRegistration();
+}
 
+void CompoundObject::removeObject(GameObject *obj) {
+    if (obj == nullptr) {
+        return;
+    }
+    objects.erase(std::remove(objects.begin(), objects.end(), obj),
+                  objects.end());
+    lateForwardObjects.erase(
+        std::remove(lateForwardObjects.begin(), lateForwardObjects.end(), obj),
+        lateForwardObjects.end());
+    initializedObjects.erase(obj);
+    syncLateRenderableRegistration();
+}
+
+bool CompoundObject::containsObject(const GameObject *obj) const {
+    return obj != nullptr && std::ranges::find(objects, obj) != objects.end();
+}
+
+void CompoundObject::syncLateRenderableRegistration() {
+    if (!initialized || Window::mainWindow == nullptr) {
+        return;
+    }
     if (!lateForwardObjects.empty() && !lateRenderableRegistered) {
         if (!lateRenderableProxy) {
             lateRenderableProxy =
                 std::make_unique<LateCompoundRenderable>(*this);
         }
-        if (Window::mainWindow != nullptr) {
-            Window::mainWindow->addLateForwardObject(lateRenderableProxy.get());
-            lateRenderableRegistered = true;
+        Window::mainWindow->addLateForwardObject(lateRenderableProxy.get());
+        lateRenderableRegistered = true;
+    } else if (lateForwardObjects.empty() && lateRenderableRegistered) {
+        Window::mainWindow->removeObjectFromRendering(
+            lateRenderableProxy.get());
+        lateRenderableRegistered = false;
+    }
+}
+
+void CompoundObject::initialize() {
+    if (initialized) {
+        return;
+    }
+    init();
+    for (auto &component : components) {
+        component->init();
+    }
+    for (auto *obj : objects) {
+        if (obj != nullptr && !initializedObjects.contains(obj)) {
+            obj->initialize();
+            initializedObjects.insert(obj);
         }
     }
+    initialized = true;
+    syncLateRenderableRegistration();
 }
 
 void CompoundObject::render(float dt,
@@ -93,7 +146,7 @@ void CompoundObject::render(float dt,
             "CompoundObject::render requires a valid command buffer");
     }
     for (auto &obj : objects) {
-        if (obj != nullptr && obj->renderLateForward) {
+        if (obj == nullptr || obj->renderLateForward) {
             continue;
         }
         obj->render(dt, commandBuffer, updatePipeline);
@@ -117,20 +170,31 @@ void CompoundObject::renderLate(
 
 void CompoundObject::setViewMatrix(const glm::mat4 &view) {
     for (auto &obj : objects) {
-        obj->setViewMatrix(view);
+        if (obj != nullptr) {
+            obj->setViewMatrix(view);
+        }
     }
 }
 
 void CompoundObject::setProjectionMatrix(const glm::mat4 &projection) {
     for (auto &obj : objects) {
-        obj->setProjectionMatrix(projection);
+        if (obj != nullptr) {
+            obj->setProjectionMatrix(projection);
+        }
     }
 }
 
 bool CompoundObject::canUseDeferredRendering() {
     for (const auto &obj : objects) {
+        if (obj == nullptr || obj->renderLateForward) {
+            continue;
+        }
         if (!obj->canUseDeferredRendering()) {
             for (auto &forwardObject : objects) {
+                if (forwardObject == nullptr ||
+                    forwardObject->renderLateForward) {
+                    continue;
+                }
                 if (CoreObject *coreObj =
                         dynamic_cast<CoreObject *>(forwardObject);
                     coreObj != nullptr) {
@@ -141,6 +205,9 @@ bool CompoundObject::canUseDeferredRendering() {
         }
     }
     for (auto &obj : objects) {
+        if (obj == nullptr || obj->renderLateForward) {
+            continue;
+        }
         if (CoreObject *coreObj = dynamic_cast<CoreObject *>(obj);
             coreObj != nullptr) {
             coreObj->useDeferredRendering = true;
@@ -150,8 +217,11 @@ bool CompoundObject::canUseDeferredRendering() {
 }
 
 std::optional<std::shared_ptr<opal::Pipeline>> CompoundObject::getPipeline() {
-    if (!objects.empty()) {
-        auto shader = objects[0]->getPipeline();
+    for (auto *obj : objects) {
+        if (obj == nullptr || obj->renderLateForward) {
+            continue;
+        }
+        auto shader = obj->getPipeline();
         if (shader.has_value()) {
             return shader;
         }
@@ -161,32 +231,40 @@ std::optional<std::shared_ptr<opal::Pipeline>> CompoundObject::getPipeline() {
 
 void CompoundObject::setPipeline(std::shared_ptr<opal::Pipeline> &pipeline) {
     for (auto &obj : objects) {
-        obj->setPipeline(pipeline);
-    }
-}
-
-Position3d CompoundObject::getPosition() const {
-    return position;
-}
-
-Size3d CompoundObject::getScale() const {
-    if (objects.empty()) {
-        if (!lateForwardObjects.empty() && lateForwardObjects[0] != nullptr) {
-            return lateForwardObjects[0]->getScale();
+        if (obj != nullptr && !obj->renderLateForward) {
+            obj->setPipeline(pipeline);
         }
-        return Size3d{1.0, 1.0, 1.0};
     }
-    return objects[0]->getScale();
 }
+
+Position3d CompoundObject::getPosition() const { return position; }
+
+Rotation3d CompoundObject::getRotation() const { return rotation; }
+
+Size3d CompoundObject::getScale() const { return scale; }
 
 void CompoundObject::update(Window &window) {
     updateObjects(window);
-    changedPosition = false;
+    for (auto *obj : objects) {
+        if (obj != nullptr) {
+            obj->update(window);
+        }
+    }
+}
+
+void CompoundObject::beforePhysics() {
+    GameObject::beforePhysics();
+    for (auto *obj : objects) {
+        if (obj != nullptr) {
+            obj->beforePhysics();
+        }
+    }
 }
 
 bool CompoundObject::canCastShadows() const {
-    return std::ranges::any_of(
-        objects, [](const auto &obj) { return obj->canCastShadows(); });
+    return std::ranges::any_of(objects, [](const auto *obj) {
+        return obj != nullptr && obj->canCastShadows();
+    });
 }
 
 void CompoundObject::setPosition(const Position3d &newPosition) {
@@ -197,7 +275,6 @@ void CompoundObject::setPosition(const Position3d &newPosition) {
             obj->move(delta);
         }
     }
-    changedPosition = false;
 }
 
 void CompoundObject::move(const Position3d &deltaPosition) {
@@ -207,48 +284,99 @@ void CompoundObject::move(const Position3d &deltaPosition) {
             obj->move(deltaPosition);
         }
     }
-    changedPosition = false;
 }
 
 void CompoundObject::setRotation(const Rotation3d &newRotation) {
-    for (auto &obj : objects) {
-        obj->setRotation(newRotation);
+    const glm::quat oldQuaternion = glm::normalize(rotation.toGlmQuat());
+    const glm::quat newQuaternion = glm::normalize(newRotation.toGlmQuat());
+    const glm::quat delta = newQuaternion * glm::inverse(oldQuaternion);
+    rotation = newRotation;
+    for (auto *obj : objects) {
+        if (obj == nullptr) {
+            continue;
+        }
+        const glm::vec3 offset = obj->getPosition().toGlm() - position.toGlm();
+        obj->setPosition(
+            Position3d::fromGlm(position.toGlm() + delta * offset));
+        const glm::quat childRotation =
+            glm::normalize(obj->getRotation().toGlmQuat());
+        obj->setRotation(
+            Rotation3d::fromGlmQuat(glm::normalize(delta * childRotation)));
     }
 }
 
 void CompoundObject::lookAt(const Position3d &target, const Normal3d &up) {
-    for (auto &obj : objects) {
-        obj->lookAt(target, up);
+    glm::vec3 forward = target.toGlm() - position.toGlm();
+    if (glm::length(forward) < 0.000001f) {
+        return;
     }
+    forward = glm::normalize(forward);
+    glm::vec3 upVector = up.toGlm();
+    if (glm::length(upVector) < 0.000001f ||
+        std::abs(glm::dot(glm::normalize(upVector), forward)) > 0.9999f) {
+        upVector = std::abs(forward.y) < 0.9999f ? glm::vec3(0.0f, 1.0f, 0.0f)
+                                                 : glm::vec3(1.0f, 0.0f, 0.0f);
+    }
+    glm::vec3 right = glm::normalize(glm::cross(forward, upVector));
+    glm::vec3 realUp = glm::cross(right, forward);
+    glm::mat3 matrix;
+    matrix[0] = right;
+    matrix[1] = realUp;
+    matrix[2] = -forward;
+    setRotation(
+        Rotation3d::fromGlmQuat(glm::normalize(glm::quat_cast(matrix))));
 }
 
 void CompoundObject::rotate(const Rotation3d &deltaRotation) {
-    for (auto &obj : objects) {
-        obj->rotate(deltaRotation);
-    }
+    setRotation(rotation + deltaRotation);
 }
 
 void CompoundObject::setScale(const Scale3d &newScale) {
-    for (auto &obj : objects) {
-        obj->setScale(newScale);
+    const auto factor = [](double next, double previous) {
+        return std::abs(previous) < 0.000001 ? next : next / previous;
+    };
+    const glm::vec3 scaleFactor(factor(newScale.x, scale.x),
+                                factor(newScale.y, scale.y),
+                                factor(newScale.z, scale.z));
+    const glm::quat orientation = glm::normalize(rotation.toGlmQuat());
+    const glm::quat inverseOrientation = glm::inverse(orientation);
+    scale = newScale;
+    for (auto *obj : objects) {
+        if (obj == nullptr) {
+            continue;
+        }
+        glm::vec3 offset = obj->getPosition().toGlm() - position.toGlm();
+        offset = orientation * ((inverseOrientation * offset) * scaleFactor);
+        obj->setPosition(Position3d::fromGlm(position.toGlm() + offset));
+        const Size3d childScale = obj->getScale();
+        obj->setScale({childScale.x * scaleFactor.x,
+                       childScale.y * scaleFactor.y,
+                       childScale.z * scaleFactor.z});
     }
 }
 
 void CompoundObject::hide() {
     for (auto &obj : objects) {
-        obj->hide();
+        if (obj != nullptr) {
+            obj->hide();
+        }
     }
 }
 
 void CompoundObject::show() {
     for (auto &obj : objects) {
-        obj->show();
+        if (obj != nullptr) {
+            obj->show();
+        }
     }
 }
 
 std::vector<CoreVertex> CompoundObject::getVertices() const {
     std::vector<CoreVertex> allVertices;
     for (const auto &obj : objects) {
+        if (obj == nullptr) {
+            continue;
+        }
         std::vector<CoreVertex> objVertices = obj->getVertices();
         allVertices.insert(allVertices.end(), objVertices.begin(),
                            objVertices.end());
@@ -297,12 +425,6 @@ void CompoundObject::setLatePipeline(std::shared_ptr<opal::Pipeline> pipeline) {
         }
         obj->setPipeline(pipeline);
     }
-}
-
-bool CompoundObject::lateCanCastShadows() const {
-    return std::ranges::any_of(lateForwardObjects, [](const auto *obj) {
-        return obj != nullptr && obj->canCastShadows();
-    });
 }
 
 Window *Component::getWindow() { return Window::mainWindow; }

@@ -118,7 +118,15 @@ QByteArray starterScene(AtlasProjectTemplate projectTemplate) {
     ],
     "environment": {
         "automaticAmbient": true,
-        "atmosphereSky": true
+        "atmosphereSky": true,
+        "atmosphere": {
+            "enabled": true,
+            "globalLight": {
+                "enabled": true,
+                "castsShadows": true,
+                "shadowResolution": 4096
+            }
+        }
     }
 }
 )");

@@ -173,40 +173,51 @@ uint64_t computeDdgiLayoutSignature(const std::vector<CoreObject *> &objects,
     return signature;
 }
 
+void collectDdgiObject(Renderable *renderable,
+                       std::unordered_set<CoreObject *> &seen,
+                       std::vector<CoreObject *> &objects) {
+    if (renderable == nullptr) {
+        return;
+    }
+    if (auto *object = dynamic_cast<CoreObject *>(renderable)) {
+        if (seen.insert(object).second) {
+            objects.push_back(object);
+        }
+        return;
+    }
+    if (auto *compound = dynamic_cast<CompoundObject *>(renderable)) {
+        for (auto *child : compound->objects) {
+            collectDdgiObject(child, seen, objects);
+        }
+        return;
+    }
+    if (auto *model = dynamic_cast<Model *>(renderable)) {
+        const auto &meshes = static_cast<const Model *>(model)->getObjects();
+        for (const auto &mesh : meshes) {
+            CoreObject *object = mesh.get();
+            if (object == nullptr) {
+                continue;
+            }
+            bool hasAnyTexture = !object->textures.empty();
+            if (!hasAnyTexture) {
+                object->material = model->material;
+            }
+            object->material.useNormalMap = model->material.useNormalMap;
+            object->material.normalMapStrength =
+                model->material.normalMapStrength;
+            object->useDeferredRendering = model->useDeferredRendering;
+            if (seen.insert(object).second) {
+                objects.push_back(object);
+            }
+        }
+    }
+}
+
 void collectDdgiObjectsFromQueue(const std::vector<Renderable *> &renderables,
                                  std::unordered_set<CoreObject *> &seen,
                                  std::vector<CoreObject *> &objects) {
     for (auto *renderable : renderables) {
-        if (renderable == nullptr) {
-            continue;
-        }
-        if (auto *object = dynamic_cast<CoreObject *>(renderable)) {
-            if (seen.insert(object).second) {
-                objects.push_back(object);
-            }
-            continue;
-        }
-        if (auto *model = dynamic_cast<Model *>(renderable)) {
-            const auto &meshes =
-                static_cast<const Model *>(model)->getObjects();
-            for (const auto &mesh : meshes) {
-                CoreObject *object = mesh.get();
-                if (object == nullptr) {
-                    continue;
-                }
-                bool hasAnyTexture = !object->textures.empty();
-                if (!hasAnyTexture) {
-                    object->material = model->material;
-                }
-                object->material.useNormalMap = model->material.useNormalMap;
-                object->material.normalMapStrength =
-                    model->material.normalMapStrength;
-                object->useDeferredRendering = model->useDeferredRendering;
-                if (seen.insert(object).second) {
-                    objects.push_back(object);
-                }
-            }
-        }
+        collectDdgiObject(renderable, seen, objects);
     }
 }
 
