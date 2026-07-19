@@ -1110,6 +1110,7 @@ bool ViewportPanel::applyRuntimeMaterialDirect(int id, const QString &path) {
     runtimeContext->saveCurrentScene();
     refreshSceneSnapshot();
     setSceneDirty(true);
+    reloadRuntime();
     return true;
 }
 

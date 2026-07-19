@@ -79,6 +79,34 @@ bool isValidEntryName(const QString &name) {
            !name.contains('/') && !name.contains('\\');
 }
 
+QString requestFilePath(QWidget *parent, const QString &directory,
+                        const QString &title, const QString &label,
+                        const QString &defaultName, const QString &extension) {
+    bool accepted = false;
+    QString name = QInputDialog::getText(parent, title, label, QLineEdit::Normal,
+                                         defaultName, &accepted)
+                       .trimmed();
+    if (!accepted)
+        return {};
+
+    const QString suffix = "." + extension;
+    if (name.endsWith(suffix, Qt::CaseInsensitive))
+        name.chop(suffix.size());
+    name = name.trimmed();
+    if (!isValidEntryName(name)) {
+        QMessageBox::warning(parent, title, "Enter a valid file name.");
+        return {};
+    }
+
+    const QString path = QDir(directory).filePath(name + suffix);
+    if (QFileInfo::exists(path)) {
+        QMessageBox::warning(parent, title,
+                             "A file with that name already exists.");
+        return {};
+    }
+    return path;
+}
+
 bool copyEntry(const QString &source, const QString &destination) {
     const QFileInfo info(source);
     if (info.isDir()) {
@@ -474,14 +502,20 @@ void ContentBrowserPanel::createFolder() {
 }
 
 void ContentBrowserPanel::createScene() {
-    const QString path = uniquePath("New Scene.ascene");
+    const QString path = requestFilePath(this, currentPath, "New Scene",
+                                         "Scene name", "New Scene", "ascene");
+    if (path.isEmpty())
+        return;
     if (writeNewFile(path, EmptyScene)) {
         gridView->setCurrentIndex(model->index(path));
     }
 }
 
 void ContentBrowserPanel::createScript() {
-    const QString path = uniquePath("NewScript.ts");
+    const QString path = requestFilePath(this, currentPath, "New Script",
+                                         "Script name", "NewScript", "ts");
+    if (path.isEmpty())
+        return;
     const QString relativePath = QDir(projectRoot).relativeFilePath(path);
     QString componentName = QFileInfo(path).completeBaseName();
     componentName.remove(QRegularExpression("[^A-Za-z0-9_$]"));
@@ -502,7 +536,11 @@ void ContentBrowserPanel::createScript() {
 }
 
 void ContentBrowserPanel::createMaterial() {
-    const QString path = uniquePath("New Material.amat");
+    const QString path = requestFilePath(this, currentPath, "New Material",
+                                         "Material name", "New Material",
+                                         "amat");
+    if (path.isEmpty())
+        return;
     const QByteArray material =
         "{\n"
         "    \"material\": {\n"

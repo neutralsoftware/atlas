@@ -1,0 +1,117 @@
+{
+    "camera": {
+        "actions": [],
+        "automaticMoving": false,
+        "controllerLookSensitivity": 180.0,
+        "farClip": 1000.0,
+        "focusDepth": 20.0,
+        "focusRange": 10.0,
+        "fov": 60.0,
+        "lookSmoothness": 0.15000000596046448,
+        "mouseSensitivity": 0.10000000149011612,
+        "movementSpeed": 2.0,
+        "nearClip": 0.5,
+        "orthoSize": 5.0,
+        "orthographic": false,
+        "position": [
+            2.4182076454162598,
+            0.7414431571960449,
+            2.6619606018066406
+        ],
+        "target": [
+            1.25,
+            0.0,
+            0.0
+        ]
+    },
+    "environment": {
+        "atmosphere": {
+            "enabled": true,
+            "globalLight": {
+                "castsShadows": true,
+                "enabled": true,
+                "shadowResolution": 4096
+            }
+        },
+        "atmosphereSky": true,
+        "automaticAmbient": true
+    },
+    "id": "main_scene",
+    "lights": [
+        {
+            "color": [
+                1.0,
+                1.0,
+                1.0,
+                1.0
+            ],
+            "id": "ambientLight_0",
+            "intensity": 0.25,
+            "name": "ambientLight_0",
+            "position": [
+                0.0,
+                0.0,
+                0.0
+            ],
+            "type": "ambientLight"
+        }
+    ],
+    "name": "Main Scene",
+    "objects": [
+        {
+            "components": [],
+            "material": "",
+            "name": "Cube",
+            "position": [
+                0.0,
+                0.0,
+                0.0
+            ],
+            "rotation": [
+                0.0,
+                0.0,
+                0.0
+            ],
+            "scale": [
+                1.0,
+                1.0,
+                1.0
+            ],
+            "solid_type": "cube",
+            "type": "solid"
+        },
+        {
+            "components": [],
+            "id": 262366761,
+            "material": "assets/materials/New Material.amat",
+            "name": "Cube 2",
+            "parent": "Cube",
+            "position": [
+                1.25,
+                0.0,
+                0.0
+            ],
+            "rotation": [
+                0.0,
+                0.0,
+                0.0
+            ],
+            "scale": [
+                1.0,
+                1.0,
+                1.0
+            ],
+            "solid_type": "cube",
+            "type": "solid"
+        }
+    ],
+    "property_syncs": [],
+    "targets": [
+        {
+            "display": true,
+            "name": "Main Target",
+            "render": true,
+            "type": "scene"
+        }
+    ]
+}
