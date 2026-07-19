@@ -2,7 +2,7 @@
 # General project info
 # -----------------------------
 PROJECT_NAME           = "Atlas"
-PROJECT_NUMBER         = "Alpha 8"
+PROJECT_NUMBER         = "Alpha 9"
 PROJECT_BRIEF          = "Build everything, and beyond"
 
 # -----------------------------
