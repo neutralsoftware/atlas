@@ -1,29 +1,37 @@
 name: Deploy documentation
 
 on:
-    push:
-        branches:
-            - stable
-    pull_request:
+  push:
+    branches:
+      - stable
+  pull_request:
 
 permissions:
-    contents: write
+  contents: write
 
 jobs:
-    build:
-        if: github.event_name != 'pull_request'
-        runs-on: macos-latest
-        steps:
-            - uses: actions/checkout@v5
-            - name: Install Dependencies
-              run: brew install cmake doxygen graphviz sdl3 glm openal-soft assimp vulkan-loader molten-vk vulkan-validationlayers spirv-cross spirv-headers spirv-tools ninja qt@6
-            - name: Configure project
-              run: cmake -S . -B build -G Ninja -DBACKEND=AUTO
-            - name: Build documentation
-              run: doxygen Doxyfile
-            - name: Deploy to gh-pages
-              uses: peaceiris/actions-gh-pages@v4
-              with:
-                  github_token: ${{ secrets.GITHUB_TOKEN }}
-                  publish_dir: ./docs/html
-                  publish_branch: gh-pages
+  build:
+    if: github.event_name != 'pull_request'
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          submodules: recursive
+      - name: Fetch Qt Docking System
+        run: |
+          if [ ! -d extern/QtDockingSystem ]; then
+            git clone https://github.com/githubuser0xFFFF/Qt-Advanced-Docking-System.git extern/QtDockingSystem
+            git -C extern/QtDockingSystem checkout f35d2bd95e7a324433ccce6b79efc57204b53231
+          fi
+      - name: Install Dependencies
+        run: brew install cmake doxygen graphviz sdl3 glm openal-soft assimp vulkan-loader molten-vk vulkan-validationlayers spirv-cross spirv-headers spirv-tools ninja qt@6
+      - name: Configure project
+        run: cmake -S . -B build -G Ninja -DBACKEND=AUTO
+      - name: Build documentation
+        run: doxygen Doxyfile
+      - name: Deploy to gh-pages
+        uses: peaceiris/actions-gh-pages@v4
+        with:
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          publish_dir: ./docs/html
+          publish_branch: gh-pages
