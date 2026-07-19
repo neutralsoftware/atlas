@@ -120,3 +120,7 @@ release backend="AUTO":
 run-docs:
     just docs
     python3 -m http.server 8000 --directory docs/html
+
+editor backend="AUTO" bezel_native="OFF":
+    just target AtlasEditor {{ backend }} {{ bezel_native }}
+    "./build/bin/Atlas Engine.app/Contents/MacOS/Atlas Engine"

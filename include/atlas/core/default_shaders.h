@@ -7561,6 +7561,7 @@ R"(          float3(vertices[bj2].tangent) * bb2,
 
 kernel void main0(texture2d<float, access::write> outTex [[texture(0)]],
                   texture2d<float, access::read> prevTex [[texture(1)]],
+                  texture2d<float, access::write> brightTex [[texture(2)]],
                   instance_acceleration_structure sceneAS [[buffer(0)]],
                   constant CameraUniforms &cam [[buffer(1)]],
                   constant Material *materials [[buffer(2)]],
@@ -7632,7 +7633,27 @@ kernel void main0(texture2d<float, access::write> outTex [[texture(0)]],
 
     float3 accum = (prevColor.xyz * frameIndex + color) / (frameIndex + 1);
     accum = clampLuminance(accum, 24.0);
-    outTex.write(float4(accum, 1.0), gid);
+
+    constexpr float bloomThreshold = 1.0;
+	constexpr float bloomKnee = 0.5;
+
+	float brightness = luminance(accum);
+	float soft = clamp(
+    	brightness - bloomThreshold + bloomKnee,
+    	0.0,
+    	bloomKnee * 2.0
+	);
+
+	soft = soft * soft / max(bloomKnee * 4.0, 0.00001);
+
+	float contribution =
+    	max(brightness - bloomThreshold, soft) /
+    	max(brightness, 0.00001);
+
+	float3 brightColor = accum * contribution;
+
+	outTex.write(float4(accum, 1.0), gid);
+	brightTex.write(float4(brightColor, 1.0), gid);
 }
 )",
 };

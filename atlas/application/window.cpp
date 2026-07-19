@@ -932,7 +932,8 @@ Window::Window(const WindowConfiguration &config)
 #ifdef METAL
     this->externalMetalView = config.metalTargetView;
     this->renderToExternalMetalView = this->externalMetalView != nullptr;
-    this->showHostWindow = config.showHostWindow && !this->renderToExternalMetalView;
+    this->showHostWindow =
+        config.showHostWindow && !this->renderToExternalMetalView;
 #else
     (void)config.metalTargetView;
     this->externalMetalView = nullptr;
@@ -1638,6 +1639,15 @@ bool Window::stepFrame() {
                 pathTracer->copySrcFramebuffer, pathTracer->copyDstFramebuffer,
                 0);
             commandBuffer->performResolve(copy);
+
+            pathTracer->copySrcFramebuffer->attachTexture(
+                pathTracer->pathTracingTextureBright->texture, 0);
+            pathTracer->copyDstFramebuffer->attachTexture(
+                target->brightTexture.texture, 0);
+            auto brightCopy = opal::ResolveAction::createForColorAttachment(
+                pathTracer->copySrcFramebuffer, pathTracer->copyDstFramebuffer,
+                0);
+            commandBuffer->performResolve(brightCopy);
 #endif
 
             continue;
@@ -1710,7 +1720,8 @@ bool Window::stepFrame() {
                 if (obj->canUseDeferredRendering()) {
                     return;
                 }
-                if (obj && obj->editorOnly && !this->areEditorControlsEnabled()) return;
+                if (obj && obj->editorOnly && !this->areEditorControlsEnabled())
+                    return;
                 obj->setViewMatrix(this->camera->calculateViewMatrix());
                 obj->setProjectionMatrix(calculateProjectionMatrix());
                 obj->render(getDeltaTime(), commandBuffer,
@@ -1729,7 +1740,8 @@ bool Window::stepFrame() {
             }
 
             for (auto &obj : this->lateForwardRenderables) {
-                if (obj && obj->editorOnly && !this->areEditorControlsEnabled()) continue;
+                if (obj && obj->editorOnly && !this->areEditorControlsEnabled())
+                    continue;
                 obj->setViewMatrix(this->camera->calculateViewMatrix());
                 obj->setProjectionMatrix(calculateProjectionMatrix());
                 obj->render(getDeltaTime(), commandBuffer,
@@ -1748,7 +1760,8 @@ bool Window::stepFrame() {
         renderEditorGrid(commandBuffer);
 
         for (auto &obj : this->firstRenderables) {
-            if (obj && obj->editorOnly && !this->areEditorControlsEnabled()) continue;
+            if (obj && obj->editorOnly && !this->areEditorControlsEnabled())
+                continue;
             obj->setViewMatrix(this->camera->calculateViewMatrix());
             obj->setProjectionMatrix(calculateProjectionMatrix());
             obj->render(getDeltaTime(), commandBuffer,
@@ -1759,7 +1772,8 @@ bool Window::stepFrame() {
             if (obj->renderLateForward) {
                 continue;
             }
-            if (obj && obj->editorOnly && !this->areEditorControlsEnabled()) continue;
+            if (obj && obj->editorOnly && !this->areEditorControlsEnabled())
+                continue;
             obj->setViewMatrix(this->camera->calculateViewMatrix());
             obj->setProjectionMatrix(calculateProjectionMatrix());
             obj->render(getDeltaTime(), commandBuffer,
@@ -1767,7 +1781,8 @@ bool Window::stepFrame() {
         }
         updateFluidCaptures(commandBuffer);
         for (auto &obj : this->lateForwardRenderables) {
-            if (obj && obj->editorOnly && !this->areEditorControlsEnabled()) continue;
+            if (obj && obj->editorOnly && !this->areEditorControlsEnabled())
+                continue;
             obj->setViewMatrix(this->camera->calculateViewMatrix());
             obj->setProjectionMatrix(calculateProjectionMatrix());
             obj->render(getDeltaTime(), commandBuffer,
@@ -1812,7 +1827,8 @@ bool Window::stepFrame() {
         this->currentRenderTarget = this->screenRenderTarget.get();
         renderEditorGrid(commandBuffer);
         for (auto &obj : this->firstRenderables) {
-            if (obj && obj->editorOnly && !this->areEditorControlsEnabled()) continue;
+            if (obj && obj->editorOnly && !this->areEditorControlsEnabled())
+                continue;
             obj->setViewMatrix(this->camera->calculateViewMatrix());
             obj->setProjectionMatrix(calculateProjectionMatrix());
             obj->render(getDeltaTime(), commandBuffer,
@@ -1823,7 +1839,8 @@ bool Window::stepFrame() {
             if (obj->renderLateForward) {
                 continue;
             }
-            if (obj && obj->editorOnly && !this->areEditorControlsEnabled()) continue;
+            if (obj && obj->editorOnly && !this->areEditorControlsEnabled())
+                continue;
             obj->setViewMatrix(this->camera->calculateViewMatrix());
             obj->setProjectionMatrix(calculateProjectionMatrix());
             obj->render(getDeltaTime(), commandBuffer,
@@ -1833,7 +1850,8 @@ bool Window::stepFrame() {
         updateFluidCaptures(commandBuffer);
 
         for (auto &obj : this->lateForwardRenderables) {
-            if (obj && obj->editorOnly && !this->areEditorControlsEnabled()) continue;
+            if (obj && obj->editorOnly && !this->areEditorControlsEnabled())
+                continue;
             obj->setViewMatrix(this->camera->calculateViewMatrix());
             obj->setProjectionMatrix(calculateProjectionMatrix());
             obj->render(getDeltaTime(), commandBuffer,
@@ -1846,7 +1864,8 @@ bool Window::stepFrame() {
     }
 
     for (auto &obj : this->preferenceRenderables) {
-        if (obj && obj->editorOnly && !this->areEditorControlsEnabled()) continue;
+        if (obj && obj->editorOnly && !this->areEditorControlsEnabled())
+            continue;
         obj->setViewMatrix(this->camera->calculateViewMatrix());
         obj->setProjectionMatrix(calculateProjectionMatrix());
         obj->render(getDeltaTime(), commandBuffer, shouldRefreshPipeline(obj));
@@ -2068,11 +2087,10 @@ void Window::setEditorKeyboardTransformAxes(int axes) {
     if (!editorKeyboardTransform)
         return;
     editorKeyboardTransformAxes = std::clamp(axes, 1, 7);
-    editorActiveGizmoAxis =
-        editorKeyboardTransformAxes == 1   ? 1
-        : editorKeyboardTransformAxes == 2 ? 2
-        : editorKeyboardTransformAxes == 4 ? 3
-                                           : 0;
+    editorActiveGizmoAxis = editorKeyboardTransformAxes == 1   ? 1
+                            : editorKeyboardTransformAxes == 2 ? 2
+                            : editorKeyboardTransformAxes == 4 ? 3
+                                                               : 0;
 }
 
 void Window::finishEditorKeyboardTransform(bool commit) {
@@ -2694,12 +2712,15 @@ void Window::updateEditorDrag(float x, float y, float scale) {
                 std::max(0.05f, editorDragStartObjectScale.z + scaleDelta);
         }
         if (editorTransformSnapping) {
-            nextScale.x = std::round(nextScale.x / editorTransformSnapIncrement) *
-                          editorTransformSnapIncrement;
-            nextScale.y = std::round(nextScale.y / editorTransformSnapIncrement) *
-                          editorTransformSnapIncrement;
-            nextScale.z = std::round(nextScale.z / editorTransformSnapIncrement) *
-                          editorTransformSnapIncrement;
+            nextScale.x =
+                std::round(nextScale.x / editorTransformSnapIncrement) *
+                editorTransformSnapIncrement;
+            nextScale.y =
+                std::round(nextScale.y / editorTransformSnapIncrement) *
+                editorTransformSnapIncrement;
+            nextScale.z =
+                std::round(nextScale.z / editorTransformSnapIncrement) *
+                editorTransformSnapIncrement;
             nextScale.x = std::max(0.001f, nextScale.x);
             nextScale.y = std::max(0.001f, nextScale.y);
             nextScale.z = std::max(0.001f, nextScale.z);
@@ -2735,8 +2756,8 @@ void Window::updateEditorKeyboardTransform(float x, float y, float scale) {
     const float dx = editorKeyboardAccumulatedX / effectiveScale;
     const float dy = editorKeyboardAccumulatedY / effectiveScale;
     const int axes = editorKeyboardTransformAxes;
-    const float distance = glm::length(editorDragStartPosition.toGlm() -
-                                       camera->position.toGlm());
+    const float distance =
+        glm::length(editorDragStartPosition.toGlm() - camera->position.toGlm());
 
     if (editorControlMode == EditorControlMode::Move) {
         glm::vec3 delta(0.0f);
@@ -2752,10 +2773,8 @@ void Window::updateEditorKeyboardTransform(float x, float y, float scale) {
             const float sensitivity = std::max(0.0025f, distance * 0.0025f);
             delta = (right * dx + up * dy) * sensitivity;
         } else {
-            const float viewWidth =
-                std::max(1.0f, static_cast<float>(width));
-            const float viewHeight =
-                std::max(1.0f, static_cast<float>(height));
+            const float viewWidth = std::max(1.0f, static_cast<float>(width));
+            const float viewHeight = std::max(1.0f, static_cast<float>(height));
             const glm::mat4 viewProjection =
                 calculateProjectionMatrix() * camera->calculateViewMatrix();
             const glm::vec3 center = editorDragStartPosition.toGlm();
@@ -3992,10 +4011,9 @@ void Window::addRenderTarget(RenderTarget *target) {
 }
 
 void Window::removeRenderTarget(RenderTarget *target) {
-    this->renderTargets.erase(
-        std::remove(this->renderTargets.begin(), this->renderTargets.end(),
-                    target),
-        this->renderTargets.end());
+    this->renderTargets.erase(std::remove(this->renderTargets.begin(),
+                                          this->renderTargets.end(), target),
+                              this->renderTargets.end());
     if (this->currentRenderTarget == target) {
         this->currentRenderTarget = nullptr;
     }
@@ -4870,7 +4888,8 @@ void Window::captureFluidReflection(
             if (dynamic_cast<Fluid *>(obj) == &fluid) {
                 continue;
             }
-            if (obj && obj->editorOnly && !this->areEditorControlsEnabled()) continue;
+            if (obj && obj->editorOnly && !this->areEditorControlsEnabled())
+                continue;
             obj->setViewMatrix(view);
             obj->setProjectionMatrix(projection);
             obj->render(getDeltaTime(), commandBuffer,
@@ -4997,7 +5016,8 @@ void Window::captureFluidRefraction(
             if (dynamic_cast<Fluid *>(obj) == &fluid) {
                 continue;
             }
-            if (obj && obj->editorOnly && !this->areEditorControlsEnabled()) continue;
+            if (obj && obj->editorOnly && !this->areEditorControlsEnabled())
+                continue;
             obj->setViewMatrix(view);
             obj->setProjectionMatrix(projection);
             obj->render(getDeltaTime(), commandBuffer,

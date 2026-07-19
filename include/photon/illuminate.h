@@ -90,6 +90,7 @@ class PathTracing {
     std::shared_ptr<Texture> pathTracingTexture;
     /** @brief Previous frame output texture used for accumulation. */
     std::shared_ptr<Texture> pathTracingTexturePrev;
+    std::shared_ptr<Texture> pathTracingTextureBright;
 
     /** @brief Rays traced per pixel each dispatch. */
     int raysPerPixel = 4;

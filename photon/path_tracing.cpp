@@ -178,6 +178,9 @@ void photon::PathTracing::init() {
     pathTracingTexturePrev = std::make_shared<Texture>(
         Texture::create(outputWidth, outputHeight, opal::TextureFormat::Rgba16F,
                         opal::TextureDataFormat::Rgba, TextureType::Color));
+    pathTracingTextureBright = std::make_shared<Texture>(
+        Texture::create(outputWidth, outputHeight, opal::TextureFormat::Rgba16F,
+                        opal::TextureDataFormat::Rgba, TextureType::Color));
 
     copySrcFramebuffer = std::make_shared<opal::Framebuffer>();
     copyDstFramebuffer = std::make_shared<opal::Framebuffer>();
@@ -187,7 +190,8 @@ void photon::PathTracing::resizeOutput(int width, int height) {
     const int newWidth = std::max(1, width);
     const int newHeight = std::max(1, height);
     if (newWidth == outputWidth && newHeight == outputHeight &&
-        pathTracingTexture != nullptr && pathTracingTexturePrev != nullptr) {
+        pathTracingTexture != nullptr && pathTracingTexturePrev != nullptr &&
+        pathTracingTextureBright != nullptr) {
         return;
     }
 
@@ -197,6 +201,9 @@ void photon::PathTracing::resizeOutput(int width, int height) {
         Texture::create(outputWidth, outputHeight, opal::TextureFormat::Rgba16F,
                         opal::TextureDataFormat::Rgba, TextureType::Color));
     pathTracingTexturePrev = std::make_shared<Texture>(
+        Texture::create(outputWidth, outputHeight, opal::TextureFormat::Rgba16F,
+                        opal::TextureDataFormat::Rgba, TextureType::Color));
+    pathTracingTextureBright = std::make_shared<Texture>(
         Texture::create(outputWidth, outputHeight, opal::TextureFormat::Rgba16F,
                         opal::TextureDataFormat::Rgba, TextureType::Color));
     frameIndex = 0;
@@ -743,6 +750,8 @@ void photon::PathTracing::render(
     pathTracingPipeline->bindTexture("outTex", pathTracingTexture->texture, 0);
     pathTracingPipeline->bindTexture("prevTex", pathTracingTexturePrev->texture,
                                      1);
+    pathTracingPipeline->bindTexture("brightTex",
+                                     pathTracingTextureBright->texture, 2);
 
     static std::shared_ptr<opal::Texture> fallbackSkyboxTexture = nullptr;
     if (fallbackSkyboxTexture == nullptr) {
