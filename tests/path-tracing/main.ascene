@@ -132,6 +132,7 @@
     "targets": [
         {
             "display": true,
+            "effects": [],
             "name": "Main Target",
             "render": true,
             "type": "scene"
