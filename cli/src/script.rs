@@ -598,7 +598,7 @@ fn script_template(component_name: &str) -> String {
     )
 }
 
-fn init(branch: String) {
+fn init(branch: String) -> bool {
     let project_dir = match std::env::current_dir() {
         Ok(dir) => dir,
         Err(e) => {
@@ -606,31 +606,31 @@ fn init(branch: String) {
                 "{} {e}",
                 "Failed to resolve current directory:".red().bold()
             );
-            return;
+            return false;
         }
     };
 
     if let Err(e) = ensure_directory(&project_dir.join("assets/scripts")) {
         eprintln!("{} {e}", "atlas script init failed:".red().bold());
-        return;
+        return false;
     }
     if let Err(e) = ensure_directory(&project_dir.join("lib")) {
         eprintln!("{} {e}", "atlas script init failed:".red().bold());
-        return;
+        return false;
     }
     if let Err(e) = ensure_directory(&project_dir.join("dist")) {
         eprintln!("{} {e}", "atlas script init failed:".red().bold());
-        return;
+        return false;
     }
 
     if let Err(e) = update_package_json(&project_dir) {
         eprintln!("{} {e}", "atlas script init failed:".red().bold());
-        return;
+        return false;
     }
 
     if let Err(e) = update_tsconfig(&project_dir) {
         eprintln!("{} {e}", "atlas script init failed:".red().bold());
-        return;
+        return false;
     }
 
     let types_path = project_dir.join("lib/atlas.d.ts");
@@ -690,9 +690,10 @@ fn init(branch: String) {
             .to_string()
             .bold()
     );
+    true
 }
 
-fn compile() {
+fn compile() -> bool {
     let project_dir = match std::env::current_dir() {
         Ok(dir) => dir,
         Err(e) => {
@@ -700,26 +701,26 @@ fn compile() {
                 "{} {e}",
                 "Failed to resolve current directory:".red().bold()
             );
-            return;
+            return false;
         }
     };
 
     let mut entry_points = Vec::new();
     if let Err(e) = collect_typescript_entries(&project_dir, &project_dir, &mut entry_points) {
         eprintln!("{} {e}", "atlas script compile failed:".red().bold());
-        return;
+        return false;
     }
 
     entry_points.sort();
 
     if entry_points.is_empty() {
         eprintln!("{}", "No TypeScript entry files were found".yellow().bold());
-        return;
+        return true;
     }
 
     if let Err(e) = ensure_directory(&project_dir.join("dist")) {
         eprintln!("{} {e}", "atlas script compile failed:".red().bold());
-        return;
+        return false;
     }
 
     match run_esbuild(&project_dir, &entry_points) {
@@ -735,14 +736,16 @@ fn compile() {
                     .to_string()
                     .bold()
             );
+            true
         }
         Err(e) => {
             eprintln!("{}\n{e}", "atlas script compile failed".red().bold());
+            false
         }
     }
 }
 
-fn new_script(path: String) {
+fn new_script(path: String, requested_component_name: Option<String>) -> bool {
     let project_dir = match std::env::current_dir() {
         Ok(dir) => dir,
         Err(e) => {
@@ -750,23 +753,25 @@ fn new_script(path: String) {
                 "{} {e}",
                 "Failed to resolve current directory:".red().bold()
             );
-            return;
+            return false;
         }
     };
 
     let script_path = normalize_script_path(&path, &project_dir);
     let default_name = infer_component_name(&script_path);
-    let theme = ColorfulTheme::default();
-    let component_name: String = Input::with_theme(&theme)
-        .with_prompt("Component Name")
-        .with_initial_text(default_name.clone())
-        .interact_text()
-        .unwrap_or(default_name);
+    let component_name = requested_component_name.unwrap_or_else(|| {
+        let theme = ColorfulTheme::default();
+        Input::with_theme(&theme)
+            .with_prompt("Component Name")
+            .with_initial_text(default_name.clone())
+            .interact_text()
+            .unwrap_or(default_name)
+    });
     let component_name = component_name.trim().to_string();
 
     if component_name.is_empty() {
         eprintln!("{}", "Component name cannot be empty".red().bold());
-        return;
+        return false;
     }
 
     if script_path.exists() {
@@ -775,26 +780,26 @@ fn new_script(path: String) {
             "Script already exists:".red().bold(),
             script_path.display()
         );
-        return;
+        return false;
     }
 
     if let Some(parent) = script_path.parent() {
         if let Err(e) = ensure_directory(parent) {
             eprintln!("{} {e}", "atlas script new failed:".red().bold());
-            return;
+            return false;
         }
     }
 
     if let Err(e) = fs::write(&script_path, script_template(&component_name)) {
         eprintln!("{} {e}", "atlas script new failed:".red().bold());
-        return;
+        return false;
     }
 
     match find_manifest_file(&project_dir) {
         Ok(Some(manifest_path)) => {
             if let Err(e) = update_script_manifest(&manifest_path, &component_name, &script_path) {
                 eprintln!("{} {e}", "Failed to update .atlas manifest:".red().bold());
-                return;
+                return false;
             }
             println!(
                 "{} {}",
@@ -812,7 +817,7 @@ fn new_script(path: String) {
         }
         Err(e) => {
             eprintln!("{} {e}", "Failed to locate .atlas manifest:".red().bold());
-            return;
+            return false;
         }
     }
 
@@ -821,14 +826,20 @@ fn new_script(path: String) {
         "Created script:".green().bold(),
         script_path.display()
     );
+    true
 }
 
-pub fn script(cmd: Commands) {
+pub fn script(cmd: Commands) -> bool {
     if let Commands::Script { command } = cmd {
         match command {
             ScriptCommands::Init { branch } => init(branch),
             ScriptCommands::Compile => compile(),
-            ScriptCommands::New { path } => new_script(path),
+            ScriptCommands::New {
+                path,
+                component_name,
+            } => new_script(path, component_name),
         }
+    } else {
+        false
     }
 }

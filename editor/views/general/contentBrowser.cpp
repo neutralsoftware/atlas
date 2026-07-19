@@ -8,6 +8,7 @@
  */
 
 #include "editor/views/fileExplorer.h"
+#include "editor/application/toolchainInstaller.h"
 #include "editor/styling/icons.h"
 
 #include <QAbstractItemView>
@@ -29,6 +30,7 @@
 #include <QMenu>
 #include <QMessageBox>
 #include <QProcess>
+#include <QRegularExpression>
 #include <QSaveFile>
 #include <QSignalBlocker>
 #include <QSize>
@@ -480,14 +482,23 @@ void ContentBrowserPanel::createScene() {
 
 void ContentBrowserPanel::createScript() {
     const QString path = uniquePath("NewScript.ts");
-    const QByteArray script = "import { Component } from \"atlas\";\n\n"
-                              "export class NewScript extends Component {\n"
-                              "    init() {}\n\n"
-                              "    update(deltaTime: number) {}\n"
-                              "}\n";
-    if (writeNewFile(path, script)) {
-        gridView->setCurrentIndex(model->index(path));
+    const QString relativePath = QDir(projectRoot).relativeFilePath(path);
+    QString componentName = QFileInfo(path).completeBaseName();
+    componentName.remove(QRegularExpression("[^A-Za-z0-9_$]"));
+    if (componentName.isEmpty())
+        componentName = "NewScript";
+    if (componentName.front().isDigit())
+        componentName.prepend("Script");
+    QString error;
+    if (!ToolchainInstaller::run(
+            {"script", "new", relativePath, "--component-name", componentName},
+            projectRoot, &error)) {
+        QMessageBox::warning(
+            this, "New Script",
+            error.isEmpty() ? "Atlas could not create the script." : error);
+        return;
     }
+    gridView->setCurrentIndex(model->index(path));
 }
 
 void ContentBrowserPanel::createMaterial() {

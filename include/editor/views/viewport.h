@@ -162,6 +162,7 @@ class ViewportPanel : public QWidget {
     bool runtimeStartupEnabled = false;
     bool shuttingDown = false;
     bool sceneDirty = false;
+    bool playAfterRuntimeStart = false;
     bool leftPointerMoved = false;
     bool keyboardTransformActive = false;
     int keyboardTransformMode = 0;

@@ -1,4 +1,5 @@
 #include <editor/project/projectStore.h>
+#include <editor/application/toolchainInstaller.h>
 
 #include <QDir>
 #include <QFile>
@@ -256,6 +257,18 @@ QString ProjectStore::createProject(const QString& name,
             *errorMessage = writeError.isEmpty()
                                 ? "Atlas could not write the project files."
                                 : writeError;
+        }
+        return QString();
+    }
+
+    QString initializationError;
+    if (!ToolchainInstaller::run({"script", "init"}, projectDirectory,
+                                 &initializationError)) {
+        QDir(projectDirectory).removeRecursively();
+        if (errorMessage != nullptr) {
+            *errorMessage = initializationError.isEmpty()
+                                ? "Atlas could not initialize project scripting."
+                                : initializationError;
         }
         return QString();
     }

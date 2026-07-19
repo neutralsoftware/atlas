@@ -1576,19 +1576,46 @@ void EditorWindow::runProjectCommand(bool buildOnly) {
     QDir().mkpath(settingsDirectory);
     QSettings settings(QDir(settingsDirectory).filePath("project-settings.ini"),
                        QSettings::IniFormat);
-    const QString command =
-        settings.value(buildOnly ? "project/buildCommand"
-                                 : "project/runCommand",
-                       buildOnly ? "atlas pack --backend METAL"
-                                 : "atlas run project.atlas")
-            .toString()
-            .trimmed();
+    const QString settingsKey = buildOnly ? "project/buildCommand"
+                                          : "project/runCommand";
+    const QString defaultCommand = buildOnly ? "atlas pack --backend METAL"
+                                             : "atlas run project.atlas";
+    const QString command = settings.value(settingsKey, defaultCommand)
+                                .toString()
+                                .trimmed();
     if (command.isEmpty())
         return;
     if (viewportPanel != nullptr)
         viewportPanel->saveRuntimeScene();
-    QProcess::startDetached("/bin/zsh", {"-lc", command},
-                            QFileInfo(projectFile).absolutePath());
+    if (!buildOnly) {
+        QString error;
+        if (!ToolchainInstaller::run(
+                {"script", "compile"},
+                QFileInfo(projectFile).absolutePath(), &error)) {
+            QMessageBox::warning(
+                this, "Script Compilation Failed",
+                error.isEmpty()
+                    ? "Atlas could not compile the project scripts."
+                    : error);
+            return;
+        }
+    }
+    const QString workingDirectory = QFileInfo(projectFile).absolutePath();
+    if (!settings.contains(settingsKey) || command == defaultCommand) {
+        const QString executable = ToolchainInstaller::executablePath();
+        if (executable.isEmpty()) {
+            QMessageBox::warning(
+                this, buildOnly ? "Build Project" : "Run Project",
+                "Atlas CLI was not found. Install the Atlas toolchain from the Tools menu.");
+            return;
+        }
+        const QStringList arguments = buildOnly
+                                          ? QStringList{"pack", "--backend", "METAL"}
+                                          : QStringList{"run", "project.atlas"};
+        QProcess::startDetached(executable, arguments, workingDirectory);
+        return;
+    }
+    QProcess::startDetached("/bin/zsh", {"-lc", command}, workingDirectory);
 }
 
 void EditorWindow::takeViewportScreenshot() {
