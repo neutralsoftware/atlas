@@ -33,7 +33,7 @@
 #include <QWidget>
 
 #ifndef ATLAS_VERSION
-#define ATLAS_VERSION "Alpha 9"
+#define ATLAS_VERSION "No Version"
 #endif
 
 namespace {
@@ -41,10 +41,10 @@ constexpr int ProjectPathRole = Qt::UserRole;
 constexpr int ProjectAvailableRole = Qt::UserRole + 1;
 
 class TemplateCard : public QFrame {
-public:
-    TemplateCard(const QString& title, const QString& description,
-                 styling::Icon icon, const QColor& color,
-                 QWidget* parent = nullptr)
+  public:
+    TemplateCard(const QString &title, const QString &description,
+                 styling::Icon icon, const QColor &color,
+                 QWidget *parent = nullptr)
         : QFrame(parent) {
         setProperty("templateCard", true);
         setProperty("selected", false);
@@ -52,12 +52,12 @@ public:
         setMinimumHeight(112);
         setCursor(Qt::PointingHandCursor);
 
-        auto* layout = new QVBoxLayout(this);
+        auto *layout = new QVBoxLayout(this);
         layout->setContentsMargins(16, 14, 16, 14);
         layout->setSpacing(8);
-        auto* heading = new QHBoxLayout();
+        auto *heading = new QHBoxLayout();
         heading->setSpacing(8);
-        auto* iconLabel = new QLabel(this);
+        auto *iconLabel = new QLabel(this);
         iconLabel->setObjectName("templateIcon");
         iconLabel->setPixmap(styling::icon(icon, color).pixmap(24, 24));
         iconLabel->setFixedSize(28, 28);
@@ -68,7 +68,7 @@ public:
         heading->addWidget(iconLabel);
         heading->addWidget(option, 1);
         layout->addLayout(heading);
-        auto* descriptionLabel = new QLabel(description, this);
+        auto *descriptionLabel = new QLabel(description, this);
         descriptionLabel->setObjectName("templateDescription");
         descriptionLabel->setWordWrap(true);
         descriptionLabel->setAttribute(Qt::WA_TransparentForMouseEvents);
@@ -82,56 +82,53 @@ public:
         });
     }
 
-    QRadioButton* button() const {
-        return option;
-    }
+    QRadioButton *button() const { return option; }
 
-protected:
-    void mousePressEvent(QMouseEvent* event) override {
+  protected:
+    void mousePressEvent(QMouseEvent *event) override {
         if (event->button() == Qt::LeftButton) {
             option->setChecked(true);
         }
         QFrame::mousePressEvent(event);
     }
 
-private:
-    QRadioButton* option = nullptr;
+  private:
+    QRadioButton *option = nullptr;
 };
 
 class CreateProjectDialog : public QDialog {
-public:
-    explicit CreateProjectDialog(QWidget* parent = nullptr)
-        : QDialog(parent) {
+  public:
+    explicit CreateProjectDialog(QWidget *parent = nullptr) : QDialog(parent) {
         setWindowTitle("Create an Atlas project");
         setModal(true);
         setMinimumWidth(760);
         setObjectName("createProjectDialog");
 
-        auto* root = new QVBoxLayout(this);
+        auto *root = new QVBoxLayout(this);
         root->setContentsMargins(28, 26, 28, 24);
         root->setSpacing(18);
 
-        auto* title = new QLabel("Create a new project", this);
+        auto *title = new QLabel("Create a new project", this);
         title->setObjectName("dialogTitle");
         root->addWidget(title);
-        auto* subtitle = new QLabel(
+        auto *subtitle = new QLabel(
             "Choose a renderer template. You can change these settings later.",
             this);
         subtitle->setObjectName("dialogSubtitle");
         root->addWidget(subtitle);
 
-        auto* templateLayout = new QHBoxLayout();
+        auto *templateLayout = new QHBoxLayout();
         templateLayout->setSpacing(12);
         templateGroup = new QButtonGroup(this);
         templateGroup->setExclusive(true);
-        auto* pbr = new TemplateCard(
+        auto *pbr = new TemplateCard(
             "PBR", "Deferred physically based rendering for most 3D projects.",
             styling::Icon::Cube, "#8498A8", this);
-        auto* ddgi = new TemplateCard(
+        auto *ddgi = new TemplateCard(
             "PBR + DDGI",
             "PBR with dynamic diffuse global illumination enabled.",
             styling::Icon::Sun, "#A1957D", this);
-        auto* pathTracing = new TemplateCard(
+        auto *pathTracing = new TemplateCard(
             "Path Tracing",
             "Progressive ray-traced lighting for high-fidelity scenes.",
             styling::Icon::Aperture, "#9E897D", this);
@@ -148,9 +145,9 @@ public:
         templateLayout->addWidget(pathTracing);
         root->addLayout(templateLayout);
 
-        auto* fields = new QVBoxLayout();
+        auto *fields = new QVBoxLayout();
         fields->setSpacing(8);
-        auto* nameLabel = new QLabel("Project name", this);
+        auto *nameLabel = new QLabel("Project name", this);
         nameLabel->setObjectName("fieldLabel");
         fields->addWidget(nameLabel);
         nameField = new QLineEdit(this);
@@ -158,22 +155,21 @@ public:
         nameField->setClearButtonEnabled(true);
         fields->addWidget(nameField);
 
-        auto* locationLabel = new QLabel("Location", this);
+        auto *locationLabel = new QLabel("Location", this);
         locationLabel->setObjectName("fieldLabel");
         fields->addWidget(locationLabel);
-        auto* locationLayout = new QHBoxLayout();
+        auto *locationLayout = new QHBoxLayout();
         locationField = new QLineEdit(this);
-        QString defaultLocation = QStandardPaths::writableLocation(
-            QStandardPaths::DocumentsLocation);
+        QString defaultLocation =
+            QStandardPaths::writableLocation(QStandardPaths::DocumentsLocation);
         if (defaultLocation.isEmpty()) {
             defaultLocation = QDir::homePath();
         }
         locationField->setText(defaultLocation);
         locationLayout->addWidget(locationField, 1);
-        auto* browse = new QPushButton("Browse…", this);
+        auto *browse = new QPushButton("Browse…", this);
         browse->setProperty("secondary", true);
-        browse->setIcon(
-            styling::icon(styling::Icon::FolderOpen, "#7E929C"));
+        browse->setIcon(styling::icon(styling::Icon::FolderOpen, "#7E929C"));
         locationLayout->addWidget(browse);
         fields->addLayout(locationLayout);
         root->addLayout(fields);
@@ -184,9 +180,9 @@ public:
         errorLabel->hide();
         root->addWidget(errorLabel);
 
-        auto* actions = new QHBoxLayout();
+        auto *actions = new QHBoxLayout();
         actions->addStretch();
-        auto* cancel = new QPushButton("Cancel", this);
+        auto *cancel = new QPushButton("Cancel", this);
         cancel->setProperty("secondary", true);
         actions->addWidget(cancel);
         createButton = new QPushButton("Create project", this);
@@ -211,14 +207,13 @@ public:
                                      QDir(locationField->text()).exists());
             errorLabel->hide();
         };
-        connect(nameField, &QLineEdit::textChanged, this,
-                updateAvailability);
+        connect(nameField, &QLineEdit::textChanged, this, updateAvailability);
         connect(locationField, &QLineEdit::textChanged, this,
                 updateAvailability);
         connect(createButton, &QPushButton::clicked, this, [this] {
             QString error;
-            const auto projectTemplate = static_cast<AtlasProjectTemplate>(
-                templateGroup->checkedId());
+            const auto projectTemplate =
+                static_cast<AtlasProjectTemplate>(templateGroup->checkedId());
             createdProjectFile = ProjectStore::createProject(
                 nameField->text(), locationField->text(), projectTemplate,
                 &error);
@@ -232,31 +227,29 @@ public:
         nameField->setFocus();
     }
 
-    QString projectFile() const {
-        return createdProjectFile;
-    }
+    QString projectFile() const { return createdProjectFile; }
 
-private:
-    QButtonGroup* templateGroup = nullptr;
-    QLineEdit* nameField = nullptr;
-    QLineEdit* locationField = nullptr;
-    QLabel* errorLabel = nullptr;
-    QPushButton* createButton = nullptr;
+  private:
+    QButtonGroup *templateGroup = nullptr;
+    QLineEdit *nameField = nullptr;
+    QLineEdit *locationField = nullptr;
+    QLabel *errorLabel = nullptr;
+    QPushButton *createButton = nullptr;
     QString createdProjectFile;
 };
 
 class ProjectRow : public QFrame {
-public:
-    explicit ProjectRow(const AtlasProjectInfo& project,
-                        QWidget* parent = nullptr)
+  public:
+    explicit ProjectRow(const AtlasProjectInfo &project,
+                        QWidget *parent = nullptr)
         : QFrame(parent) {
         setObjectName("projectRow");
         setProperty("available", project.available);
-        auto* layout = new QHBoxLayout(this);
+        auto *layout = new QHBoxLayout(this);
         layout->setContentsMargins(16, 12, 12, 12);
         layout->setSpacing(14);
 
-        auto* projectIcon = new QLabel(this);
+        auto *projectIcon = new QLabel(this);
         projectIcon->setObjectName("projectIcon");
         projectIcon->setPixmap(
             styling::icon(styling::Icon::GameController, "#8498A8")
@@ -265,26 +258,26 @@ public:
         projectIcon->setAlignment(Qt::AlignCenter);
         layout->addWidget(projectIcon);
 
-        auto* copy = new QVBoxLayout();
+        auto *copy = new QVBoxLayout();
         copy->setSpacing(3);
-        auto* title = new QLabel(project.name, this);
+        auto *title = new QLabel(project.name, this);
         title->setObjectName("projectName");
         copy->addWidget(title);
-        auto* path = new QLabel(project.directory, this);
+        auto *path = new QLabel(project.directory, this);
         path->setObjectName("projectPath");
         path->setTextInteractionFlags(Qt::TextSelectableByMouse);
         copy->addWidget(path);
         layout->addLayout(copy, 1);
 
-        auto* renderer = new QLabel(project.renderer, this);
+        auto *renderer = new QLabel(project.renderer, this);
         renderer->setObjectName("rendererBadge");
         layout->addWidget(renderer);
 
-        auto* date = new QLabel(
-            project.lastModified.isValid()
-                ? project.lastModified.toString("d MMM yyyy")
-                : QStringLiteral("Unavailable"),
-            this);
+        auto *date =
+            new QLabel(project.lastModified.isValid()
+                           ? project.lastModified.toString("d MMM yyyy")
+                           : QStringLiteral("Unavailable"),
+                       this);
         date->setObjectName("projectDate");
         date->setMinimumWidth(90);
         layout->addWidget(date);
@@ -297,17 +290,14 @@ public:
         layout->addWidget(moreButton);
     }
 
-    QToolButton* optionsButton() const {
-        return moreButton;
-    }
+    QToolButton *optionsButton() const { return moreButton; }
 
-private:
-    QToolButton* moreButton = nullptr;
+  private:
+    QToolButton *moreButton = nullptr;
 };
-}
+} // namespace
 
-ProjectBrowser::ProjectBrowser(QWidget* parent)
-    : QMainWindow(parent) {
+ProjectBrowser::ProjectBrowser(QWidget *parent) : QMainWindow(parent) {
     setWindowTitle("Atlas Engine — Projects");
     setMinimumSize(900, 580);
     resize(1120, 720);
@@ -316,78 +306,75 @@ ProjectBrowser::ProjectBrowser(QWidget* parent)
 }
 
 void ProjectBrowser::setupUi() {
-    auto* root = new QWidget(this);
+    auto *root = new QWidget(this);
     root->setObjectName("projectBrowserRoot");
     setCentralWidget(root);
-    auto* rootLayout = new QHBoxLayout(root);
+    auto *rootLayout = new QHBoxLayout(root);
     rootLayout->setContentsMargins(0, 0, 0, 0);
     rootLayout->setSpacing(0);
 
-    auto* sidebar = new QFrame(root);
+    auto *sidebar = new QFrame(root);
     sidebar->setObjectName("projectSidebar");
     sidebar->setFixedWidth(224);
-    auto* sidebarLayout = new QVBoxLayout(sidebar);
+    auto *sidebarLayout = new QVBoxLayout(sidebar);
     sidebarLayout->setContentsMargins(22, 26, 22, 22);
     sidebarLayout->setSpacing(18);
 
-    auto* brandLayout = new QHBoxLayout();
+    auto *brandLayout = new QHBoxLayout();
     brandLayout->setSpacing(11);
-    auto* brandIcon = new QLabel(sidebar);
+    auto *brandIcon = new QLabel(sidebar);
     brandIcon->setFixedSize(38, 38);
     brandIcon->setPixmap(
         QPixmap(":/editor/assets/Icon-iOS-Default-1024x1024@1x.png")
             .scaled(brandIcon->size(), Qt::KeepAspectRatio,
                     Qt::SmoothTransformation));
     brandLayout->addWidget(brandIcon);
-    auto* brandCopy = new QVBoxLayout();
+    auto *brandCopy = new QVBoxLayout();
     brandCopy->setSpacing(0);
-    auto* brand = new QLabel("Atlas Engine", sidebar);
+    auto *brand = new QLabel("Atlas Engine", sidebar);
     brand->setObjectName("projectBrand");
     brandCopy->addWidget(brand);
-    auto* brandVersion = new QLabel(QStringLiteral(ATLAS_VERSION), sidebar);
+    auto *brandVersion = new QLabel(QStringLiteral(ATLAS_VERSION), sidebar);
     brandVersion->setObjectName("projectSidebarVersion");
     brandCopy->addWidget(brandVersion);
     brandLayout->addLayout(brandCopy);
     brandLayout->addStretch();
     sidebarLayout->addLayout(brandLayout);
 
-    auto* projectsNav = new QPushButton("Projects", sidebar);
+    auto *projectsNav = new QPushButton("Projects", sidebar);
     projectsNav->setObjectName("projectNavSelected");
-    projectsNav->setIcon(
-        styling::icon(styling::Icon::SquaresFour, "#8498A8"));
+    projectsNav->setIcon(styling::icon(styling::Icon::SquaresFour, "#8498A8"));
     projectsNav->setEnabled(false);
     sidebarLayout->addWidget(projectsNav);
     sidebarLayout->addStretch();
 
     rootLayout->addWidget(sidebar);
 
-    auto* content = new QWidget(root);
+    auto *content = new QWidget(root);
     content->setObjectName("projectBrowserContent");
-    auto* contentLayout = new QVBoxLayout(content);
+    auto *contentLayout = new QVBoxLayout(content);
     contentLayout->setContentsMargins(34, 30, 34, 30);
     contentLayout->setSpacing(20);
 
-    auto* headingLayout = new QHBoxLayout();
-    auto* headingCopy = new QVBoxLayout();
+    auto *headingLayout = new QHBoxLayout();
+    auto *headingCopy = new QVBoxLayout();
     headingCopy->setSpacing(4);
-    auto* title = new QLabel("Projects", content);
+    auto *title = new QLabel("Projects", content);
     title->setObjectName("projectBrowserTitle");
     headingCopy->addWidget(title);
-    auto* subtitle = new QLabel(
-        "Create a project or continue where you left off.", content);
+    auto *subtitle =
+        new QLabel("Create a project or continue where you left off.", content);
     subtitle->setObjectName("projectBrowserSubtitle");
     headingCopy->addWidget(subtitle);
     headingLayout->addLayout(headingCopy, 1);
 
-    auto* openButton = new QPushButton("Open existing", content);
+    auto *openButton = new QPushButton("Open existing", content);
     openButton->setProperty("secondary", true);
-    openButton->setIcon(
-        styling::icon(styling::Icon::FolderOpen, "#7E929C"));
+    openButton->setIcon(styling::icon(styling::Icon::FolderOpen, "#7E929C"));
     headingLayout->addWidget(openButton);
-    auto* createButton = new QPushButton("New project", content);
+    auto *createButton = new QPushButton("New project", content);
     createButton->setObjectName("primaryAction");
-    createButton->setIcon(
-        styling::icon(styling::Icon::Plus, "#FFFFFF"));
+    createButton->setIcon(styling::icon(styling::Icon::Plus, "#FFFFFF"));
     headingLayout->addWidget(createButton);
     contentLayout->addLayout(headingLayout);
 
@@ -406,16 +393,16 @@ void ProjectBrowser::setupUi() {
     projectList->setHorizontalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
     projectStack->addWidget(projectList);
 
-    auto* empty = new QWidget(projectStack);
+    auto *empty = new QWidget(projectStack);
     empty->setObjectName("projectEmptyState");
-    auto* emptyLayout = new QVBoxLayout(empty);
+    auto *emptyLayout = new QVBoxLayout(empty);
     emptyLayout->setContentsMargins(40, 40, 40, 40);
     emptyLayout->addStretch();
     emptyTitle = new QLabel("No projects yet", empty);
     emptyTitle->setObjectName("emptyStateTitle");
     emptyTitle->setAlignment(Qt::AlignCenter);
     emptyLayout->addWidget(emptyTitle);
-    auto* emptySubtitle = new QLabel(
+    auto *emptySubtitle = new QLabel(
         "Create your first Atlas project or open one from disk.", empty);
     emptySubtitle->setObjectName("emptyStateSubtitle");
     emptySubtitle->setAlignment(Qt::AlignCenter);
@@ -440,37 +427,39 @@ void ProjectBrowser::setupUi() {
 void ProjectBrowser::reloadProjects() {
     projectList->clear();
     const QList<AtlasProjectInfo> projects = ProjectStore::recentProjects();
-    for (const AtlasProjectInfo& project : projects) {
-        auto* item = new QListWidgetItem(projectList);
+    for (const AtlasProjectInfo &project : projects) {
+        auto *item = new QListWidgetItem(projectList);
         item->setData(ProjectPathRole, project.projectFile);
         item->setData(ProjectAvailableRole, project.available);
         item->setSizeHint(QSize(0, 76));
-        auto* row = new ProjectRow(project, projectList);
+        auto *row = new ProjectRow(project, projectList);
         projectList->setItemWidget(item, row);
         connect(row->optionsButton(), &QToolButton::clicked, this,
                 [this, item, row] {
                     projectList->setCurrentItem(item);
-                    const QPoint menuPosition = projectList->viewport()->mapFromGlobal(
-                        row->optionsButton()->mapToGlobal(
-                            QPoint(0, row->optionsButton()->height())));
+                    const QPoint menuPosition =
+                        projectList->viewport()->mapFromGlobal(
+                            row->optionsButton()->mapToGlobal(
+                                QPoint(0, row->optionsButton()->height())));
                     showProjectMenu(menuPosition);
                 });
     }
     filterProjects(searchField->text());
 }
 
-void ProjectBrowser::filterProjects(const QString& query) {
+void ProjectBrowser::filterProjects(const QString &query) {
     const QString normalized = query.trimmed();
     int visibleCount = 0;
     for (int index = 0; index < projectList->count(); ++index) {
-        QListWidgetItem* item = projectList->item(index);
-        QWidget* row = projectList->itemWidget(item);
+        QListWidgetItem *item = projectList->item(index);
+        QWidget *row = projectList->itemWidget(item);
         const QString path = item->data(ProjectPathRole).toString();
         const bool matches =
-            normalized.isEmpty() || path.contains(normalized, Qt::CaseInsensitive) ||
+            normalized.isEmpty() ||
+            path.contains(normalized, Qt::CaseInsensitive) ||
             (row != nullptr &&
-             row->findChild<QLabel*>("projectName") != nullptr &&
-             row->findChild<QLabel*>("projectName")
+             row->findChild<QLabel *>("projectName") != nullptr &&
+             row->findChild<QLabel *>("projectName")
                  ->text()
                  .contains(normalized, Qt::CaseInsensitive));
         item->setHidden(!matches);
@@ -510,7 +499,7 @@ void ProjectBrowser::openExistingProject() {
 }
 
 void ProjectBrowser::openSelectedProject() {
-    QListWidgetItem* item = projectList->currentItem();
+    QListWidgetItem *item = projectList->currentItem();
     if (item == nullptr) {
         return;
     }
@@ -526,8 +515,8 @@ void ProjectBrowser::openSelectedProject() {
     emit openProjectRequested(projectFile);
 }
 
-void ProjectBrowser::showProjectMenu(const QPoint& position) {
-    QListWidgetItem* item = projectList->itemAt(position);
+void ProjectBrowser::showProjectMenu(const QPoint &position) {
+    QListWidgetItem *item = projectList->itemAt(position);
     if (item == nullptr) {
         item = projectList->currentItem();
     }
@@ -539,19 +528,19 @@ void ProjectBrowser::showProjectMenu(const QPoint& position) {
     const bool available = ProjectStore::isProjectFile(projectFile);
 
     QMenu menu(this);
-    QAction* open = menu.addAction(
-        styling::icon(styling::Icon::GameController, "#8498A8"),
-        "Open project");
+    QAction *open =
+        menu.addAction(styling::icon(styling::Icon::GameController, "#8498A8"),
+                       "Open project");
     open->setEnabled(available);
-    QAction* reveal = menu.addAction(
-        styling::icon(styling::Icon::FolderOpen, "#7E929C"),
-        "Show in Finder");
-    reveal->setEnabled(QFileInfo::exists(QFileInfo(projectFile).absolutePath()));
+    QAction *reveal = menu.addAction(
+        styling::icon(styling::Icon::FolderOpen, "#7E929C"), "Show in Finder");
+    reveal->setEnabled(
+        QFileInfo::exists(QFileInfo(projectFile).absolutePath()));
     menu.addSeparator();
-    QAction* remove = menu.addAction(
-        styling::icon(styling::Icon::Trash, "#A17F7F"),
-        "Remove from list");
-    QAction* selected = menu.exec(projectList->viewport()->mapToGlobal(position));
+    QAction *remove = menu.addAction(
+        styling::icon(styling::Icon::Trash, "#A17F7F"), "Remove from list");
+    QAction *selected =
+        menu.exec(projectList->viewport()->mapToGlobal(position));
     if (selected == open) {
         openSelectedProject();
     } else if (selected == reveal) {

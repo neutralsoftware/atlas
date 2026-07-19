@@ -138,8 +138,8 @@ bool copyExportPath(const QString &sourcePath, const QString &destinationPath,
     if (source.isDir()) {
         if (!QDir().mkpath(destinationPath)) {
             if (error != nullptr)
-                *error = QStringLiteral("Could not create %1")
-                             .arg(destinationPath);
+                *error =
+                    QStringLiteral("Could not create %1").arg(destinationPath);
             return false;
         }
         QDir sourceDirectory(sourcePath);
@@ -217,10 +217,10 @@ void setTomlValue(QStringList *lines, const QString &section,
     }
     lines->insert(end, QStringLiteral("%1 = %2").arg(key, value));
 }
-}
+} // namespace
 
 #ifndef ATLAS_VERSION
-#define ATLAS_VERSION "Alpha 9"
+#define ATLAS_VERSION "No version"
 #endif
 
 #ifndef ATLAS_BUILD_STRING
@@ -241,7 +241,8 @@ EditorWindow::EditorWindow(const QString &projectFile, QWidget *parent)
 
 void EditorWindow::setupWindow() {
     const auto project = ProjectStore::projectInfo(projectFile);
-    projectName = project.has_value() ? project->name : QStringLiteral("Project");
+    projectName =
+        project.has_value() ? project->name : QStringLiteral("Project");
     updateWindowTitle(false);
     setMinimumSize(1100, 700);
     resize(1440, 900);
@@ -290,10 +291,9 @@ void EditorWindow::setupMenus() {
         QAction *action = menu->addAction(name, this, handler);
         action->setIcon(commandIcon(name));
         if (!shortcut.isEmpty()) {
-            const bool plainShift = shortcut.startsWith("Shift+") &&
-                                    !shortcut.contains("Meta+") &&
-                                    !shortcut.contains("Alt+") &&
-                                    !shortcut.contains("Ctrl+");
+            const bool plainShift =
+                shortcut.startsWith("Shift+") && !shortcut.contains("Meta+") &&
+                !shortcut.contains("Alt+") && !shortcut.contains("Ctrl+");
             if (plainShift) {
                 action->setProperty("atlasShortcut", shortcut);
             } else {
@@ -308,8 +308,7 @@ void EditorWindow::setupMenus() {
     addCommand(fileMenu, "New Scene", "Meta+N", [this] { createScene(); });
     addCommand(fileMenu, "Open Scene…", "Meta+O", [this] { openScene(); });
     auto *saveAction = fileMenu->addAction("Save Scene");
-    saveAction->setIcon(
-        styling::icon(styling::Icon::FloppyDisk, "#A1957D"));
+    saveAction->setIcon(styling::icon(styling::Icon::FloppyDisk, "#A1957D"));
     saveAction->setShortcut(QKeySequence::Save);
     saveAction->setShortcutContext(Qt::ApplicationShortcut);
     connect(saveAction, &QAction::triggered, this, [this] {
@@ -346,7 +345,8 @@ void EditorWindow::setupMenus() {
     undoAction->setShortcut(QKeySequence::Undo);
     undoAction->setShortcutContext(Qt::ApplicationShortcut);
     connect(undoAction, &QAction::triggered, this, [this] {
-        if (auto *field = qobject_cast<QLineEdit *>(QApplication::focusWidget())) {
+        if (auto *field =
+                qobject_cast<QLineEdit *>(QApplication::focusWidget())) {
             field->undo();
         } else if (materialEditorPanel != nullptr &&
                    materialEditorPanel->isAncestorOf(
@@ -362,7 +362,8 @@ void EditorWindow::setupMenus() {
     redoAction->setShortcut(QKeySequence::Redo);
     redoAction->setShortcutContext(Qt::ApplicationShortcut);
     connect(redoAction, &QAction::triggered, this, [this] {
-        if (auto *field = qobject_cast<QLineEdit *>(QApplication::focusWidget())) {
+        if (auto *field =
+                qobject_cast<QLineEdit *>(QApplication::focusWidget())) {
             field->redo();
         } else if (materialEditorPanel != nullptr &&
                    materialEditorPanel->isAncestorOf(
@@ -373,11 +374,11 @@ void EditorWindow::setupMenus() {
         }
     });
     editMenu->addSeparator();
-    addCommand(editMenu, "Find…", "Meta+F",
-               [this] { showGlobalSearch(); });
+    addCommand(editMenu, "Find…", "Meta+F", [this] { showGlobalSearch(); });
     editMenu->addSeparator();
     addCommand(editMenu, "Cut", "Meta+X", [this] {
-        if (auto *field = qobject_cast<QLineEdit *>(QApplication::focusWidget()))
+        if (auto *field =
+                qobject_cast<QLineEdit *>(QApplication::focusWidget()))
             field->cut();
         else if (contentBrowserHasFocus())
             contentBrowser->cutSelection();
@@ -385,7 +386,8 @@ void EditorWindow::setupMenus() {
             viewportPanel->cutSelectedRuntimeObject();
     });
     addCommand(editMenu, "Copy", "Meta+C", [this] {
-        if (auto *field = qobject_cast<QLineEdit *>(QApplication::focusWidget()))
+        if (auto *field =
+                qobject_cast<QLineEdit *>(QApplication::focusWidget()))
             field->copy();
         else if (contentBrowserHasFocus())
             contentBrowser->copySelection();
@@ -393,7 +395,8 @@ void EditorWindow::setupMenus() {
             viewportPanel->copySelectedRuntimeObject();
     });
     addCommand(editMenu, "Paste", "Meta+V", [this] {
-        if (auto *field = qobject_cast<QLineEdit *>(QApplication::focusWidget()))
+        if (auto *field =
+                qobject_cast<QLineEdit *>(QApplication::focusWidget()))
             field->paste();
         else if (contentBrowserHasFocus())
             contentBrowser->pasteSelection();
@@ -407,7 +410,8 @@ void EditorWindow::setupMenus() {
             viewportPanel->duplicateSelectedRuntimeObject();
     });
     addCommand(editMenu, "Delete", "Backspace", [this] {
-        if (auto *field = qobject_cast<QLineEdit *>(QApplication::focusWidget()))
+        if (auto *field =
+                qobject_cast<QLineEdit *>(QApplication::focusWidget()))
             field->backspace();
         else if (contentBrowserHasFocus())
             contentBrowser->deleteSelection();
@@ -415,7 +419,8 @@ void EditorWindow::setupMenus() {
             hierarchyPanel->deleteSelectedObject();
     });
     addCommand(editMenu, "Select All Objects", "Meta+A", [this] {
-        if (auto *field = qobject_cast<QLineEdit *>(QApplication::focusWidget()))
+        if (auto *field =
+                qobject_cast<QLineEdit *>(QApplication::focusWidget()))
             field->selectAll();
         else if (contentBrowserHasFocus() && contentBrowser != nullptr)
             contentBrowser->selectAllAssets();
@@ -427,9 +432,8 @@ void EditorWindow::setupMenus() {
             hierarchyPanel->deselectAllObjects();
     });
     editMenu->addSeparator();
-    auto *settingsAction =
-        addCommand(editMenu, "Project Settings…", "Meta+,",
-                   [this] { showProjectSettings(); });
+    auto *settingsAction = addCommand(editMenu, "Project Settings…", "Meta+,",
+                                      [this] { showProjectSettings(); });
     settingsAction->setMenuRole(QAction::PreferencesRole);
 
     auto *objectMenu = menuBar()->addMenu("Object");
@@ -482,8 +486,7 @@ void EditorWindow::setupMenus() {
 
     viewMenu = menuBar()->addMenu("View");
     auto *resetLayoutAction = viewMenu->addAction("Reset Layout");
-    resetLayoutAction->setIcon(
-        styling::icon(styling::Icon::Layout, "#8498A8"));
+    resetLayoutAction->setIcon(styling::icon(styling::Icon::Layout, "#8498A8"));
     connect(resetLayoutAction, &QAction::triggered, this, [this] {
         if (coreManager != nullptr && !defaultDockState.isEmpty()) {
             restoringLayout = true;
@@ -547,9 +550,8 @@ void EditorWindow::setupMenus() {
                [this] { takeViewportScreenshot(); });
 
     auto *toolsMenu = menuBar()->addMenu("Tools");
-    auto *toolsSettings =
-        addCommand(toolsMenu, "Project Settings…", QString(),
-                   [this] { showProjectSettings(); });
+    auto *toolsSettings = addCommand(toolsMenu, "Project Settings…", QString(),
+                                     [this] { showProjectSettings(); });
     toolsSettings->setMenuRole(QAction::NoRole);
     addCommand(toolsMenu, "Input Actions…", QString(),
                [this] { showInputActions(); });
@@ -560,8 +562,9 @@ void EditorWindow::setupMenus() {
 
     windowMenu = menuBar()->addMenu("Window");
     windowMenu->addAction("Minimize", this, &QWidget::showMinimized);
-    windowMenu->addAction("Zoom", this,
-        [this] { isMaximized() ? showNormal() : showMaximized(); });
+    windowMenu->addAction("Zoom", this, [this] {
+        isMaximized() ? showNormal() : showMaximized();
+    });
 
     auto *helpMenu = menuBar()->addMenu("Help");
     auto *aboutAction = helpMenu->addAction("About Atlas Engine", this, [this] {
@@ -637,8 +640,8 @@ void EditorWindow::setupDocks() {
     workspaceDock->setAsCurrentTab();
     defaultDockState = coreManager->saveState(DockStateVersion);
 
-    const QList<ads::CDockWidget *> managedDocks{
-        workspaceDock, hierarchyDock, inspectorDock, contentDock};
+    const QList<ads::CDockWidget *> managedDocks{workspaceDock, hierarchyDock,
+                                                 inspectorDock, contentDock};
     for (ads::CDockWidget *dock : managedDocks) {
         connect(dock, &ads::CDockWidget::topLevelChanged, this,
                 [this](bool) { scheduleLayoutSave(); });
@@ -660,7 +663,8 @@ void EditorWindow::setupDocks() {
         }
         windowMenu->addSeparator();
         const QList<QPair<QString, ads::CDockWidget *>> panels{
-            {"Workspace", workspaceDock}, {"Hierarchy", hierarchyDock},
+            {"Workspace", workspaceDock},
+            {"Hierarchy", hierarchyDock},
             {"Inspector", inspectorDock},
             {"Content Browser", contentDock}};
         for (int index = 0; index < panels.size(); ++index) {
@@ -672,8 +676,8 @@ void EditorWindow::setupDocks() {
                     dock->raise();
                 });
             action->setIcon(dock->icon());
-            action->setShortcut(QKeySequence(
-                QStringLiteral("Ctrl+%1").arg(index + 1)));
+            action->setShortcut(
+                QKeySequence(QStringLiteral("Ctrl+%1").arg(index + 1)));
             action->setShortcutContext(Qt::ApplicationShortcut);
         }
         windowMenu->addSeparator();
@@ -688,14 +692,11 @@ void EditorWindow::setupDocks() {
                     workspaceDock->setAsCurrentTab();
                     workspaceDock->raise();
                 });
-            action->setIcon(index == 0
-                                ? styling::icon(styling::Icon::CubeFocus,
-                                                "#7E929C")
-                            : index == 1
-                                ? styling::icon(styling::Icon::Material,
-                                                "#A1957D")
-                                : styling::icon(styling::Icon::FilmStrip,
-                                                "#849589"));
+            action->setIcon(
+                index == 0 ? styling::icon(styling::Icon::CubeFocus, "#7E929C")
+                : index == 1
+                    ? styling::icon(styling::Icon::Material, "#A1957D")
+                    : styling::icon(styling::Icon::FilmStrip, "#849589"));
         }
     }
 
@@ -824,22 +825,23 @@ void EditorWindow::setupWorkspaceBar() {
     renderer->setObjectName("statusRenderer");
     const auto projectInfo = ProjectStore::projectInfo(projectFile);
     renderer->setText(projectInfo.has_value() ? projectInfo->renderer
-                                               : QStringLiteral("ATLAS"));
+                                              : QStringLiteral("ATLAS"));
     auto *version = new QLabel(QStringLiteral(ATLAS_VERSION), statusBar());
     version->setObjectName("statusVersion");
     statusBar()->addPermanentWidget(runtimeIcon);
     statusBar()->addPermanentWidget(renderer);
     statusBar()->addPermanentWidget(version);
-    connect(viewportPanel, &ViewportPanel::runtimeAvailabilityChanged, this,
-            [this, runtimeIcon](bool available) {
-                runtimeIcon->setPixmap(styling::icon(
-                    available ? styling::Icon::Check : styling::Icon::Warning,
-                    available ? QColor("#849589") : QColor("#A1957D"))
-                                           .pixmap(14, 14));
-                statusBar()->showMessage(available ? "Runtime ready"
-                                                   : "Runtime unavailable",
-                                         3000);
-            });
+    connect(
+        viewportPanel, &ViewportPanel::runtimeAvailabilityChanged, this,
+        [this, runtimeIcon](bool available) {
+            runtimeIcon->setPixmap(
+                styling::icon(available ? styling::Icon::Check
+                                        : styling::Icon::Warning,
+                              available ? QColor("#849589") : QColor("#A1957D"))
+                    .pixmap(14, 14));
+            statusBar()->showMessage(
+                available ? "Runtime ready" : "Runtime unavailable", 3000);
+        });
 }
 
 void EditorWindow::activateWorkspace(int index) {
@@ -864,22 +866,23 @@ void EditorWindow::createScene() {
         path += ".ascene";
     const QString name = QFileInfo(path).completeBaseName();
     const QByteArray contents =
-        QJsonDocument(QJsonObject{
-                          {"name", name},
-                          {"id", name.toLower().replace(' ', '_')},
-                          {"objects", QJsonArray{}},
-                          {"lights", QJsonArray{}},
-                          {"camera", QJsonObject{{"position", QJsonArray{0.0, 1.5, -5.0}},
-                                                 {"target", QJsonArray{0.0, 0.0, 0.0}},
-                                                 {"fov", 60.0}}},
-                          {"targets", QJsonArray{QJsonObject{{"name", "Main Target"},
-                                                             {"type", "scene"},
-                                                             {"render", true},
-                                                             {"display", true}}}}})
+        QJsonDocument(
+            QJsonObject{
+                {"name", name},
+                {"id", name.toLower().replace(' ', '_')},
+                {"objects", QJsonArray{}},
+                {"lights", QJsonArray{}},
+                {"camera", QJsonObject{{"position", QJsonArray{0.0, 1.5, -5.0}},
+                                       {"target", QJsonArray{0.0, 0.0, 0.0}},
+                                       {"fov", 60.0}}},
+                {"targets", QJsonArray{QJsonObject{{"name", "Main Target"},
+                                                   {"type", "scene"},
+                                                   {"render", true},
+                                                   {"display", true}}}}})
             .toJson(QJsonDocument::Indented);
     QSaveFile file(path);
-    if (!file.open(QIODevice::WriteOnly) || file.write(contents) != contents.size() ||
-        !file.commit()) {
+    if (!file.open(QIODevice::WriteOnly) ||
+        file.write(contents) != contents.size() || !file.commit()) {
         QMessageBox::warning(this, "Create Scene",
                              "The scene could not be created.");
         return;
@@ -933,9 +936,9 @@ void EditorWindow::showProjectSettings() {
     auto *headerCopy = new QVBoxLayout();
     auto *headerTitle = new QLabel("Project Settings", header);
     headerTitle->setObjectName("dialogHeroTitle");
-    auto *headerSubtitle = new QLabel(
-        "Configure runtime, rendering, controls, and packaging for this project.",
-        header);
+    auto *headerSubtitle = new QLabel("Configure runtime, rendering, controls, "
+                                      "and packaging for this project.",
+                                      header);
     headerSubtitle->setObjectName("dialogHeroSubtitle");
     headerCopy->addWidget(headerTitle);
     headerCopy->addWidget(headerSubtitle);
@@ -993,46 +996,56 @@ void EditorWindow::showProjectSettings() {
     general->addRow("Window width", windowWidth);
     general->addRow("Window height", windowHeight);
     general->addRow(QString(), fullscreen);
-    auto *rendering =
-        addPage("Rendering", styling::Icon::Aperture, "#9E897D");
+    auto *rendering = addPage("Rendering", styling::Icon::Aperture, "#9E897D");
     auto *renderer = new QComboBox(&dialog);
     renderer->addItems({"PBR", "PBR + DDGI", "Path Tracing"});
-    renderer->setCurrentText(settings.value("project/renderer", "PBR").toString());
+    renderer->setCurrentText(
+        settings.value("project/renderer", "PBR").toString());
     auto *frameLimit = new QSpinBox(&dialog);
     frameLimit->setRange(0, 1000);
     frameLimit->setValue(settings.value("project/frameLimit", 0).toInt());
     rendering->addRow("Renderer", renderer);
     rendering->addRow("Frame limit (0 = unlimited)", frameLimit);
     auto *physics = addPage("Physics", styling::Icon::Wrench, "#A1957D");
-    auto *gravity = new QLineEdit(settings.value("project/gravity", "0, -9.81, 0").toString(), &dialog);
-    auto *fixedStep = new QLineEdit(settings.value("project/fixedStep", "0.0166667").toString(), &dialog);
+    auto *gravity = new QLineEdit(
+        settings.value("project/gravity", "0, -9.81, 0").toString(), &dialog);
+    auto *fixedStep = new QLineEdit(
+        settings.value("project/fixedStep", "0.0166667").toString(), &dialog);
     physics->addRow("Gravity", gravity);
     physics->addRow("Fixed timestep", fixedStep);
-    auto *input =
-        addPage("Input", styling::Icon::GameController, "#849589");
-    auto *inputMap = new QLineEdit(settings.value("project/inputMap", "input.json").toString(), &dialog);
+    auto *input = addPage("Input", styling::Icon::GameController, "#849589");
+    auto *inputMap = new QLineEdit(
+        settings.value("project/inputMap", "input.json").toString(), &dialog);
     auto *controller = new QComboBox(&dialog);
     controller->addItems({"Automatic", "Keyboard + Mouse", "Gamepad"});
-    controller->setCurrentText(settings.value("project/controller", "Automatic").toString());
+    controller->setCurrentText(
+        settings.value("project/controller", "Automatic").toString());
     input->addRow("Input map", inputMap);
     input->addRow("Primary controller", controller);
     auto *build = addPage("Build & Run", styling::Icon::Package, "#A1957D");
-    auto *buildCommand = new QLineEdit(settings.value("project/buildCommand", "atlas pack --backend METAL").toString(), &dialog);
-    auto *runCommand = new QLineEdit(settings.value("project/runCommand", "atlas run project.atlas").toString(), &dialog);
+    auto *buildCommand = new QLineEdit(
+        settings.value("project/buildCommand", "atlas pack --backend METAL")
+            .toString(),
+        &dialog);
+    auto *runCommand = new QLineEdit(
+        settings.value("project/runCommand", "atlas run project.atlas")
+            .toString(),
+        &dialog);
     build->addRow("Build command", buildCommand);
     build->addRow("Run command", runCommand);
     auto *editor = addPage("Editor", styling::Icon::Layout, "#7E929C");
     auto *autosave = new QSpinBox(&dialog);
     autosave->setRange(0, 120);
     autosave->setValue(settings.value("project/autosaveMinutes", 5).toInt());
-    auto *snap = new QLineEdit(settings.value("project/snapIncrement", "0.5").toString(), &dialog);
+    auto *snap = new QLineEdit(
+        settings.value("project/snapIncrement", "0.5").toString(), &dialog);
     editor->addRow("Autosave interval (minutes)", autosave);
     editor->addRow("Transform snapping", snap);
-    auto *packaging =
-        addPage("Packaging", styling::Icon::Export, "#8498A8");
+    auto *packaging = addPage("Packaging", styling::Icon::Export, "#8498A8");
     auto *identifier = new QLineEdit(
-        settings.value("project/bundleIdentifier",
-                       "org.atlasengine." + projectName.toLower().replace(' ', '-'))
+        settings
+            .value("project/bundleIdentifier",
+                   "org.atlasengine." + projectName.toLower().replace(' ', '-'))
             .toString(),
         &dialog);
     auto *iconPath = new QLineEdit(
@@ -1076,8 +1089,7 @@ void EditorWindow::showProjectSettings() {
     settings.sync();
     QFile manifest(projectFile);
     if (manifest.open(QIODevice::ReadOnly | QIODevice::Text)) {
-        QStringList lines =
-            QString::fromUtf8(manifest.readAll()).split('\n');
+        QStringList lines = QString::fromUtf8(manifest.readAll()).split('\n');
         manifest.close();
         setTomlValue(&lines, QString(), "backend",
                      tomlQuoted(backend->currentText()));
@@ -1087,23 +1099,20 @@ void EditorWindow::showProjectSettings() {
                      tomlQuoted(identifier->text()));
         setTomlValue(&lines, "pack", "version",
                      tomlQuoted(gameVersion->text()));
-        setTomlValue(&lines, "pack", "icon",
-                     tomlQuoted(iconPath->text()));
-        setTomlValue(
-            &lines, "window", "dimensions",
-            QStringLiteral("[%1, %2]")
-                .arg(windowWidth->value())
-                .arg(windowHeight->value()));
+        setTomlValue(&lines, "pack", "icon", tomlQuoted(iconPath->text()));
+        setTomlValue(&lines, "window", "dimensions",
+                     QStringLiteral("[%1, %2]")
+                         .arg(windowWidth->value())
+                         .arg(windowHeight->value()));
         setTomlValue(&lines, "window", "fullscreen",
                      fullscreen->isChecked() ? "true" : "false");
-        const QString rendererName =
-            renderer->currentText() == "Path Tracing" ? "pathtracing"
-                                                       : "deferred";
-        setTomlValue(&lines, "renderer", "default",
-                     tomlQuoted(rendererName));
+        const QString rendererName = renderer->currentText() == "Path Tracing"
+                                         ? "pathtracing"
+                                         : "deferred";
+        setTomlValue(&lines, "renderer", "default", tomlQuoted(rendererName));
         setTomlValue(&lines, "renderer", "global_illumination",
                      renderer->currentText() == "PBR + DDGI" ? "true"
-                                                               : "false");
+                                                             : "false");
         QSaveFile outputFile(projectFile);
         const QByteArray contents = lines.join('\n').toUtf8();
         if (!outputFile.open(QIODevice::WriteOnly) ||
@@ -1155,23 +1164,21 @@ void EditorWindow::showExportDialog() {
     const QString settingsDirectory =
         QDir(QFileInfo(projectFile).absolutePath()).filePath(".atlas");
     QDir().mkpath(settingsDirectory);
-    QSettings settings(
-        QDir(settingsDirectory).filePath("project-settings.ini"),
-        QSettings::IniFormat);
+    QSettings settings(QDir(settingsDirectory).filePath("project-settings.ini"),
+                       QSettings::IniFormat);
     auto *backend = new QComboBox(&dialog);
     backend->addItems({"METAL", "VULKAN", "OPENGL"});
     backend->setCurrentText(
         settings.value("project/exportBackend", "METAL").toString());
     auto *output = new QLineEdit(
         settings
-            .value("project/exportDirectory",
-                   QDir(QFileInfo(projectFile).absolutePath())
-                       .filePath("Exports"))
+            .value(
+                "project/exportDirectory",
+                QDir(QFileInfo(projectFile).absolutePath()).filePath("Exports"))
             .toString(),
         &dialog);
     auto *browse = new QPushButton("Choose…", &dialog);
-    browse->setIcon(
-        styling::icon(styling::Icon::FolderOpen, "#7E929C"));
+    browse->setIcon(styling::icon(styling::Icon::FolderOpen, "#7E929C"));
     auto *outputRow = new QWidget(&dialog);
     auto *outputLayout = new QHBoxLayout(outputRow);
     outputLayout->setContentsMargins(0, 0, 0, 0);
@@ -1182,9 +1189,10 @@ void EditorWindow::showExportDialog() {
     form->addRow("Backend", backend);
     form->addRow("Destination", outputRow);
     layout->addLayout(form);
-    auto *summary = new QLabel(
-        "Atlas will save the current scene and package the configured runtime with the project resources.",
-        &dialog);
+    auto *summary =
+        new QLabel("Atlas will save the current scene and package the "
+                   "configured runtime with the project resources.",
+                   &dialog);
     summary->setObjectName("exportSummary");
     summary->setWordWrap(true);
     layout->addWidget(summary);
@@ -1198,12 +1206,13 @@ void EditorWindow::showExportDialog() {
     log->setPlaceholderText("Packaging output will appear here.");
     layout->addWidget(log, 1);
     auto *buttons = new QDialogButtonBox(QDialogButtonBox::Cancel, &dialog);
-    auto *exportButton = buttons->addButton("Export", QDialogButtonBox::AcceptRole);
+    auto *exportButton =
+        buttons->addButton("Export", QDialogButtonBox::AcceptRole);
     exportButton->setIcon(
         styling::icon(styling::Icon::RocketLaunch, "#849589"));
-    auto *revealButton = buttons->addButton("Reveal Export", QDialogButtonBox::ActionRole);
-    revealButton->setIcon(
-        styling::icon(styling::Icon::FolderOpen, "#7E929C"));
+    auto *revealButton =
+        buttons->addButton("Reveal Export", QDialogButtonBox::ActionRole);
+    revealButton->setIcon(styling::icon(styling::Icon::FolderOpen, "#7E929C"));
     revealButton->setEnabled(false);
     layout->addWidget(buttons);
     connect(browse, &QPushButton::clicked, &dialog, [&dialog, output] {
@@ -1217,95 +1226,99 @@ void EditorWindow::showExportDialog() {
         QDesktopServices::openUrl(QUrl::fromLocalFile(output->text()));
     });
     auto *process = new QProcess(&dialog);
-    connect(process, &QProcess::readyReadStandardOutput, &dialog,
-            [process, log] {
-                log->appendPlainText(
-                    QString::fromUtf8(process->readAllStandardOutput()).trimmed());
-            });
-    connect(process, &QProcess::readyReadStandardError, &dialog,
-            [process, log] {
-                log->appendPlainText(
-                    QString::fromUtf8(process->readAllStandardError()).trimmed());
-            });
+    connect(
+        process, &QProcess::readyReadStandardOutput, &dialog, [process, log] {
+            log->appendPlainText(
+                QString::fromUtf8(process->readAllStandardOutput()).trimmed());
+        });
+    connect(
+        process, &QProcess::readyReadStandardError, &dialog, [process, log] {
+            log->appendPlainText(
+                QString::fromUtf8(process->readAllStandardError()).trimmed());
+        });
     connect(process, &QProcess::errorOccurred, &dialog,
             [process, progress, exportButton, log](QProcess::ProcessError) {
                 progress->setVisible(false);
                 exportButton->setEnabled(true);
                 log->appendPlainText(process->errorString());
             });
-    connect(process, &QProcess::finished, &dialog,
-            [this, process, progress, exportButton, revealButton, output,
-             log](int exitCode, QProcess::ExitStatus status) {
-                progress->setVisible(false);
-                exportButton->setEnabled(true);
-                if (status != QProcess::NormalExit || exitCode != 0) {
-                    log->appendPlainText("Export failed.");
-                    return;
-                }
-                const QString dist =
-                    QDir(QFileInfo(projectFile).absolutePath()).filePath("dist");
-                QDir destination(output->text());
-                if (!destination.exists() && !QDir().mkpath(destination.path())) {
-                    log->appendPlainText("Could not create the export destination.");
-                    return;
-                }
-                const QFileInfoList packages = QDir(dist).entryInfoList(
-                    QDir::NoDotAndDotDot | QDir::AllEntries | QDir::Hidden);
-                if (packages.isEmpty()) {
-                    log->appendPlainText("Atlas Pack produced no distributable files.");
-                    return;
-                }
-                QString error;
-                for (const QFileInfo &package : packages) {
-                    const QString target = destination.filePath(package.fileName());
-                    if (QFileInfo(target).isDir())
-                        QDir(target).removeRecursively();
-                    else
-                        QFile::remove(target);
-                    if (!copyExportPath(package.absoluteFilePath(), target,
-                                        &error)) {
-                        log->appendPlainText(error);
-                        return;
-                    }
-                }
+    connect(
+        process, &QProcess::finished, &dialog,
+        [this, process, progress, exportButton, revealButton, output,
+         log](int exitCode, QProcess::ExitStatus status) {
+            progress->setVisible(false);
+            exportButton->setEnabled(true);
+            if (status != QProcess::NormalExit || exitCode != 0) {
+                log->appendPlainText("Export failed.");
+                return;
+            }
+            const QString dist =
+                QDir(QFileInfo(projectFile).absolutePath()).filePath("dist");
+            QDir destination(output->text());
+            if (!destination.exists() && !QDir().mkpath(destination.path())) {
                 log->appendPlainText(
-                    QStringLiteral("Export complete: %1").arg(destination.path()));
-                revealButton->setEnabled(true);
-            });
-    connect(exportButton, &QPushButton::clicked, &dialog,
-            [this, process, output, platform, configuration, backend, progress,
-             exportButton, revealButton, log] {
-        const QString program = atlasCliPath();
-        QStringList arguments;
-        if (program.isEmpty()) {
-            QMessageBox::warning(
-                this, "Export Project",
-                "Atlas CLI was not found. Install it or place it beside Atlas Editor.");
-            return;
-        }
-        QSettings settings(
-            QDir(QFileInfo(projectFile).absolutePath())
-                .filePath(".atlas/project-settings.ini"),
-            QSettings::IniFormat);
-        settings.setValue("project/exportDirectory", output->text());
-        settings.setValue("project/exportPlatform", platform->currentText());
-        settings.setValue("project/exportConfiguration",
-                          configuration->currentText());
-        settings.setValue("project/exportBackend", backend->currentText());
-        settings.sync();
-        if (viewportPanel != nullptr)
-            viewportPanel->saveRuntimeScene();
-        log->clear();
-        log->appendPlainText("Starting Atlas Pack…");
-        progress->setVisible(true);
-        exportButton->setEnabled(false);
-        revealButton->setEnabled(false);
-        arguments << "pack" << "--backend" << backend->currentText();
-        if (configuration->currentText() == "Release")
-            arguments << "--release" << "1";
-        process->setWorkingDirectory(QFileInfo(projectFile).absolutePath());
-        process->start(program, arguments);
-    });
+                    "Could not create the export destination.");
+                return;
+            }
+            const QFileInfoList packages = QDir(dist).entryInfoList(
+                QDir::NoDotAndDotDot | QDir::AllEntries | QDir::Hidden);
+            if (packages.isEmpty()) {
+                log->appendPlainText(
+                    "Atlas Pack produced no distributable files.");
+                return;
+            }
+            QString error;
+            for (const QFileInfo &package : packages) {
+                const QString target = destination.filePath(package.fileName());
+                if (QFileInfo(target).isDir())
+                    QDir(target).removeRecursively();
+                else
+                    QFile::remove(target);
+                if (!copyExportPath(package.absoluteFilePath(), target,
+                                    &error)) {
+                    log->appendPlainText(error);
+                    return;
+                }
+            }
+            log->appendPlainText(
+                QStringLiteral("Export complete: %1").arg(destination.path()));
+            revealButton->setEnabled(true);
+        });
+    connect(
+        exportButton, &QPushButton::clicked, &dialog,
+        [this, process, output, platform, configuration, backend, progress,
+         exportButton, revealButton, log] {
+            const QString program = atlasCliPath();
+            QStringList arguments;
+            if (program.isEmpty()) {
+                QMessageBox::warning(this, "Export Project",
+                                     "Atlas CLI was not found. Install it or "
+                                     "place it beside Atlas Editor.");
+                return;
+            }
+            QSettings settings(QDir(QFileInfo(projectFile).absolutePath())
+                                   .filePath(".atlas/project-settings.ini"),
+                               QSettings::IniFormat);
+            settings.setValue("project/exportDirectory", output->text());
+            settings.setValue("project/exportPlatform",
+                              platform->currentText());
+            settings.setValue("project/exportConfiguration",
+                              configuration->currentText());
+            settings.setValue("project/exportBackend", backend->currentText());
+            settings.sync();
+            if (viewportPanel != nullptr)
+                viewportPanel->saveRuntimeScene();
+            log->clear();
+            log->appendPlainText("Starting Atlas Pack…");
+            progress->setVisible(true);
+            exportButton->setEnabled(false);
+            revealButton->setEnabled(false);
+            arguments << "pack" << "--backend" << backend->currentText();
+            if (configuration->currentText() == "Release")
+                arguments << "--release" << "1";
+            process->setWorkingDirectory(QFileInfo(projectFile).absolutePath());
+            process->start(program, arguments);
+        });
     connect(&dialog, &QDialog::finished, process, [process] {
         if (process->state() == QProcess::NotRunning)
             return;
@@ -1341,16 +1354,14 @@ void EditorWindow::showCommandPalette() {
         auto *item = new QListWidgetItem(commands);
         item->setText(action->text().remove('&'));
         item->setIcon(action->icon());
-        item->setData(Qt::UserRole,
-                      QVariant::fromValue<quintptr>(
-                          reinterpret_cast<quintptr>(action)));
+        item->setData(Qt::UserRole, QVariant::fromValue<quintptr>(
+                                        reinterpret_cast<quintptr>(action)));
         const QString shortcut =
             !action->shortcut().isEmpty()
                 ? action->shortcut().toString(QKeySequence::NativeText)
                 : action->property("atlasShortcut").toString();
         if (!shortcut.isEmpty())
-            item->setText(item->text() + "\t" +
-                          shortcut);
+            item->setText(item->text() + "\t" + shortcut);
     }
     if (commands->count() > 0)
         commands->setCurrentRow(0);
@@ -1365,8 +1376,8 @@ void EditorWindow::showCommandPalette() {
                     QListWidgetItem *item = commands->item(index);
                     if (item == noCommands)
                         continue;
-                    if (firstMatch < 0 && item->text().contains(
-                                              text, Qt::CaseInsensitive))
+                    if (firstMatch < 0 &&
+                        item->text().contains(text, Qt::CaseInsensitive))
                         firstMatch = index;
                 }
                 if (firstMatch >= 0) {
@@ -1379,8 +1390,8 @@ void EditorWindow::showCommandPalette() {
                 for (int index = 0; index < commands->count(); ++index) {
                     QListWidgetItem *item = commands->item(index);
                     if (item != noCommands)
-                        item->setHidden(!item->text().contains(
-                            text, Qt::CaseInsensitive));
+                        item->setHidden(
+                            !item->text().contains(text, Qt::CaseInsensitive));
                 }
             });
     connect(commands, &QListWidget::itemActivated, &dialog,
@@ -1451,11 +1462,11 @@ void EditorWindow::showGlobalSearch() {
         item->setData(SearchKindRole, 0);
         item->setData(SearchValueRole, path);
     }
-    const QJsonDocument snapshot = viewportPanel != nullptr
-                                       ? QJsonDocument::fromJson(
-                                             viewportPanel->currentSceneSnapshot()
-                                                 .toUtf8())
-                                       : QJsonDocument();
+    const QJsonDocument snapshot =
+        viewportPanel != nullptr
+            ? QJsonDocument::fromJson(
+                  viewportPanel->currentSceneSnapshot().toUtf8())
+            : QJsonDocument();
     std::function<void(const QJsonArray &)> addObjects;
     addObjects = [&addObjects, results](const QJsonArray &objects) {
         for (const QJsonValue &value : objects) {
@@ -1465,8 +1476,7 @@ void EditorWindow::showGlobalSearch() {
             if (!name.isEmpty() && id >= 0) {
                 auto *item = new QListWidgetItem(
                     QStringLiteral("Object  %1").arg(name), results);
-                item->setIcon(
-                    styling::icon(styling::Icon::Cube, "#8498A8"));
+                item->setIcon(styling::icon(styling::Icon::Cube, "#8498A8"));
                 item->setToolTip(object.value("type").toString());
                 item->setData(SearchKindRole, 1);
                 item->setData(SearchValueRole, id);
@@ -1485,44 +1495,43 @@ void EditorWindow::showGlobalSearch() {
             results);
         item->setIcon(action->icon());
         item->setData(SearchKindRole, 2);
-        item->setData(
-            SearchValueRole,
-            QVariant::fromValue<quintptr>(reinterpret_cast<quintptr>(action)));
+        item->setData(SearchValueRole, QVariant::fromValue<quintptr>(
+                                           reinterpret_cast<quintptr>(action)));
     }
     if (results->count() > 0)
         results->setCurrentRow(0);
     auto *noResults = new QListWidgetItem("No matching results", results);
     noResults->setData(SearchKindRole, 3);
     noResults->setHidden(true);
-    connect(search, &QLineEdit::textChanged, &dialog,
-            [results, noResults](const QString &text) {
-                int firstMatch = -1;
-                for (int index = 0; index < results->count(); ++index) {
-                    QListWidgetItem *item = results->item(index);
-                    if (item == noResults)
-                        continue;
-                    const bool matches =
-                        item->text().contains(text, Qt::CaseInsensitive) ||
-                        item->toolTip().contains(text, Qt::CaseInsensitive);
-                    if (firstMatch < 0 && matches)
-                        firstMatch = index;
-                }
-                if (firstMatch >= 0) {
-                    results->setCurrentRow(firstMatch);
-                    noResults->setHidden(true);
-                } else {
-                    noResults->setHidden(false);
-                    results->setCurrentItem(noResults);
-                }
-                for (int index = 0; index < results->count(); ++index) {
-                    QListWidgetItem *item = results->item(index);
-                    if (item != noResults)
-                        item->setHidden(
-                            !item->text().contains(text, Qt::CaseInsensitive) &&
-                            !item->toolTip().contains(text,
-                                                      Qt::CaseInsensitive));
-                }
-            });
+    connect(
+        search, &QLineEdit::textChanged, &dialog,
+        [results, noResults](const QString &text) {
+            int firstMatch = -1;
+            for (int index = 0; index < results->count(); ++index) {
+                QListWidgetItem *item = results->item(index);
+                if (item == noResults)
+                    continue;
+                const bool matches =
+                    item->text().contains(text, Qt::CaseInsensitive) ||
+                    item->toolTip().contains(text, Qt::CaseInsensitive);
+                if (firstMatch < 0 && matches)
+                    firstMatch = index;
+            }
+            if (firstMatch >= 0) {
+                results->setCurrentRow(firstMatch);
+                noResults->setHidden(true);
+            } else {
+                noResults->setHidden(false);
+                results->setCurrentItem(noResults);
+            }
+            for (int index = 0; index < results->count(); ++index) {
+                QListWidgetItem *item = results->item(index);
+                if (item != noResults)
+                    item->setHidden(
+                        !item->text().contains(text, Qt::CaseInsensitive) &&
+                        !item->toolTip().contains(text, Qt::CaseInsensitive));
+            }
+        });
     connect(results, &QListWidget::itemActivated, &dialog,
             [this, &dialog](QListWidgetItem *item) {
                 const int kind = item->data(Qt::UserRole + 1).toInt();
@@ -1542,8 +1551,7 @@ void EditorWindow::showGlobalSearch() {
                         action->trigger();
                     return;
                 }
-                const QString path =
-                    item->data(Qt::UserRole + 2).toString();
+                const QString path = item->data(Qt::UserRole + 2).toString();
                 if (path.endsWith(".ascene", Qt::CaseInsensitive) &&
                     viewportPanel != nullptr) {
                     if (viewportPanel->openRuntimeScene(path) &&
@@ -1585,27 +1593,25 @@ void EditorWindow::runProjectCommand(bool buildOnly) {
     QDir().mkpath(settingsDirectory);
     QSettings settings(QDir(settingsDirectory).filePath("project-settings.ini"),
                        QSettings::IniFormat);
-    const QString settingsKey = buildOnly ? "project/buildCommand"
-                                          : "project/runCommand";
-    const QString defaultCommand = buildOnly ? "atlas pack --backend METAL"
-                                             : "atlas run project.atlas";
-    const QString command = settings.value(settingsKey, defaultCommand)
-                                .toString()
-                                .trimmed();
+    const QString settingsKey =
+        buildOnly ? "project/buildCommand" : "project/runCommand";
+    const QString defaultCommand =
+        buildOnly ? "atlas pack --backend METAL" : "atlas run project.atlas";
+    const QString command =
+        settings.value(settingsKey, defaultCommand).toString().trimmed();
     if (command.isEmpty())
         return;
     if (viewportPanel != nullptr)
         viewportPanel->saveRuntimeScene();
     if (!buildOnly) {
         QString error;
-        if (!ToolchainInstaller::run(
-                {"script", "compile"},
-                QFileInfo(projectFile).absolutePath(), &error)) {
+        if (!ToolchainInstaller::run({"script", "compile"},
+                                     QFileInfo(projectFile).absolutePath(),
+                                     &error)) {
             QMessageBox::warning(
                 this, "Script Compilation Failed",
-                error.isEmpty()
-                    ? "Atlas could not compile the project scripts."
-                    : error);
+                error.isEmpty() ? "Atlas could not compile the project scripts."
+                                : error);
             return;
         }
     }
@@ -1613,14 +1619,15 @@ void EditorWindow::runProjectCommand(bool buildOnly) {
     if (!settings.contains(settingsKey) || command == defaultCommand) {
         const QString executable = ToolchainInstaller::executablePath();
         if (executable.isEmpty()) {
-            QMessageBox::warning(
-                this, buildOnly ? "Build Project" : "Run Project",
-                "Atlas CLI was not found. Install the Atlas toolchain from the Tools menu.");
+            QMessageBox::warning(this,
+                                 buildOnly ? "Build Project" : "Run Project",
+                                 "Atlas CLI was not found. Install the Atlas "
+                                 "toolchain from the Tools menu.");
             return;
         }
-        const QStringList arguments = buildOnly
-                                          ? QStringList{"pack", "--backend", "METAL"}
-                                          : QStringList{"run", "project.atlas"};
+        const QStringList arguments =
+            buildOnly ? QStringList{"pack", "--backend", "METAL"}
+                      : QStringList{"run", "project.atlas"};
         QProcess::startDetached(executable, arguments, workingDirectory);
         return;
     }
@@ -1710,8 +1717,7 @@ void EditorWindow::saveLayout() {
     QSettings settings("Neutral Software", "Atlas Engine");
 
     settings.setValue("window/geometry", saveGeometry());
-    settings.setValue(DockStateKey,
-                      coreManager->saveState(DockStateVersion));
+    settings.setValue(DockStateKey, coreManager->saveState(DockStateVersion));
     settings.sync();
 }
 
@@ -1724,9 +1730,9 @@ void EditorWindow::restoreLayout() {
     const QByteArray dockState = settings.value(DockStateKey).toByteArray();
 
     restoringLayout = true;
-    const bool restored = !dockState.isEmpty() &&
-                          coreManager->restoreState(dockState,
-                                                    DockStateVersion);
+    const bool restored =
+        !dockState.isEmpty() &&
+        coreManager->restoreState(dockState, DockStateVersion);
     if (!restored && !defaultDockState.isEmpty())
         coreManager->restoreState(defaultDockState, DockStateVersion);
     restoringLayout = false;
@@ -1757,11 +1763,11 @@ void EditorWindow::updateWindowTitle(bool dirty) {
     const QString name = projectName + (dirty ? "*" : "");
 #ifdef ATLAS_DEBUG_BUILD
     const QString build = QStringLiteral(ATLAS_BUILD_STRING);
-    setWindowTitle(build.isEmpty()
-                       ? QStringLiteral("%1 - Atlas Engine (Development)")
-                             .arg(name)
-                       : QStringLiteral("%1 - Atlas Engine (Development) + %2")
-                             .arg(name, build));
+    setWindowTitle(
+        build.isEmpty()
+            ? QStringLiteral("%1 - Atlas Engine (Development)").arg(name)
+            : QStringLiteral("%1 - Atlas Engine (Development) + %2")
+                  .arg(name, build));
 #else
     setWindowTitle(QStringLiteral("%1 - Atlas Engine %2")
                        .arg(name, QStringLiteral(ATLAS_VERSION)));

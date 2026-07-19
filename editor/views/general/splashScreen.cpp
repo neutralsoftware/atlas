@@ -11,7 +11,7 @@
 #include <QScreen>
 
 #ifndef ATLAS_VERSION
-#define ATLAS_VERSION "Alpha 9"
+#define ATLAS_VERSION "No version"
 #endif
 
 #ifndef ATLAS_BUILD_STRING
@@ -102,7 +102,7 @@ SplashScreen::SplashScreen(QWidget *parent)
         "appropriate runtime in your system that works with this version.",
         card);
     warning->setObjectName("splashWarning");
-        warning->setGeometry(40, 199, 628, 44);
+    warning->setGeometry(40, 199, 628, 44);
     warning->setWordWrap(true);
     warning->setAlignment(Qt::AlignLeft | Qt::AlignTop);
 #endif

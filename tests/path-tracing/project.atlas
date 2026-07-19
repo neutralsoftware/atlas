@@ -1,0 +1,23 @@
+app_name = "path-tracing"
+atlas_version = "alpha9"
+backend = "AUTO"
+name = "path-tracing"
+platform = "DESKTOP"
+
+[game]
+assets = ["assets/"]
+main_scene = "main.ascene"
+
+[pack]
+icon = "none"
+supported_platforms = "all"
+
+[renderer]
+default = "pathtracing"
+global_illumination = false
+
+[window]
+dimensions = [1280, 720]
+mouse_capture = false
+multisampling = false
+ssaoScale = 0.5
