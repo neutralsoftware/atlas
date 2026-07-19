@@ -40,6 +40,17 @@ var window_8h =
       [ "DPadLeft", "window_8h.html#adca58a5ba3eec80877cfa5456518671ca1afff4bd4c22275dff273ca6f01952f1", null ],
       [ "ButtonCount", "window_8h.html#adca58a5ba3eec80877cfa5456518671ca51213e6734b3713d4b827a8be2358090", null ]
     ] ],
+    [ "EditorControlMode", "window_8h.html#a7e7e2dd6223d309c892a6afea0f6a8d1", [
+      [ "None", "window_8h.html#a7e7e2dd6223d309c892a6afea0f6a8d1a6adf97f83acf6453d4a6a4b1070f3754", null ],
+      [ "Move", "window_8h.html#a7e7e2dd6223d309c892a6afea0f6a8d1a6bc362dbf494c61ea117fe3c71ca48a5", null ],
+      [ "Rotate", "window_8h.html#a7e7e2dd6223d309c892a6afea0f6a8d1a8d2de5368588552fbae54044ac5c7b3d", null ],
+      [ "Scale", "window_8h.html#a7e7e2dd6223d309c892a6afea0f6a8d1a85a7cd587d6142dbfc1a4de05af7b75d", null ]
+    ] ],
+    [ "EditorShadingMode", "window_8h.html#ab539a49a2edab8793962d3d175cccf7a", [
+      [ "Lit", "window_8h.html#ab539a49a2edab8793962d3d175cccf7aae5e556ecf935270736f5e46e73db06e4", null ],
+      [ "Wireframe", "window_8h.html#ab539a49a2edab8793962d3d175cccf7aa33e42d0f3b166a4c405127e4412fbef2", null ],
+      [ "Points", "window_8h.html#ab539a49a2edab8793962d3d175cccf7aa75dd5f1160a3f02b6fae89c54361a1b3", null ]
+    ] ],
     [ "NintendoControllerButton", "window_8h.html#a8dbe7d5d070e5fb2c83565e8d0ebde9b", [
       [ "B", "window_8h.html#a8dbe7d5d070e5fb2c83565e8d0ebde9ba9d5ed678fe57bcca610140957afab571", null ],
       [ "A", "window_8h.html#a8dbe7d5d070e5fb2c83565e8d0ebde9ba7fc56270e7a70fa81a5935b72eacbe29", null ],

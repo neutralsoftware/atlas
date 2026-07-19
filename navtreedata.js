@@ -25,30 +25,37 @@
 var NAVTREE =
 [
   [ "Atlas", "index.html", [
+    [ "Atlas Editor workflow", "md_docs_2pages_2editor.html", [
+      [ "Scene and project commands", "md_docs_2pages_2editor.html#autotoc_md1", null ],
+      [ "Editing commands", "md_docs_2pages_2editor.html#autotoc_md2", null ],
+      [ "Object and asset commands", "md_docs_2pages_2editor.html#autotoc_md3", null ],
+      [ "Runtime and discovery", "md_docs_2pages_2editor.html#autotoc_md4", null ],
+      [ "Packaging Atlas Engine", "md_docs_2pages_2editor.html#autotoc_md5", null ]
+    ] ],
     [ "Tutorial", "tutorial.html", [
-      [ "Installation", "tutorial.html#autotoc_md2", [
-        [ "Create a Project", "tutorial.html#autotoc_md3", null ]
+      [ "Installation", "tutorial.html#autotoc_md8", [
+        [ "Create a Project", "tutorial.html#autotoc_md9", null ]
       ] ],
-      [ "Setting up the enviornment", "tutorial.html#autotoc_md4", [
-        [ "Creating a Window", "tutorial.html#autotoc_md5", null ],
-        [ "Creating a Scene", "tutorial.html#autotoc_md6", null ],
-        [ "Creating a Directional Light", "tutorial.html#autotoc_md7", null ],
-        [ "Adding the Skybox", "tutorial.html#autotoc_md8", [
-          [ "Building the Cubemap", "tutorial.html#autotoc_md9", null ],
-          [ "Building the Skybox", "tutorial.html#autotoc_md10", null ]
+      [ "Setting up the enviornment", "tutorial.html#autotoc_md10", [
+        [ "Creating a Window", "tutorial.html#autotoc_md11", null ],
+        [ "Creating a Scene", "tutorial.html#autotoc_md12", null ],
+        [ "Creating a Directional Light", "tutorial.html#autotoc_md13", null ],
+        [ "Adding the Skybox", "tutorial.html#autotoc_md14", [
+          [ "Building the Cubemap", "tutorial.html#autotoc_md15", null ],
+          [ "Building the Skybox", "tutorial.html#autotoc_md16", null ]
         ] ],
-        [ "Adding a Camera", "tutorial.html#autotoc_md11", null ]
+        [ "Adding a Camera", "tutorial.html#autotoc_md17", null ]
       ] ],
-      [ "Setting up the scene", "tutorial.html#autotoc_md12", [
-        [ "Creating the ground", "tutorial.html#autotoc_md13", [
-          [ "Creating a texture", "tutorial.html#autotoc_md14", null ]
+      [ "Setting up the scene", "tutorial.html#autotoc_md18", [
+        [ "Creating the ground", "tutorial.html#autotoc_md19", [
+          [ "Creating a texture", "tutorial.html#autotoc_md20", null ]
         ] ],
-        [ "Creating a falling ball", "tutorial.html#autotoc_md15", null ]
+        [ "Creating a falling ball", "tutorial.html#autotoc_md21", null ]
       ] ],
-      [ "Creating a compound object", "tutorial.html#autotoc_md16", null ],
-      [ "Creating a component", "tutorial.html#autotoc_md17", null ],
-      [ "Adding UI", "tutorial.html#autotoc_md18", null ],
-      [ "Conclusion", "tutorial.html#autotoc_md19", null ]
+      [ "Creating a compound object", "tutorial.html#autotoc_md22", null ],
+      [ "Creating a component", "tutorial.html#autotoc_md23", null ],
+      [ "Adding UI", "tutorial.html#autotoc_md24", null ],
+      [ "Conclusion", "tutorial.html#autotoc_md25", null ]
     ] ],
     [ "Namespaces", "namespaces.html", [
       [ "Namespace List", "namespaces.html", "namespaces_dup" ],
@@ -76,7 +83,7 @@ var NAVTREE =
     [ "Files", "files.html", [
       [ "File List", "files.html", "files_dup" ],
       [ "File Members", "globals.html", [
-        [ "All", "globals.html", null ],
+        [ "All", "globals.html", "globals_dup" ],
         [ "Functions", "globals_func.html", null ],
         [ "Variables", "globals_vars.html", null ],
         [ "Typedefs", "globals_type.html", null ],
@@ -90,24 +97,28 @@ var NAVTREE =
 var NAVTREEINDEX =
 [
 "annotated.html",
-"class_audio_player.html#adefa6c3aec690ebebb69faa204527ef8",
-"class_column.html#afab8899f4e3157e27494e78fd315359c",
-"class_image.html#a972af1bf5bc35c846712607a0e49825d",
-"class_rigidbody.html#a580fc0c1e2faf17dd7ec9d00bd4b5c91",
-"class_text_field.html#ab89e925946f7fcd54109c6801dd07c5b",
-"classbezel_1_1_mesh_collider.html#a352369fa6e812b805b816e445468fd7a",
-"classopal_1_1_context.html#a19236b951c548721b6ec2bb1a1f30571",
-"classopal_1_1_shader.html#ae532babe1073c7ccc0c69015e882e16c",
-"globals_defs.html",
-"namespaceopal.html#ae052ba81a85ceeaf480a6703e5518319a78181d4f5d4b30baefed6c0da0de894f",
-"struct_color.html#a33e482be18d6ea31d2b403bee13683b7",
-"struct_gamepad.html#ae415590e7fb57f18580efc8649109865",
-"struct_rotation3d.html#a7c7b23ba5ca3d30e0ac681e9c49d454a",
-"structbezel_1_1_rigidbody.html#a0bb3b0a35921c699a2fe5dff15d3d649",
-"structgraphite_1_1_u_i_resolved_style.html#ab0e694c2c525aafaf819ac9b468422ec",
-"window_8h.html#a0fa7818ea73e62e1cacf9825fc5bb352"
+"class_atmosphere.html#a4d8e1e509bee0d9b0133894a36c0aadf",
+"class_checkbox.html#aa760676ab320d744bd783f5627438630",
+"class_core_object.html#a42645e81907fa5ccdf01dde441f9d20a",
+"class_interactive.html",
+"class_rigidbody.html#a0feb04bf6685926ba312690d4973aa1d",
+"class_tessellation_shader.html#a593afbe9f217e6b131f1bf688116d0b7",
+"class_window.html#aa5afc6f82b7b587ed5ada4d227ce32aa",
+"classbezel__jolt_1_1_broad_phase_layer_impl.html#aa599dde682b27c48ca2eb11e522d1431",
+"classopal_1_1_framebuffer.html#a67e7d51bdd9a34337590f7833502ca0b",
+"classopal_1_1_texture.html#afe195c564aebdd8695a8b0ec211f419d",
+"functions_v.html",
+"namespaceopal.html#a2593432c0d5ad7aef12e0406f22c1511a1173bd3987b1e185d86b9c3fe1b8bd72",
+"pipe_8h_source.html",
+"struct_color_correction_parameters.html",
+"struct_instance.html#a92960b42c8508cfa6a2dc5f76c7e9cde",
+"struct_script_audio_source_state.html#aa2c6e84c4110f91c10292182a3554754",
+"struct_shader_program.html#a87533febc49e14f922c905f53f0fd7ab",
+"structbezel_1_1_rigidbody.html#a48b14129b9898fb75633f8433ebfa5c0",
+"structgraphite_1_1_u_i_style_state_snapshot.html#aca2cfc12e4a616bed9e18a7e82f24bfe",
+"window_8h.html#a0fa7818ea73e62e1cacf9825fc5bb352a815982789d1065d38cea0bf6a12e3d75"
 ];
 
-var SYNCONMSG = 'click to disable panel synchronization';
-var SYNCOFFMSG = 'click to enable panel synchronization';
-var LISTOFALLMEMBERS = 'List of all members';
+const SYNCONMSG = 'click to disable panel synchronization';
+const SYNCOFFMSG = 'click to enable panel synchronization';
+const LISTOFALLMEMBERS = 'List of all members';

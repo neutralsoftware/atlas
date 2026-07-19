@@ -1,4 +1,5 @@
 var searchData=
 [
-  ['rendertarget_0',['RenderTarget',['../class_core_object.html#aa5afc6f82b7b587ed5ada4d227ce32aa',1,'CoreObject::RenderTarget()'],['../class_scene.html#aa5afc6f82b7b587ed5ada4d227ce32aa',1,'Scene::RenderTarget()'],['../class_window.html#aa5afc6f82b7b587ed5ada4d227ce32aa',1,'Window::RenderTarget()']]]
+  ['shader_0',['Shader',['../classopal_1_1_shader_program.html#a03c2d524ace9ade9c3f55b43c99bcea1',1,'opal::ShaderProgram']]],
+  ['skybox_1',['Skybox',['../class_core_object.html#ab014b9cbfb27085cf9809e79096e9568',1,'CoreObject']]]
 ];

@@ -1,10 +1,10 @@
 var namespacebezel =
 [
-    [ "jolt", "namespacebezel_1_1jolt.html", "namespacebezel_1_1jolt" ],
     [ "collisions", "namespacebezel_1_1collisions.html", [
       [ "conservativeAdvance", "namespacebezel_1_1collisions.html#ad1a004088d7b990c836565793861e573", null ],
       [ "sphereToSphereStatic", "namespacebezel_1_1collisions.html#ac22c4b27897eefcbfdcc1513a545e1ab", null ]
     ] ],
+    [ "jolt", "namespacebezel_1_1jolt.html", "namespacebezel_1_1jolt" ],
     [ "BodyIdentifier", "structbezel_1_1_body_identifier.html", "structbezel_1_1_body_identifier" ],
     [ "Collider", "classbezel_1_1_collider.html", "classbezel_1_1_collider" ],
     [ "BoxCollider", "classbezel_1_1_box_collider.html", "classbezel_1_1_box_collider" ],

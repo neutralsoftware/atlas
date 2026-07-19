@@ -17,6 +17,7 @@ var class_renderable =
     [ "setShader", "class_renderable.html#a2fcaae3ae9e7fe9bf942b3a9ef58ae55", null ],
     [ "setViewMatrix", "class_renderable.html#ae1b11967b98e6ba4393640652242083f", null ],
     [ "update", "class_renderable.html#afb2aa3ad0ab8dcfc54088173ea7182cd", null ],
+    [ "editorOnly", "class_renderable.html#a0c5ebcc45b3df9b36f004bd52f3257d5", null ],
     [ "renderDepthOfView", "class_renderable.html#a7cb09219e507e1c1395efced124e3b58", null ],
     [ "renderLateForward", "class_renderable.html#a0ab1fff21021a706629d466964950467", null ]
 ];

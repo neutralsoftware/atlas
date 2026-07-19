@@ -1,5 +1,6 @@
 var class_atmosphere =
 [
+    [ "~Atmosphere", "class_atmosphere.html#afbcfeeabf6602a6816405b9217af62fd", null ],
     [ "addClouds", "class_atmosphere.html#a676d29c101d17ef1f5f9dbb0312dab72", null ],
     [ "castShadowsFromSunlight", "class_atmosphere.html#ab177d51ee80bbf185f8baa8d0f82e027", null ],
     [ "createSkyCubemap", "class_atmosphere.html#a0c2698b6c91ed2ef8018e7e34a04ef46", null ],
@@ -15,6 +16,7 @@ var class_atmosphere =
     [ "getSunAngle", "class_atmosphere.html#abfc9459823400a2a889117cf92b98e99", null ],
     [ "isDaytime", "class_atmosphere.html#ad70c49a701df6337ae75a3109babf2f8", null ],
     [ "isEnabled", "class_atmosphere.html#a242e1d1de29454f162c1ff6984e223f1", null ],
+    [ "resetRuntimeState", "class_atmosphere.html#a35ade991da9355ac21d9153eeed1c843", null ],
     [ "setTime", "class_atmosphere.html#ae260646b46cbb83fc7517b1e5cecfd11", null ],
     [ "update", "class_atmosphere.html#ad55cf115cbc1272f8dcaad534442986f", null ],
     [ "updateSkyCubemap", "class_atmosphere.html#a6ae106b96211b5a753ac929daf84955f", null ],

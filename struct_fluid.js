@@ -7,6 +7,7 @@ var struct_fluid =
     [ "getPosition", "struct_fluid.html#a007e82014e23b50177812cf1147c5227", null ],
     [ "getScale", "struct_fluid.html#a28e59e0bb5e3c479f5cb9ede6b15677c", null ],
     [ "initialize", "struct_fluid.html#a76005a67463cbeb0eb7fd2c83fa2d29a", null ],
+    [ "isCreated", "struct_fluid.html#a460648ff54e773f3e964f84e0593463b", null ],
     [ "move", "struct_fluid.html#ae586b7d576dd107a92c6f42ad6de312c", null ],
     [ "render", "struct_fluid.html#a15acfdba410bbdd12d82773c6cdc3b49", null ],
     [ "rotate", "struct_fluid.html#a06fbeabeb73199dc3eb2109029cc0a39", null ],

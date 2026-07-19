@@ -23,7 +23,7 @@ var searchData=
   ['rgba_20',['Rgba',['../namespaceopal.html#a636789f362e69d7bcfbcbc88bdd3f899a38b4b6bc36857d1d806c9c7731f34823',1,'opal']]],
   ['rgba16f_21',['Rgba16F',['../namespaceopal.html#ae052ba81a85ceeaf480a6703e5518319a2a0c76d3fe6b8502a918379e9f955e57',1,'opal']]],
   ['rgba8_22',['Rgba8',['../namespaceopal.html#ae052ba81a85ceeaf480a6703e5518319a22beb074e892828ec2f8d50736fc49c0',1,'opal']]],
-  ['right_23',['Right',['../atlas_2input_8h.html#a9479d299e1852e6140dcca1f405868aba92b09c7c48c520c3c55e497875da437c',1,'Right:&#160;input.h'],['../atlas_2input_8h.html#a826ef52e881054fee6a2055e382950b4a92b09c7c48c520c3c55e497875da437c',1,'Right:&#160;input.h'],['../units_8h.html#ab8c8d5e469ffb9cf502ea12708d544f5a92b09c7c48c520c3c55e497875da437c',1,'Right:&#160;units.h']]],
+  ['right_23',['Right',['../atlas_2input_8h.html#a9479d299e1852e6140dcca1f405868aba92b09c7c48c520c3c55e497875da437c',1,'Right:&#160;input.h'],['../atlas_2input_8h.html#a826ef52e881054fee6a2055e382950b4a92b09c7c48c520c3c55e497875da437c',1,'Right:&#160;input.h'],['../units_8h.html#ab8c8d5e469ffb9cf502ea12708d544f5a92b09c7c48c520c3c55e497875da437c',1,'Right:&#160;units.h'],['../dock_manager_8h.html#a7d828b6f4d444410f78a3acffd6f8f2aa92b09c7c48c520c3c55e497875da437c',1,'Right:&#160;dockManager.h']]],
   ['rightalt_24',['RightAlt',['../atlas_2input_8h.html#a9479d299e1852e6140dcca1f405868abad88bad98046b623323aa6ca28eefa6d5',1,'input.h']]],
   ['rightbracket_25',['RightBracket',['../atlas_2input_8h.html#a9479d299e1852e6140dcca1f405868aba455364d8991395f71ef9ccc5cc449e5c',1,'input.h']]],
   ['rightbumper_26',['RightBumper',['../window_8h.html#adca58a5ba3eec80877cfa5456518671ca509b4eb4dd040194b2aa506683ccfbad',1,'window.h']]],
@@ -35,5 +35,8 @@ var searchData=
   ['rightsuper_32',['RightSuper',['../atlas_2input_8h.html#a9479d299e1852e6140dcca1f405868aba0cc5a9f113dc1147c8eeae2f0199f9f2',1,'input.h']]],
   ['rightthumb_33',['RightThumb',['../window_8h.html#adca58a5ba3eec80877cfa5456518671cae499bf8bc6e897455b94cabc7a5c2da7',1,'window.h']]],
   ['righttrigger_34',['RightTrigger',['../window_8h.html#a0fa7818ea73e62e1cacf9825fc5bb352a837ed99a897594cef0d37403a18f0df0',1,'window.h']]],
-  ['roughness_35',['Roughness',['../texture_8h.html#a579bf435a05d45b75f553d37ebbb3225a767078b82d60bc9dfaec29326b0b7c06',1,'texture.h']]]
+  ['rocketlaunch_35',['RocketLaunch',['../namespacestyling.html#a4b308b968a97c6ac3d474a885472bab6a67e18d598f64f9c824893ca839573a95',1,'styling']]],
+  ['rotate_36',['Rotate',['../window_8h.html#a7e7e2dd6223d309c892a6afea0f6a8d1a8d2de5368588552fbae54044ac5c7b3d',1,'window.h']]],
+  ['roughness_37',['Roughness',['../texture_8h.html#a579bf435a05d45b75f553d37ebbb3225a767078b82d60bc9dfaec29326b0b7c06',1,'texture.h']]],
+  ['rows_38',['Rows',['../namespacestyling.html#a4b308b968a97c6ac3d474a885472bab6a530f488f7a9800411efc6926ab189708',1,'styling']]]
 ];

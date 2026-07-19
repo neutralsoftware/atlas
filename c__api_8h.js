@@ -1,0 +1,27 @@
+var c__api_8h =
+[
+    [ "atlas_runtime_add_object_component", "c__api_8h.html#a00e6f2fc8ff86840a2e743e21c1d42e8", null ],
+    [ "atlas_runtime_create_metal_view_context", "c__api_8h.html#af42aeb1d62b6826890bf988e8c97cce3", null ],
+    [ "atlas_runtime_create_object", "c__api_8h.html#ad6416a48b8a3c9f68026178d5be24c60", null ],
+    [ "atlas_runtime_delete_object", "c__api_8h.html#ae590aed5c325a724706b5ca607081dd5", null ],
+    [ "atlas_runtime_destroy_context", "c__api_8h.html#acf77dfd1b49e548a277954166ac2c187", null ],
+    [ "atlas_runtime_editor_key_event", "c__api_8h.html#a3b4f5706e576b7a9ecbb5df6ac80da89", null ],
+    [ "atlas_runtime_editor_pointer_event", "c__api_8h.html#aa22541fa95599a92dbba400d76bdc31f", null ],
+    [ "atlas_runtime_editor_scroll_event", "c__api_8h.html#adb146a18b35002abcfdad270294bb0c7", null ],
+    [ "atlas_runtime_end_context", "c__api_8h.html#af2da6268600db075c578b3b908812fc1", null ],
+    [ "atlas_runtime_get_scene_objects", "c__api_8h.html#aa77e5c7f8bbeb4bab51b4633117f81d1", null ],
+    [ "atlas_runtime_get_selected_object_id", "c__api_8h.html#aa309f1bb342c8123fc7f3b50b796e90f", null ],
+    [ "atlas_runtime_get_selected_object_name", "c__api_8h.html#afcd6569cc7a1c5866f3655aea8865ab8", null ],
+    [ "atlas_runtime_rename_object", "c__api_8h.html#a5d96060c2609a726519a19cbbfc741e3", null ],
+    [ "atlas_runtime_resize_context", "c__api_8h.html#a05cf1a0908418b1542546ccf68b86582", null ],
+    [ "atlas_runtime_run_in_metal_view", "c__api_8h.html#a2fb97717a07d2bf71669fdba0bf52f74", null ],
+    [ "atlas_runtime_run_project", "c__api_8h.html#ad763a96727142f753f58eedd7072bfcc", null ],
+    [ "atlas_runtime_save_current_scene", "c__api_8h.html#a6e893697d4d25277b7c6a422be83c058", null ],
+    [ "atlas_runtime_select_object", "c__api_8h.html#ac3cc34be90dc6a9b6df0c792b19682a6", null ],
+    [ "atlas_runtime_set_editor_control_mode", "c__api_8h.html#af2ce2df7e0a2a55c8632a738c62f4d4b", null ],
+    [ "atlas_runtime_set_editor_controls_enabled", "c__api_8h.html#a769ea382ee424cc48cc225629abaf857", null ],
+    [ "atlas_runtime_set_editor_simulation_enabled", "c__api_8h.html#a435a8da8ed9585f56cfece75a06dea52", null ],
+    [ "atlas_runtime_set_object_parent", "c__api_8h.html#a4a3879a156e867a07e08e57f598f7192", null ],
+    [ "atlas_runtime_set_object_property", "c__api_8h.html#aeedfeb1deb0108929c2552c196f60e92", null ],
+    [ "atlas_runtime_step_frame", "c__api_8h.html#a45c4be37cdbc4438ddd8589b027c1c9e", null ]
+];

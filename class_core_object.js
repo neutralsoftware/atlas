@@ -1,8 +1,8 @@
 var class_core_object =
 [
     [ "CoreObject", "class_core_object.html#ac25b130d995db5d1a626e6c536bca209", null ],
-    [ "addComponent", "class_core_object.html#aaf644df2b8c00b8a2697f2e1962562b8", null ],
-    [ "addComponent", "class_core_object.html#aebed51d3e8f3182a2de3ffe3374d4e20", null ],
+    [ "addComponent", "class_core_object.html#ac985c729f7bcd1647f9df1084c9a4857", null ],
+    [ "addComponent", "class_core_object.html#a74103abd429c5e49383972f72d4d3666", null ],
     [ "attachIndices", "class_core_object.html#a4f63ca5e7204cfbbfa151ac5d3e80020", null ],
     [ "attachProgram", "class_core_object.html#acfc34d0f6c787cbdb98761b0b3caf212", null ],
     [ "attachTexture", "class_core_object.html#a6a04b028500eb9c95e41886e2643672d", null ],

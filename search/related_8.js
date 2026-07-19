@@ -1,5 +1,4 @@
 var searchData=
 [
-  ['terrain_0',['Terrain',['../class_directional_light.html#a8a16a8def173094d17ed062879646b6b',1,'DirectionalLight::Terrain()'],['../class_scene.html#a8a16a8def173094d17ed062879646b6b',1,'Scene::Terrain()'],['../class_window.html#a8a16a8def173094d17ed062879646b6b',1,'Window::Terrain']]],
-  ['text_1',['Text',['../class_window.html#aee0ad1dafe471596e6d25530d9fbaf0c',1,'Window']]]
+  ['window_0',['Window',['../struct_light.html#a553f958a25683445088050a69d3de8e9',1,'Light::Window()'],['../class_directional_light.html#a553f958a25683445088050a69d3de8e9',1,'DirectionalLight::Window()'],['../struct_spotlight.html#a553f958a25683445088050a69d3de8e9',1,'Spotlight::Window()'],['../struct_area_light.html#a553f958a25683445088050a69d3de8e9',1,'AreaLight::Window()'],['../class_core_object.html#a553f958a25683445088050a69d3de8e9',1,'CoreObject::Window()'],['../class_scene.html#a553f958a25683445088050a69d3de8e9',1,'Scene::Window()'],['../class_render_target.html#a553f958a25683445088050a69d3de8e9',1,'RenderTarget::Window()'],['../class_skybox.html#a553f958a25683445088050a69d3de8e9',1,'Skybox::Window()'],['../class_bloom_render_target.html#a553f958a25683445088050a69d3de8e9',1,'BloomRenderTarget::Window()'],['../struct_fluid.html#a553f958a25683445088050a69d3de8e9',1,'Fluid::Window()']]]
 ];

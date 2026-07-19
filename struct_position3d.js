@@ -23,7 +23,6 @@ var struct_position3d =
     [ "toGlm", "struct_position3d.html#a9c6d05eb7dd87f5072bc3a1f6ebc29ba", null ],
     [ "up", "struct_position3d.html#ad8b3ff9a088e09655c976437bf7177ea", null ],
     [ "zero", "struct_position3d.html#a8ef4102d709162bcee9317cfd26cda7d", null ],
-    [ "operator<<", "struct_position3d.html#aa0911af2c4f16cbad898ec9e50bed990", null ],
     [ "x", "struct_position3d.html#a600cc5acded2f96d674441c4f9a38e4b", null ],
     [ "y", "struct_position3d.html#a12a216506ce9925f256e9251c224f99d", null ],
     [ "z", "struct_position3d.html#a5a4885c30b2a2e501c773d8fa9cc506b", null ]

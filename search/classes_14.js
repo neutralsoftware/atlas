@@ -13,5 +13,7 @@ var searchData=
   ['vertexshader_10',['VertexShader',['../struct_vertex_shader.html',1,'']]],
   ['videomode_11',['VideoMode',['../struct_video_mode.html',1,'']]],
   ['viewinformation_12',['ViewInformation',['../struct_view_information.html',1,'']]],
-  ['volumetriclighting_13',['VolumetricLighting',['../struct_volumetric_lighting.html',1,'']]]
+  ['viewportpanel_13',['ViewportPanel',['../class_viewport_panel.html',1,'']]],
+  ['viewporttools_14',['ViewportTools',['../class_viewport_tools.html',1,'']]],
+  ['volumetriclighting_15',['VolumetricLighting',['../struct_volumetric_lighting.html',1,'']]]
 ];

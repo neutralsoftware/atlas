@@ -1,11 +1,14 @@
 var class_compound_object =
 [
-    [ "addObject", "class_compound_object.html#a66cf249148e238c3b28b131dc353fe66", null ],
+    [ "addObject", "class_compound_object.html#ad0c5650f7b58da8e887c4518c74a227b", null ],
+    [ "beforePhysics", "class_compound_object.html#a0fcc360722e2209236261555d6387e71", null ],
     [ "canCastShadows", "class_compound_object.html#a1c28c8c1394e02e46cbc8200ad4dd9dd", null ],
     [ "canUseDeferredRendering", "class_compound_object.html#ae09d473718d1018cf6f98c6d8a8a5ff3", null ],
+    [ "containsObject", "class_compound_object.html#aac41092aae83f381f5896549856ec8c5", null ],
     [ "getLateRenderable", "class_compound_object.html#aa1ca7d68f744ab4fb6ae9337ec86f719", null ],
     [ "getPipeline", "class_compound_object.html#a0ed51158317d39de0e794356150fbc39", null ],
     [ "getPosition", "class_compound_object.html#a6197d3400c73d8aeaf7501eb952c6333", null ],
+    [ "getRotation", "class_compound_object.html#ab9d7a336cdaaa0d98693bbdcbf8946a3", null ],
     [ "getScale", "class_compound_object.html#ad506aaf4b387e22b7278581c26978838", null ],
     [ "getVertices", "class_compound_object.html#a861e922b1025bb7bfa000ab858470185", null ],
     [ "hide", "class_compound_object.html#a09510d32cd3dc14631dbb94e3c455ba3", null ],
@@ -13,6 +16,7 @@ var class_compound_object =
     [ "initialize", "class_compound_object.html#ae3bf373a10950faf4aadd63979e6372f", null ],
     [ "lookAt", "class_compound_object.html#adfc06444ac6b75df91a53061daaefaec", null ],
     [ "move", "class_compound_object.html#a512eb4315a038b423d94840bbbdf2c88", null ],
+    [ "removeObject", "class_compound_object.html#ad9dd35f4743dea6727372cf1995a6f18", null ],
     [ "render", "class_compound_object.html#a39213ab7f0c0eb6a37776e2c536820b0", null ],
     [ "rotate", "class_compound_object.html#a4210275b72af87578ac4f7fd900906cc", null ],
     [ "setPipeline", "class_compound_object.html#a507600f7e83339686a8e5ab823cf19a5", null ],

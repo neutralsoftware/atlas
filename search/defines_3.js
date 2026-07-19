@@ -1,4 +1,4 @@
 var searchData=
 [
-  ['tracer_5fport_0',['TRACER_PORT',['../log_8h.html#a7fa72b6a7defa500d486cf9b3158f6c9',1,'log.h']]]
+  ['runtime_5flog_0',['RUNTIME_LOG',['../context_8h.html#ad093f6bc1705e028f37ec242fa1f7c88',1,'context.h']]]
 ];

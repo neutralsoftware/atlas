@@ -155,5 +155,6 @@ var namespaceopal =
     [ "VertexBindingInputRate", "namespaceopal.html#a3fdb987961a940e84395e05cfd12ed8c", [
       [ "Vertex", "namespaceopal.html#a3fdb987961a940e84395e05cfd12ed8cab22b929ba52471a02d18bb3a4e4472e6", null ],
       [ "Instance", "namespaceopal.html#a3fdb987961a940e84395e05cfd12ed8cad9a17c1c9e8ef6866e4dbeef41c741b2", null ]
-    ] ]
+    ] ],
+    [ "packedShaderSource", "namespaceopal.html#a3abe9e9ae3e45766d32684214e75d8d8", null ]
 ];

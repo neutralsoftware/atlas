@@ -1,17 +1,20 @@
 var searchData=
 [
   ['g_0',['G',['../atlas_2input_8h.html#a9479d299e1852e6140dcca1f405868abadfcf28d0734569a6a693bc8194de62bf',1,'input.h']]],
-  ['gaussianblur_1',['GaussianBlur',['../shader_8h.html#ae4b5ffebe5841702defe3060ebbe08d0a4471a723be46b14fd252403c8db161ff',1,'shader.h']]],
-  ['gbuffer_2',['GBuffer',['../texture_8h.html#a639c740f69368f9fe25a4f7409a16384a628adbb6c98e56748110061187f57243',1,'texture.h']]],
-  ['generalpurpose_3',['GeneralPurpose',['../namespaceopal.html#af26b59aef4b898106741fdf09625d2a0ab7f023dbb86242b37e451d0b36dde93d',1,'opal']]],
-  ['geometry_4',['Geometry',['../namespaceopal.html#ac23791665e1eef39729e293f0b0f0254ad9c6333623e6357515fcbf17be806273',1,'opal']]],
-  ['global_5',['Global',['../physics_8h.html#ab11a1dda34491acff014ddfc9e6bafb8a4cc6684df7b4a92b1dec6fce3264fac8',1,'Global:&#160;physics.h'],['../namespacebezel.html#a7e09e6c26234bd3ee104ceba85cf2215a4cc6684df7b4a92b1dec6fce3264fac8',1,'bezel::Global']]],
-  ['gpu_6',['GPU',['../data_8h.html#a5916da91d2bde2cc030df3b8ac283c1fa52f9ec21735243ad9917cda3ca077d32',1,'data.h']]],
-  ['gpuonly_7',['GPUOnly',['../namespaceopal.html#a327f39695786fa33daf3f807abe91b2da9926354d7edfc0d51ec9d308f084b9bd',1,'opal']]],
-  ['gputocpu_8',['GPUToCPU',['../namespaceopal.html#a327f39695786fa33daf3f807abe91b2da097c3a48361ba3c4d241b6c635ab162f',1,'opal']]],
-  ['graveaccent_9',['GraveAccent',['../atlas_2input_8h.html#a9479d299e1852e6140dcca1f405868aba45428446946e929576498c7f5d36f230',1,'input.h']]],
-  ['grayscale_10',['Grayscale',['../atlas_2effect_8h.html#a75cf3454fba9ce206c0c748892dc9867ad3f6975213fb5546d8486b54b025dbd7',1,'effect.h']]],
-  ['greater_11',['Greater',['../namespaceopal.html#aa865954abe3c03f9552eb2789cf2e7f6a8768a6821cd735aea4f5b0df88c1fc6a',1,'opal']]],
-  ['greaterequal_12',['GreaterEqual',['../namespaceopal.html#aa865954abe3c03f9552eb2789cf2e7f6a758b05d899def79c9eb864ad4f96be1f',1,'opal']]],
-  ['guide_13',['Guide',['../window_8h.html#adca58a5ba3eec80877cfa5456518671ca6602bbeb2956c035fb4cb5e844a4861b',1,'window.h']]]
+  ['gamecontroller_1',['GameController',['../namespacestyling.html#a4b308b968a97c6ac3d474a885472bab6a9853dd4522ade044f1205cd772d7508e',1,'styling']]],
+  ['gaussianblur_2',['GaussianBlur',['../shader_8h.html#ae4b5ffebe5841702defe3060ebbe08d0a4471a723be46b14fd252403c8db161ff',1,'shader.h']]],
+  ['gbuffer_3',['GBuffer',['../texture_8h.html#a639c740f69368f9fe25a4f7409a16384a628adbb6c98e56748110061187f57243',1,'texture.h']]],
+  ['gear_4',['Gear',['../namespacestyling.html#a4b308b968a97c6ac3d474a885472bab6afb845762a66c26782f477febab5344dc',1,'styling']]],
+  ['generalpurpose_5',['GeneralPurpose',['../namespaceopal.html#af26b59aef4b898106741fdf09625d2a0ab7f023dbb86242b37e451d0b36dde93d',1,'opal']]],
+  ['geometry_6',['Geometry',['../namespaceopal.html#ac23791665e1eef39729e293f0b0f0254ad9c6333623e6357515fcbf17be806273',1,'opal']]],
+  ['global_7',['Global',['../physics_8h.html#ab11a1dda34491acff014ddfc9e6bafb8a4cc6684df7b4a92b1dec6fce3264fac8',1,'Global:&#160;physics.h'],['../namespacebezel.html#a7e09e6c26234bd3ee104ceba85cf2215a4cc6684df7b4a92b1dec6fce3264fac8',1,'bezel::Global']]],
+  ['globe_8',['Globe',['../namespacestyling.html#a4b308b968a97c6ac3d474a885472bab6a4a32f7fbd17e7cabb06ec72e1e9f263d',1,'styling']]],
+  ['gpu_9',['GPU',['../data_8h.html#a5916da91d2bde2cc030df3b8ac283c1fa52f9ec21735243ad9917cda3ca077d32',1,'data.h']]],
+  ['gpuonly_10',['GPUOnly',['../namespaceopal.html#a327f39695786fa33daf3f807abe91b2da9926354d7edfc0d51ec9d308f084b9bd',1,'opal']]],
+  ['gputocpu_11',['GPUToCPU',['../namespaceopal.html#a327f39695786fa33daf3f807abe91b2da097c3a48361ba3c4d241b6c635ab162f',1,'opal']]],
+  ['graveaccent_12',['GraveAccent',['../atlas_2input_8h.html#a9479d299e1852e6140dcca1f405868aba45428446946e929576498c7f5d36f230',1,'input.h']]],
+  ['grayscale_13',['Grayscale',['../atlas_2effect_8h.html#a75cf3454fba9ce206c0c748892dc9867ad3f6975213fb5546d8486b54b025dbd7',1,'effect.h']]],
+  ['greater_14',['Greater',['../namespaceopal.html#aa865954abe3c03f9552eb2789cf2e7f6a8768a6821cd735aea4f5b0df88c1fc6a',1,'opal']]],
+  ['greaterequal_15',['GreaterEqual',['../namespaceopal.html#aa865954abe3c03f9552eb2789cf2e7f6a758b05d899def79c9eb864ad4f96be1f',1,'opal']]],
+  ['guide_16',['Guide',['../window_8h.html#adca58a5ba3eec80877cfa5456518671ca6602bbeb2956c035fb4cb5e844a4861b',1,'window.h']]]
 ];

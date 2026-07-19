@@ -1,32 +1,4 @@
 var searchData=
 [
-  ['_7eaudiodata_0',['~AudioData',['../class_audio_data.html#ad0344f0fc71a86083ea56dbc13908162',1,'AudioData']]],
-  ['_7eaudiosource_1',['~AudioSource',['../class_audio_source.html#a4d4b2be34ec676bf01d1ca1784f79a07',1,'AudioSource']]],
-  ['_7ebloomrendertarget_2',['~BloomRenderTarget',['../class_bloom_render_target.html#aef0b0051efd2f59a5c93a13ed24e0bb1',1,'BloomRenderTarget']]],
-  ['_7ebounds_3',['~Bounds',['../class_bounds.html#a9dc0244442435e42fe52ca5018402cd0',1,'Bounds']]],
-  ['_7ebuffer_4',['~Buffer',['../classopal_1_1_buffer.html#a57fc0d74014aa0b67ab6bd9248a75284',1,'opal::Buffer']]],
-  ['_7ecollider_5',['~Collider',['../classbezel_1_1_collider.html#a3cf4f79ab68a49f264f4509bdefbf123',1,'bezel::Collider']]],
-  ['_7ecollisiondispatcher_6',['~CollisionDispatcher',['../classbezel_1_1_collision_dispatcher.html#aeaba297bc5f4205759235b29af82363d',1,'bezel::CollisionDispatcher']]],
-  ['_7ecommandbuffer_7',['~CommandBuffer',['../classopal_1_1_command_buffer.html#ae39ffcae4ce4d6843aba20c9be9c9941',1,'opal::CommandBuffer']]],
-  ['_7ecomponent_8',['~Component',['../class_component.html#ad82d7393e339c1b19cc17a0d55b5674d',1,'Component']]],
-  ['_7econtext_9',['~Context',['../classopal_1_1_context.html#a19236b951c548721b6ec2bb1a1f30571',1,'opal::Context']]],
-  ['_7edebugtimer_10',['~DebugTimer',['../class_debug_timer.html#ace51ffe1130f168ff9b61db6c0476ab1',1,'DebugTimer']]],
-  ['_7edevice_11',['~Device',['../classopal_1_1_device.html#a516b21b0c2baa3f61408d2553ad58b7e',1,'opal::Device']]],
-  ['_7eeffect_12',['~Effect',['../class_effect.html#a3bb9ae12885350459f007163e2d7259c',1,'Effect']]],
-  ['_7efluid_13',['~Fluid',['../struct_fluid.html#a12b38a0ad2be497ab114bea0fc7d3b74',1,'Fluid']]],
-  ['_7eframebuffer_14',['~Framebuffer',['../classopal_1_1_framebuffer.html#a555509821be0295a9c30858c35b8ba8a',1,'opal::Framebuffer']]],
-  ['_7egameobject_15',['~GameObject',['../class_game_object.html#a224d4f6d9dd75c8a6f9d022eaf586fd9',1,'GameObject']]],
-  ['_7einteractive_16',['~Interactive',['../class_interactive.html#ab03bea8ae8c18a22a49639ece54ae807',1,'Interactive']]],
-  ['_7ejoint_17',['~Joint',['../class_joint.html#a00a7360790800b06aa5fa397d721b43a',1,'Joint::~Joint()'],['../classbezel_1_1_joint.html#a9bdc33ca367ef495ab3305becfa672c9',1,'bezel::Joint::~Joint()']]],
-  ['_7enetworkpipe_18',['~NetworkPipe',['../class_network_pipe.html#a9d18ab9f6cfc1d86380a8cfb01a83dee',1,'NetworkPipe']]],
-  ['_7ephysicsworld_19',['~PhysicsWorld',['../classbezel_1_1_physics_world.html#a08e7a653681762f32efa380f8fa99970',1,'bezel::PhysicsWorld']]],
-  ['_7epipeline_20',['~Pipeline',['../classopal_1_1_pipeline.html#a60c3804bdfd792e7446ca7f20d4cd918',1,'opal::Pipeline']]],
-  ['_7erenderable_21',['~Renderable',['../class_renderable.html#a2103eed2f7f54bca8ba1001907b367a9',1,'Renderable']]],
-  ['_7escene_22',['~Scene',['../class_scene.html#af6e09d91ebd10ae9cc7c12c39d06386c',1,'Scene']]],
-  ['_7eshader_23',['~Shader',['../classopal_1_1_shader.html#aa2639ac5ef47133e8a1349ae227db21e',1,'opal::Shader']]],
-  ['_7eshaderprogram_24',['~ShaderProgram',['../classopal_1_1_shader_program.html#a39b1d9af7f4400c3ec983693a5fe014f',1,'opal::ShaderProgram']]],
-  ['_7eshape_25',['~Shape',['../class_shape.html#ac8ad2fd02e1e94beeb98e65ab795cd56',1,'Shape']]],
-  ['_7eterraingenerator_26',['~TerrainGenerator',['../class_terrain_generator.html#a20b5eb12bfe5d5cb9e858c61ae0f09a0',1,'TerrainGenerator']]],
-  ['_7etexture_27',['~Texture',['../classopal_1_1_texture.html#a597d018046cce4c9f8574cca37292cdc',1,'opal::Texture']]],
-  ['_7ewindow_28',['~Window',['../class_window.html#a245d821e6016fa1f6970ccbbedd635f6',1,'Window']]]
+  ['yellow_0',['yellow',['../struct_color.html#ad32e9a83a97f7d14177fb92532dcd2dd',1,'Color']]]
 ];

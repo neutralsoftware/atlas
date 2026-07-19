@@ -1,9 +1,7 @@
 var searchData=
 [
-  ['shadercapability_0',['ShaderCapability',['../shader_8h.html#ad6dfc2a6ff142b1671ab89fca4fdbfcd',1,'shader.h']]],
-  ['shadertype_1',['ShaderType',['../namespaceopal.html#ac23791665e1eef39729e293f0b0f0254',1,'opal']]],
-  ['shapetype_2',['ShapeType',['../class_shape.html#a4cb9bc6c74b4184257003c83a8d8d39e',1,'Shape']]],
-  ['sonycontrollerbutton_3',['SonyControllerButton',['../window_8h.html#adb9bf1aab4d8628bb9205347f4f28ebb',1,'window.h']]],
-  ['space_4',['Space',['../physics_8h.html#ab11a1dda34491acff014ddfc9e6bafb8',1,'Space:&#160;physics.h'],['../namespacebezel.html#a7e09e6c26234bd3ee104ceba85cf2215',1,'bezel::Space']]],
-  ['springmode_5',['SpringMode',['../physics_8h.html#ad9c8bbb873d64258a183fd4d0932b1d0',1,'SpringMode:&#160;physics.h'],['../namespacebezel.html#a1c558cc155222c03d511c30b1c2f0861',1,'bezel::SpringMode']]]
+  ['rasterizermode_0',['RasterizerMode',['../namespaceopal.html#a28f9a91b3648e9c463fcd5fb95bf3afb',1,'opal']]],
+  ['rendertargeteffect_1',['RenderTargetEffect',['../atlas_2effect_8h.html#a75cf3454fba9ce206c0c748892dc9867',1,'effect.h']]],
+  ['rendertargettype_2',['RenderTargetType',['../texture_8h.html#a639c740f69368f9fe25a4f7409a16384',1,'texture.h']]],
+  ['resourcetype_3',['ResourceType',['../workspace_8h.html#a8571efa4409be32e28abf3ea74a0dbb1',1,'workspace.h']]]
 ];
