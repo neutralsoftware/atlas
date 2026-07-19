@@ -25,7 +25,7 @@ Scenes open as tabs above the viewport. Creating a scene uses the Atlas scene di
 | Redo | Command Shift Z |
 | Cut, copy, paste | Command X, Command C, Command V |
 | Duplicate selection | Command D |
-| Delete selection | Backspace |
+| Delete object selection | Backspace |
 | Select all | Command A |
 | Move, rotate, scale | G, R, S |
 | Reset position | Command Option G |

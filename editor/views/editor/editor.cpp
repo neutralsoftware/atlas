@@ -78,6 +78,7 @@
 #include "editor/views/fileExplorer.h"
 #include "editor/views/hierarchyPanel.h"
 #include "editor/views/inspectorView.h"
+#include "editor/views/inputActionsDialog.h"
 #include "editor/views/materialEditor.h"
 #include "editor/views/postProcessing.h"
 #include "editor/views/viewport.h"
@@ -550,6 +551,8 @@ void EditorWindow::setupMenus() {
         addCommand(toolsMenu, "Project Settings…", QString(),
                    [this] { showProjectSettings(); });
     toolsSettings->setMenuRole(QAction::NoRole);
+    addCommand(toolsMenu, "Input Actions…", QString(),
+               [this] { showInputActions(); });
     addCommand(toolsMenu, "Install Atlas Toolchain…", QString(),
                [this] { ToolchainInstaller::install(this); });
     addCommand(toolsMenu, "Command Palette…", "Meta+Shift+P",
@@ -569,6 +572,12 @@ void EditorWindow::setupMenus() {
     });
     aboutAction->setIcon(styling::icon(styling::Icon::Info, "#7E929C"));
     aboutAction->setMenuRole(QAction::AboutRole);
+}
+
+void EditorWindow::showInputActions() {
+    InputActionsDialog dialog(projectFile, this);
+    if (dialog.exec() == QDialog::Accepted && viewportPanel != nullptr)
+        viewportPanel->reloadRuntime();
 }
 
 void EditorWindow::setupDocks() {
@@ -1576,19 +1585,46 @@ void EditorWindow::runProjectCommand(bool buildOnly) {
     QDir().mkpath(settingsDirectory);
     QSettings settings(QDir(settingsDirectory).filePath("project-settings.ini"),
                        QSettings::IniFormat);
-    const QString command =
-        settings.value(buildOnly ? "project/buildCommand"
-                                 : "project/runCommand",
-                       buildOnly ? "atlas pack --backend METAL"
-                                 : "atlas run project.atlas")
-            .toString()
-            .trimmed();
+    const QString settingsKey = buildOnly ? "project/buildCommand"
+                                          : "project/runCommand";
+    const QString defaultCommand = buildOnly ? "atlas pack --backend METAL"
+                                             : "atlas run project.atlas";
+    const QString command = settings.value(settingsKey, defaultCommand)
+                                .toString()
+                                .trimmed();
     if (command.isEmpty())
         return;
     if (viewportPanel != nullptr)
         viewportPanel->saveRuntimeScene();
-    QProcess::startDetached("/bin/zsh", {"-lc", command},
-                            QFileInfo(projectFile).absolutePath());
+    if (!buildOnly) {
+        QString error;
+        if (!ToolchainInstaller::run(
+                {"script", "compile"},
+                QFileInfo(projectFile).absolutePath(), &error)) {
+            QMessageBox::warning(
+                this, "Script Compilation Failed",
+                error.isEmpty()
+                    ? "Atlas could not compile the project scripts."
+                    : error);
+            return;
+        }
+    }
+    const QString workingDirectory = QFileInfo(projectFile).absolutePath();
+    if (!settings.contains(settingsKey) || command == defaultCommand) {
+        const QString executable = ToolchainInstaller::executablePath();
+        if (executable.isEmpty()) {
+            QMessageBox::warning(
+                this, buildOnly ? "Build Project" : "Run Project",
+                "Atlas CLI was not found. Install the Atlas toolchain from the Tools menu.");
+            return;
+        }
+        const QStringList arguments = buildOnly
+                                          ? QStringList{"pack", "--backend", "METAL"}
+                                          : QStringList{"run", "project.atlas"};
+        QProcess::startDetached(executable, arguments, workingDirectory);
+        return;
+    }
+    QProcess::startDetached("/bin/zsh", {"-lc", command}, workingDirectory);
 }
 
 void EditorWindow::takeViewportScreenshot() {

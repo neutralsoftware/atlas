@@ -1,4 +1,5 @@
 #include <editor/project/projectStore.h>
+#include <editor/application/toolchainInstaller.h>
 
 #include <QDir>
 #include <QFile>
@@ -117,7 +118,15 @@ QByteArray starterScene(AtlasProjectTemplate projectTemplate) {
     ],
     "environment": {
         "automaticAmbient": true,
-        "atmosphereSky": true
+        "atmosphereSky": true,
+        "atmosphere": {
+            "enabled": true,
+            "globalLight": {
+                "enabled": true,
+                "castsShadows": true,
+                "shadowResolution": 4096
+            }
+        }
     }
 }
 )");
@@ -256,6 +265,18 @@ QString ProjectStore::createProject(const QString& name,
             *errorMessage = writeError.isEmpty()
                                 ? "Atlas could not write the project files."
                                 : writeError;
+        }
+        return QString();
+    }
+
+    QString initializationError;
+    if (!ToolchainInstaller::run({"script", "init"}, projectDirectory,
+                                 &initializationError)) {
+        QDir(projectDirectory).removeRecursively();
+        if (errorMessage != nullptr) {
+            *errorMessage = initializationError.isEmpty()
+                                ? "Atlas could not initialize project scripting."
+                                : initializationError;
         }
         return QString();
     }

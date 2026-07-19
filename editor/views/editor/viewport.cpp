@@ -8,6 +8,7 @@
  */
 
 #include <editor/views/viewport.h>
+#include <editor/application/toolchainInstaller.h>
 
 #include <atlas/input.h>
 #include <atlas/runtime/c_api.h>
@@ -29,6 +30,7 @@
 #include <QJsonValue>
 #include <QKeyEvent>
 #include <QMouseEvent>
+#include <QMessageBox>
 #include <QMimeData>
 #include <QPaintEngine>
 #include <QPointer>
@@ -517,6 +519,11 @@ void ViewportPanel::keyPressEvent(QKeyEvent *event) {
                 event->accept();
                 return;
             }
+        } else if (event->key() == Qt::Key_X &&
+                   selectedRuntimeObjectId() >= 0) {
+            deleteRuntimeObject(selectedRuntimeObjectId());
+            event->accept();
+            return;
         } else if (event->key() == Qt::Key_G ||
                    event->key() == Qt::Key_R ||
                    event->key() == Qt::Key_S) {
@@ -613,16 +620,24 @@ void ViewportPanel::startRuntime() {
         frameTimer->start(16);
         emit sceneOpened(currentRuntimeScene());
         emit runtimeStartupFinished(true, {});
+        if (playAfterRuntimeStart) {
+            playAfterRuntimeStart = false;
+            runtimeContext->setEditorSimulationEnabled(true);
+            playbackState = 1;
+            emit playbackStateChanged(playbackState);
+        }
     } catch (const std::exception &error) {
         qWarning().noquote()
             << QStringLiteral("Failed to start Atlas viewport runtime: %1")
                    .arg(QString::fromUtf8(error.what()));
         runtimeContext.reset();
+        playAfterRuntimeStart = false;
         emit runtimeStartupFinished(false,
                                     QString::fromUtf8(error.what()));
     } catch (...) {
         qWarning() << "Failed to start Atlas viewport runtime";
         runtimeContext.reset();
+        playAfterRuntimeStart = false;
         emit runtimeStartupFinished(false, "Runtime initialization failed");
     }
 #else
@@ -1199,9 +1214,18 @@ void ViewportPanel::playRuntime() {
         qWarning() << "Atlas editor could not checkpoint the scene for play";
         return;
     }
-    runtimeContext->setEditorSimulationEnabled(true);
-    playbackState = 1;
-    emit playbackStateChanged(playbackState);
+    QString error;
+    if (!ToolchainInstaller::run(
+            {"script", "compile"}, QFileInfo(projectFile).absolutePath(),
+            &error)) {
+        QMessageBox::warning(
+            this, "Script Compilation Failed",
+            error.isEmpty() ? "Atlas could not compile the project scripts."
+                            : error);
+        return;
+    }
+    playAfterRuntimeStart = true;
+    reloadRuntime();
 }
 
 void ViewportPanel::toggleRuntimePlayback() {
@@ -1382,7 +1406,7 @@ void ViewportPanel::finishKeyboardTransform(bool commit) {
     keyboardTransformAxes = 7;
     transformUndoBefore = {};
     emit transformHintChanged(
-        "Tab Frame · Right-Drag Pan · Middle-Drag Orbit · G Move · R Rotate · S Scale");
+        "Tab Frame · Right-Drag Pan · Middle-Drag Orbit · G Move · R Rotate · S Scale · X Delete");
 }
 
 void ViewportPanel::pushTransformUndo(int objectId,

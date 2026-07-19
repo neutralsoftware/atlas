@@ -624,6 +624,7 @@ void addSyncPicker(QHBoxLayout *layout, const QString &path,
         button->setSizePolicy(matched ? QSizePolicy::Expanding
                                       : QSizePolicy::Fixed,
                               QSizePolicy::Preferred);
+        button->setMinimumWidth(matched ? 180 : 22);
         button->setToolTip(matched
                                ? QStringLiteral("Matched to %1. Click to change")
                                      .arg(name)
@@ -633,11 +634,12 @@ void addSyncPicker(QHBoxLayout *layout, const QString &path,
     };
     showMatch(provider.matchedName ? provider.matchedName(path) : QString());
     auto *menu = new QMenu(button);
+    menu->setMinimumWidth(360);
     auto *searchAction = new QWidgetAction(menu);
     auto *search = new PickerSearchField(menu);
     search->setPlaceholderText("Search properties");
     search->setClearButtonEnabled(true);
-    search->setMinimumWidth(240);
+    search->setMinimumWidth(340);
     searchAction->setDefaultWidget(search);
     menu->addAction(searchAction);
     menu->addSeparator();
@@ -1206,6 +1208,7 @@ InspectorPanel::InspectorPanel(ViewportPanel *viewport,
                                const QString &projectFile, QWidget *parent)
     : QWidget(parent), viewport(viewport) {
     setObjectName("inspectorPanel");
+    setMinimumWidth(360);
     setAcceptDrops(true);
     const QFileInfo projectInfo(projectFile);
     projectRoot = projectInfo.absoluteDir().absolutePath();
@@ -1582,13 +1585,31 @@ void InspectorPanel::showObject(const QJsonObject &object) {
         searchableActions.append(action);
     }
     QDirIterator assets(projectRoot,
-                        {"*.ts",   "*.js",  "*.amat", "*.material",
-                         "*.wav",  "*.mp3", "*.ogg",  "*.flac",
-                         "*.m4a",  "*.aac"},
+                        {"*.ts",   "*.amat", "*.material", "*.wav",
+                         "*.mp3",  "*.ogg",  "*.flac",     "*.m4a",
+                         "*.aac"},
                         QDir::Files, QDirIterator::Subdirectories);
     while (assets.hasNext()) {
         const QFileInfo info(assets.next());
         const QString suffix = info.suffix().toLower();
+        if (suffix == "ts") {
+            QString relativePath = QDir(projectRoot).relativeFilePath(
+                info.absoluteFilePath());
+            const QStringList pathParts =
+                QDir::fromNativeSeparators(relativePath)
+                    .split('/', Qt::SkipEmptyParts);
+            bool excluded = false;
+            for (int index = 0; index + 1 < pathParts.size(); ++index) {
+                const QString directory = pathParts.at(index).toLower();
+                if (directory == "lib" || directory == "dist" ||
+                    directory == "node_modules") {
+                    excluded = true;
+                    break;
+                }
+            }
+            if (excluded)
+                continue;
+        }
         const bool material = suffix == "amat" || suffix == "material";
         const bool audio = suffix == "wav" || suffix == "mp3" ||
                            suffix == "ogg" || suffix == "flac" ||

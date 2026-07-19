@@ -513,6 +513,8 @@ class Window {
      * idea.
      */
     void addObject(Renderable *object);
+    void addInitializedObject(Renderable *object);
+    void removeObjectFromRendering(Renderable *object);
     /**
      * @brief Removes a previously registered renderable from the window.
      */
@@ -835,6 +837,7 @@ class Window {
     std::shared_ptr<opal::CommandBuffer> activeCommandBuffer = nullptr;
     CoreWindowReference windowRef;
     std::vector<Renderable *> pendingObjects;
+    std::vector<Renderable *> pendingInitializedObjects;
     std::vector<Renderable *> pendingRemovals;
     std::vector<Renderable *> renderables;
     std::vector<Renderable *> preferenceRenderables;
@@ -864,6 +867,7 @@ class Window {
 
     void setupSSAO();
     void applyScene(Scene *scene);
+    void removeObjectInternal(Renderable *object, bool clearEditorState);
 
     glm::mat4 calculateProjectionMatrix();
     glm::mat4 lastViewMatrix = glm::mat4(1.0f);

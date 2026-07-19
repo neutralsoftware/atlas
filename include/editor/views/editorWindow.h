@@ -63,6 +63,7 @@ private:
     void openScene();
     void saveSceneAs();
     void showProjectSettings();
+    void showInputActions();
     void showExportDialog();
     void showCommandPalette();
     void showGlobalSearch();

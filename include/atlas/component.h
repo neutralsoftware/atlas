@@ -23,6 +23,7 @@
 #include <optional>
 #include <random>
 #include <string>
+#include <unordered_set>
 #include <vector>
 
 class CoreObject;
@@ -549,6 +550,7 @@ class CompoundObject : public GameObject {
      * synchronized before rendering.
      */
     virtual void update(Window &window) override;
+    void beforePhysics() override;
     /**
      * @brief Updates the objects within the compound object.
      *
@@ -590,6 +592,7 @@ class CompoundObject : public GameObject {
      * child.
      */
     Position3d getPosition() const override;
+    Rotation3d getRotation() const override;
     /**
      * @brief Collects the vertices from the first child CoreObject for quick
      * queries such as bounding-box generation.
@@ -646,12 +649,9 @@ class CompoundObject : public GameObject {
      * @param obj The component instance to add. \warning It must be long-lived.
      * This means that declaring it as a class property is a good idea.
      */
-    inline void addObject(GameObject *obj) {
-        objects.push_back(obj);
-        if (obj != nullptr && obj->renderLateForward) {
-            lateForwardObjects.push_back(obj);
-        }
-    }
+    void addObject(GameObject *obj, bool childInitialized = false);
+    void removeObject(GameObject *obj);
+    bool containsObject(const GameObject *obj) const;
 
     /**
      * @brief Returns the late forward proxy renderable, if any children
@@ -665,11 +665,13 @@ class CompoundObject : public GameObject {
     class LateCompoundRenderable;
 
     Position3d position{0.0, 0.0, 0.0};
-    std::vector<Position3d> originalPositions;
+    Rotation3d rotation{0.0, 0.0, 0.0};
+    Scale3d scale{1.0, 1.0, 1.0};
     std::vector<GameObject *> lateForwardObjects;
+    std::unordered_set<GameObject *> initializedObjects;
     std::shared_ptr<LateCompoundRenderable> lateRenderableProxy;
     bool lateRenderableRegistered = false;
-    bool changedPosition = false;
+    bool initialized = false;
 
     void renderLate(float dt,
                     const std::shared_ptr<opal::CommandBuffer> &commandBuffer,
@@ -680,7 +682,7 @@ class CompoundObject : public GameObject {
     std::optional<std::shared_ptr<opal::Pipeline>>
     getLateShaderPipelineInternal();
     void setLatePipeline(std::shared_ptr<opal::Pipeline> pipeline);
-    bool lateCanCastShadows() const;
+    void syncLateRenderableRegistration();
 };
 
 /**

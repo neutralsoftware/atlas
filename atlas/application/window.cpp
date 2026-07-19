@@ -852,6 +852,12 @@ void appendShadowCaster(Renderable *obj, std::unordered_set<Renderable *> &seen,
         }
         return;
     }
+    if (auto *compound = dynamic_cast<CompoundObject *>(obj)) {
+        for (auto *child : compound->objects) {
+            appendShadowCaster(child, seen, casters);
+        }
+        return;
+    }
     if (!obj->canCastShadows()) {
         return;
     }
@@ -1480,6 +1486,14 @@ bool Window::stepFrame() {
         }
     }
     this->pendingObjects.clear();
+
+    for (auto *obj : this->pendingInitializedObjects) {
+        this->renderables.push_back(obj);
+        if (obj->renderLateForward) {
+            this->addLateForwardObject(obj);
+        }
+    }
+    this->pendingInitializedObjects.clear();
 
     DebugTimer cpuTimer("Cpu Data");
     DebugTimer mainTimer("Main Loop");
@@ -2531,6 +2545,9 @@ bool Window::editorSelectionBounds(GameObject *object, glm::vec3 &boundsMin,
 
 void Window::moveEditorObjectChildren(GameObject *object,
                                       const Position3d &deltaPosition) {
+    if (dynamic_cast<CompoundObject *>(object) != nullptr) {
+        return;
+    }
     auto childrenIt = editorObjectChildren.find(object);
     if (childrenIt == editorObjectChildren.end()) {
         return;
@@ -3422,7 +3439,10 @@ void Window::addObject(Renderable *obj) {
         std::ranges::find(this->renderables, obj) != this->renderables.end();
     const bool inPending = std::ranges::find(this->pendingObjects, obj) !=
                            this->pendingObjects.end();
-    if (inRenderables || inPending) {
+    const bool inInitializedPending =
+        std::ranges::find(this->pendingInitializedObjects, obj) !=
+        this->pendingInitializedObjects.end();
+    if (inRenderables || inPending || inInitializedPending) {
         return;
     }
 
@@ -3440,12 +3460,49 @@ void Window::addObject(Renderable *obj) {
     this->ssaoUpdateCooldown = 0.0f;
 }
 
-void Window::removeObject(Renderable *obj) {
+void Window::addInitializedObject(Renderable *obj) {
+    if (obj == nullptr) {
+        return;
+    }
+    const bool inRenderables =
+        std::ranges::find(this->renderables, obj) != this->renderables.end();
+    const bool inPending = std::ranges::find(this->pendingObjects, obj) !=
+                           this->pendingObjects.end();
+    const bool inInitializedPending =
+        std::ranges::find(this->pendingInitializedObjects, obj) !=
+        this->pendingInitializedObjects.end();
+    if (inRenderables || inPending || inInitializedPending) {
+        return;
+    }
+    this->pendingRemovals.erase(std::remove(this->pendingRemovals.begin(),
+                                            this->pendingRemovals.end(), obj),
+                                this->pendingRemovals.end());
+    if (this->physicsWorld != nullptr) {
+        this->pendingInitializedObjects.push_back(obj);
+    } else {
+        this->renderables.push_back(obj);
+        if (obj->renderLateForward) {
+            this->addLateForwardObject(obj);
+        }
+    }
+    this->shadowMapsDirty = true;
+    this->shadowUpdateCooldown = 0.0f;
+    this->ssaoMapsDirty = true;
+    this->ssaoUpdateCooldown = 0.0f;
+}
+
+void Window::removeObject(Renderable *obj) { removeObjectInternal(obj, true); }
+
+void Window::removeObjectFromRendering(Renderable *obj) {
+    removeObjectInternal(obj, false);
+}
+
+void Window::removeObjectInternal(Renderable *obj, bool clearEditorState) {
     if (obj == nullptr) {
         return;
     }
     auto *gameObject = dynamic_cast<GameObject *>(obj);
-    if (gameObject != nullptr) {
+    if (clearEditorState && gameObject != nullptr) {
         setEditorObjectParent(gameObject, nullptr);
         auto childrenIt = editorObjectChildren.find(gameObject);
         if (childrenIt != editorObjectChildren.end()) {
@@ -3455,17 +3512,25 @@ void Window::removeObject(Renderable *obj) {
             editorObjectChildren.erase(childrenIt);
         }
     }
-    if (selectedEditorObject == gameObject) {
+    if (clearEditorState && selectedEditorObject == gameObject) {
         selectedEditorObject = nullptr;
         editorDragging = false;
         editorActiveGizmoAxis = 0;
     }
 
-    const auto pendingObject =
-        std::find(this->pendingObjects.begin(), this->pendingObjects.end(), obj);
+    const auto pendingObject = std::find(this->pendingObjects.begin(),
+                                         this->pendingObjects.end(), obj);
     const bool wasPending = pendingObject != this->pendingObjects.end();
     if (wasPending) {
         this->pendingObjects.erase(pendingObject);
+    }
+    const auto pendingInitializedObject =
+        std::find(this->pendingInitializedObjects.begin(),
+                  this->pendingInitializedObjects.end(), obj);
+    const bool wasInitializedPending =
+        pendingInitializedObject != this->pendingInitializedObjects.end();
+    if (wasInitializedPending) {
+        this->pendingInitializedObjects.erase(pendingInitializedObject);
     }
 
     this->lateForwardRenderables.erase(
@@ -3488,10 +3553,11 @@ void Window::removeObject(Renderable *obj) {
                                this->lateFluids.end());
     }
 
-    if (this->physicsWorld != nullptr && !wasPending) {
+    if (this->physicsWorld != nullptr && !wasPending &&
+        !wasInitializedPending) {
         if (std::find(this->pendingRemovals.begin(),
-                      this->pendingRemovals.end(), obj) ==
-            this->pendingRemovals.end()) {
+                      this->pendingRemovals.end(),
+                      obj) == this->pendingRemovals.end()) {
             this->pendingRemovals.push_back(obj);
         }
     } else {
@@ -3509,6 +3575,11 @@ void Window::addLateForwardObject(Renderable *object) {
     if (object == nullptr) {
         return;
     }
+
+    this->pendingRemovals.erase(std::remove(this->pendingRemovals.begin(),
+                                            this->pendingRemovals.end(),
+                                            object),
+                                this->pendingRemovals.end());
 
     if (std::ranges::find(lateForwardRenderables, object) ==
         lateForwardRenderables.end()) {
@@ -3621,6 +3692,7 @@ void Window::applyScene(Scene *scene) {
     this->pendingRemovals.clear();
     this->renderables.clear();
     this->pendingObjects.clear();
+    this->pendingInitializedObjects.clear();
     this->preferenceRenderables.clear();
     this->currentRenderTarget = nullptr;
     this->modeScreenTarget.reset();
@@ -5011,32 +5083,16 @@ BoundingBox Window::getSceneBoundingBox() {
     bool any = false;
 
     for (auto *obj : renderables) {
-        if (!obj)
+        auto *object = dynamic_cast<GameObject *>(obj);
+        if (object == nullptr)
             continue;
-
-        const auto &vertices = obj->getVertices();
-        if (vertices.empty())
+        glm::vec3 objectMin;
+        glm::vec3 objectMax;
+        if (!objectBounds(object, objectMin, objectMax))
             continue;
-
-        glm::mat4 model(1.0f);
-
-        if (const auto *coreObj = dynamic_cast<const CoreObject *>(obj)) {
-            model = glm::translate(model, coreObj->getPosition().toGlm());
-            model *= glm::mat4_cast(
-                glm::normalize(coreObj->getRotation().toGlmQuat()));
-            model = glm::scale(model, coreObj->getScale().toGlm());
-        } else {
-            model = glm::translate(model, obj->getPosition().toGlm());
-            model = glm::scale(model, obj->getScale().toGlm());
-        }
-
-        for (const auto &v : vertices) {
-            glm::vec3 p =
-                glm::vec3(model * glm::vec4(v.position.toGlm(), 1.0f));
-            worldMin = glm::min(worldMin, p);
-            worldMax = glm::max(worldMax, p);
-            any = true;
-        }
+        worldMin = any ? glm::min(worldMin, objectMin) : objectMin;
+        worldMax = any ? glm::max(worldMax, objectMax) : objectMax;
+        any = true;
     }
 
     if (!any)

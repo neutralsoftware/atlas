@@ -59,6 +59,8 @@ pub enum ScriptCommands {
     Compile,
     New {
         path: String,
+        #[arg(long)]
+        component_name: Option<String>,
     },
 }
 

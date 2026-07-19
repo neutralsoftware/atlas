@@ -9,6 +9,7 @@
 #include <QJsonObject>
 #include <QMessageBox>
 #include <QPushButton>
+#include <QProcess>
 #include <QSaveFile>
 #include <QSettings>
 #include <QStandardPaths>
@@ -232,4 +233,55 @@ bool ToolchainInstaller::install(QWidget* parent) {
         return false;
     }
     return installToolchain(toolchain, parent, true);
+}
+
+QString ToolchainInstaller::executablePath() {
+    const ToolchainPaths toolchain = paths();
+    const QDir applicationDirectory(QCoreApplication::applicationDirPath());
+    const QStringList candidates{
+        toolchain.bundledCli,
+        toolchain.installedCli,
+        applicationDirectory.filePath("../../target/debug/atlas"),
+        applicationDirectory.filePath("../../target/release/atlas"),
+        applicationDirectory.filePath("atlas")};
+    for (const QString& candidate : candidates) {
+        const QFileInfo info(candidate);
+        if (info.isFile() && info.isExecutable())
+            return info.absoluteFilePath();
+    }
+    return QStandardPaths::findExecutable("atlas");
+}
+
+bool ToolchainInstaller::run(const QStringList& arguments,
+                             const QString& workingDirectory,
+                             QString* errorMessage) {
+    const QString executable = executablePath();
+    if (executable.isEmpty()) {
+        if (errorMessage != nullptr)
+            *errorMessage = "Atlas CLI was not found. Install the Atlas toolchain from the Tools menu.";
+        return false;
+    }
+
+    QProcess process;
+    process.setWorkingDirectory(workingDirectory);
+    process.start(executable, arguments);
+    process.closeWriteChannel();
+    if (!process.waitForStarted()) {
+        if (errorMessage != nullptr)
+            *errorMessage = process.errorString();
+        return false;
+    }
+    process.waitForFinished(-1);
+    if (process.exitStatus() == QProcess::NormalExit &&
+        process.exitCode() == 0) {
+        return true;
+    }
+
+    if (errorMessage != nullptr) {
+        QString output = QString::fromUtf8(process.readAllStandardError()).trimmed();
+        if (output.isEmpty())
+            output = QString::fromUtf8(process.readAllStandardOutput()).trimmed();
+        *errorMessage = output.isEmpty() ? process.errorString() : output;
+    }
+    return false;
 }

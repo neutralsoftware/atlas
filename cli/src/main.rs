@@ -22,6 +22,10 @@ fn main() {
         }
         Commands::Run { .. } => run::run(cli.command),
         Commands::Clangd { .. } => pack::clangd(cli.command),
-        Commands::Script { .. } => script::script(cli.command),
+        Commands::Script { .. } => {
+            if !script::script(cli.command) {
+                std::process::exit(1);
+            }
+        }
     }
 }

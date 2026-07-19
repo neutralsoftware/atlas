@@ -74,6 +74,14 @@ const SCENE_TEMPLATE: &str = r#"{
     "environment": {
         "automaticAmbient": true,
         "atmosphereSky": true,
+        "atmosphere": {
+            "enabled": true,
+            "globalLight": {
+                "enabled": true,
+                "castsShadows": true,
+                "shadowResolution": 4096,
+            },
+        },
     },
 }
 "#;

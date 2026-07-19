@@ -4434,18 +4434,52 @@ std::string editorObjectType(const Context &context, GameObject &object) {
     return "gameObject";
 }
 
-json editorObjectBoundsSize(GameObject &object) {
-    const std::vector<CoreVertex> vertices = object.getVertices();
-    glm::vec3 size = glm::abs(object.getScale().toGlm());
-    if (!vertices.empty()) {
-        glm::vec3 minimum(std::numeric_limits<float>::max());
-        glm::vec3 maximum(std::numeric_limits<float>::lowest());
-        for (const CoreVertex &vertex : vertices) {
-            const glm::vec3 position = vertex.position.toGlm();
-            minimum = glm::min(minimum, position);
-            maximum = glm::max(maximum, position);
+bool editorObjectWorldBounds(GameObject &object, glm::vec3 &minimum,
+                             glm::vec3 &maximum) {
+    if (auto *compound = dynamic_cast<CompoundObject *>(&object)) {
+        bool found = false;
+        for (auto *child : compound->objects) {
+            if (child == nullptr) {
+                continue;
+            }
+            glm::vec3 childMinimum;
+            glm::vec3 childMaximum;
+            if (!editorObjectWorldBounds(*child, childMinimum, childMaximum)) {
+                continue;
+            }
+            minimum = found ? glm::min(minimum, childMinimum) : childMinimum;
+            maximum = found ? glm::max(maximum, childMaximum) : childMaximum;
+            found = true;
         }
-        size *= maximum - minimum;
+        return found;
+    }
+
+    const std::vector<CoreVertex> vertices = object.getVertices();
+    if (vertices.empty()) {
+        return false;
+    }
+    glm::mat4 transform =
+        glm::translate(glm::mat4(1.0f), object.getPosition().toGlm());
+    transform *=
+        glm::mat4_cast(glm::normalize(object.getRotation().toGlmQuat()));
+    transform = glm::scale(transform, object.getScale().toGlm());
+    minimum = glm::vec3(std::numeric_limits<float>::max());
+    maximum = glm::vec3(std::numeric_limits<float>::lowest());
+    for (const CoreVertex &vertex : vertices) {
+        const glm::vec3 position =
+            glm::vec3(transform * glm::vec4(vertex.position.toGlm(), 1.0f));
+        minimum = glm::min(minimum, position);
+        maximum = glm::max(maximum, position);
+    }
+    return true;
+}
+
+json editorObjectBoundsSize(GameObject &object) {
+    glm::vec3 minimum;
+    glm::vec3 maximum;
+    glm::vec3 size = glm::abs(object.getScale().toGlm());
+    if (editorObjectWorldBounds(object, minimum, maximum)) {
+        size = maximum - minimum;
     }
     size.x = std::max(size.x, 0.05f);
     size.y = std::max(size.y, 0.05f);
@@ -5116,6 +5150,11 @@ bool Context::setObjectParent(int childId, int parentId) {
     }
 
     GameObject *parent = nullptr;
+    GameObject *previousParent = nullptr;
+    if (auto previous = objectParents.find(childId);
+        previous != objectParents.end()) {
+        previousParent = findContextObject(*this, previous->second);
+    }
     if (parentId >= 0) {
         parent = findContextObject(*this, parentId);
         if (parent == nullptr || parent == child) {
@@ -5135,6 +5174,23 @@ bool Context::setObjectParent(int childId, int parentId) {
         }
     }
 
+    auto *previousCompound = dynamic_cast<CompoundObject *>(previousParent);
+    auto *nextCompound = dynamic_cast<CompoundObject *>(parent);
+
+    if (previousCompound != nullptr && previousCompound != nextCompound) {
+        previousCompound->removeObject(child);
+        if (nextCompound == nullptr && window != nullptr) {
+            window->addInitializedObject(child);
+        }
+    }
+
+    if (nextCompound != nullptr && nextCompound != previousCompound) {
+        if (previousCompound == nullptr && window != nullptr) {
+            window->removeObjectFromRendering(child);
+        }
+        nextCompound->addObject(child, true);
+    }
+
     if (parentId < 0) {
         objectParents.erase(childId);
         objectParentReferences.erase(childId);
@@ -5147,9 +5203,9 @@ bool Context::setObjectParent(int childId, int parentId) {
 
     objectParents[childId] = parentId;
     objectParentReferences[childId] = std::to_string(parentId);
-    editorObjectSourceData[childId]["parent"] =
-        objectNames.contains(parentId) ? objectNames[parentId]
-                                       : std::to_string(parentId);
+    editorObjectSourceData[childId]["parent"] = objectNames.contains(parentId)
+                                                    ? objectNames[parentId]
+                                                    : std::to_string(parentId);
     if (window != nullptr) {
         window->setEditorObjectParent(child, parent);
     }
@@ -5274,10 +5330,7 @@ bool Context::deleteObject(int id) {
         if (compound == nullptr) {
             continue;
         }
-        auto &compoundObjects = compound->objects;
-        compoundObjects.erase(
-            std::remove(compoundObjects.begin(), compoundObjects.end(), object),
-            compoundObjects.end());
+        compound->removeObject(object);
     }
 
     if (window != nullptr) {
@@ -5717,6 +5770,8 @@ void Context::loadProject() {
 
     if (auto *gameTable = configTable["game"].as_table()) {
         mainScene = (*gameTable)["main_scene"].value_or("main.ascene");
+        config.inputActions =
+            (*gameTable)["input_actions"].value_or(std::string());
 
         assetDirectories.clear();
         if (auto *assets = (*gameTable)["assets"].as_array()) {
@@ -5926,6 +5981,9 @@ void Context::loadScene(Window &window, const json &sceneData) {
     }
 
     const std::string baseDir = sceneDir.empty() ? projectDir : sceneDir;
+    if (!config.inputActions.empty()) {
+        loadInputActionsFromJson(window, config.inputActions, projectDir);
+    }
     RuntimeEnvironmentDefinition environmentDefinition =
         loadEnvironmentDefinition(sceneData, baseDir);
     scene->setEnvironment(std::move(environmentDefinition.environment));
@@ -6288,12 +6346,6 @@ void Context::loadScene(Window &window, const json &sceneData) {
     for (const auto &[childId, parentId] : objectParents) {
         GameObject *child = findContextObject(*this, childId);
         GameObject *parent = findContextObject(*this, parentId);
-        if (auto *compound = dynamic_cast<CompoundObject *>(parent);
-            compound != nullptr &&
-            std::ranges::find(compound->objects, child) !=
-                compound->objects.end()) {
-            continue;
-        }
         window.setEditorObjectParent(child, parent);
     }
 
