@@ -64,6 +64,8 @@ static inline float3 sphericalFibonacci(uint index, uint count, uint frameIndex)
 
 kernel void main0(texture2d<float, access::write> outTexture [[texture(0)]],
                   texture2d<float, access::read> prevTexture [[texture(1)]],
+                  texture2d<float, access::write> outDistance [[texture(2)]],
+                  texture2d<float, access::read> prevDistance [[texture(3)]],
                   device float4 *probeRadiance [[buffer(0)]],
                   constant ProbeSpace &ps [[buffer(1)]],
                   constant RaytracingSettings &rt [[buffer(2)]],
@@ -82,6 +84,7 @@ kernel void main0(texture2d<float, access::write> outTexture [[texture(0)]],
     if (tileRes == 0u || probesPerRow == 0u || totalProbes == 0u ||
         innerRes == 0u) {
         outTexture.write(prevTexture.read(gid), gid);
+        outDistance.write(prevDistance.read(gid), gid);
         return;
     }
 
@@ -91,6 +94,7 @@ kernel void main0(texture2d<float, access::write> outTexture [[texture(0)]],
 
     if (probeIndex >= totalProbes) {
         outTexture.write(prevTexture.read(gid), gid);
+        outDistance.write(prevDistance.read(gid), gid);
         return;
     }
 
@@ -103,6 +107,7 @@ kernel void main0(texture2d<float, access::write> outTexture [[texture(0)]],
          (((probeIndex - updateOffset) % updateStride) == 0u));
     if (!probeIsActive) {
         outTexture.write(prevTexture.read(gid), gid);
+        outDistance.write(prevDistance.read(gid), gid);
         return;
     }
 
@@ -122,12 +127,13 @@ kernel void main0(texture2d<float, access::write> outTexture [[texture(0)]],
 
     float3 sum = float3(0.0f);
     float weightSum = 0.0f;
+    float distanceSum = 0.0f;
+    float distanceSquaredSum = 0.0f;
     float nearHitCount = 0.0f;
-    float missCount = 0.0f;
     float spacingScale =
         max(max(ps.spacing.x, max(ps.spacing.y, ps.spacing.z)), 1e-4f);
     float nearHitThreshold =
-        max(max(rt.normalBias * 1.2f, spacingScale * 0.015f), 0.0008f);
+        max(max(rt.normalBias * 2.0f, spacingScale * 0.1f), 0.002f);
 
     for (uint r = 0; r < raysPerProbe; r += rayStep) {
         sampledRayCount++;
@@ -135,8 +141,6 @@ kernel void main0(texture2d<float, access::write> outTexture [[texture(0)]],
         float hitDistance = raySample.w;
         if (hitDistance > 0.0f && hitDistance < nearHitThreshold) {
             nearHitCount += 1.0f;
-        } else if (hitDistance <= 0.0f) {
-            missCount += 1.0f;
         }
 
         float3 rayDir = sphericalFibonacci(r, raysPerProbe, rt.frameIndex);
@@ -144,19 +148,24 @@ kernel void main0(texture2d<float, access::write> outTexture [[texture(0)]],
         if (w > 1e-6f) {
             float3 rad = raySample.xyz;
             if (all(isfinite(rad))) {
-                float lum = dot(rad, float3(0.2126f, 0.7152f, 0.0722f));
-                float compression = 1.0f / (1.0f + lum * 0.25f);
-                rad *= compression;
                 sum += rad * w;
                 weightSum += w;
+                float distance = hitDistance > 0.0f
+                                     ? min(hitDistance, rt.maxRayDistance)
+                                     : rt.maxRayDistance;
+                distanceSum += distance * w;
+                distanceSquaredSum += distance * distance * w;
             }
         }
     }
 
     float3 irradiance = float3(0.0f);
+    float2 distanceMoments = float2(rt.maxRayDistance,
+                                    rt.maxRayDistance * rt.maxRayDistance);
     float invRayCount = 1.0f / float(max(sampledRayCount, 1u));
     if (weightSum > 1e-6f) {
         irradiance = sum * (FOUR_PI * invRayCount);
+        distanceMoments = float2(distanceSum, distanceSquaredSum) / weightSum;
     }
 
     if (!all(isfinite(irradiance))) {
@@ -164,22 +173,28 @@ kernel void main0(texture2d<float, access::write> outTexture [[texture(0)]],
     }
 
     float4 prev = prevTexture.read(gid);
+    float4 previousDistance = prevDistance.read(gid);
     float3 prevValue = all(isfinite(prev.xyz)) ? prev.xyz : float3(0.0f);
     float prevValidity = isfinite(prev.w) ? clamp(prev.w, 0.0f, 1.0f) : 1.0f;
 
     float nearFraction = nearHitCount * invRayCount;
-    float missFraction = missCount * invRayCount;
     float nearPenalty = smoothstep(0.82f, 0.995f, nearFraction);
-    float missPenalty = smoothstep(0.95f, 1.0f, missFraction);
-    float probeValidity = (1.0f - nearPenalty) * (1.0f - missPenalty);
-    probeValidity = clamp(probeValidity, 0.005f, 1.0f);
+    float probeValidity = 1.0f - nearPenalty;
+    probeValidity = clamp(probeValidity, 0.0f, 1.0f);
 
     float h = clamp(rt.hysteresis, 0.0f, 0.995f);
-    float3 blended = (rt.frameIndex == 0u) ? irradiance : mix(irradiance, prevValue, h);
+    bool firstProbeUpdate = rt.frameIndex < updateStride;
+    float3 blended = firstProbeUpdate ? irradiance : mix(irradiance, prevValue, h);
+    float2 blendedDistance =
+        firstProbeUpdate
+            ? distanceMoments
+            : mix(distanceMoments, previousDistance.xy, h);
     float blendedValidity =
-        (rt.frameIndex == 0u)
+        firstProbeUpdate
             ? probeValidity
             : mix(probeValidity, prevValidity, h);
 
     outTexture.write(float4(max(blended, float3(0.0f)), blendedValidity), gid);
+    outDistance.write(float4(max(blendedDistance, float2(0.0f)),
+                             blendedValidity, 0.0f), gid);
 }
