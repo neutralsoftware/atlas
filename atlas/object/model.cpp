@@ -17,6 +17,7 @@
 #include "atlas/window.h"
 #include "atlas/workspace.h"
 #include <assimp/Importer.hpp>
+#include <assimp/ProgressHandler.hpp>
 #include <assimp/postprocess.h>
 #include <algorithm>
 #include <cmath>
@@ -36,13 +37,28 @@
 #include <glm/gtc/epsilon.hpp>
 
 namespace {
+class ModelImportProgressHandler : public Assimp::ProgressHandler {
+  public:
+    explicit ModelImportProgressHandler(
+        std::function<void(float, const std::string &)> callback)
+        : callback(std::move(callback)) {}
+
+    bool Update(float percentage = -1.0f) override {
+        if (callback)
+            callback(std::clamp(percentage, 0.0f, 1.0f) * 0.85f,
+                     "Reading and optimizing model");
+        return true;
+    }
+
+  private:
+    std::function<void(float, const std::string &)> callback;
+};
+
 glm::mat4 assimpToGlmMatrix(const aiMatrix4x4 &matrix) {
     return glm::transpose(glm::make_mat4(&matrix.a1));
 }
 
-float saturate(float value) {
-    return std::clamp(value, 0.0f, 1.0f);
-}
+float saturate(float value) { return std::clamp(value, 0.0f, 1.0f); }
 
 float luminance(const aiColor3D &color) {
     return (color.r * 0.2126f) + (color.g * 0.7152f) + (color.b * 0.0722f);
@@ -59,20 +75,24 @@ float roughnessFromShininess(float shininess, float strength) {
 }
 
 void importMaterialProperties(aiMaterial *material, CoreObject &object) {
-    aiColor4D baseColor;
-    if (material->Get(AI_MATKEY_BASE_COLOR, baseColor) == AI_SUCCESS) {
-        object.material.albedo = {baseColor.r, baseColor.g, baseColor.b,
-                                  baseColor.a};
+    aiColor3D diffuseColor;
+
+    if (material->Get(AI_MATKEY_COLOR_DIFFUSE, diffuseColor) == AI_SUCCESS) {
+        object.material.albedo.r = diffuseColor.r;
+        object.material.albedo.g = diffuseColor.g;
+        object.material.albedo.b = diffuseColor.b;
     } else {
-        aiColor3D diffuseColor;
-        if (material->Get(AI_MATKEY_COLOR_DIFFUSE, diffuseColor) ==
-            AI_SUCCESS) {
-            object.material.albedo.r = diffuseColor.r;
-            object.material.albedo.g = diffuseColor.g;
-            object.material.albedo.b = diffuseColor.b;
+        aiColor4D baseColor;
+
+        if (material->Get(AI_MATKEY_BASE_COLOR, baseColor) == AI_SUCCESS) {
+            object.material.albedo = {
+                baseColor.r,
+                baseColor.g,
+                baseColor.b,
+                baseColor.a,
+            };
         }
     }
-
     float opacity = 1.0f;
     if (material->Get(AI_MATKEY_OPACITY, opacity) == AI_SUCCESS) {
         object.material.albedo.a = saturate(opacity);
@@ -101,8 +121,7 @@ void importMaterialProperties(aiMaterial *material, CoreObject &object) {
             float shininess = 0.0f;
             if (material->Get(AI_MATKEY_SHININESS, shininess) == AI_SUCCESS) {
                 float shininessStrength = 1.0f;
-                material->Get(AI_MATKEY_SHININESS_STRENGTH,
-                              shininessStrength);
+                material->Get(AI_MATKEY_SHININESS_STRENGTH, shininessStrength);
                 object.material.roughness =
                     roughnessFromShininess(shininess, shininessStrength);
             }
@@ -137,8 +156,7 @@ void importMaterialProperties(aiMaterial *material, CoreObject &object) {
         aiColor3D specularColor(0.0f, 0.0f, 0.0f);
         if (material->Get(AI_MATKEY_COLOR_SPECULAR, specularColor) ==
             AI_SUCCESS) {
-            object.material.reflectivity =
-                saturate(luminance(specularColor));
+            object.material.reflectivity = saturate(luminance(specularColor));
         }
     }
 }
@@ -146,7 +164,15 @@ void importMaterialProperties(aiMaterial *material, CoreObject &object) {
 
 void Model::fromResource(const Resource &resource) { loadModel(resource); }
 
-void Model::loadModel(const Resource &resource) {
+void Model::fromResource(
+    const Resource &resource,
+    const std::function<void(float, const std::string &)> &progress) {
+    loadModel(resource, progress);
+}
+
+void Model::loadModel(
+    const Resource &resource,
+    const std::function<void(float, const std::string &)> &progress) {
     Assimp::Importer importer;
     if (resource.type != ResourceType::Model) {
         atlas_warning("Resource is not a model: " + resource.name);
@@ -154,6 +180,11 @@ void Model::loadModel(const Resource &resource) {
     }
 
     atlas_log("Loading model: " + resource.name);
+
+    if (progress) {
+        progress(0.0f, "Opening model");
+        importer.SetProgressHandler(new ModelImportProgressHandler(progress));
+    }
 
     unsigned int importFlags =
         aiProcess_Triangulate | aiProcess_CalcTangentSpace |
@@ -171,10 +202,19 @@ void Model::loadModel(const Resource &resource) {
         return;
     }
     directory = resource.path.parent_path().string();
+    importProgress = progress;
+    importedMeshCount = 0;
+    totalMeshCount = scene->mNumMeshes;
+    if (progress)
+        progress(0.88f, "Loading meshes and materials");
     // Texture cache to avoid loading the same texture multiple times
     std::unordered_map<std::string, Texture> textureCache;
 
     processNode(scene->mRootNode, scene, glm::mat4(1.0f), textureCache);
+
+    if (progress)
+        progress(1.0f, "Finishing import");
+    importProgress = {};
 
     atlas_log("Model loaded successfully: " + resource.name + " (" +
               std::to_string(objects.size()) + " objects, " +
@@ -217,6 +257,13 @@ void Model::processNode(
         auto obj = std::make_shared<CoreObject>(
             processMesh(mesh, scene, nodeTransform, textureCache));
         this->objects.push_back(obj);
+        importedMeshCount++;
+        if (importProgress && totalMeshCount > 0) {
+            const float completed = static_cast<float>(importedMeshCount) /
+                                    static_cast<float>(totalMeshCount);
+            importProgress(0.88f + completed * 0.11f,
+                           "Loading meshes and materials");
+        }
     }
 
     for (unsigned int i = 0; i < node->mNumChildren; i++) {
@@ -247,10 +294,9 @@ Model::processMesh(aiMesh *mesh, const aiScene *scene,
 
         // ---------- Normals ----------
         if (mesh->mNormals) {
-            glm::vec3 normal = normalTransform *
-                               glm::vec3(mesh->mNormals[i].x,
-                                         mesh->mNormals[i].y,
-                                         mesh->mNormals[i].z);
+            glm::vec3 normal = normalTransform * glm::vec3(mesh->mNormals[i].x,
+                                                           mesh->mNormals[i].y,
+                                                           mesh->mNormals[i].z);
             if (glm::length(normal) < 1e-6f) {
                 normal = glm::vec3(0.0f, 1.0f, 0.0f);
             } else {
@@ -265,25 +311,24 @@ Model::processMesh(aiMesh *mesh, const aiScene *scene,
         glm::vec3 normal = vertex.normal.toGlm();
         glm::vec3 tangent(1.0f, 0.0f, 0.0f);
         if (mesh->mTangents) {
-            tangent = linearTransform *
-                      glm::vec3(mesh->mTangents[i].x, mesh->mTangents[i].y,
-                                mesh->mTangents[i].z);
+            tangent = linearTransform * glm::vec3(mesh->mTangents[i].x,
+                                                  mesh->mTangents[i].y,
+                                                  mesh->mTangents[i].z);
         }
         tangent = tangent - normal * glm::dot(normal, tangent);
         if (glm::length(tangent) < 1e-6f) {
-            glm::vec3 up =
-                std::abs(normal.y) < 0.999f ? glm::vec3(0.0f, 1.0f, 0.0f)
-                                            : glm::vec3(1.0f, 0.0f, 0.0f);
+            glm::vec3 up = std::abs(normal.y) < 0.999f
+                               ? glm::vec3(0.0f, 1.0f, 0.0f)
+                               : glm::vec3(1.0f, 0.0f, 0.0f);
             tangent = glm::cross(up, normal);
         }
         tangent = glm::normalize(tangent);
 
         glm::vec3 bitangent(0.0f, 0.0f, 1.0f);
         if (mesh->mBitangents) {
-            bitangent = linearTransform *
-                        glm::vec3(mesh->mBitangents[i].x,
-                                  mesh->mBitangents[i].y,
-                                  mesh->mBitangents[i].z);
+            bitangent = linearTransform * glm::vec3(mesh->mBitangents[i].x,
+                                                    mesh->mBitangents[i].y,
+                                                    mesh->mBitangents[i].z);
         } else {
             bitangent = glm::cross(normal, tangent);
         }
@@ -349,9 +394,9 @@ Model::processMesh(aiMesh *mesh, const aiScene *scene,
             loadMaterialTextures(material, std::any(aiTextureType_DIFFUSE),
                                  "texture_diffuse", textureCache);
         if (diffuseMaps.empty()) {
-            auto baseColorMaps =
-                loadMaterialTextures(material, std::any(aiTextureType_BASE_COLOR),
-                                     "texture_diffuse", textureCache);
+            auto baseColorMaps = loadMaterialTextures(
+                material, std::any(aiTextureType_BASE_COLOR), "texture_diffuse",
+                textureCache);
             diffuseMaps.insert(diffuseMaps.end(), baseColorMaps.begin(),
                                baseColorMaps.end());
         }
@@ -381,11 +426,11 @@ Model::processMesh(aiMesh *mesh, const aiScene *scene,
                               heightAsNormalMaps.end());
         }
         if (normalMaps.empty()) {
-            auto displacementAsNormalMaps =
-                loadMaterialTextures(material,
-                                     std::any(aiTextureType_DISPLACEMENT),
-                                     "texture_normal", textureCache);
-            normalMaps.insert(normalMaps.end(), displacementAsNormalMaps.begin(),
+            auto displacementAsNormalMaps = loadMaterialTextures(
+                material, std::any(aiTextureType_DISPLACEMENT),
+                "texture_normal", textureCache);
+            normalMaps.insert(normalMaps.end(),
+                              displacementAsNormalMaps.begin(),
                               displacementAsNormalMaps.end());
         }
         textures.insert(textures.end(), normalMaps.begin(), normalMaps.end());
@@ -406,19 +451,18 @@ Model::processMesh(aiMesh *mesh, const aiScene *scene,
             material, std::any(aiTextureType_AMBIENT_OCCLUSION), "texture_ao",
             textureCache);
         if (aoMaps.empty()) {
-            auto lightmapMaps = loadMaterialTextures(
-                material, std::any(aiTextureType_LIGHTMAP), "texture_ao",
-                textureCache);
+            auto lightmapMaps =
+                loadMaterialTextures(material, std::any(aiTextureType_LIGHTMAP),
+                                     "texture_ao", textureCache);
             aoMaps.insert(aoMaps.end(), lightmapMaps.begin(),
                           lightmapMaps.end());
         }
         textures.insert(textures.end(), aoMaps.begin(), aoMaps.end());
 
-        auto opacityMaps = loadMaterialTextures(
-            material, std::any(aiTextureType_OPACITY), "texture_opacity",
-            textureCache);
-        textures.insert(textures.end(), opacityMaps.begin(),
-                        opacityMaps.end());
+        auto opacityMaps =
+            loadMaterialTextures(material, std::any(aiTextureType_OPACITY),
+                                 "texture_opacity", textureCache);
+        textures.insert(textures.end(), opacityMaps.begin(), opacityMaps.end());
     }
 
     if (!textures.empty()) {

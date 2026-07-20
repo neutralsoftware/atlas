@@ -21,6 +21,7 @@
 #include <QDebug>
 #include <QDragEnterEvent>
 #include <QDropEvent>
+#include <QEventLoop>
 #include <QFile>
 #include <QFileInfo>
 #include <QHideEvent>
@@ -33,6 +34,7 @@
 #include <QMessageBox>
 #include <QMimeData>
 #include <QPaintEngine>
+#include <QProgressDialog>
 #include <QPointer>
 #include <QResizeEvent>
 #include <QSize>
@@ -1151,8 +1153,31 @@ bool ViewportPanel::importRuntimeModel(const QString &path) {
         {"rotation", QJsonArray{0.0, 0.0, 0.0}},
         {"scale", QJsonArray{1.0, 1.0, 1.0}},
         {"components", QJsonArray{}}};
+    QProgressDialog progress(this);
+    progress.setWindowTitle(tr("Importing Model"));
+    progress.setLabelText(tr("Preparing %1…").arg(QFileInfo(path).fileName()));
+    progress.setCancelButton(nullptr);
+    progress.setRange(0, 100);
+    progress.setValue(0);
+    progress.setMinimumDuration(0);
+    progress.setWindowModality(Qt::WindowModal);
+    progress.show();
+    QCoreApplication::processEvents(QEventLoop::ExcludeUserInputEvents);
+
+    const QString fileName = QFileInfo(path).fileName();
     const int id = runtimeContext->pasteObjectDefinition(
-        QJsonDocument(definition).toJson(QJsonDocument::Compact).toStdString());
+        QJsonDocument(definition).toJson(QJsonDocument::Compact).toStdString(),
+        [&progress, &fileName](float value, const std::string &status) {
+            const int percentage =
+                std::clamp(static_cast<int>(std::round(value * 100.0f)), 0, 100);
+            progress.setValue(percentage);
+            progress.setLabelText(QString::fromStdString(status) +
+                                  QObject::tr("\n%1 — %2%")
+                                      .arg(fileName)
+                                      .arg(percentage));
+            QCoreApplication::processEvents(QEventLoop::ExcludeUserInputEvents);
+        });
+    progress.setValue(100);
     if (id < 0)
         return false;
     refreshSceneSnapshot();
