@@ -853,6 +853,7 @@ void EditorWindow::activateWorkspace(int index) {
         if (auto *button = workspaceModeGroup->button(index))
             button->setChecked(true);
     }
+    scheduleLayoutSave();
 }
 
 void EditorWindow::createScene() {
@@ -1718,6 +1719,8 @@ void EditorWindow::saveLayout() {
 
     settings.setValue("window/geometry", saveGeometry());
     settings.setValue(DockStateKey, coreManager->saveState(DockStateVersion));
+    if (workspaceStack != nullptr)
+        settings.setValue("workspace/mode", workspaceStack->currentIndex());
     settings.sync();
 }
 
@@ -1735,6 +1738,10 @@ void EditorWindow::restoreLayout() {
         coreManager->restoreState(dockState, DockStateVersion);
     if (!restored && !defaultDockState.isEmpty())
         coreManager->restoreState(defaultDockState, DockStateVersion);
+    if (workspaceStack != nullptr)
+        activateWorkspace(
+            std::clamp(settings.value("workspace/mode", 0).toInt(), 0,
+                       workspaceStack->count() - 1));
     restoringLayout = false;
     configureDockSplitters();
 }
