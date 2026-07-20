@@ -23,6 +23,7 @@
 #include <QPushButton>
 #include <QRadioButton>
 #include <QScrollBar>
+#include <QSettings>
 #include <QStandardPaths>
 #include <QStackedWidget>
 #include <QStyle>
@@ -160,8 +161,13 @@ class CreateProjectDialog : public QDialog {
         fields->addWidget(locationLabel);
         auto *locationLayout = new QHBoxLayout();
         locationField = new QLineEdit(this);
+        QSettings settings("Neutral Software", "Atlas Engine");
         QString defaultLocation =
-            QStandardPaths::writableLocation(QStandardPaths::DocumentsLocation);
+            settings.value("projects/lastCreatedLocation").toString();
+        if (defaultLocation.isEmpty() || !QDir(defaultLocation).exists()) {
+            defaultLocation = QStandardPaths::writableLocation(
+                QStandardPaths::DocumentsLocation);
+        }
         if (defaultLocation.isEmpty()) {
             defaultLocation = QDir::homePath();
         }
@@ -222,6 +228,9 @@ class CreateProjectDialog : public QDialog {
                 errorLabel->show();
                 return;
             }
+            QSettings settings("Neutral Software", "Atlas Engine");
+            settings.setValue("projects/lastCreatedLocation",
+                              QDir(locationField->text()).absolutePath());
             accept();
         });
         nameField->setFocus();
