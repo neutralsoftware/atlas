@@ -34,6 +34,7 @@
 #include <QSaveFile>
 #include <QSignalBlocker>
 #include <QSize>
+#include <QSortFilterProxyModel>
 #include <QStyle>
 #include <QToolButton>
 #include <QUrl>
@@ -139,7 +140,9 @@ public:
             suffix == "h" || suffix == "json")
             return styling::icon(styling::Icon::FileCode, "#7E929C");
         if (suffix == "png" || suffix == "jpg" || suffix == "jpeg" ||
-            suffix == "hdr")
+            suffix == "bmp" || suffix == "gif" || suffix == "webp" ||
+            suffix == "tif" || suffix == "tiff" || suffix == "tga" ||
+            suffix == "hdr" || suffix == "exr")
             return styling::icon(styling::Icon::Image, "#A1957D");
         if (suffix == "wav" || suffix == "mp3" || suffix == "ogg" ||
             suffix == "flac")
@@ -155,6 +158,29 @@ public:
 };
 
 AtlasFileIconProvider atlasFileIconProvider;
+
+class ContentBrowserFilterModel : public QSortFilterProxyModel {
+  protected:
+    bool filterAcceptsRow(int sourceRow,
+                          const QModelIndex &sourceParent) const override {
+        const QModelIndex index =
+            sourceModel()->index(sourceRow, 0, sourceParent);
+        const QFileInfo info =
+            qobject_cast<QFileSystemModel *>(sourceModel())->fileInfo(index);
+        const QString name = info.fileName().toLower();
+        if (info.isDir()) {
+            if (name == "lib" || name == "dist" || name == "node_modules")
+                return false;
+            return true;
+        }
+        if (name == "package.json" || name == "package-lock.json" ||
+            name == "tsconfig.json" || name == "yarn.lock" ||
+            name == "bun.lock" || name == "bun.lockb")
+            return false;
+        return QSortFilterProxyModel::filterAcceptsRow(sourceRow,
+                                                       sourceParent);
+    }
+};
 } // namespace
 
 ContentBrowserPanel::ContentBrowserPanel(const QString &projectFile,
@@ -239,9 +265,16 @@ ContentBrowserPanel::ContentBrowserPanel(const QString &projectFile,
     model->setRootPath(projectRoot);
     model->sort(0, Qt::AscendingOrder);
 
+    filterModel = new ContentBrowserFilterModel();
+    filterModel->setParent(this);
+    filterModel->setSourceModel(model);
+    filterModel->setFilterCaseSensitivity(Qt::CaseInsensitive);
+    filterModel->setSortCaseSensitivity(Qt::CaseInsensitive);
+    filterModel->sort(0, Qt::AscendingOrder);
+
     gridView = new QListView(this);
     gridView->setObjectName("contentGrid");
-    gridView->setModel(model);
+    gridView->setModel(filterModel);
     gridView->setViewMode(QListView::IconMode);
     gridView->setFlow(QListView::LeftToRight);
     gridView->setWrapping(true);
@@ -319,10 +352,9 @@ ContentBrowserPanel::ContentBrowserPanel(const QString &projectFile,
     });
     connect(searchField, &QLineEdit::textChanged, this,
             [this](const QString &search) {
-                model->setNameFilters(search.isEmpty()
-                                          ? QStringList()
-                                          : QStringList{"*" + search + "*"});
-                model->setNameFilterDisables(false);
+                filterModel->setFilterWildcard(search.isEmpty()
+                                                   ? QString()
+                                                   : "*" + search + "*");
             });
     connect(gridView->selectionModel(), &QItemSelectionModel::selectionChanged,
             this, [this] {
@@ -403,7 +435,8 @@ void ContentBrowserPanel::navigateTo(const QString &path, bool recordHistory) {
     }
 
     currentPath = target;
-    gridView->setRootIndex(model->index(currentPath));
+    gridView->setRootIndex(
+        filterModel->mapFromSource(model->index(currentPath)));
     gridView->clearSelection();
     searchField->clear();
 
@@ -421,7 +454,7 @@ void ContentBrowserPanel::navigateTo(const QString &path, bool recordHistory) {
 }
 
 void ContentBrowserPanel::openIndex(const QModelIndex &index) {
-    const QFileInfo info = model->fileInfo(index);
+    const QFileInfo info = model->fileInfo(filterModel->mapToSource(index));
     if (info.isDir()) {
         navigateTo(info.absoluteFilePath());
         return;
@@ -507,7 +540,8 @@ void ContentBrowserPanel::createScene() {
     if (path.isEmpty())
         return;
     if (writeNewFile(path, EmptyScene)) {
-        gridView->setCurrentIndex(model->index(path));
+        gridView->setCurrentIndex(
+            filterModel->mapFromSource(model->index(path)));
     }
 }
 
@@ -532,7 +566,7 @@ void ContentBrowserPanel::createScript() {
             error.isEmpty() ? "Atlas could not create the script." : error);
         return;
     }
-    gridView->setCurrentIndex(model->index(path));
+    gridView->setCurrentIndex(filterModel->mapFromSource(model->index(path)));
 }
 
 void ContentBrowserPanel::createMaterial() {
@@ -558,7 +592,8 @@ void ContentBrowserPanel::createMaterial() {
         "    }\n"
         "}\n";
     if (writeNewFile(path, material)) {
-        const QModelIndex index = model->index(path);
+        const QModelIndex index =
+            filterModel->mapFromSource(model->index(path));
         gridView->setCurrentIndex(index);
         emit assetActivated(path);
     }
@@ -586,7 +621,8 @@ void ContentBrowserPanel::renameSelection() {
         return;
     }
     gridView->setCurrentIndex(
-        model->index(QDir(info.absolutePath()).filePath(entryName)));
+        filterModel->mapFromSource(
+            model->index(QDir(info.absolutePath()).filePath(entryName))));
 }
 
 void ContentBrowserPanel::deleteSelection() {
@@ -596,7 +632,8 @@ void ContentBrowserPanel::deleteSelection() {
         return;
     }
     for (const QModelIndex &index : selected) {
-        const QFileInfo info = model->fileInfo(index);
+        const QFileInfo info =
+            model->fileInfo(filterModel->mapToSource(index));
         if (info.isSymLink()) {
             QFile::remove(info.absoluteFilePath());
         } else if (info.isDir()) {
@@ -616,7 +653,8 @@ void ContentBrowserPanel::copySelection() {
     clipboardPaths.clear();
     for (const QModelIndex &index :
          gridView->selectionModel()->selectedIndexes()) {
-        clipboardPaths.append(model->filePath(index));
+        clipboardPaths.append(
+            model->filePath(filterModel->mapToSource(index)));
     }
     cutClipboard = false;
 }
@@ -654,7 +692,8 @@ void ContentBrowserPanel::duplicateSelection() {
 void ContentBrowserPanel::refreshAssets() {
     model->setRootPath(QString());
     model->setRootPath(projectRoot);
-    gridView->setRootIndex(model->index(currentPath));
+    gridView->setRootIndex(
+        filterModel->mapFromSource(model->index(currentPath)));
 }
 
 void ContentBrowserPanel::selectAllAssets() { gridView->selectAll(); }
@@ -683,7 +722,7 @@ void ContentBrowserPanel::copySelectionPath() const {
 QString ContentBrowserPanel::selectedPath() const {
     const QModelIndex index = gridView->currentIndex();
     return index.isValid() && gridView->selectionModel()->isSelected(index)
-               ? model->filePath(index)
+               ? model->filePath(filterModel->mapToSource(index))
                : QString();
 }
 

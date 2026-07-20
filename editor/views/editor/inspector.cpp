@@ -27,6 +27,7 @@
 #include <QFrame>
 #include <QHBoxLayout>
 #include <QIcon>
+#include <QImageReader>
 #include <QJsonArray>
 #include <QJsonDocument>
 #include <QLabel>
@@ -192,6 +193,12 @@ QIcon inspectorIcon(QWidget *, const QString &type) {
         return styling::icon(styling::Icon::MusicNote, "#849589");
     if (normalized.contains("material"))
         return styling::icon(styling::Icon::Material, "#9E897D");
+    if (normalized == "png" || normalized == "jpg" ||
+        normalized == "jpeg" || normalized == "bmp" ||
+        normalized == "gif" || normalized == "webp" ||
+        normalized == "tif" || normalized == "tiff" ||
+        normalized == "tga" || normalized == "hdr" || normalized == "exr")
+        return styling::icon(styling::Icon::Image, "#A1957D");
     if (normalized.contains("script") || normalized == "ts" ||
         normalized == "js")
         return styling::icon(styling::Icon::FileCode, "#7E929C");
@@ -1882,6 +1889,44 @@ void InspectorPanel::showFile() {
     contentLayout->addWidget(header);
     connect(nameField, &QLineEdit::editingFinished, this,
             &InspectorPanel::commitHeaderName);
+
+    if (info.isFile()) {
+        QImageReader reader(info.absoluteFilePath());
+        reader.setAutoTransform(true);
+        if (reader.canRead()) {
+            const QSize sourceSize = reader.size();
+            if (sourceSize.isValid() &&
+                (sourceSize.width() > 720 || sourceSize.height() > 480)) {
+                reader.setScaledSize(
+                    sourceSize.scaled(720, 480, Qt::KeepAspectRatio));
+            }
+            const QImage image = reader.read();
+            if (!image.isNull()) {
+                auto *previewCard = new QFrame(content);
+                previewCard->setObjectName("inspectorComponent");
+                auto *previewLayout = new QVBoxLayout(previewCard);
+                previewLayout->setContentsMargins(0, 0, 0, 7);
+                previewLayout->setSpacing(2);
+                auto *previewTitle = new QLabel("Preview", previewCard);
+                previewTitle->setObjectName("inspectorComponentHeader");
+                auto *previewBody = new QWidget(previewCard);
+                previewBody->setObjectName("inspectorComponentBody");
+                auto *previewBodyLayout = new QVBoxLayout(previewBody);
+                previewBodyLayout->setContentsMargins(5, 5, 5, 5);
+                auto *imageLabel = new QLabel(previewBody);
+                imageLabel->setAlignment(Qt::AlignCenter);
+                imageLabel->setSizePolicy(QSizePolicy::Expanding,
+                                          QSizePolicy::Preferred);
+                imageLabel->setPixmap(QPixmap::fromImage(image).scaled(
+                    360, 240, Qt::KeepAspectRatio,
+                    Qt::SmoothTransformation));
+                previewBodyLayout->addWidget(imageLabel);
+                previewLayout->addWidget(previewTitle);
+                previewLayout->addWidget(previewBody);
+                contentLayout->addWidget(previewCard);
+            }
+        }
+    }
 
     QJsonObject metadata{
         {"path", info.absoluteFilePath()},

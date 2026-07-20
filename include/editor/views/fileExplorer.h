@@ -14,6 +14,7 @@
 #include <QWidget>
 
 class QFileSystemModel;
+class QSortFilterProxyModel;
 class QLineEdit;
 class QListView;
 class QModelIndex;
@@ -62,6 +63,7 @@ class ContentBrowserPanel : public QWidget {
 
     QListView *gridView = nullptr;
     QFileSystemModel *model = nullptr;
+    QSortFilterProxyModel *filterModel = nullptr;
     QToolButton *backButton = nullptr;
     QToolButton *forwardButton = nullptr;
     QToolButton *upButton = nullptr;
