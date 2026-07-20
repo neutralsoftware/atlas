@@ -102,6 +102,11 @@ QImage loadTextureImage(const QString &baseDir, const QJsonValue &value) {
     return path.isEmpty() ? QImage() : QImage(path);
 }
 
+double arrayValue(const QJsonValue &value, int index, double fallback) {
+    const QJsonArray array = value.toArray();
+    return array.size() > index ? array.at(index).toDouble(fallback) : fallback;
+}
+
 double channelAt(const QImage &image, double u, double v) {
     if (image.isNull()) {
         return 1.0;
@@ -149,6 +154,10 @@ class MaterialPreviewWidget : public QWidget {
         aoImage = loadTextureImage(baseDir, material.value("aoTexture"));
         displacementImage =
             loadTextureImage(baseDir, material.value("displacementTexture"));
+        textureScaleU = arrayValue(material.value("textureScale"), 0, 1.0);
+        textureScaleV = arrayValue(material.value("textureScale"), 1, 1.0);
+        textureOffsetU = arrayValue(material.value("textureOffset"), 0, 0.0);
+        textureOffsetV = arrayValue(material.value("textureOffset"), 1, 0.0);
         update();
     }
 
@@ -214,6 +223,10 @@ class MaterialPreviewWidget : public QWidget {
                     std::atan2(nx, nz) / (2.0 * std::numbers::pi_v<double>)+0.5;
                 double v = 0.5 - std::asin(std::clamp(ny, -1.0, 1.0)) /
                                      std::numbers::pi_v<double>;
+                u = u * textureScaleU + textureOffsetU;
+                v = v * textureScaleV + textureOffsetV;
+                u -= std::floor(u);
+                v -= std::floor(v);
                 if (useNormal) {
                     const QColor sampled =
                         imageAt(normalImage, u, v, QColor(128, 128, 255));
@@ -336,6 +349,10 @@ class MaterialPreviewWidget : public QWidget {
     QImage roughnessImage;
     QImage aoImage;
     QImage displacementImage;
+    double textureScaleU = 1.0;
+    double textureScaleV = 1.0;
+    double textureOffsetU = 0.0;
+    double textureOffsetV = 0.0;
     int environmentMode = 0;
 };
 
@@ -418,6 +435,10 @@ MaterialEditorPanel::normalizedMaterial(const QJsonObject &source) const {
         result.insert("normalMapStrength", 1.0);
     if (!result.value("useNormalMap").isBool())
         result.insert("useNormalMap", true);
+    if (!result.value("textureScale").isArray())
+        result.insert("textureScale", QJsonArray{1.0, 1.0});
+    if (!result.value("textureOffset").isArray())
+        result.insert("textureOffset", QJsonArray{0.0, 0.0});
     if (!result.value("transmittance").isDouble())
         result.insert("transmittance", 0.0);
     if (!result.value("ior").isDouble())
@@ -577,6 +598,26 @@ void MaterialEditorPanel::showMaterial() {
     normalForm->addRow("Strength", normalStrengthField);
     propertiesLayout->addWidget(normal);
 
+    auto *tiling = new QGroupBox("Texture Mapping", properties);
+    auto *tilingForm = new QFormLayout(tiling);
+    textureScaleUField = scalarField(-100.0, 100.0, 0.1, tiling);
+    textureScaleVField = scalarField(-100.0, 100.0, 0.1, tiling);
+    textureOffsetUField = scalarField(-100.0, 100.0, 0.05, tiling);
+    textureOffsetVField = scalarField(-100.0, 100.0, 0.05, tiling);
+    textureScaleUField->setValue(
+        arrayValue(material.value("textureScale"), 0, 1.0));
+    textureScaleVField->setValue(
+        arrayValue(material.value("textureScale"), 1, 1.0));
+    textureOffsetUField->setValue(
+        arrayValue(material.value("textureOffset"), 0, 0.0));
+    textureOffsetVField->setValue(
+        arrayValue(material.value("textureOffset"), 1, 0.0));
+    tilingForm->addRow("Tiling U", textureScaleUField);
+    tilingForm->addRow("Tiling V", textureScaleVField);
+    tilingForm->addRow("Offset U", textureOffsetUField);
+    tilingForm->addRow("Offset V", textureOffsetVField);
+    propertiesLayout->addWidget(tiling);
+
     auto *textures = new QGroupBox("Texture Slots", properties);
     auto *textureLayout = new QVBoxLayout(textures);
     const QList<QPair<QString, QString>> materialSlots{
@@ -641,6 +682,10 @@ void MaterialEditorPanel::showMaterial() {
                                           reflectivityField,
                                           emissiveIntensityField,
                                           normalStrengthField,
+                                          textureScaleUField,
+                                          textureScaleVField,
+                                          textureOffsetUField,
+                                          textureOffsetVField,
                                           transmittanceField,
                                           iorField};
     for (QDoubleSpinBox *field : scalars) {
@@ -719,6 +764,12 @@ void MaterialEditorPanel::materialChanged() {
     material.insert("emissiveIntensity", emissiveIntensityField->value());
     material.insert("normalMapStrength", normalStrengthField->value());
     material.insert("useNormalMap", normalMapField->isChecked());
+    material.insert("textureScale",
+                    QJsonArray{textureScaleUField->value(),
+                               textureScaleVField->value()});
+    material.insert("textureOffset",
+                    QJsonArray{textureOffsetUField->value(),
+                               textureOffsetVField->value()});
     material.insert("transmittance", transmittanceField->value());
     material.insert("ior", iorField->value());
     if (material == previous)

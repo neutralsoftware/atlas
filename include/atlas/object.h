@@ -84,6 +84,8 @@ struct Material {
      * @brief Whether normal map sampling is enabled for this material.
      */
     bool useNormalMap = true;
+    TextureCoordinate textureScale = {1.0f, 1.0f};
+    TextureCoordinate textureOffset = {0.0f, 0.0f};
     /**
      * @brief Fraction of transmitted light for translucent materials.
      */
@@ -883,6 +885,8 @@ class Model : public GameObject {
             }
             obj->material.useNormalMap = material.useNormalMap;
             obj->material.normalMapStrength = material.normalMapStrength;
+            obj->material.textureScale = material.textureScale;
+            obj->material.textureOffset = material.textureOffset;
             obj->useDeferredRendering = useDeferredRendering;
             obj->render(dt, commandBuffer, updatePipeline);
         }
@@ -903,6 +907,8 @@ class Model : public GameObject {
             }
             obj->material.useNormalMap = material.useNormalMap;
             obj->material.normalMapStrength = material.normalMapStrength;
+            obj->material.textureScale = material.textureScale;
+            obj->material.textureOffset = material.textureOffset;
             obj->useDeferredRendering = useDeferredRendering;
             obj->update(window);
         }
@@ -926,6 +932,8 @@ class Model : public GameObject {
             }
             obj->material.useNormalMap = material.useNormalMap;
             obj->material.normalMapStrength = material.normalMapStrength;
+            obj->material.textureScale = material.textureScale;
+            obj->material.textureOffset = material.textureOffset;
             obj->useDeferredRendering = useDeferredRendering;
             obj->initialize();
         }

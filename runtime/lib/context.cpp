@@ -743,6 +743,19 @@ MaterialDefinition loadMaterialDefinition(const json &value,
                     loaded.material.normalMapStrength);
     tryReadBoolAny(materialData, {"useNormalMap"},
                    loaded.material.useNormalMap);
+    if (const json *scale = findField(materialData, {"textureScale", "uvScale"});
+        scale != nullptr && scale->is_array() && scale->size() >= 2) {
+        loaded.material.textureScale = {
+            static_cast<float>((*scale)[0].get<double>()),
+            static_cast<float>((*scale)[1].get<double>())};
+    }
+    if (const json *offset =
+            findField(materialData, {"textureOffset", "uvOffset"});
+        offset != nullptr && offset->is_array() && offset->size() >= 2) {
+        loaded.material.textureOffset = {
+            static_cast<float>((*offset)[0].get<double>()),
+            static_cast<float>((*offset)[1].get<double>())};
+    }
     tryReadFloatAny(materialData, {"transmittance"},
                     loaded.material.transmittance);
     tryReadFloatAny(materialData, {"ior"}, loaded.material.ior);

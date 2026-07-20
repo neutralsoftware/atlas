@@ -138,6 +138,8 @@ uniform ShadowParameters shadowParams[10];
 uniform int shadowParamCount;
 
 uniform vec3 cameraPosition;
+uniform vec2 textureScale;
+uniform vec2 textureOffset;
 
 uniform bool useTexture;
 uniform bool useColor;
@@ -648,7 +650,7 @@ float calculateAllPointShadows(vec3 fragPos) {
 
 // ----- Main -----
 void main() {
-    texCoord = TexCoord;
+    texCoord = TexCoord * textureScale + textureOffset;
 
     bool hasParallaxMap = false;
     for (int i = 0; i < textureCount; i++) {

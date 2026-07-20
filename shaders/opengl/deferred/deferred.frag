@@ -42,6 +42,8 @@ uniform int textureTypes[16];
 uniform int textureCount;
 uniform Material material;
 uniform vec3 cameraPosition;
+uniform vec2 textureScale;
+uniform vec2 textureOffset;
 uniform bool useTexture;
 uniform bool useColor;
 
@@ -125,7 +127,7 @@ vec2 parallaxMapping(vec2 texCoords, vec3 viewDir) {
 }
 
 void main() {
-    texCoord = TexCoord;
+    texCoord = TexCoord * textureScale + textureOffset;
 
     vec3 tangentViewDir = normalize(transpose(TBN) * (cameraPosition - FragPos));
     texCoord = parallaxMapping(texCoord, tangentViewDir);

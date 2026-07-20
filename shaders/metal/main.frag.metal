@@ -106,6 +106,8 @@ struct Uniforms
     float3 cameraPosition;
     float normalMapStrength;
     uint useNormalMap;
+    float2 textureScale;
+    float2 textureOffset;
 };
 
 struct Environment
@@ -923,7 +925,7 @@ fragment main0_out main0(main0_in in [[stage_in]], constant Uniforms& _163 [[buf
     TBN[0] = in.TBN_0;
     TBN[1] = in.TBN_1;
     TBN[2] = in.TBN_2;
-    float2 texCoord = in.TexCoord;
+    float2 texCoord = in.TexCoord * _163.textureScale + _163.textureOffset;
     bool hasParallaxMap = false;
     for (int i = 0; i < _163.textureCount; i++)
     {

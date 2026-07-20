@@ -14,6 +14,8 @@ struct UBO
     float3 cameraPosition;
     float normalMapStrength;
     uint useNormalMap;
+    float2 textureScale;
+    float2 textureOffset;
 };
 
 struct MaterialPush
@@ -261,7 +263,7 @@ fragment main0_out main0(main0_in in [[stage_in]], constant UBO& _46 [[buffer(0)
     TBN[0] = in.TBN_0;
     TBN[1] = in.TBN_1;
     TBN[2] = in.TBN_2;
-    float2 texCoord = in.TexCoord;
+    float2 texCoord = in.TexCoord * _46.textureScale + _46.textureOffset;
     bool hasParallaxMap = false;
     for (int i = 0; i < _46.textureCount; i++)
     {

@@ -36,6 +36,8 @@ layout(set = 1, binding = 0) uniform UBO {
     bool useTexture;
     bool useColor;
     vec3 cameraPosition;
+    vec2 textureScale;
+    vec2 textureOffset;
 };
 
 layout(push_constant) uniform MaterialPush {
@@ -126,7 +128,7 @@ vec2 parallaxMapping(vec2 texCoords, vec3 viewDir) {
 }
 
 void main() {
-    texCoord = TexCoord;
+    texCoord = TexCoord * textureScale + textureOffset;
 
     // Only apply parallax mapping if a parallax texture exists
     bool hasParallaxMap = false;

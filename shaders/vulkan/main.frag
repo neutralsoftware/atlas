@@ -117,6 +117,8 @@ layout(set = 1, binding = 0) uniform Uniforms {
     int textureTypes[16];
     int textureCount;
     vec3 cameraPosition;
+    vec2 textureScale;
+    vec2 textureOffset;
 };
 
 layout(push_constant) uniform PushConstants {
@@ -678,7 +680,7 @@ float calculateAllPointShadows(vec3 fragPos) {
 
 // ----- Main -----
 void main() {
-    texCoord = TexCoord;
+    texCoord = TexCoord * textureScale + textureOffset;
 
     bool hasParallaxMap = false;
     for (int i = 0; i < textureCount; i++) {

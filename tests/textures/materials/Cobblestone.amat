@@ -24,6 +24,14 @@
         "reflectivity": 0.5,
         "roughness": 0.5,
         "roughnessTexture": "../assets/textures/cobblestone_floor_09_rough_1k.jpg",
+        "textureOffset": [
+            0,
+            0
+        ],
+        "textureScale": [
+            1,
+            1
+        ],
         "transmittance": 0,
         "useNormalMap": true
     }
