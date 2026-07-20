@@ -1872,6 +1872,9 @@ bool Window::stepFrame() {
     }
 
     if (!editorControlsRenderedInScenePass) {
+        if (this->usePathTracing) {
+            renderEditorGrid(commandBuffer);
+        }
         renderEditorOverlays(commandBuffer);
     }
 

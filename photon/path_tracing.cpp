@@ -229,7 +229,8 @@ void photon::PathTracing::buildAccelerationStructure(
 
         float transmittance;
         float ior;
-        float _pad2[2];
+        float reflectivity;
+        float _pad2;
     };
 
     struct MeshData {
@@ -362,6 +363,8 @@ void photon::PathTracing::buildAccelerationStructure(
             data.emissiveColor[2] = object->material.emissiveColor.b;
             data.ior = object->material.ior;
             data.transmittance = object->material.transmittance;
+            data.reflectivity = object->material.reflectivity;
+            data._pad2 = 0.0f;
             const bool useNormalMap =
                 object->material.useNormalMap && sampleNormalMaps;
             const float normalStrength = std::max(
@@ -663,12 +666,25 @@ void photon::PathTracing::render(
     glm::vec3 directionalLightColor(1.0f, 1.0f, 1.0f);
     float directionalLightIntensity = 0.0f;
     float ambientIntensity = 0.0f;
+    glm::vec3 atmosphereSunDirection(0.0f, 1.0f, 0.0f);
+    glm::vec3 atmosphereSunColor(1.0f, 0.95f, 0.8f);
+    float atmosphereSunIntensity = 0.0f;
+    float atmosphereSunSize = 1.0f;
+    int atmosphereEnabled = 0;
 
     Scene *scene = (Window::mainWindow != nullptr)
                        ? Window::mainWindow->getCurrentScene()
                        : nullptr;
 
     if (scene != nullptr) {
+        if (scene->atmosphere.isEnabled()) {
+            atmosphereEnabled = 1;
+            atmosphereSunDirection = scene->atmosphere.getSunAngle().toGlm();
+            Color sunColor = scene->atmosphere.sunColor;
+            atmosphereSunColor = glm::vec3(sunColor.r, sunColor.g, sunColor.b);
+            atmosphereSunIntensity = scene->atmosphere.getLightIntensity();
+            atmosphereSunSize = scene->atmosphere.sunSize;
+        }
         ambientIntensity = scene->isAutomaticAmbientEnabled()
                                ? scene->getAutomaticAmbientIntensity()
                                : scene->getAmbientIntensity();
@@ -731,6 +747,18 @@ void photon::PathTracing::render(
                                       directionalLightIntensity);
     pathTracingPipeline->setUniform1f("sceneData.ambientIntensity",
                                       ambientIntensity);
+    pathTracingPipeline->setUniform1i("sceneData.atmosphereEnabled",
+                                      atmosphereEnabled);
+    pathTracingPipeline->setUniform1f("sceneData.atmosphereSunSize",
+                                      atmosphereSunSize);
+    pathTracingPipeline->setUniform3f(
+        "sceneData.atmosphereSunDirection", atmosphereSunDirection.x,
+        atmosphereSunDirection.y, atmosphereSunDirection.z);
+    pathTracingPipeline->setUniform1f("sceneData.atmosphereSunIntensity",
+                                      atmosphereSunIntensity);
+    pathTracingPipeline->setUniform3f(
+        "sceneData.atmosphereSunColor", atmosphereSunColor.x,
+        atmosphereSunColor.y, atmosphereSunColor.z);
     pathTracingPipeline->setUniform1i("sceneData.numPointLights",
                                       pointLightCount);
     pathTracingPipeline->setUniform1i("sceneData.numSpotLights",
@@ -757,15 +785,16 @@ void photon::PathTracing::render(
     if (fallbackSkyboxTexture == nullptr) {
         fallbackSkyboxTexture = createFallbackSkyboxTexture();
     }
-    auto skyboxTextureId = fallbackSkyboxTexture->textureID;
+    std::shared_ptr<opal::Texture> skyboxTexture = fallbackSkyboxTexture;
     if (scene != nullptr) {
         auto skybox = scene->getSkybox();
-        if (skybox != nullptr && skybox->cubemap.id != 0) {
-            skyboxTextureId = skybox->cubemap.id;
+        if (skybox != nullptr && skybox->cubemap.texture != nullptr) {
+            skyboxTexture = skybox->cubemap.texture;
         }
     }
-    pathTracingPipeline->bindTextureCubemap("skybox", skyboxTextureId,
-                                            kPathTracerSkyboxTextureUnit);
+    pathTracingPipeline->bindTexture("skybox", skyboxTexture,
+                                     kPathTracerSkyboxTextureUnit);
+    auto skyboxTextureId = skyboxTexture->textureID;
     bool lightChanged =
         cachedDirectionalLightCount != directionalLightCount ||
         glm::length(cachedDirectionalLightDirection -

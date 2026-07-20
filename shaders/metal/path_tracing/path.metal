@@ -27,7 +27,8 @@ struct Material {
 
     float transmittance;
     float ior;
-    float _pad2[2];
+    float reflectivity;
+    float _pad2;
 };
 
 struct MeshData {
@@ -104,7 +105,12 @@ struct SceneData {
     float indirectStrength;
     float ambientIntensity;
     uint materialTextureCount;
-    uint _pad0;
+    uint atmosphereEnabled;
+    float atmosphereSunSize;
+    float3 atmosphereSunDirection;
+    float atmosphereSunIntensity;
+    float3 atmosphereSunColor;
+    float _pad0;
 };
 
 float pow5(float x) {
@@ -143,7 +149,8 @@ uint seedBase(uint2 gid, uint w, uint frame, uint sampleIndex) {
 constexpr sampler skyboxSampler(coord::normalized, address::clamp_to_edge,
                                 filter::linear, mip_filter::linear);
 
-float3 skyColor(float3 dir, float intensity, texturecube<float> skybox) {
+float3 skyColor(float3 dir, float intensity, texturecube<float> skybox,
+                constant SceneData &sceneData) {
     float3 sampleDir = dir;
     float len2 = dot(sampleDir, sampleDir);
     if (len2 > 1e-10) {
@@ -152,6 +159,33 @@ float3 skyColor(float3 dir, float intensity, texturecube<float> skybox) {
         sampleDir = float3(0.0, 1.0, 0.0);
     }
     float3 sky = skybox.sample(skyboxSampler, sampleDir).xyz;
+    if (sceneData.atmosphereEnabled != 0 &&
+        sceneData.atmosphereSunDirection.y > -0.15) {
+        float3 sunDirection = sceneData.atmosphereSunDirection;
+        float sunDirectionLength = dot(sunDirection, sunDirection);
+        sunDirection = sunDirectionLength > 1e-10
+                           ? sunDirection * rsqrt(sunDirectionLength)
+                           : float3(0.0, 1.0, 0.0);
+        float sunDot = dot(sampleDir, sunDirection);
+        float sizeAdjust =
+            1.0 - (sceneData.atmosphereSunSize - 1.0) * 0.001;
+        float sunSize = 0.9995 * sizeAdjust;
+        float sunGlowSize =
+            0.998 * (1.0 - (sceneData.atmosphereSunSize - 1.0) * 0.003);
+        float sunHaloSize =
+            0.99 * (1.0 - (sceneData.atmosphereSunSize - 1.0) * 0.015);
+        float sunDisk = smoothstep(sunSize - 0.0002, sunSize, sunDot);
+        float sunGlow =
+            smoothstep(sunGlowSize, sunSize, sunDot) * (1.0 - sunDisk);
+        float sunHalo = smoothstep(sunHaloSize, sunSize, sunDot) *
+                        (1.0 - smoothstep(sunSize, sunGlowSize, sunDot));
+        float horizonFade = smoothstep(
+            -0.15, 0.05, sceneData.atmosphereSunDirection.y);
+        float sunIntensity = max(sceneData.atmosphereSunIntensity, 0.05);
+        sky += sceneData.atmosphereSunColor *
+               (sunDisk * 5.0 + sunGlow * 0.5 + sunHalo) * horizonFade *
+               sunIntensity;
+    }
     float scale = intensity > 0.0 ? intensity : 1.0;
     return sky * scale;
 }
@@ -843,7 +877,7 @@ float3 sampleRadiance(uint2 gid, uint sampleIndex, uint w,
 
     for (uint step = 0; step < 8; ++step) {
         if (hit.type == intersection_type::none) {
-            return skyColor(surfaceRay.direction, 0.0, skybox);
+            return skyColor(surfaceRay.direction, 0.0, skybox, sceneData);
         }
 
         uint instanceIndex = hit.instance_id;
@@ -899,7 +933,7 @@ float3 sampleRadiance(uint2 gid, uint sampleIndex, uint w,
     }
 
     if (!foundOpaqueSurface) {
-        return skyColor(surfaceRay.direction, 0.0, skybox);
+        return skyColor(surfaceRay.direction, 0.0, skybox, sceneData);
     }
 
     float3 N = resolveShadingNormal(mat, texUV, localN, localT, localB, inst,
@@ -921,6 +955,7 @@ float3 sampleRadiance(uint2 gid, uint sampleIndex, uint w,
     resolveMaterialParameters(mat, texUV, sceneData.materialTextureCount,
                               PT_MATERIAL_TEXTURE_ARGS, albedo, metallic,
                               roughness, ao, emissive, ior, transmittance);
+    float reflectivity = clamp(mat.reflectivity, 0.0, 1.0);
     float sssStrength = clamp(1.0 - mat.albedo.w, 0.0, 1.0) * (1.0 - metallic);
     float sssThickness = mix(0.25, 1.75, ao);
 
@@ -932,7 +967,9 @@ float3 sampleRadiance(uint2 gid, uint sampleIndex, uint w,
     float3 indirect = float3(0.0);
 
     if (sceneData.maxBounces > 0) {
-        float3 F0 = mix(float3(0.04), albedo, metallic);
+        float3 baseF0 = mix(float3(0.04), albedo, metallic);
+        float3 reflectedColor = mix(float3(1.0), albedo, metallic);
+        float3 F0 = mix(baseF0, reflectedColor, reflectivity);
         float3 F_approx = F_Schlick(max(dot(N, V), 0.0), F0);
 
         float dielectricF0 = pow((ior - 1.0) / (ior + 1.0), 2.0);
@@ -943,6 +980,9 @@ float3 sampleRadiance(uint2 gid, uint sampleIndex, uint w,
         float transmitProb =
             transmittance * (1.0 - metallic) * (1.0 - dielectricSpec);
         float diffuseProb = (1.0 - metallic) * (1.0 - transmittance);
+        specProb = mix(specProb, 1.0, reflectivity);
+        transmitProb *= 1.0 - reflectivity;
+        diffuseProb *= 1.0 - reflectivity;
         float probSum = max(specProb + transmitProb + diffuseProb, 1e-4);
         specProb /= probSum;
         transmitProb /= probSum;
@@ -957,8 +997,10 @@ float3 sampleRadiance(uint2 gid, uint sampleIndex, uint w,
         float3 brdfWeight;
         float chooseSplit = rand(rng);
         bool choseTransmission = false;
+        bool choseSpecular = false;
 
         if (specProb > 1e-4 && chooseSplit < specProb) {
+            choseSpecular = true;
             float2 u = float2(rand(rng), rand(rng));
             float3 localH = sampleGGX(u, max(roughness, 0.001));
             float3 H_world = normalize(basis * localH);
@@ -1098,9 +1140,14 @@ float3 sampleRadiance(uint2 gid, uint sampleIndex, uint w,
         }
 
         if (resolvedBounceHit.type == intersection_type::none) {
+            float bounceStrength = choseSpecular
+                                       ? mix(sceneData.indirectStrength, 1.0,
+                                             max(metallic, reflectivity))
+                                       : sceneData.indirectStrength;
             indirect = brdfWeight *
-                       skyColor(resolvedBounceRay.direction, 0.0, skybox) *
-                       sceneData.indirectStrength;
+                       skyColor(resolvedBounceRay.direction, 0.0, skybox,
+                                sceneData) *
+                       bounceStrength;
         } else {
             uint bi = resolvedBounceHit.instance_id;
             uint bp = resolvedBounceHit.primitive_id;
@@ -1169,8 +1216,12 @@ float3 sampleRadiance(uint2 gid, uint sampleIndex, uint w,
 
             float3 bAmbient = bAlbedo * max(sceneData.ambientIntensity, 0.0) *
                               (1.0 - bMetallic) * bAo;
+            float bounceStrength = choseSpecular
+                                       ? mix(sceneData.indirectStrength, 1.0,
+                                             max(metallic, reflectivity))
+                                       : sceneData.indirectStrength;
             indirect = brdfWeight * (bAmbient + bounceDirect + bEmissive) *
-                       sceneData.indirectStrength;
+                       bounceStrength;
         }
 
         indirect = clampLuminance(indirect, 16.0);
