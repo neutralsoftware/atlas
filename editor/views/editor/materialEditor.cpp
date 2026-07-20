@@ -626,6 +626,7 @@ void MaterialEditorPanel::showMaterial() {
         {"Metallic", "metallicTexture"},
         {"Roughness", "roughnessTexture"},
         {"Ambient Occlusion", "aoTexture"},
+        {"PBR Pack", "pbrPackTexture"},
         {"Opacity", "opacityTexture"},
         {"Displacement", "displacementTexture"}};
     for (const auto &[label, key] : materialSlots) {

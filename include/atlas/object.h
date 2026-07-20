@@ -16,6 +16,7 @@
 #include "photon/illuminate.h"
 #include <algorithm>
 #include <any>
+#include <functional>
 #include <memory>
 #include <string>
 #include <type_traits>
@@ -798,6 +799,9 @@ class Model : public GameObject {
      * @param resource The resource to load the model from.
      */
     void fromResource(const Resource &resource);
+    void fromResource(
+        const Resource &resource,
+        const std::function<void(float, const std::string &)> &progress);
 
     /**
      * @brief Gets the objects that make up the model.
@@ -1043,8 +1047,13 @@ class Model : public GameObject {
   private:
     std::vector<std::shared_ptr<CoreObject>> objects;
     std::string directory;
+    std::function<void(float, const std::string &)> importProgress;
+    unsigned int importedMeshCount = 0;
+    unsigned int totalMeshCount = 0;
 
-    void loadModel(const Resource &resource);
+    void loadModel(
+        const Resource &resource,
+        const std::function<void(float, const std::string &)> &progress = {});
     void processNode(aiNode *node, const aiScene *scene,
                      glm::mat4 parentTransform,
                      std::unordered_map<std::string, Texture> &textureCache);

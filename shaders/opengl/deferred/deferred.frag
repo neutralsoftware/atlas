@@ -18,6 +18,7 @@ const int TEXTURE_METALLIC = 9;
 const int TEXTURE_ROUGHNESS = 10;
 const int TEXTURE_AO = 11;
 const int TEXTURE_OPACITY = 12;
+const int TEXTURE_PBR_PACK = 14;
 
 struct Material {
     vec3 albedo;
@@ -163,22 +164,37 @@ void main() {
 
     vec3 albedo = baseColor.rgb;
 
+    vec4 pbrPackTex = enableTextures(TEXTURE_PBR_PACK);
+    bool hasPbrPack = pbrPackTex != vec4(-1.0);
+
     float metallic = material.metallic;
-    vec4 metallicTex = enableTextures(TEXTURE_METALLIC);
-    if (metallicTex != vec4(-1.0)) {
-        metallic *= metallicTex.r;
+    if (hasPbrPack) {
+        metallic *= pbrPackTex.b;
+    } else {
+        vec4 metallicTex = enableTextures(TEXTURE_METALLIC);
+        if (metallicTex != vec4(-1.0)) {
+            metallic *= metallicTex.r;
+        }
     }
 
     float roughness = material.roughness;
-    vec4 roughnessTex = enableTextures(TEXTURE_ROUGHNESS);
-    if (roughnessTex != vec4(-1.0)) {
-        roughness *= roughnessTex.r;
+    if (hasPbrPack) {
+        roughness *= pbrPackTex.g;
+    } else {
+        vec4 roughnessTex = enableTextures(TEXTURE_ROUGHNESS);
+        if (roughnessTex != vec4(-1.0)) {
+            roughness *= roughnessTex.r;
+        }
     }
 
     float ao = material.ao;
-    vec4 aoTex = enableTextures(TEXTURE_AO);
-    if (aoTex != vec4(-1.0)) {
-        ao *= aoTex.r;
+    if (hasPbrPack) {
+        ao *= pbrPackTex.r;
+    } else {
+        vec4 aoTex = enableTextures(TEXTURE_AO);
+        if (aoTex != vec4(-1.0)) {
+            ao *= aoTex.r;
+        }
     }
 
     metallic = clamp(metallic, 0.0, 1.0);

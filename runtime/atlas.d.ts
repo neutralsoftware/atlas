@@ -609,6 +609,7 @@ declare module "atlas/graphics" {
         AO,
         Opacity,
         HDR,
+        PBRPack,
     }
 
     export class Texture {

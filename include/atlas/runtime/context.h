@@ -19,6 +19,7 @@
 #include <atlas/window.h>
 #include <map>
 #include <memory>
+#include <functional>
 #include <string>
 #include <unordered_map>
 #include <vector>
@@ -104,6 +105,7 @@ class Context {
     json editorEnvironmentData = json::object();
     json editorPropertySyncs = json::array();
     bool applyingPropertySyncs = false;
+    std::function<void(float, const std::string &)> modelImportProgress;
     std::vector<std::pair<std::string, std::string>> deletedObjectReferences;
 
     ProjectConfig config;
@@ -149,6 +151,9 @@ class Context {
     int createObject(const std::string &type, const std::string &name);
     std::string objectDefinitionJson(int id) const;
     int pasteObjectDefinition(const std::string &definition);
+    int pasteObjectDefinition(
+        const std::string &definition,
+        const std::function<void(float, const std::string &)> &progress);
     bool saveCurrentScene();
     bool openSceneFile(const std::string &path);
     std::string currentScenePath() const;

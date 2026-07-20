@@ -359,14 +359,26 @@ void photon::GlobalIllumination::updateProbeLayout() {
             }
         }
         baseMaterial.normalTextureIndex = normalTextureIndex;
+        const int pbrPackTextureIndex = findTextureSlotForType(
+            object->textures, TextureType::PBRPack, materialTextures,
+            textureSlots);
         baseMaterial.metallicTextureIndex =
-            findTextureSlotForType(object->textures, TextureType::Metallic,
-                                   materialTextures, textureSlots);
+            pbrPackTextureIndex >= 0
+                ? pbrPackTextureIndex
+                : findTextureSlotForType(
+                      object->textures, TextureType::Metallic,
+                      materialTextures, textureSlots);
         baseMaterial.roughnessTextureIndex =
-            findTextureSlotForType(object->textures, TextureType::Roughness,
-                                   materialTextures, textureSlots);
-        baseMaterial.aoTextureIndex = findTextureSlotForType(
-            object->textures, TextureType::AO, materialTextures, textureSlots);
+            pbrPackTextureIndex >= 0
+                ? pbrPackTextureIndex
+                : findTextureSlotForType(
+                      object->textures, TextureType::Roughness,
+                      materialTextures, textureSlots);
+        baseMaterial.aoTextureIndex =
+            pbrPackTextureIndex >= 0
+                ? pbrPackTextureIndex
+                : findTextureSlotForType(object->textures, TextureType::AO,
+                                         materialTextures, textureSlots);
         bool materialBound = false;
         int materialID = -1;
 

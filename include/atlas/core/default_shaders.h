@@ -1505,25 +1505,40 @@ fragment main0_out main0(main0_in in [[stage_in]], constant UBO& _46 [[buffer(0)
         normal = fast::normalize(in.Normal);
     }
     float3 albedoColor = baseColor.xyz;
+    int param_pbr_pack = 14;
+    float4 pbrPackTex = enableTextures(param_pbr_pack, _46, texture1, texture1Smplr, texCoord, texture2, texture2Smplr, texture3, texture3Smplr, texture4, texture4Smplr, texture5, texture5Smplr, texture6, texture6Smplr, texture7, texture7Smplr, texture8, texture8Smplr, texture9, texture9Smplr, texture10, texture10Smplr);
+    bool hasPbrPack = any(pbrPackTex != float4(-1.0));
     float metallicValue = material.metallic;
     int param_5 = 9;
     float4 metallicTex = enableTextures(param_5, _46, texture1, texture1Smplr, texCoord, texture2, texture2Smplr, texture3, texture3Smplr, texture4, texture4Smplr, texture5, texture5Smplr, texture6, texture6Smplr, texture7, texture7Smplr, texture8, texture8Smplr, texture9, texture9Smplr, texture10, texture10Smplr);
-    if (any(metallicTex != float4(-1.0)))
+    if (hasPbrPack)
+    {
+        metallicValue *= pbrPackTex.z;
+    }
+    else if (any(metallicTex != float4(-1.0)))
     {
         metallicValue *= metallicTex.x;
     }
-    float roughnessValue = material.roughness;
+    float roughnessValue = mater)",
+R"(ial.roughness;
     int param_6 = 10;
     float4 roughnessTex = enableTextures(param_6, _46, texture1, texture1Smplr, texCoord, texture2, texture2Smplr, texture3, texture3Smplr, texture4, texture4Smplr, texture5, texture5Smplr, texture6, texture6Smplr, texture7, texture7Smplr, texture8, texture8Smplr, texture9, texture9Smplr, texture10, texture10Smplr);
-    if (any(roughnessTex != float4(-1.0)))
+    if (hasPbrPack)
+    {
+        roughnessValue *= pbrPackTex.y;
+    }
+    else if (any(roughnessTex != float4(-1.0)))
     {
         roughnessValue *= roughnessTex.x;
     }
-    float aoValue = material.ao)",
-R"(;
+    float aoValue = material.ao;
     int param_7 = 11;
     float4 aoTex = enableTextures(param_7, _46, texture1, texture1Smplr, texCoord, texture2, texture2Smplr, texture3, texture3Smplr, texture4, texture4Smplr, texture5, texture5Smplr, texture6, texture6Smplr, texture7, texture7Smplr, texture8, texture8Smplr, texture9, texture9Smplr, texture10, texture10Smplr);
-    if (any(aoTex != float4(-1.0)))
+    if (hasPbrPack)
+    {
+        aoValue *= pbrPackTex.x;
+    }
+    else if (any(aoTex != float4(-1.0)))
     {
         aoValue *= aoTex.x;
     }
@@ -5837,26 +5852,42 @@ fragment main0_out main0(main0_in in [[stage_in]], constant Uniforms& _163 [[buf
             discard_fragment();
         }
     }
+    int param_pbr_pack = 14;
+    float4 pbrPackTex = enableTextures(param_pbr_pack, _163, texture1, texture1Smplr, texCoord, texture2, texture2Smplr, texture3, texture3Smplr, texture4, texture4Smplr, texture5, texture5Smplr, texture6, texture6Smplr, texture7, texture7Smplr, texture8, texture8Smplr, texture9, texture9Smplr, texture10, texture10Smplr);
+    bool hasPbrPack = any(pbrPackTex != float4(-1.0));
     float metallic = material.metallic;
     int param_4 = 9;
     float4 metallicTex = enableTextures(param_4, _163, texture1, texture1Smplr, texCoord, texture2, texture2Smplr, texture3, texture3Smplr, texture4, texture4Smplr, texture5, texture5Smplr, texture6, texture6Smplr, texture7, texture7Smplr, texture8, texture8Smplr, texture9, texture9Smplr, texture10, texture10Smplr);
-    if (any(metallicTex != float4(-1.0)))
+    if (hasPbrPack)
+    {
+        metallic *= pbrPackTex.z;
+    }
+    else if (any(metallicTex != float4(-1.0)))
     {
         metallic *= metallicTex.x;
     }
     float roughness = material.roughness;
     int param_5 = 10;
     float4 roughnessTex = enableTextures(param_5, _163, texture1, texture1Smplr, texCoord, texture2, texture2Smplr, texture3, texture3Smplr, texture4, texture4Smplr, texture5, texture5Smplr, texture6, texture6Smplr, texture7, texture7Smplr, texture8, texture8Smplr, texture9, texture9Smplr, texture10, texture10Smplr);
-    if (any(roughnessTex != float4(-1.0)))
+    if (hasPbrPack)
+    {
+        roughness *= pbrPackTex.y;
+    }
+    else if (any(roughnessTex != float4(-1.0)))
     {
         roughness *= roughnessTex.x;
     }
     float ao = material.ao;
     int param_6 = 11;
     float4 aoTex = enableTextures(param_6, _163, texture1, texture1Smplr, texCoord, texture2, texture2Smplr, texture3, texture3Smplr, texture4, texture4Smplr, texture5, texture5Smplr, texture6, texture6Smplr, texture7, texture7Smplr, texture8, texture8Smplr, texture9, texture9Smplr, texture10, texture10Smplr);
-    if (any(aoTex != float4(-1.0)))
+    if (hasPbrPack)
     {
-        ao *= aoTex.x;
+        ao *= pbrPackTex.x;
+    }
+    else if (any(aoTex != float4(-1.0)))
+    {
+        ao *= a)",
+R"(oTex.x;
     }
     float3 F0 = float3(0.039999999105930328369140625);
     F0 = mix(F0, albedo, float3(metallic));
@@ -5872,8 +5903,7 @@ fragment main0_out main0(main0_in in [[stage_in]], constant Uniforms& _163 [[buf
             {
                 float4 fragPosLightSpace = (_1905.shadowParams[i_1].lightProjection * _1905.shadowParams[i_1].lightView) * float4(in.FragPos, 1.0);
                 ShadowParameters _1934;
-          )",
-R"(      _1934.lightView = _1905.shadowParams[i_1].lightView;
+                _1934.lightView = _1905.shadowParams[i_1].lightView;
                 _1934.lightProjection = _1905.shadowParams[i_1].lightProjection;
                 _1934.bias0 = _1905.shadowParams[i_1].bias0;
                 _1934.textureIndex = _1905.shadowParams[i_1].textureIndex;
@@ -6002,7 +6032,8 @@ R"(      _1934.lightView = _1905.shadowParams[i_1].lightView;
             }
             float facing = _2144;
             float cosTheta = cos(radians(_2058.areaLights[i_2].angle));
-            if ((facing >= cosTheta) && (facing > 0.0))
+            if ((facing >= cosTh)",
+R"(eta) && (facing > 0.0))
             {
                 float range = fast::max(_2058.areaLights[i_2].range, 0.001000000047497451305389404296875);
                 float attenuation = 1.0 / ((1.0 + (dist / range)) + ((dist * dist) / (range * range)));
@@ -6010,8 +6041,7 @@ R"(      _1934.lightView = _1905.shadowParams[i_1].lightView;
                 float3 radiance = (((float3(_2058.areaLights[i_2].diffuse) * fast::max(_2058.areaLights[i_2].intensity, 0.0)) * attenuation) * facing) * fade;
                 float3 H = fast::normalize(V + L);
                 float3 param_42 = N;
-                float3 pa)",
-R"(ram_43 = H;
+                float3 param_43 = H;
                 float param_44 = roughness;
                 float NDF = distributionGGX(param_42, param_43, param_44);
                 float3 param_45 = N;

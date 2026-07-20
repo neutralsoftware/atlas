@@ -636,6 +636,10 @@ TextureType parseTextureTypeString(const std::string &value) {
     if (token == "ao" || token == "ambientocclusion") {
         return TextureType::AO;
     }
+    if (token == "pbrpack" || token == "orm" ||
+        token == "metallicroughness") {
+        return TextureType::PBRPack;
+    }
     if (token == "opacity" || token == "alpha") {
         return TextureType::Opacity;
     }
@@ -783,6 +787,8 @@ MaterialDefinition loadMaterialDefinition(const json &value,
     appendTexture({"roughnessTexture"}, TextureType::Roughness, false);
     appendTexture({"aoTexture", "ambientOcclusionTexture"}, TextureType::AO,
                   false);
+    appendTexture({"pbrPackTexture", "ormTexture", "metallicRoughnessTexture"},
+                  TextureType::PBRPack, false);
     appendTexture({"opacityTexture", "alphaTexture"}, TextureType::Opacity,
                   false);
 
@@ -3847,7 +3853,9 @@ createRenderable(Context &context, const json &objectData,
 
         auto object = std::make_shared<Model>();
         object->fromResource(createRuntimeResource(
-            baseDir, source, ResourceType::Model, "runtime-model"));
+                                 baseDir, source, ResourceType::Model,
+                                 "runtime-model"),
+                             context.modelImportProgress);
 
         registerGameObject(context, *object, objectData, normalizedType,
                            generatedIndex);
@@ -5637,6 +5645,16 @@ int Context::pasteObjectDefinition(const std::string &definition) {
         RUNTIME_LOG("Could not paste object: " + std::string(error.what()));
         return -1;
     }
+}
+
+int Context::pasteObjectDefinition(
+    const std::string &definition,
+    const std::function<void(float, const std::string &)> &progress) {
+    auto previousProgress = std::move(modelImportProgress);
+    modelImportProgress = progress;
+    const int result = pasteObjectDefinition(definition);
+    modelImportProgress = std::move(previousProgress);
+    return result;
 }
 
 bool Context::saveCurrentScene() {
