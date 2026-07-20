@@ -106,6 +106,8 @@ struct Uniforms
     float3 cameraPosition;
     float normalMapStrength;
     uint useNormalMap;
+    float2 textureScale;
+    float2 textureOffset;
 };
 
 struct Environment
@@ -357,23 +359,23 @@ float2 parallaxMapping(thread const float2& texCoords, thread const float3& view
     }
     int param = textureIndex;
     float2 param_1 = currentTexCoords;
-    float currentDepthMapValue = sampleTextureAt(param, param_1, texture1, texture1Smplr, texture2, texture2Smplr, texture3, texture3Smplr, texture4, texture4Smplr, texture5, texture5Smplr, texture6, texture6Smplr, texture7, texture7Smplr, texture8, texture8Smplr, texture9, texture9Smplr, texture10, texture10Smplr).x;
+    float currentDepthMapValue = 1.0 - sampleTextureAt(param, param_1, texture1, texture1Smplr, texture2, texture2Smplr, texture3, texture3Smplr, texture4, texture4Smplr, texture5, texture5Smplr, texture6, texture6Smplr, texture7, texture7Smplr, texture8, texture8Smplr, texture9, texture9Smplr, texture10, texture10Smplr).x;
     while (currentLayerDepth < currentDepthMapValue)
     {
-        currentTexCoords = fast::clamp(currentTexCoords - deltaTexCoords, float2(0.0), float2(1.0));
+        currentTexCoords -= deltaTexCoords;
         int param_2 = textureIndex;
         float2 param_3 = currentTexCoords;
-        currentDepthMapValue = sampleTextureAt(param_2, param_3, texture1, texture1Smplr, texture2, texture2Smplr, texture3, texture3Smplr, texture4, texture4Smplr, texture5, texture5Smplr, texture6, texture6Smplr, texture7, texture7Smplr, texture8, texture8Smplr, texture9, texture9Smplr, texture10, texture10Smplr).x;
+        currentDepthMapValue = 1.0 - sampleTextureAt(param_2, param_3, texture1, texture1Smplr, texture2, texture2Smplr, texture3, texture3Smplr, texture4, texture4Smplr, texture5, texture5Smplr, texture6, texture6Smplr, texture7, texture7Smplr, texture8, texture8Smplr, texture9, texture9Smplr, texture10, texture10Smplr).x;
         currentLayerDepth += layerDepth;
     }
     float2 prevTexCoords = currentTexCoords + deltaTexCoords;
     float afterDepth = currentDepthMapValue - currentLayerDepth;
     int param_4 = textureIndex;
     float2 param_5 = prevTexCoords;
-    float beforeDepth = sampleTextureAt(param_4, param_5, texture1, texture1Smplr, texture2, texture2Smplr, texture3, texture3Smplr, texture4, texture4Smplr, texture5, texture5Smplr, texture6, texture6Smplr, texture7, texture7Smplr, texture8, texture8Smplr, texture9, texture9Smplr, texture10, texture10Smplr).x - (currentLayerDepth - layerDepth);
+    float beforeDepth = 1.0 - sampleTextureAt(param_4, param_5, texture1, texture1Smplr, texture2, texture2Smplr, texture3, texture3Smplr, texture4, texture4Smplr, texture5, texture5Smplr, texture6, texture6Smplr, texture7, texture7Smplr, texture8, texture8Smplr, texture9, texture9Smplr, texture10, texture10Smplr).x - (currentLayerDepth - layerDepth);
     float weight = afterDepth / (afterDepth - beforeDepth);
     currentTexCoords = (prevTexCoords * weight) + (currentTexCoords * (1.0 - weight));
-    return fast::clamp(currentTexCoords, float2(0.0), float2(1.0));
+    return currentTexCoords;
 }
 
 static inline __attribute__((always_inline))
@@ -923,7 +925,7 @@ fragment main0_out main0(main0_in in [[stage_in]], constant Uniforms& _163 [[buf
     TBN[0] = in.TBN_0;
     TBN[1] = in.TBN_1;
     TBN[2] = in.TBN_2;
-    float2 texCoord = in.TexCoord;
+    float2 texCoord = in.TexCoord * _163.textureScale + _163.textureOffset;
     bool hasParallaxMap = false;
     for (int i = 0; i < _163.textureCount; i++)
     {
@@ -939,38 +941,6 @@ fragment main0_out main0(main0_in in [[stage_in]], constant Uniforms& _163 [[buf
         float2 param = texCoord;
         float3 param_1 = tangentViewDir;
         texCoord = parallaxMapping(param, param_1, _163, texture1, texture1Smplr, texture2, texture2Smplr, texture3, texture3Smplr, texture4, texture4Smplr, texture5, texture5Smplr, texture6, texture6Smplr, texture7, texture7Smplr, texture8, texture8Smplr, texture9, texture9Smplr, texture10, texture10Smplr);
-        bool _1744 = texCoord.x > 1.0;
-        bool _1751;
-        if (!_1744)
-        {
-            _1751 = texCoord.y > 1.0;
-        }
-        else
-        {
-            _1751 = _1744;
-        }
-        bool _1758;
-        if (!_1751)
-        {
-            _1758 = texCoord.x < 0.0;
-        }
-        else
-        {
-            _1758 = _1751;
-        }
-        bool _1765;
-        if (!_1758)
-        {
-            _1765 = texCoord.y < 0.0;
-        }
-        else
-        {
-            _1765 = _1758;
-        }
-        if (_1765)
-        {
-            discard_fragment();
-        }
     }
     int param_2 = 5;
     float4 normTexture = enableTextures(param_2, _163, texture1, texture1Smplr, texCoord, texture2, texture2Smplr, texture3, texture3Smplr, texture4, texture4Smplr, texture5, texture5Smplr, texture6, texture6Smplr, texture7, texture7Smplr, texture8, texture8Smplr, texture9, texture9Smplr, texture10, texture10Smplr);

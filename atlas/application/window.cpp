@@ -1703,6 +1703,10 @@ bool Window::stepFrame() {
                             model->material.useNormalMap;
                         meshObject->material.normalMapStrength =
                             model->material.normalMapStrength;
+                        meshObject->material.textureScale =
+                            model->material.textureScale;
+                        meshObject->material.textureOffset =
+                            model->material.textureOffset;
                         meshObject->useDeferredRendering =
                             model->useDeferredRendering;
                         if (meshObject->canUseDeferredRendering()) {

@@ -42,6 +42,8 @@ uniform int textureTypes[16];
 uniform int textureCount;
 uniform Material material;
 uniform vec3 cameraPosition;
+uniform vec2 textureScale;
+uniform vec2 textureOffset;
 uniform bool useTexture;
 uniform bool useColor;
 
@@ -106,32 +108,31 @@ vec2 parallaxMapping(vec2 texCoords, vec3 viewDir) {
     }
     if (textureIndex == -1) return currentTexCoords;
 
-    float currentDepthMapValue = sampleTextureAt(textureIndex, currentTexCoords).r;
+    float currentDepthMapValue = 1.0 - sampleTextureAt(textureIndex, currentTexCoords).r;
 
     while (currentLayerDepth < currentDepthMapValue) {
         currentTexCoords -= deltaTexCoords;
-        currentDepthMapValue = sampleTextureAt(textureIndex, currentTexCoords).r;
+        currentDepthMapValue = 1.0 - sampleTextureAt(textureIndex, currentTexCoords).r;
         currentLayerDepth += layerDepth;
     }
 
     vec2 prevTexCoords = currentTexCoords + deltaTexCoords;
     float afterDepth = currentDepthMapValue - currentLayerDepth;
-    float beforeDepth = sampleTextureAt(textureIndex, prevTexCoords).r - (currentLayerDepth - layerDepth);
-    float denom = max(afterDepth - beforeDepth, 1e-4);
-    float weight = clamp(afterDepth / denom, 0.0, 1.0);
+    float beforeDepth = 1.0 - sampleTextureAt(textureIndex, prevTexCoords).r - (currentLayerDepth - layerDepth);
+    float denom = afterDepth - beforeDepth;
+    float weight = abs(denom) > 1e-4
+                       ? clamp(afterDepth / denom, 0.0, 1.0)
+                       : 0.0;
     currentTexCoords = prevTexCoords * weight + currentTexCoords * (1.0 - weight);
 
     return currentTexCoords;
 }
 
 void main() {
-    texCoord = TexCoord;
+    texCoord = TexCoord * textureScale + textureOffset;
 
     vec3 tangentViewDir = normalize(transpose(TBN) * (cameraPosition - FragPos));
     texCoord = parallaxMapping(texCoord, tangentViewDir);
-
-    if (texCoord.x > 1.0 || texCoord.y > 1.0 || texCoord.x < 0.0 || texCoord.y < 0.0)
-        discard;
 
     vec4 sampledColor = enableTextures(TEXTURE_COLOR);
     bool hasColorTexture = sampledColor != vec4(-1.0);
@@ -146,7 +147,7 @@ void main() {
         if (opacityTex.r < 0.1) {
             discard;
         }
-    } else if (material.albedo.a < 0.999 && baseColor.a < 0.1) {
+    } else if (baseColor.a < 0.1) {
         discard;
     }
 

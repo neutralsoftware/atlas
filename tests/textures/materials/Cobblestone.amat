@@ -1,0 +1,38 @@
+{
+    "material": {
+        "albedo": [
+            0.8,
+            0.8,
+            0.8,
+            1
+        ],
+        "albedoTexture": "../assets/textures/cobblestone_floor_09_diff_1k.jpg",
+        "ao": 1,
+        "aoTexture": "../assets/textures/cobblestone_floor_09_ao_1k.jpg",
+        "displacementTexture": "../assets/textures/cobblestone_floor_09_disp_1k.png",
+        "emissiveColor": [
+            0,
+            0,
+            0,
+            1
+        ],
+        "emissiveIntensity": 0,
+        "ior": 1.45,
+        "metallic": 0,
+        "normalMapStrength": 3.033,
+        "normalTexture": "../assets/textures/cobblestone_floor_09_nor_gl_1k.jpg",
+        "reflectivity": 0.5,
+        "roughness": 0.5,
+        "roughnessTexture": "../assets/textures/cobblestone_floor_09_rough_1k.jpg",
+        "textureOffset": [
+            0,
+            0
+        ],
+        "textureScale": [
+            5.885,
+            4.492
+        ],
+        "transmittance": 0,
+        "useNormalMap": true
+    }
+}

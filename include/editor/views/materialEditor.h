@@ -61,6 +61,10 @@ class MaterialEditorPanel : public QWidget {
     QDoubleSpinBox *reflectivityField = nullptr;
     QDoubleSpinBox *emissiveIntensityField = nullptr;
     QDoubleSpinBox *normalStrengthField = nullptr;
+    QDoubleSpinBox *textureScaleUField = nullptr;
+    QDoubleSpinBox *textureScaleVField = nullptr;
+    QDoubleSpinBox *textureOffsetUField = nullptr;
+    QDoubleSpinBox *textureOffsetVField = nullptr;
     QDoubleSpinBox *transmittanceField = nullptr;
     QDoubleSpinBox *iorField = nullptr;
     QCheckBox *normalMapField = nullptr;

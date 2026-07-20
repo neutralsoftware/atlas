@@ -620,6 +620,10 @@ void CoreObject::render(float dt,
                                      material.normalMapStrength);
         this->pipeline->setUniform1i("useNormalMap",
                                      material.useNormalMap ? 1 : 0);
+        this->pipeline->setUniform2f("textureScale", material.textureScale[0],
+                                     material.textureScale[1]);
+        this->pipeline->setUniform2f("textureOffset", material.textureOffset[0],
+                                     material.textureOffset[1]);
         if (Window::mainWindow != nullptr &&
             Window::mainWindow->getCamera() != nullptr) {
             this->pipeline->setUniform3f(

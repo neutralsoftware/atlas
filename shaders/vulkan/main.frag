@@ -117,6 +117,8 @@ layout(set = 1, binding = 0) uniform Uniforms {
     int textureTypes[16];
     int textureCount;
     vec3 cameraPosition;
+    vec2 textureScale;
+    vec2 textureOffset;
 };
 
 layout(push_constant) uniform PushConstants {
@@ -310,21 +312,21 @@ vec2 parallaxMapping(vec2 texCoords, vec3 viewDir) {
         }
     }
     if (textureIndex == -1) return texCoords;
-    float currentDepthMapValue = sampleTextureAt(textureIndex, currentTexCoords).r;
+    float currentDepthMapValue = 1.0 - sampleTextureAt(textureIndex, currentTexCoords).r;
 
     while (currentLayerDepth < currentDepthMapValue) {
-        currentTexCoords = clamp(currentTexCoords - deltaTexCoords, vec2(0.0), vec2(1.0));
-        currentDepthMapValue = sampleTextureAt(textureIndex, currentTexCoords).r;
+        currentTexCoords -= deltaTexCoords;
+        currentDepthMapValue = 1.0 - sampleTextureAt(textureIndex, currentTexCoords).r;
         currentLayerDepth += layerDepth;
     }
 
     vec2 prevTexCoords = currentTexCoords + deltaTexCoords;
     float afterDepth = currentDepthMapValue - currentLayerDepth;
-    float beforeDepth = sampleTextureAt(textureIndex, prevTexCoords).r - (currentLayerDepth - layerDepth);
+    float beforeDepth = 1.0 - sampleTextureAt(textureIndex, prevTexCoords).r - (currentLayerDepth - layerDepth);
     float weight = afterDepth / (afterDepth - beforeDepth);
     currentTexCoords = prevTexCoords * weight + currentTexCoords * (1.0 - weight);
 
-    return clamp(currentTexCoords, vec2(0.0), vec2(1.0));
+    return currentTexCoords;
 }
 
 vec3 reinhardToneMapping(vec3 hdrColor) {
@@ -678,7 +680,7 @@ float calculateAllPointShadows(vec3 fragPos) {
 
 // ----- Main -----
 void main() {
-    texCoord = TexCoord;
+    texCoord = TexCoord * textureScale + textureOffset;
 
     bool hasParallaxMap = false;
     for (int i = 0; i < textureCount; i++) {
@@ -691,8 +693,6 @@ void main() {
     if (hasParallaxMap) {
         vec3 tangentViewDir = normalize(transpose(TBN) * (cameraPosition - FragPos));
         texCoord = parallaxMapping(texCoord, tangentViewDir);
-        if (texCoord.x > 1.0 || texCoord.y > 1.0 || texCoord.x < 0.0 || texCoord.y < 0.0)
-            discard;
     }
 
     vec4 normTexture = enableTextures(TEXTURE_NORMAL);
@@ -718,7 +718,7 @@ void main() {
         if (opacityTex.r < 0.1) {
             discard;
         }
-    } else if (material.albedo.a < 0.999 && albedoTex != vec4(-1.0) && albedoTex.a < 0.1) {
+    } else if (albedoTex != vec4(-1.0) && albedoTex.a < 0.1) {
         discard;
     }
 

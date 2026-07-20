@@ -1176,6 +1176,8 @@ struct UBO
     float3 cameraPosition;
     float normalMapStrength;
     uint useNormalMap;
+    float2 textureScale;
+    float2 textureOffset;
 };
 
 struct MaterialPush
@@ -1303,7 +1305,7 @@ float2 parallaxMapping(thread const float2& texCoords, thread const float3& view
     }
     int param = textureIndex;
     float2 param_1 = currentTexCoords;
-    float currentDepthMapValue = sampleTextureAt(param, param_1, texture1, texture1Smplr, texture2, texture2Smplr, texture3, texture3Smplr, texture4, texture4Smplr, texture5, texture5Smplr, texture6, texture6Smplr, texture7, texture7Smplr, texture8, texture8Smplr, texture9, texture9Smplr, texture10, texture10Smplr).x;
+    float currentDepthMapValue = 1.0 - sampleTextureAt(param, param_1, texture1, texture1Smplr, texture2, texture2Smplr, texture3, texture3Smplr, texture4, texture4Smplr, texture5, texture5Smplr, texture6, texture6Smplr, texture7, texture7Smplr, texture8, texture8Smplr, texture9, texture9Smplr, texture10, texture10Smplr).x;
     int maxIterations = int(numLayers) + 1;
     int iteration = 0;
     while (currentLayerDepth < currentDepthMapValue && iteration < maxIterations)
@@ -1311,7 +1313,7 @@ float2 parallaxMapping(thread const float2& texCoords, thread const float3& view
         currentTexCoords -= deltaTexCoords;
         int param_2 = textureIndex;
         float2 param_3 = currentTexCoords;
-        currentDepthMapValue = sampleTextureAt(param_2, param_3, texture1, texture1Smplr, texture2, texture2Smplr, texture3, texture3Smplr, texture4, texture4Smplr, texture5, texture5Smplr, texture6, texture6Smplr, texture7, texture7Smplr, texture8, texture8Smplr, texture9, texture9Smplr, texture10, texture10Smplr).x;
+        currentDepthMapValue = 1.0 - sampleTextureAt(param_2, param_3, texture1, texture1Smplr, texture2, texture2Smplr, texture3, texture3Smplr, texture4, texture4Smplr, texture5, texture5Smplr, texture6, texture6Smplr, texture7, texture7Smplr, texture8, texture8Smplr, texture9, texture9Smplr, texture10, texture10Smplr).x;
         currentLayerDepth += layerDepth;
         iteration++;
     }
@@ -1319,9 +1321,9 @@ float2 parallaxMapping(thread const float2& texCoords, thread const float3& view
     float afterDepth = currentDepthMapValue - currentLayerDepth;
     int param_4 = textureIndex;
     float2 param_5 = prevTexCoords;
-    float beforeDepth = sampleTextureAt(param_4, param_5, texture1, texture1Smplr, texture2, texture2Smplr, texture3, texture3Smplr, texture4, texture4Smplr, texture5, texture5Smplr, texture6, texture6Smplr, texture7, texture7Smplr, texture8, texture8Smplr, texture9, texture9Smplr, texture10, texture10Smplr).x - (currentLayerDepth - layerDepth);
-    float denom = fast::max(afterDepth - beforeDepth, 9.9999997473787516355514526367188e-05);
-    float weight = fast::clamp(afterDepth / denom, 0.0, 1.0);
+    float beforeDepth = 1.0 - sampleTextureAt(param_4, param_5, texture1, texture1Smplr, texture2, texture2Smplr, texture3, texture3Smplr, texture4, texture4Smplr, texture5, texture5Smplr, texture6, texture6Smplr, texture7, texture7Smplr, texture8, texture8Smplr, texture9, texture9Smplr, texture10, texture10Smplr).x - (currentLayerDepth - layerDepth);
+    float denom = afterDepth - beforeDepth;
+    float weight = abs(denom) > 9.9999997473787516355514526367188e-05 ? fast::clamp(afterDepth / denom, 0.0, 1.0) : 0.0;
     currentTexCoords = (prevTexCoords * weight) + (currentTexCoords * (1.0 - weight));
     return currentTexCoords;
 }
@@ -1349,9 +1351,9 @@ float4 enableTextures(thread const int& type, constant UBO& _46, texture2d<float
                 {
                     if (i == 2)
                     {
-                        color += texture3.sample(texture3Smplr, texCoord);
-              )",
-R"(      }
+           )",
+R"(             color += texture3.sample(texture3Smplr, texCoord);
+                    }
                     else
                     {
                         if (i == 3)
@@ -1424,7 +1426,7 @@ fragment main0_out main0(main0_in in [[stage_in]], constant UBO& _46 [[buffer(0)
     TBN[0] = in.TBN_0;
     TBN[1] = in.TBN_1;
     TBN[2] = in.TBN_2;
-    float2 texCoord = in.TexCoord;
+    float2 texCoord = in.TexCoord * _46.textureScale + _46.textureOffset;
     bool hasParallaxMap = false;
     for (int i = 0; i < _46.textureCount; i++)
     {
@@ -1440,38 +1442,6 @@ fragment main0_out main0(main0_in in [[stage_in]], constant UBO& _46 [[buffer(0)
         float2 param = texCoord;
         float3 param_1 = tangentViewDir;
         texCoord = parallaxMapping(param, param_1, _46, texture1, texture1Smplr, texture2, texture2Smplr, texture3, texture3Smplr, texture4, texture4Smplr, texture5, texture5Smplr, texture6, texture6Smplr, texture7, texture7Smplr, texture8, texture8Smplr, texture9, texture9Smplr, texture10, texture10Smplr);
-        bool _476 = texCoord.x > 1.0;
-        bool _483;
-        if (!_476)
-        {
-            _483 = texCoord.y > 1.0;
-        }
-        else
-        {
-            _483 = _476;
-        }
-        bool _490;
-        if (!_483)
-        {
-            _490 = texCoord.x < 0.0;
-        }
-        else
-        {
-            _490 = _483;
-        }
-        bool _497;
-        if (!_490)
-        {
-            _497 = texCoord.y < 0.0;
-        }
-        else
-        {
-            _497 = _490;
-        }
-        if (_497)
-        {
-            discard_fragment();
-        }
     }
     int param_2 = 0;
     float4 sampledColor = enableTextures(param_2, _46, texture1, texture1Smplr, texCoord, texture2, texture2Smplr, texture3, texture3Smplr, texture4, texture4Smplr, texture5, texture5Smplr, texture6, texture6Smplr, texture7, texture7Smplr, texture8, texture8Smplr, texture9, texture9Smplr, texture10, texture10Smplr);
@@ -1543,14 +1513,14 @@ fragment main0_out main0(main0_in in [[stage_in]], constant UBO& _46 [[buffer(0)
         metallicValue *= metallicTex.x;
     }
     float roughnessValue = material.roughness;
-    int param_6 = )",
-R"(10;
+    int param_6 = 10;
     float4 roughnessTex = enableTextures(param_6, _46, texture1, texture1Smplr, texCoord, texture2, texture2Smplr, texture3, texture3Smplr, texture4, texture4Smplr, texture5, texture5Smplr, texture6, texture6Smplr, texture7, texture7Smplr, texture8, texture8Smplr, texture9, texture9Smplr, texture10, texture10Smplr);
     if (any(roughnessTex != float4(-1.0)))
     {
         roughnessValue *= roughnessTex.x;
     }
-    float aoValue = material.ao;
+    float aoValue = material.ao)",
+R"(;
     int param_7 = 11;
     float4 aoTex = enableTextures(param_7, _46, texture1, texture1Smplr, texCoord, texture2, texture2Smplr, texture3, texture3Smplr, texture4, texture4Smplr, texture5, texture5Smplr, texture6, texture6Smplr, texture7, texture7Smplr, texture8, texture8Smplr, texture9, texture9Smplr, texture10, texture10Smplr);
     if (any(aoTex != float4(-1.0)))
@@ -4966,6 +4936,8 @@ struct Uniforms
     float3 cameraPosition;
     float normalMapStrength;
     uint useNormalMap;
+    float2 textureScale;
+    float2 textureOffset;
 };
 
 struct Environment
@@ -5101,8 +5073,8 @@ struct AmbientLight
     float3 _pad0;
 };
 
-constant spvUnsafeArray<float3, 54> _1657 = spvUnsafeArray<float3, 54>({ float3(0.5381000041961669921875, 0.18559999763965606689453125, -0.4318999946117401123046875), float3(0.13789999485015869140625, 0.248600006103515625, 0.4429999887943267822265625), float3(0.3370999991893768310546875, 0.567900002002716064453125, -0.0057000000961124897003173828125), float3(-0.699899971485137939453125, -0.0450999997556209564208984375, -0.0019000000320374965667724609375), float3(0.068899996578693389892578125, -0.159799993038177490234375, -0.854700028896331787109375), float3(0.056000001728534698486328125, 0.0068999999202787876129150390625, -0.184300005435943603515625), float3(-0.014600000344216823577880859375, 0.14020000398159027099609375, 0.076200000941753387451171875), float3(0.00999999977648258209228515625, -0.19239999353885650634765625, -0.03440000116825103759765625), float3(-0.35769999027252197265625, -0.53009998798370361328125, -0.4357999861240386962890625), float3(-0.3169000148773193359375, 0.10629999637603759765625, 0.015799999237060546875), float3(0.010300000198185443878173828125, -0.5868999958038330078125, 0.0046000001020729541778564453125), float3(-0.08969999849796295166015625, -0.4939999878406524658203125, 0.328700006008148193359375), float3(0.7118999958038330078125, -0.015399999916553497314453125, -0.091799996793270111083984375), float3(-0.053300000727176666259765625, 0.0595999993383884429931640625, -0.541100025177001953125), float3(0.03519999980926513671875, -0.063100002706050872802734375, 0.546000003814697265625), float3(-0.4776000082492828369140625, 0.2847000062465667724609375, -0.0271000005304813385009765625), float3(-0.11200000345706939697265625, 0.1234000027179718017578125, -0.744599997997283935546875), float3(-0.212999999523162841796875, -0.07819999754428863525390625, -0.13789999485015869140625), float3(0.2944000065326690673828125, -0.3111999928951263427734375, -0.2644999921321868896484375), float3(-0.4564000070095062255859375, 0.4174999892711639404296875, -0.184300005435943603515625), float3(0.1234000027179718017578125, -0.567799985408782958984375, 0)",
-R"(.788999974727630615234375), float3(-0.6789000034332275390625, 0.23450000584125518798828125, -0.4566999971866607666015625), float3(0.34560000896453857421875, -0.788999974727630615234375, 0.1234000027179718017578125), float3(-0.23450000584125518798828125, 0.567799985408782958984375, -0.6789000034332275390625), float3(0.788999974727630615234375, 0.1234000027179718017578125, 0.567799985408782958984375), float3(-0.567799985408782958984375, -0.6789000034332275390625, 0.23450000584125518798828125), float3(0.4566999971866607666015625, 0.788999974727630615234375, -0.23450000584125518798828125), float3(-0.788999974727630615234375, 0.34560000896453857421875, -0.567799985408782958984375), float3(0.6789000034332275390625, -0.23450000584125518798828125, 0.788999974727630615234375), float3(-0.1234000027179718017578125, 0.6789000034332275390625, -0.4566999971866607666015625), float3(0.23450000584125518798828125, -0.567799985408782958984375, 0.6789000034332275390625), float3(-0.34560000896453857421875, 0.788999974727630615234375, -0.1234000027179718017578125), float3(0.567799985408782958984375, 0.23450000584125518798828125, -0.788999974727630615234375), float3(-0.6789000034332275390625, -0.567799985408782958984375, 0.34560000896453857421875), float3(0.788999974727630615234375, -0.34560000896453857421875, 0.4566999971866607666015625), float3(-0.23450000584125518798828125, 0.1234000027179718017578125, -0.6789000034332275390625), float3(0.4566999971866607666015625, 0.788999974727630615234375, -0.567799985408782958984375), float3(-0.567799985408782958984375, 0.23450000584125518798828125, 0.6789000034332275390625), float3(0.34560000896453857421875, -0.788999974727630615234375, -0.1234000027179718017578125), float3(-0.788999974727630615234375, 0.567799985408782958984375, -0.23450000584125518798828125), float3(0.6789000034332275390625, -0.1234000027179718017578125, 0.34560000896453857421875), float3(-0.4566999971866607666015625, 0.788999974727630615234375, 0.23450000584125518798828125), float3(0.567799985408782958984375, -0.6789000034332275390625, 0.788999974727630615234375), float3(-0.34560000896453857421875, 0.567799985408782958984375, -0.6789000034332275390625), float3(0.23450000584125518798828125, -0.788999974727630615234375, 0.567799985408782958984375), float3(-0.6789000034332275390625, 0.23450000584125518798828125, -0.1234000027179718017578125), float3(0.788999974727630615234375, -0.34560000896453857421875, -0.567799985408782958984375), float3(-0.567799985408782958984375, 0.6789000034332275390625, 0.23450000584125518798828125), float3(0.4566999971866607666015625, -0.788999974727630615234375, 0.34560000896453857421875), float3(-0.23450000584125518798828125, 0.1234000027179718017578125, -0.788999974727630615234375), float3(0.34560000896453857421875, -0.567799985408782958984375, 0.6789000034332275390625), float3(-0.788999974727630615234375, 0.4566999971866607666015625, -0.34560000896453857421875), float3(0.6789000034332275390625, -0.1234000027179718017578125, -0.567799985408782958984375), float3(-0.4566999971866607666015625, 0.23450000584125518798828125, 0.788999974727630615234375) });
+constant spvUnsafeArray<float3, 54> _1657 = spvUnsafeArray<float3, 54>({ float3(0.5381000041961669921875, 0.18559999763965606689453125, -0.4318999946117401123046875), float3(0.13789999485015869140625, 0.248600006103515625, 0.4429999887943267822265625), float3(0.3370999991893768310546875, 0.567900002002716064453125, -0.0057000000961124897003173828125), float3(-0.699899971485137939453125, -0.0450999997556209564208984375, -0.0019000000320374965667724609375), float3(0.068899996578693389892578125, -0.159799993038177490234375, -0.854700028896331787109375), float3(0.056000001728534698486328125, 0.0068999999202787876129150390625, -0.184300005435943603515625), float3(-0.014600000344216823577880859375, 0.14020000398159027099609375, 0.076200000941753387451171875), float3(0.00999999977648258209228515625, -0.19239999353885650634765625, -0.03440000116825103759765625), float3(-0.35769999027252197265625, -0.53009998798370361328125, -0.4357999861240386962890625), float3(-0.3169000148773193359375, 0.10629999637603759765625, 0.015799999237060546875), float3(0.010300000198185443878173828125, -0.5868999958038330078125, 0.0046000001020729541778564453125), float3(-0.08969999849796295166015625, -0.4939999878406524658203125, 0.328700006008148193359375), float3(0.7118999958038330078125, -0.015399999916553497314453125, -0.091799996793270111083984375), float3(-0.053300000727176666259765625, 0.0595999993383884429931640625, -0.541100025177001953125), float3(0.03519999980926513671875, -0.063100002706050872802734375, 0.546000003814697265625), float3(-0.4776000082492828369140625, 0.2847000062465667724609375, -0.0271000005304813385009765625), float3(-0.11200000345706939697265625, 0.1234000027179718017578125, -0.744599997997283935546875), float3(-0.212999999523162841796875, -0.07819999754428863525390625, -0.13789999485015869140625), float3(0.2944000065326690673828125, -0.3111999928951263427734375, -0.2644999921321868896484375), float3(-0.4564000070095062255859375, 0.4174999892711639404296875, -0.184300005435943603515625), float3(0.123400)",
+R"(0027179718017578125, -0.567799985408782958984375, 0.788999974727630615234375), float3(-0.6789000034332275390625, 0.23450000584125518798828125, -0.4566999971866607666015625), float3(0.34560000896453857421875, -0.788999974727630615234375, 0.1234000027179718017578125), float3(-0.23450000584125518798828125, 0.567799985408782958984375, -0.6789000034332275390625), float3(0.788999974727630615234375, 0.1234000027179718017578125, 0.567799985408782958984375), float3(-0.567799985408782958984375, -0.6789000034332275390625, 0.23450000584125518798828125), float3(0.4566999971866607666015625, 0.788999974727630615234375, -0.23450000584125518798828125), float3(-0.788999974727630615234375, 0.34560000896453857421875, -0.567799985408782958984375), float3(0.6789000034332275390625, -0.23450000584125518798828125, 0.788999974727630615234375), float3(-0.1234000027179718017578125, 0.6789000034332275390625, -0.4566999971866607666015625), float3(0.23450000584125518798828125, -0.567799985408782958984375, 0.6789000034332275390625), float3(-0.34560000896453857421875, 0.788999974727630615234375, -0.1234000027179718017578125), float3(0.567799985408782958984375, 0.23450000584125518798828125, -0.788999974727630615234375), float3(-0.6789000034332275390625, -0.567799985408782958984375, 0.34560000896453857421875), float3(0.788999974727630615234375, -0.34560000896453857421875, 0.4566999971866607666015625), float3(-0.23450000584125518798828125, 0.1234000027179718017578125, -0.6789000034332275390625), float3(0.4566999971866607666015625, 0.788999974727630615234375, -0.567799985408782958984375), float3(-0.567799985408782958984375, 0.23450000584125518798828125, 0.6789000034332275390625), float3(0.34560000896453857421875, -0.788999974727630615234375, -0.1234000027179718017578125), float3(-0.788999974727630615234375, 0.567799985408782958984375, -0.23450000584125518798828125), float3(0.6789000034332275390625, -0.1234000027179718017578125, 0.34560000896453857421875), float3(-0.4566999971866607666015625, 0.788999974727630615234375, 0.23450000584125518798828125), float3(0.567799985408782958984375, -0.6789000034332275390625, 0.788999974727630615234375), float3(-0.34560000896453857421875, 0.567799985408782958984375, -0.6789000034332275390625), float3(0.23450000584125518798828125, -0.788999974727630615234375, 0.567799985408782958984375), float3(-0.6789000034332275390625, 0.23450000584125518798828125, -0.1234000027179718017578125), float3(0.788999974727630615234375, -0.34560000896453857421875, -0.567799985408782958984375), float3(-0.567799985408782958984375, 0.6789000034332275390625, 0.23450000584125518798828125), float3(0.4566999971866607666015625, -0.788999974727630615234375, 0.34560000896453857421875), float3(-0.23450000584125518798828125, 0.1234000027179718017578125, -0.788999974727630615234375), float3(0.34560000896453857421875, -0.567799985408782958984375, 0.6789000034332275390625), float3(-0.788999974727630615234375, 0.4566999971866607666015625, -0.34560000896453857421875), float3(0.6789000034332275390625, -0.1234000027179718017578125, -0.567799985408782958984375), float3(-0.4566999971866607666015625, 0.23450000584125518798828125, 0.788999974727630615234375) });
 
 struct main0_out
 {
@@ -5218,24 +5190,24 @@ float2 parallaxMapping(thread const float2& texCoords, thread const float3& view
     }
     int param = textureIndex;
     float2 param_1 = currentTexCoords;
-    float currentDepthMapValue = sampleTextureAt(param, param_1, texture1, texture1Smplr, texture2, texture2Smplr, texture3, texture3Smplr, texture4, texture4Smplr, texture5, texture5Smplr, texture6, texture6Smplr, texture7, texture7Smplr, texture8, texture8Smplr, texture9, texture9Smplr, texture10, texture10Smplr).x;
+    float currentDepthMapValue = 1.0 - sampleTextureAt(param, param_1, texture1, texture1Smplr, texture2, texture2Smplr, texture3, texture3Smplr, texture4, texture4Smplr, texture5, texture5Smplr, texture6, texture6Smplr, texture7, texture7Smplr, texture8, texture8Smplr, texture9, texture9Smplr, texture10, texture10Smplr).x;
     while (currentLayerDepth < currentDepthMapValue)
     {
-        currentTexCoords = fast::clamp(currentTexCoords - deltaTexCoords, flo)",
-R"(at2(0.0), float2(1.0));
+        currentTexCo)",
+R"(ords -= deltaTexCoords;
         int param_2 = textureIndex;
         float2 param_3 = currentTexCoords;
-        currentDepthMapValue = sampleTextureAt(param_2, param_3, texture1, texture1Smplr, texture2, texture2Smplr, texture3, texture3Smplr, texture4, texture4Smplr, texture5, texture5Smplr, texture6, texture6Smplr, texture7, texture7Smplr, texture8, texture8Smplr, texture9, texture9Smplr, texture10, texture10Smplr).x;
+        currentDepthMapValue = 1.0 - sampleTextureAt(param_2, param_3, texture1, texture1Smplr, texture2, texture2Smplr, texture3, texture3Smplr, texture4, texture4Smplr, texture5, texture5Smplr, texture6, texture6Smplr, texture7, texture7Smplr, texture8, texture8Smplr, texture9, texture9Smplr, texture10, texture10Smplr).x;
         currentLayerDepth += layerDepth;
     }
     float2 prevTexCoords = currentTexCoords + deltaTexCoords;
     float afterDepth = currentDepthMapValue - currentLayerDepth;
     int param_4 = textureIndex;
     float2 param_5 = prevTexCoords;
-    float beforeDepth = sampleTextureAt(param_4, param_5, texture1, texture1Smplr, texture2, texture2Smplr, texture3, texture3Smplr, texture4, texture4Smplr, texture5, texture5Smplr, texture6, texture6Smplr, texture7, texture7Smplr, texture8, texture8Smplr, texture9, texture9Smplr, texture10, texture10Smplr).x - (currentLayerDepth - layerDepth);
+    float beforeDepth = 1.0 - sampleTextureAt(param_4, param_5, texture1, texture1Smplr, texture2, texture2Smplr, texture3, texture3Smplr, texture4, texture4Smplr, texture5, texture5Smplr, texture6, texture6Smplr, texture7, texture7Smplr, texture8, texture8Smplr, texture9, texture9Smplr, texture10, texture10Smplr).x - (currentLayerDepth - layerDepth);
     float weight = afterDepth / (afterDepth - beforeDepth);
     currentTexCoords = (prevTexCoords * weight) + (currentTexCoords * (1.0 - weight));
-    return fast::clamp(currentTexCoords, float2(0.0), float2(1.0));
+    return currentTexCoords;
 }
 
 static inline __attribute__((always_inline))
@@ -5402,8 +5374,8 @@ float2 getTextureDimensions(thread const int& textureIndex, texture2d<float> tex
 }
 
 static inline __attribute__((always_inline))
-float calculateShadow(thread const ShadowParameters& shadowParam,)",
-R"( thread const float4& fragPosLightSpace, constant Uniforms& _163, texture2d<float> texture1, sampler texture1Smplr, texture2d<float> texture2, sampler texture2Smplr, texture2d<float> texture3, sampler texture3Smplr, texture2d<float> texture4, sampler texture4Smplr, texture2d<float> texture5, sampler texture5Smplr, texture2d<float> texture6, sampler texture6Smplr, texture2d<float> texture7, sampler texture7Smplr, texture2d<float> texture8, sampler texture8Smplr, texture2d<float> texture9, sampler texture9Smplr, texture2d<float> texture10, sampler texture10Smplr, device DirectionalLightsUBO& _1083, thread float3& Normal, thread float3& FragPos)
+float calculateShadow(thread const ShadowParameters& shadowParam, thread const float4& fragP)",
+R"(osLightSpace, constant Uniforms& _163, texture2d<float> texture1, sampler texture1Smplr, texture2d<float> texture2, sampler texture2Smplr, texture2d<float> texture3, sampler texture3Smplr, texture2d<float> texture4, sampler texture4Smplr, texture2d<float> texture5, sampler texture5Smplr, texture2d<float> texture6, sampler texture6Smplr, texture2d<float> texture7, sampler texture7Smplr, texture2d<float> texture8, sampler texture8Smplr, texture2d<float> texture9, sampler texture9Smplr, texture2d<float> texture10, sampler texture10Smplr, device DirectionalLightsUBO& _1083, thread float3& Normal, thread float3& FragPos)
 {
     float3 projCoords = fragPosLightSpace.xyz / float3(fragPosLightSpace.w);
     projCoords = (projCoords * 0.5) + float3(0.5);
@@ -5612,8 +5584,8 @@ float3 calculatePBR(thread const float3& N, thread const float3& V, thread const
     float denominator = ((4.0 * fast::max(dot(N, V), 0.0)) * fast::max(dot(N, L), 0.0)) + 9.9999997473787516355514526367188e-05;
     float3 specular = numerator / float3(denominator);
     float NdotL = fast::max(dot(N, L), 0.0);
-    flo)",
-R"(at3 Lo = ((((kD * albedo) / float3(3.1415927410125732421875)) + specular) * radiance) * NdotL;
+    float3 Lo = ((((kD * albedo) /)",
+R"( float3(3.1415927410125732421875)) + specular) * radiance) * NdotL;
     return Lo;
 }
 
@@ -5746,10 +5718,10 @@ float3 sampleHDRTexture(thread const int& textureIndex, thread const float3& dir
 }
 
 static inline __attribute__((always_inline))
-float3 sampleEnvironmentRadiance(thread const float3& direction, constant Uniforms& _163, texture2d<float> texture1, sampler texture1Smplr, texture2d<float> texture2, sampler texture2Smplr, texture2d<float> texture3, sampler texture3Smplr, texture2d<float> texture4, sampler texture4Smplr, texture2d<float> texture5, sampler texture5Smplr, texture2d<float> texture6, sampler texture6Smplr, texture2d<float> texture7, sampler texture7Smplr, texture2d<float> texture8, sampler texture8Smplr, texture2d<float> texture9, sampler texture9Smplr, texture2d<float> texture10, sampler texture10S)",
-R"(mplr)
+float3 sampleEnvironmentRadiance(thread const float3& direction, constant Uniforms& _163, texture2d<float> texture1, sampler texture1Smplr, texture2d<float> texture2, sampler texture2Smplr, texture2d<float> texture3, sampler texture3Smplr, texture2d<float> texture4, sampler texture4Smplr, texture2d<float> texture5, sampler texture5Smplr, texture2d<float> texture6, sampler texture6Smplr, texture2d<float> texture7, sampler texture7Smplr, texture2d<float> texture8, sampler texture8Smplr, texture2d<float> texture9, sampler texture9Smplr, texture2d<float> texture10, sampler texture10Smplr)
 {
-    float3 envColor = float3(0.0);
+    float3 envColor)",
+R"( = float3(0.0);
     int count = 0;
     for (int i = 0; i < _163.textureCount; i++)
     {
@@ -5788,7 +5760,7 @@ fragment main0_out main0(main0_in in [[stage_in]], constant Uniforms& _163 [[buf
     TBN[0] = in.TBN_0;
     TBN[1] = in.TBN_1;
     TBN[2] = in.TBN_2;
-    float2 texCoord = in.TexCoord;
+    float2 texCoord = in.TexCoord * _163.textureScale + _163.textureOffset;
     bool hasParallaxMap = false;
     for (int i = 0; i < _163.textureCount; i++)
     {
@@ -5804,38 +5776,6 @@ fragment main0_out main0(main0_in in [[stage_in]], constant Uniforms& _163 [[buf
         float2 param = texCoord;
         float3 param_1 = tangentViewDir;
         texCoord = parallaxMapping(param, param_1, _163, texture1, texture1Smplr, texture2, texture2Smplr, texture3, texture3Smplr, texture4, texture4Smplr, texture5, texture5Smplr, texture6, texture6Smplr, texture7, texture7Smplr, texture8, texture8Smplr, texture9, texture9Smplr, texture10, texture10Smplr);
-        bool _1744 = texCoord.x > 1.0;
-        bool _1751;
-        if (!_1744)
-        {
-            _1751 = texCoord.y > 1.0;
-        }
-        else
-        {
-            _1751 = _1744;
-        }
-        bool _1758;
-        if (!_1751)
-        {
-            _1758 = texCoord.x < 0.0;
-        }
-        else
-        {
-            _1758 = _1751;
-        }
-        bool _1765;
-        if (!_1758)
-        {
-            _1765 = texCoord.y < 0.0;
-        }
-        else
-        {
-            _1765 = _1758;
-        }
-        if (_1765)
-        {
-            discard_fragment();
-        }
     }
     int param_2 = 5;
     float4 normTexture = enableTextures(param_2, _163, texture1, texture1Smplr, texCoord, texture2, texture2Smplr, texture3, texture3Smplr, texture4, texture4Smplr, texture5, texture5Smplr, texture6, texture6Smplr, texture7, texture7Smplr, texture8, texture8Smplr, texture9, texture9Smplr, texture10, texture10Smplr);
@@ -5918,8 +5858,7 @@ fragment main0_out main0(main0_in in [[stage_in]], constant Uniforms& _163 [[buf
     {
         ao *= aoTex.x;
     }
-    float3 F0 = float3(0.0399999)",
-R"(99105930328369140625);
+    float3 F0 = float3(0.039999999105930328369140625);
     F0 = mix(F0, albedo, float3(metallic));
     float directionalShadow = 0.0;
     float spotShadow = 0.0;
@@ -5933,7 +5872,8 @@ R"(99105930328369140625);
             {
                 float4 fragPosLightSpace = (_1905.shadowParams[i_1].lightProjection * _1905.shadowParams[i_1].lightView) * float4(in.FragPos, 1.0);
                 ShadowParameters _1934;
-                _1934.lightView = _1905.shadowParams[i_1].lightView;
+          )",
+R"(      _1934.lightView = _1905.shadowParams[i_1].lightView;
                 _1934.lightProjection = _1905.shadowParams[i_1].lightProjection;
                 _1934.bias0 = _1905.shadowParams[i_1].bias0;
                 _1934.textureIndex = _1905.shadowParams[i_1].textureIndex;
@@ -6064,14 +6004,14 @@ R"(99105930328369140625);
             float cosTheta = cos(radians(_2058.areaLights[i_2].angle));
             if ((facing >= cosTheta) && (facing > 0.0))
             {
-        )",
-R"(        float range = fast::max(_2058.areaLights[i_2].range, 0.001000000047497451305389404296875);
+                float range = fast::max(_2058.areaLights[i_2].range, 0.001000000047497451305389404296875);
                 float attenuation = 1.0 / ((1.0 + (dist / range)) + ((dist * dist) / (range * range)));
                 float fade = 1.0 - smoothstep(range * 0.89999997615814208984375, range, dist);
                 float3 radiance = (((float3(_2058.areaLights[i_2].diffuse) * fast::max(_2058.areaLights[i_2].intensity, 0.0)) * attenuation) * facing) * fade;
                 float3 H = fast::normalize(V + L);
                 float3 param_42 = N;
-                float3 param_43 = H;
+                float3 pa)",
+R"(ram_43 = H;
                 float param_44 = roughness;
                 float NDF = distributionGGX(param_42, param_43, param_44);
                 float3 param_45 = N;

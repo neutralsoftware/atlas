@@ -1,0 +1,93 @@
+{
+    "camera": {
+        "actions": [],
+        "automaticMoving": false,
+        "controllerLookSensitivity": 180.0,
+        "farClip": 1000.0,
+        "focusDepth": 20.0,
+        "focusRange": 10.0,
+        "fov": 60.0,
+        "lookSmoothness": 0.15000000596046448,
+        "mouseSensitivity": 0.10000000149011612,
+        "movementSpeed": 2.0,
+        "nearClip": 0.5,
+        "orthoSize": 5.0,
+        "orthographic": false,
+        "position": [
+            -5.00730037689209,
+            5.268265247344971,
+            -4.450003623962402
+        ],
+        "target": [
+            0.0,
+            0.0,
+            0.0
+        ]
+    },
+    "environment": {
+        "atmosphere": {
+            "enabled": true,
+            "globalLight": {
+                "castsShadows": true,
+                "enabled": true,
+                "shadowResolution": 4096
+            }
+        },
+        "atmosphereSky": true,
+        "automaticAmbient": true
+    },
+    "id": "main_scene",
+    "lights": [
+        {
+            "color": [
+                1.0,
+                1.0,
+                1.0,
+                1.0
+            ],
+            "id": "ambientLight_0",
+            "intensity": 0.25,
+            "name": "ambientLight_0",
+            "position": [
+                0.0,
+                0.0,
+                0.0
+            ],
+            "type": "ambientLight"
+        }
+    ],
+    "name": "Main Scene",
+    "objects": [
+        {
+            "components": [],
+            "material": "materials/Cobblestone.amat",
+            "name": "Cube",
+            "position": [
+                0.0,
+                0.0,
+                0.0
+            ],
+            "rotation": [
+                0.0,
+                0.0,
+                0.0
+            ],
+            "scale": [
+                14.335800170898438,
+                0.05000000074505806,
+                14.335800170898438
+            ],
+            "solid_type": "cube",
+            "type": "solid"
+        }
+    ],
+    "property_syncs": [],
+    "targets": [
+        {
+            "display": true,
+            "name": "Main Target",
+            "render": true,
+            "type": "multisampled"
+        }
+    ]
+}

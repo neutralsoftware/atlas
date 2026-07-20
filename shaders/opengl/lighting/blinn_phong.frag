@@ -105,6 +105,8 @@ uniform ShadowParameters shadowParams[10];
 uniform int shadowParamCount;
 
 uniform vec3 cameraPosition;
+uniform vec2 textureScale;
+uniform vec2 textureOffset;
 
 uniform bool useTexture;
 uniform bool useColor;
@@ -220,17 +222,17 @@ vec2 parallaxMapping(vec2 texCoords, vec3 viewDir) {
         }
     }
     if (textureIndex == -1) return texCoords;
-    float currentDepthMapValue = sampleTextureAt(textureIndex, currentTexCoords).r;
+    float currentDepthMapValue = 1.0 - sampleTextureAt(textureIndex, currentTexCoords).r;
 
     while (currentLayerDepth < currentDepthMapValue) {
         currentTexCoords -= deltaTexCoords;
-        currentDepthMapValue = sampleTextureAt(textureIndex, currentTexCoords).r;
+        currentDepthMapValue = 1.0 - sampleTextureAt(textureIndex, currentTexCoords).r;
         currentLayerDepth += layerDepth;
     }
 
     vec2 prevTexCoords = currentTexCoords + deltaTexCoords;
     float afterDepth = currentDepthMapValue - currentLayerDepth;
-    float beforeDepth = sampleTextureAt(textureIndex, prevTexCoords).r - (currentLayerDepth - layerDepth);
+    float beforeDepth = 1.0 - sampleTextureAt(textureIndex, prevTexCoords).r - (currentLayerDepth - layerDepth);
     float weight = afterDepth / (afterDepth - beforeDepth);
     currentTexCoords = prevTexCoords * weight + currentTexCoords * (1.0 - weight);
 
@@ -500,13 +502,11 @@ float calculateAllPointShadows(vec3 fragPos) {
 
 // ----- Main -----
 void main() {
-    texCoord = TexCoord;
+    texCoord = TexCoord * textureScale + textureOffset;
     vec4 baseColor;
 
     vec3 tangentViewDir = normalize((TBN * cameraPosition) - (TBN * FragPos));
     texCoord = parallaxMapping(texCoord, tangentViewDir);
-    if (texCoord.x > 1.0 || texCoord.y > 1.0 || texCoord.x < 0.0 || texCoord.y < 0.0)
-        discard;
 
     if (useTexture && !useColor)
         baseColor = enableTextures(TEXTURE_COLOR);

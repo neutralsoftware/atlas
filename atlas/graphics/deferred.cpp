@@ -358,6 +358,10 @@ void Window::deferredRendering(
                     model->material.useNormalMap;
                 meshRenderable->material.normalMapStrength =
                     model->material.normalMapStrength;
+                meshRenderable->material.textureScale =
+                    model->material.textureScale;
+                meshRenderable->material.textureOffset =
+                    model->material.textureOffset;
                 meshRenderable->useDeferredRendering =
                     model->useDeferredRendering;
                 if (!meshRenderable->canUseDeferredRendering()) {
