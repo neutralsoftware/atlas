@@ -972,8 +972,6 @@ void Window::deferredRendering(
         lightPipeline->bindTextureCubemap(
             "skybox", fallbackSkyboxTexture->textureID, boundTextures);
     }
-    lightPipeline->setUniformBool(
-        "useIBL", scene->skybox != nullptr && scene->skybox->cubemap.id != 0);
     boundTextures++;
 
     lightPipeline->setUniform1f(
