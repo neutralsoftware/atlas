@@ -46,12 +46,11 @@ QColor jsonColor(const QJsonValue &value, const QColor &fallback) {
     if (array.size() < 3) {
         return fallback;
     }
-    return QColor::fromRgbF(std::clamp(array.at(0).toDouble(), 0.0, 1.0),
-                            std::clamp(array.at(1).toDouble(), 0.0, 1.0),
-                            std::clamp(array.at(2).toDouble(), 0.0, 1.0),
-                            array.size() > 3
-                                ? std::clamp(array.at(3).toDouble(), 0.0, 1.0)
-                                : 1.0);
+    return QColor::fromRgbF(
+        std::clamp(array.at(0).toDouble(), 0.0, 1.0),
+        std::clamp(array.at(1).toDouble(), 0.0, 1.0),
+        std::clamp(array.at(2).toDouble(), 0.0, 1.0),
+        array.size() > 3 ? std::clamp(array.at(3).toDouble(), 0.0, 1.0) : 1.0);
 }
 
 QJsonArray colorJson(const QColor &color) {
@@ -61,9 +60,9 @@ QJsonArray colorJson(const QColor &color) {
 void displayColor(QPushButton *button, const QColor &color) {
     button->setProperty("materialColor", color);
     button->setObjectName("materialColorButton");
-    button->setText(color.name(color.alpha() < 255 ? QColor::HexArgb
-                                                   : QColor::HexRgb)
-                        .toUpper());
+    button->setText(
+        color.name(color.alpha() < 255 ? QColor::HexArgb : QColor::HexRgb)
+            .toUpper());
     button->setIcon(styling::colorSwatch(color, QSize(18, 18)));
     button->setIconSize(QSize(18, 18));
 }
@@ -85,8 +84,7 @@ QString texturePath(const QJsonValue &value) {
     }
     if (value.isObject()) {
         const QJsonObject object = value.toObject();
-        return object.value("path").toString(
-            object.value("source").toString());
+        return object.value("path").toString(object.value("source").toString());
     }
     return {};
 }
@@ -108,10 +106,10 @@ double channelAt(const QImage &image, double u, double v) {
     if (image.isNull()) {
         return 1.0;
     }
-    const int x = std::clamp(static_cast<int>(u * image.width()), 0,
-                             image.width() - 1);
-    const int y = std::clamp(static_cast<int>(v * image.height()), 0,
-                             image.height() - 1);
+    const int x =
+        std::clamp(static_cast<int>(u * image.width()), 0, image.width() - 1);
+    const int y =
+        std::clamp(static_cast<int>(v * image.height()), 0, image.height() - 1);
     return QColor::fromRgba(image.pixel(x, y)).lightnessF();
 }
 
@@ -120,13 +118,13 @@ QColor imageAt(const QImage &image, double u, double v,
     if (image.isNull()) {
         return fallback;
     }
-    const int x = std::clamp(static_cast<int>(u * image.width()), 0,
-                             image.width() - 1);
-    const int y = std::clamp(static_cast<int>(v * image.height()), 0,
-                             image.height() - 1);
+    const int x =
+        std::clamp(static_cast<int>(u * image.width()), 0, image.width() - 1);
+    const int y =
+        std::clamp(static_cast<int>(v * image.height()), 0, image.height() - 1);
     return QColor::fromRgba(image.pixel(x, y));
 }
-}
+} // namespace
 
 class MaterialPreviewWidget : public QWidget {
   public:
@@ -149,6 +147,8 @@ class MaterialPreviewWidget : public QWidget {
         roughnessImage =
             loadTextureImage(baseDir, material.value("roughnessTexture"));
         aoImage = loadTextureImage(baseDir, material.value("aoTexture"));
+        displacementImage =
+            loadTextureImage(baseDir, material.value("displacementTexture"));
         update();
     }
 
@@ -176,17 +176,16 @@ class MaterialPreviewWidget : public QWidget {
             std::clamp(material.value("roughness").toDouble(0.5), 0.02, 1.0);
         const double ao =
             std::clamp(material.value("ao").toDouble(1.0), 0.0, 1.0);
-        const double reflectivity = std::clamp(
-            material.value("reflectivity").toDouble(0.5), 0.0, 1.0);
-        const double emissionStrength = std::max(
-            0.0, material.value("emissiveIntensity").toDouble(0.0));
-        const double transmission = std::clamp(
-            material.value("transmittance").toDouble(0.0), 0.0, 1.0);
+        const double reflectivity =
+            std::clamp(material.value("reflectivity").toDouble(0.5), 0.0, 1.0);
+        const double emissionStrength =
+            std::max(0.0, material.value("emissiveIntensity").toDouble(0.0));
+        const double transmission =
+            std::clamp(material.value("transmittance").toDouble(0.0), 0.0, 1.0);
         const double normalStrength = std::clamp(
             material.value("normalMapStrength").toDouble(1.0), 0.0, 4.0);
-        const bool useNormal =
-            material.value("useNormalMap").toBool(true) &&
-            !normalImage.isNull();
+        const bool useNormal = material.value("useNormalMap").toBool(true) &&
+                               !normalImage.isNull();
         const double cx = widthPixels * 0.5;
         const double cy = heightPixels * 0.5;
         const double radius = std::min(widthPixels, heightPixels) * 0.39;
@@ -211,12 +210,10 @@ class MaterialPreviewWidget : public QWidget {
                 double nx = px;
                 double ny = py;
                 double nz = std::sqrt(std::max(0.0, 1.0 - rr));
-                double u = std::atan2(nx, nz) /
-                               (2.0 * std::numbers::pi_v<double>) +
-                           0.5;
-                double v = 0.5 -
-                           std::asin(std::clamp(ny, -1.0, 1.0)) /
-                               std::numbers::pi_v<double>;
+                double u =
+                    std::atan2(nx, nz) / (2.0 * std::numbers::pi_v<double>)+0.5;
+                double v = 0.5 - std::asin(std::clamp(ny, -1.0, 1.0)) /
+                                     std::numbers::pi_v<double>;
                 if (useNormal) {
                     const QColor sampled =
                         imageAt(normalImage, u, v, QColor(128, 128, 255));
@@ -224,7 +221,8 @@ class MaterialPreviewWidget : public QWidget {
                     const double ty = sampled.greenF() * 2.0 - 1.0;
                     nx += tx * normalStrength * 0.28;
                     ny += ty * normalStrength * 0.28;
-                    const double length = std::sqrt(nx * nx + ny * ny + nz * nz);
+                    const double length =
+                        std::sqrt(nx * nx + ny * ny + nz * nz);
                     nx /= length;
                     ny /= length;
                     nz /= length;
@@ -238,37 +236,36 @@ class MaterialPreviewWidget : public QWidget {
                     roughness * channelAt(roughnessImage, u, v), 0.02, 1.0);
                 const double localAo =
                     std::clamp(ao * channelAt(aoImage, u, v), 0.0, 1.0);
-                const double diffuse = std::max(0.0, nx * lx + ny * ly + nz * lz);
+                const double diffuse =
+                    std::max(0.0, nx * lx + ny * ly + nz * lz);
                 const double hx = lx;
                 const double hy = ly;
                 const double hz = lz + 1.0;
                 const double hlen = std::sqrt(hx * hx + hy * hy + hz * hz);
-                const double ndh = std::max(
-                    0.0, (nx * hx + ny * hy + nz * hz) / hlen);
-                const double exponent = 4.0 +
-                                        (1.0 - localRoughness) *
-                                            (1.0 - localRoughness) * 252.0;
-                const double specular =
-                    std::pow(ndh, exponent) *
-                    (0.12 + reflectivity * 0.88) *
-                    (0.35 + localMetallic * 0.65);
+                const double ndh =
+                    std::max(0.0, (nx * hx + ny * hy + nz * hz) / hlen);
+                const double exponent = 4.0 + (1.0 - localRoughness) *
+                                                  (1.0 - localRoughness) *
+                                                  252.0;
+                const double specular = std::pow(ndh, exponent) *
+                                        (0.12 + reflectivity * 0.88) *
+                                        (0.35 + localMetallic * 0.65);
                 const double fresnel =
                     std::pow(1.0 - std::clamp(nz, 0.0, 1.0), 5.0);
-                const double light = localAo * 0.17 +
-                                     diffuse * (0.83 - localMetallic * 0.38);
+                const double light =
+                    localAo * 0.17 + diffuse * (0.83 - localMetallic * 0.38);
                 const double edgeTransmission =
                     transmission * (0.2 + fresnel * 0.55);
                 const double rx = 2.0 * nx * nz;
                 const double ry = 2.0 * ny * nz;
                 const QColor reflected = environmentAt(rx, ry);
-                const double reflectionWeight = std::clamp(
-                    reflectivity * (0.12 + localMetallic * 0.88) *
-                            (1.0 - localRoughness * 0.72) +
-                        fresnel * 0.24,
-                    0.0, 0.92);
-                auto output = [&](double base, double texture,
-                                  double emitted, double environment,
-                                  double behind) {
+                const double reflectionWeight =
+                    std::clamp(reflectivity * (0.12 + localMetallic * 0.88) *
+                                       (1.0 - localRoughness * 0.72) +
+                                   fresnel * 0.24,
+                               0.0, 0.92);
+                auto output = [&](double base, double texture, double emitted,
+                                  double environment, double behind) {
                     double surface = base * texture * light + specular +
                                      fresnel * reflectivity * 0.18;
                     surface = surface * (1.0 - reflectionWeight) +
@@ -279,21 +276,18 @@ class MaterialPreviewWidget : public QWidget {
                                       0.0, 1.0);
                 };
                 line[x] = qRgba(
-                    static_cast<int>(output(albedo.redF(),
-                                            sampledAlbedo.redF(),
+                    static_cast<int>(output(albedo.redF(), sampledAlbedo.redF(),
                                             emission.redF(), reflected.redF(),
                                             background.redF()) *
                                      255.0),
-                    static_cast<int>(output(albedo.greenF(),
-                                            sampledAlbedo.greenF(),
-                                            emission.greenF(),
-                                            reflected.greenF(),
-                                            background.greenF()) *
-                                     255.0),
+                    static_cast<int>(
+                        output(albedo.greenF(), sampledAlbedo.greenF(),
+                               emission.greenF(), reflected.greenF(),
+                               background.greenF()) *
+                        255.0),
                     static_cast<int>(output(albedo.blueF(),
                                             sampledAlbedo.blueF(),
-                                            emission.blueF(),
-                                            reflected.blueF(),
+                                            emission.blueF(), reflected.blueF(),
                                             background.blueF()) *
                                      255.0),
                     255);
@@ -341,6 +335,7 @@ class MaterialPreviewWidget : public QWidget {
     QImage metallicImage;
     QImage roughnessImage;
     QImage aoImage;
+    QImage displacementImage;
     int environmentMode = 0;
 };
 
@@ -362,12 +357,10 @@ MaterialEditorPanel::MaterialEditorPanel(ViewportPanel *viewport,
     statusLabel->setObjectName("materialEditorStatus");
     auto *saveButton = new QPushButton("Save", header);
     saveButton->setObjectName("materialSaveButton");
-    saveButton->setIcon(
-        styling::icon(styling::Icon::FloppyDisk, "#A1957D"));
+    saveButton->setIcon(styling::icon(styling::Icon::FloppyDisk, "#A1957D"));
     auto *assignButton = new QPushButton("Assign to Selected", header);
     assignButton->setObjectName("materialAssignButton");
-    assignButton->setIcon(
-        styling::icon(styling::Icon::Assign, "#9E897D"));
+    assignButton->setIcon(styling::icon(styling::Icon::Assign, "#9E897D"));
     headerLayout->addWidget(titleLabel, 1);
     headerLayout->addWidget(statusLabel);
     headerLayout->addWidget(assignButton);
@@ -443,7 +436,8 @@ void MaterialEditorPanel::openMaterial(const QString &path) {
         return;
     }
     QJsonParseError error;
-    const QJsonDocument document = QJsonDocument::fromJson(file.readAll(), &error);
+    const QJsonDocument document =
+        QJsonDocument::fromJson(file.readAll(), &error);
     if (error.error != QJsonParseError::NoError || !document.isObject()) {
         QMessageBox::warning(this, "Material Editor",
                              "The material file is not valid JSON.");
@@ -566,8 +560,7 @@ void MaterialEditorPanel::showMaterial() {
     auto *volumeForm = new QFormLayout(volume);
     transmittanceField = scalarField(0.0, 1.0, 0.01, volume);
     iorField = scalarField(1.0, 3.0, 0.01, volume);
-    transmittanceField->setValue(
-        material.value("transmittance").toDouble());
+    transmittanceField->setValue(material.value("transmittance").toDouble());
     iorField->setValue(material.value("ior").toDouble());
     volumeForm->addRow("Weight", transmittanceField);
     volumeForm->addRow("IOR", iorField);
@@ -587,9 +580,13 @@ void MaterialEditorPanel::showMaterial() {
     auto *textures = new QGroupBox("Texture Slots", properties);
     auto *textureLayout = new QVBoxLayout(textures);
     const QList<QPair<QString, QString>> materialSlots{
-        {"Base Color", "albedoTexture"}, {"Normal", "normalTexture"},
-        {"Metallic", "metallicTexture"}, {"Roughness", "roughnessTexture"},
-        {"Ambient Occlusion", "aoTexture"}, {"Opacity", "opacityTexture"}};
+        {"Base Color", "albedoTexture"},
+        {"Normal", "normalTexture"},
+        {"Metallic", "metallicTexture"},
+        {"Roughness", "roughnessTexture"},
+        {"Ambient Occlusion", "aoTexture"},
+        {"Opacity", "opacityTexture"},
+        {"Displacement", "displacementTexture"}};
     for (const auto &[label, key] : materialSlots) {
         auto *row = new QWidget(textures);
         row->setObjectName("materialTextureSlot");
@@ -605,8 +602,7 @@ void MaterialEditorPanel::showMaterial() {
         field->setPlaceholderText("No image");
         auto *choose = new QToolButton(row);
         choose->setText("Choose…");
-        choose->setIcon(
-            styling::icon(styling::Icon::FolderOpen, "#7E929C"));
+        choose->setIcon(styling::icon(styling::Icon::FolderOpen, "#7E929C"));
         choose->setToolButtonStyle(Qt::ToolButtonTextBesideIcon);
         auto *clear = new QToolButton(row);
         clear->setIcon(styling::icon(styling::Icon::Close, "#A17F7F"));
@@ -639,11 +635,14 @@ void MaterialEditorPanel::showMaterial() {
             [this] { setColor("albedo", albedoButton); });
     connect(emissiveButton, &QPushButton::clicked, this,
             [this] { setColor("emissiveColor", emissiveButton); });
-    const QList<QDoubleSpinBox *> scalars{
-        metallicField,          roughnessField, aoField,
-        reflectivityField,      emissiveIntensityField,
-        normalStrengthField,    transmittanceField,
-        iorField};
+    const QList<QDoubleSpinBox *> scalars{metallicField,
+                                          roughnessField,
+                                          aoField,
+                                          reflectivityField,
+                                          emissiveIntensityField,
+                                          normalStrengthField,
+                                          transmittanceField,
+                                          iorField};
     for (QDoubleSpinBox *field : scalars) {
         connect(field, &QDoubleSpinBox::valueChanged, this,
                 [this](double) { materialChanged(); });

@@ -623,6 +623,10 @@ TextureType parseTextureTypeString(const std::string &value) {
     if (token == "normal" || token == "normalmap") {
         return TextureType::Normal;
     }
+    if (token == "parallax" || token == "displacement" ||
+        token == "height") {
+        return TextureType::Parallax;
+    }
     if (token == "metallic" || token == "metalness") {
         return TextureType::Metallic;
     }
@@ -758,6 +762,9 @@ MaterialDefinition loadMaterialDefinition(const json &value,
     appendTexture({"specularTexture", "specularMap"}, TextureType::Specular,
                   false);
     appendTexture({"normalTexture", "normalMap"}, TextureType::Normal, false);
+    appendTexture({"displacementTexture", "displacementMap", "heightTexture",
+                   "heightMap"},
+                  TextureType::Parallax, false);
     appendTexture({"metallicTexture", "metalnessTexture"},
                   TextureType::Metallic, false);
     appendTexture({"roughnessTexture"}, TextureType::Roughness, false);
