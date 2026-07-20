@@ -342,24 +342,39 @@ fragment main0_out main0(main0_in in [[stage_in]], constant UBO& _46 [[buffer(0)
         normal = fast::normalize(in.Normal);
     }
     float3 albedoColor = baseColor.xyz;
+    int param_pbr_pack = 14;
+    float4 pbrPackTex = enableTextures(param_pbr_pack, _46, texture1, texture1Smplr, texCoord, texture2, texture2Smplr, texture3, texture3Smplr, texture4, texture4Smplr, texture5, texture5Smplr, texture6, texture6Smplr, texture7, texture7Smplr, texture8, texture8Smplr, texture9, texture9Smplr, texture10, texture10Smplr);
+    bool hasPbrPack = any(pbrPackTex != float4(-1.0));
     float metallicValue = material.metallic;
     int param_5 = 9;
     float4 metallicTex = enableTextures(param_5, _46, texture1, texture1Smplr, texCoord, texture2, texture2Smplr, texture3, texture3Smplr, texture4, texture4Smplr, texture5, texture5Smplr, texture6, texture6Smplr, texture7, texture7Smplr, texture8, texture8Smplr, texture9, texture9Smplr, texture10, texture10Smplr);
-    if (any(metallicTex != float4(-1.0)))
+    if (hasPbrPack)
+    {
+        metallicValue *= pbrPackTex.z;
+    }
+    else if (any(metallicTex != float4(-1.0)))
     {
         metallicValue *= metallicTex.x;
     }
     float roughnessValue = material.roughness;
     int param_6 = 10;
     float4 roughnessTex = enableTextures(param_6, _46, texture1, texture1Smplr, texCoord, texture2, texture2Smplr, texture3, texture3Smplr, texture4, texture4Smplr, texture5, texture5Smplr, texture6, texture6Smplr, texture7, texture7Smplr, texture8, texture8Smplr, texture9, texture9Smplr, texture10, texture10Smplr);
-    if (any(roughnessTex != float4(-1.0)))
+    if (hasPbrPack)
+    {
+        roughnessValue *= pbrPackTex.y;
+    }
+    else if (any(roughnessTex != float4(-1.0)))
     {
         roughnessValue *= roughnessTex.x;
     }
     float aoValue = material.ao;
     int param_7 = 11;
     float4 aoTex = enableTextures(param_7, _46, texture1, texture1Smplr, texCoord, texture2, texture2Smplr, texture3, texture3Smplr, texture4, texture4Smplr, texture5, texture5Smplr, texture6, texture6Smplr, texture7, texture7Smplr, texture8, texture8Smplr, texture9, texture9Smplr, texture10, texture10Smplr);
-    if (any(aoTex != float4(-1.0)))
+    if (hasPbrPack)
+    {
+        aoValue *= pbrPackTex.x;
+    }
+    else if (any(aoTex != float4(-1.0)))
     {
         aoValue *= aoTex.x;
     }

@@ -16,6 +16,7 @@ export const TextureType = Object.freeze({
     AO: 11,
     Opacity: 12,
     HDR: 13,
+    PBRPack: 14,
 });
 
 export const RenderTargetType = Object.freeze({

@@ -28,6 +28,7 @@
 #include <unordered_map>
 #include <utility>
 #include <vector>
+#include "stb/stb_image.h"
 
 #include <glm/glm.hpp>
 #include <glm/gtc/matrix_transform.hpp>
@@ -75,22 +76,16 @@ float roughnessFromShininess(float shininess, float strength) {
 }
 
 void importMaterialProperties(aiMaterial *material, CoreObject &object) {
-    aiColor3D diffuseColor;
-
-    if (material->Get(AI_MATKEY_COLOR_DIFFUSE, diffuseColor) == AI_SUCCESS) {
-        object.material.albedo.r = diffuseColor.r;
-        object.material.albedo.g = diffuseColor.g;
-        object.material.albedo.b = diffuseColor.b;
+    aiColor4D baseColor;
+    if (material->Get(AI_MATKEY_BASE_COLOR, baseColor) == AI_SUCCESS) {
+        object.material.albedo = {baseColor.r, baseColor.g, baseColor.b,
+                                  baseColor.a};
     } else {
-        aiColor4D baseColor;
-
-        if (material->Get(AI_MATKEY_BASE_COLOR, baseColor) == AI_SUCCESS) {
-            object.material.albedo = {
-                baseColor.r,
-                baseColor.g,
-                baseColor.b,
-                baseColor.a,
-            };
+        aiColor3D diffuseColor;
+        if (material->Get(AI_MATKEY_COLOR_DIFFUSE, diffuseColor) == AI_SUCCESS) {
+            object.material.albedo.r = diffuseColor.r;
+            object.material.albedo.g = diffuseColor.g;
+            object.material.albedo.b = diffuseColor.b;
         }
     }
     float opacity = 1.0f;
@@ -435,29 +430,38 @@ Model::processMesh(aiMesh *mesh, const aiScene *scene,
         }
         textures.insert(textures.end(), normalMaps.begin(), normalMaps.end());
 
-        auto metallicMaps =
-            loadMaterialTextures(material, std::any(aiTextureType_METALNESS),
-                                 "texture_metallic", textureCache);
-        textures.insert(textures.end(), metallicMaps.begin(),
-                        metallicMaps.end());
+        auto pbrPackMaps = loadMaterialTextures(
+            material, std::any(aiTextureType_GLTF_METALLIC_ROUGHNESS),
+            "texture_pbr_pack", textureCache);
+        textures.insert(textures.end(), pbrPackMaps.begin(), pbrPackMaps.end());
 
-        auto roughnessMaps = loadMaterialTextures(
-            material, std::any(aiTextureType_DIFFUSE_ROUGHNESS),
-            "texture_roughness", textureCache);
-        textures.insert(textures.end(), roughnessMaps.begin(),
-                        roughnessMaps.end());
+        if (pbrPackMaps.empty()) {
+            auto metallicMaps = loadMaterialTextures(
+                material, std::any(aiTextureType_METALNESS),
+                "texture_metallic", textureCache);
+            textures.insert(textures.end(), metallicMaps.begin(),
+                            metallicMaps.end());
 
-        auto aoMaps = loadMaterialTextures(
-            material, std::any(aiTextureType_AMBIENT_OCCLUSION), "texture_ao",
-            textureCache);
-        if (aoMaps.empty()) {
-            auto lightmapMaps =
-                loadMaterialTextures(material, std::any(aiTextureType_LIGHTMAP),
-                                     "texture_ao", textureCache);
-            aoMaps.insert(aoMaps.end(), lightmapMaps.begin(),
-                          lightmapMaps.end());
+            auto roughnessMaps = loadMaterialTextures(
+                material, std::any(aiTextureType_DIFFUSE_ROUGHNESS),
+                "texture_roughness", textureCache);
+            textures.insert(textures.end(), roughnessMaps.begin(),
+                            roughnessMaps.end());
         }
-        textures.insert(textures.end(), aoMaps.begin(), aoMaps.end());
+
+        if (pbrPackMaps.empty()) {
+            auto aoMaps = loadMaterialTextures(
+                material, std::any(aiTextureType_AMBIENT_OCCLUSION),
+                "texture_ao", textureCache);
+            if (aoMaps.empty()) {
+                auto lightmapMaps = loadMaterialTextures(
+                    material, std::any(aiTextureType_LIGHTMAP), "texture_ao",
+                    textureCache);
+                aoMaps.insert(aoMaps.end(), lightmapMaps.begin(),
+                              lightmapMaps.end());
+            }
+            textures.insert(textures.end(), aoMaps.begin(), aoMaps.end());
+        }
 
         auto opacityMaps =
             loadMaterialTextures(material, std::any(aiTextureType_OPACITY),
@@ -502,6 +506,12 @@ std::vector<Texture> Model::loadMaterialTextures(
         std::string filename = std::string(str.C_Str());
         std::string fullPath = directory + "/" + filename;
         std::string cacheKey = fullPath + "|" + typeName;
+        if (typeName == "texture_pbr_pack") {
+            aiString aoPath;
+            if (material->GetTexture(aiTextureType_AMBIENT_OCCLUSION, 0,
+                                     &aoPath) == AI_SUCCESS)
+                cacheKey += "|" + std::string(aoPath.C_Str());
+        }
 
         // Check if texture is already cached
         auto cacheIt = textureCache.find(cacheKey);
@@ -534,10 +544,71 @@ std::vector<Texture> Model::loadMaterialTextures(
             texType = TextureType::AO;
         } else if (typeName == "texture_opacity") {
             texType = TextureType::Opacity;
+        } else if (typeName == "texture_pbr_pack") {
+            texType = TextureType::PBRPack;
         }
 
         try {
-            Texture loadedTexture = Texture::fromResource(resource, texType);
+            Texture loadedTexture;
+            if (texType == TextureType::PBRPack) {
+                int width = 0;
+                int height = 0;
+                int channels = 0;
+                std::unique_ptr<unsigned char, decltype(&stbi_image_free)> data(
+                    stbi_load(fullPath.c_str(), &width, &height, &channels,
+                              STBI_rgb_alpha),
+                    stbi_image_free);
+                if (data == nullptr)
+                    throw std::runtime_error("Failed to load PBR pack image");
+
+                const size_t pixelCount = static_cast<size_t>(width) * height;
+                for (size_t pixel = 0; pixel < pixelCount; pixel++)
+                    data.get()[pixel * 4] = 255;
+
+                aiString aoPath;
+                if (material->GetTexture(aiTextureType_AMBIENT_OCCLUSION, 0,
+                                         &aoPath) == AI_SUCCESS) {
+                    int aoWidth = 0;
+                    int aoHeight = 0;
+                    int aoChannels = 0;
+                    const std::string fullAoPath =
+                        directory + "/" + std::string(aoPath.C_Str());
+                    std::unique_ptr<unsigned char, decltype(&stbi_image_free)>
+                        aoData(stbi_load(fullAoPath.c_str(), &aoWidth, &aoHeight,
+                                         &aoChannels, STBI_grey),
+                               stbi_image_free);
+                    if (aoData != nullptr && aoWidth > 0 && aoHeight > 0) {
+                        for (int y = 0; y < height; y++) {
+                            const int aoY = y * aoHeight / height;
+                            for (int x = 0; x < width; x++) {
+                                const int aoX = x * aoWidth / width;
+                                data.get()[(static_cast<size_t>(y) * width + x) *
+                                           4] =
+                                    aoData.get()[static_cast<size_t>(aoY) *
+                                                     aoWidth +
+                                                 aoX];
+                            }
+                        }
+                    }
+                }
+
+                auto opalTexture = opal::Texture::create(
+                    opal::TextureType::Texture2D, opal::TextureFormat::Rgba8,
+                    width, height, opal::TextureDataFormat::Rgba, data.get(), 1);
+                opalTexture->setParameters(
+                    opal::TextureWrapMode::Repeat,
+                    opal::TextureWrapMode::Repeat,
+                    opal::TextureFilterMode::Linear,
+                    opal::TextureFilterMode::Linear);
+                opalTexture->automaticallyGenerateMipmaps();
+                loadedTexture = Texture{.resource = resource,
+                                        .creationData = {width, height, 4},
+                                        .id = opalTexture->textureID,
+                                        .texture = opalTexture,
+                                        .type = texType};
+            } else {
+                loadedTexture = Texture::fromResource(resource, texType);
+            }
             textureCache[cacheKey] = loadedTexture;
             textures.push_back(loadedTexture);
         } catch (const std::exception &ex) {

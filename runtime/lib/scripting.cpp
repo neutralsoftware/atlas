@@ -318,6 +318,8 @@ TextureType toNativeTextureType(int type) {
         return TextureType::Opacity;
     case 13:
         return TextureType::HDR;
+    case 14:
+        return TextureType::PBRPack;
     case 0:
     default:
         return TextureType::Color;
@@ -352,6 +354,8 @@ int toScriptTextureType(TextureType type) {
         return 12;
     case TextureType::HDR:
         return 13;
+    case TextureType::PBRPack:
+        return 14;
     case TextureType::Color:
     default:
         return 0;

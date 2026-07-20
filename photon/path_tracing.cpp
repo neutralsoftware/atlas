@@ -385,15 +385,26 @@ void photon::PathTracing::buildAccelerationStructure(
                 }
             }
             data.normalTextureIndex = normalTextureIndex;
+            const int pbrPackTextureIndex = findTextureSlotForType(
+                object->textures, TextureType::PBRPack, materialTextures,
+                textureSlots);
             data.metallicTextureIndex =
-                findTextureSlotForType(object->textures, TextureType::Metallic,
-                                       materialTextures, textureSlots);
+                pbrPackTextureIndex >= 0
+                    ? pbrPackTextureIndex
+                    : findTextureSlotForType(
+                          object->textures, TextureType::Metallic,
+                          materialTextures, textureSlots);
             data.roughnessTextureIndex =
-                findTextureSlotForType(object->textures, TextureType::Roughness,
-                                       materialTextures, textureSlots);
+                pbrPackTextureIndex >= 0
+                    ? pbrPackTextureIndex
+                    : findTextureSlotForType(
+                          object->textures, TextureType::Roughness,
+                          materialTextures, textureSlots);
             data.aoTextureIndex =
-                findTextureSlotForType(object->textures, TextureType::AO,
-                                       materialTextures, textureSlots);
+                pbrPackTextureIndex >= 0
+                    ? pbrPackTextureIndex
+                    : findTextureSlotForType(object->textures, TextureType::AO,
+                                             materialTextures, textureSlots);
             data.opacityTextureIndex =
                 findTextureSlotForType(object->textures, TextureType::Opacity,
                                        materialTextures, textureSlots);
