@@ -29,7 +29,30 @@
 #ifdef METAL
 namespace {
 constexpr int kDdgiMaterialTextureUnitStart = 10;
-constexpr int kDdgiMaxMaterialTextures = 24;
+constexpr int kDdgiMaxMaterialTextures = 48;
+constexpr int kDdgiSkyboxTextureUnit = 60;
+constexpr int kDdgiPreviousIrradianceTextureUnit = 61;
+
+std::shared_ptr<opal::Texture> createDdgiFallbackSkyboxTexture() {
+    constexpr unsigned char value[4] = {0, 0, 0, 255};
+    const unsigned char *faces[6] = {value, value, value, value, value, value};
+    auto texture = opal::Texture::create(
+        opal::TextureType::TextureCubeMap, opal::TextureFormat::Rgba8, 1, 1,
+        opal::TextureDataFormat::Rgba, nullptr, 1);
+    texture->setFilterMode(opal::TextureFilterMode::Linear,
+                           opal::TextureFilterMode::Linear);
+    texture->setWrapMode(opal::TextureAxis::S,
+                         opal::TextureWrapMode::ClampToEdge);
+    texture->setWrapMode(opal::TextureAxis::T,
+                         opal::TextureWrapMode::ClampToEdge);
+    texture->setWrapMode(opal::TextureAxis::R,
+                         opal::TextureWrapMode::ClampToEdge);
+    for (int face = 0; face < 6; ++face) {
+        texture->updateFace(face, faces[face], 1, 1,
+                            opal::TextureDataFormat::Rgba);
+    }
+    return texture;
+}
 
 int registerMaterialTextureSlot(
     const Texture &texture,
@@ -125,6 +148,12 @@ uint64_t computeDdgiLayoutSignature(const std::vector<CoreObject *> &objects,
             hashCombineU64(signature, hashFloat(static_cast<float>(scl.y)));
         signature =
             hashCombineU64(signature, hashFloat(static_cast<float>(scl.z)));
+        for (int column = 0; column < 4; ++column) {
+            for (int row = 0; row < 4; ++row) {
+                signature = hashCombineU64(
+                    signature, hashFloat(object->model[column][row]));
+            }
+        }
         signature = hashCombineU64(
             signature, static_cast<uint64_t>(object->textures.size()));
         signature = hashCombineU64(
@@ -251,6 +280,14 @@ void photon::GlobalIllumination::init() {
         Texture::create(512, 512, opal::TextureFormat::Rgba16F,
                         opal::TextureDataFormat::Rgba, TextureType::Color));
 
+    distanceMap = std::make_shared<Texture>(
+        Texture::create(512, 512, opal::TextureFormat::Rgba16F,
+                        opal::TextureDataFormat::Rgba, TextureType::Color));
+
+    distanceMapPrev = std::make_shared<Texture>(
+        Texture::create(512, 512, opal::TextureFormat::Rgba16F,
+                        opal::TextureDataFormat::Rgba, TextureType::Color));
+
     giPipeline = opal::Pipeline::create();
     giPipeline->setShaderProgram(giWriteShader->shader);
     giPipeline->setComputeThreadgroupSize(8, 8, 1);
@@ -299,7 +336,9 @@ void photon::GlobalIllumination::updateProbeLayout() {
         probeSpace->probeResolution, probeSpace->textureBorderSize);
     if (hasCachedLayoutSignature && cachedLayoutSignature == layoutSignature &&
         probeRadianceBuffer != nullptr && irradianceMap != nullptr &&
-        irradianceMapPrev != nullptr) {
+        irradianceMapPrev != nullptr && distanceMap != nullptr &&
+        distanceMapPrev != nullptr && triangleBuffer != nullptr &&
+        materialBuffer != nullptr && sceneBLAS != nullptr) {
         return;
     }
     cachedLayoutSignature = layoutSignature;
@@ -315,6 +354,14 @@ void photon::GlobalIllumination::updateProbeLayout() {
         if (object == nullptr || !object->canUseDeferredRendering()) {
             continue;
         }
+        findTextureSlotForType(object->textures, TextureType::Color,
+                               materialTextures, textureSlots);
+    }
+
+    for (auto *object : ddgiObjects) {
+        if (object == nullptr || !object->canUseDeferredRendering()) {
+            continue;
+        }
 
         const auto &vertices = object->getVertices();
         if (vertices.size() < 3) {
@@ -323,11 +370,7 @@ void photon::GlobalIllumination::updateProbeLayout() {
 
         const auto &indices = object->indices;
         const bool useIndexBuffer = indices.size() >= 3;
-        glm::mat4 model(1.0f);
-        model = glm::translate(model, object->getPosition().toGlm());
-        model *=
-            glm::mat4_cast(glm::normalize(object->getRotation().toGlmQuat()));
-        model = glm::scale(model, object->getScale().toGlm());
+        glm::mat4 model = object->model;
         glm::mat3 linearMatrix = glm::mat3(model);
         glm::mat3 normalMatrix = glm::transpose(glm::inverse(glm::mat3(model)));
 
@@ -458,6 +501,48 @@ void photon::GlobalIllumination::updateProbeLayout() {
         }
     }
 
+    if (hasGeometry) {
+        glm::vec3 rawExtent = glm::max(boundsMax - boundsMin, glm::vec3(0.0f));
+        spacing = std::max(spacing, std::max(rawExtent.x, std::max(rawExtent.y,
+                                                                  rawExtent.z)) /
+                                        15.0f);
+    }
+
+    std::vector<opal::PrimitiveVertex> accelerationVertices;
+    std::vector<uint32_t> accelerationIndices;
+    accelerationVertices.reserve(triangles.size() * 3);
+    accelerationIndices.reserve(triangles.size() * 3);
+    for (const auto &triangle : triangles) {
+        const glm::vec4 positions[3] = {triangle.v0, triangle.v1, triangle.v2};
+        for (const auto &position : positions) {
+            opal::PrimitiveVertex vertex{};
+            vertex.position[0] = position.x;
+            vertex.position[1] = position.y;
+            vertex.position[2] = position.z;
+            accelerationIndices.push_back(
+                static_cast<uint32_t>(accelerationVertices.size()));
+            accelerationVertices.push_back(vertex);
+        }
+    }
+    if (!accelerationVertices.empty()) {
+        sceneBLAS = opal::PrimitiveAccelerationStructure::create(
+            accelerationVertices, accelerationIndices);
+        sceneTLAS.reset();
+        accelerationStructureDirty = true;
+        triangleBuffer = opal::Buffer::create(
+            opal::BufferUsage::ShaderRead,
+            triangles.size() * sizeof(DDGITriangle), triangles.data());
+        materialBuffer = opal::Buffer::create(
+            opal::BufferUsage::ShaderRead,
+            materials.size() * sizeof(DDGIMaterial), materials.data());
+    } else {
+        sceneBLAS.reset();
+        sceneTLAS.reset();
+        triangleBuffer.reset();
+        materialBuffer.reset();
+        accelerationStructureDirty = false;
+    }
+
     float layoutPad = spacing * 0.25f;
     Position3d minWs = hasGeometry ? Position3d(boundsMin.x - layoutPad,
                                                 boundsMin.y - layoutPad,
@@ -498,7 +583,10 @@ void photon::GlobalIllumination::updateProbeLayout() {
         static_cast<int>(std::ceil(std::sqrt((float)totalProbeCount))), 1, 64);
 
     probeSpace->originWorldSpace = minWs;
-    probeSpace->spacing = Position3d(spacing, spacing, spacing);
+    probeSpace->spacing = Position3d(
+        Nx > 1 ? extent.x / static_cast<float>(Nx - 1) : spacing,
+        Ny > 1 ? extent.y / static_cast<float>(Ny - 1) : spacing,
+        Nz > 1 ? extent.z / static_cast<float>(Nz - 1) : spacing);
     probeSpace->probeCount = Vector3((float)Nx, (float)Ny, (float)Nz);
     probeSpace->probesPerRow = probesPerRow;
 
@@ -522,7 +610,8 @@ void photon::GlobalIllumination::updateProbeLayout() {
 
     const int atlasW = std::max(1, probeSpace->atlasWidth());
     const int atlasH = std::max(1, probeSpace->atlasHeight());
-    bool needCreate = !irradianceMap || !irradianceMapPrev;
+    bool needCreate = !irradianceMap || !irradianceMapPrev || !distanceMap ||
+                      !distanceMapPrev;
     bool sizeChanged =
         !needCreate && (irradianceMap->creationData.width != atlasW ||
                         irradianceMap->creationData.height != atlasH);
@@ -533,6 +622,12 @@ void photon::GlobalIllumination::updateProbeLayout() {
             Texture::create(atlasW, atlasH, opal::TextureFormat::Rgba16F,
                             opal::TextureDataFormat::Rgba, TextureType::Color));
         irradianceMapPrev = std::make_shared<Texture>(
+            Texture::create(atlasW, atlasH, opal::TextureFormat::Rgba16F,
+                            opal::TextureDataFormat::Rgba, TextureType::Color));
+        distanceMap = std::make_shared<Texture>(
+            Texture::create(atlasW, atlasH, opal::TextureFormat::Rgba16F,
+                            opal::TextureDataFormat::Rgba, TextureType::Color));
+        distanceMapPrev = std::make_shared<Texture>(
             Texture::create(atlasW, atlasH, opal::TextureFormat::Rgba16F,
                             opal::TextureDataFormat::Rgba, TextureType::Color));
     }
@@ -560,7 +655,27 @@ void photon::GlobalIllumination::render(
         probeRadianceBuffer == nullptr || irradianceMap == nullptr ||
         irradianceMapPrev == nullptr || irradianceMap->texture == nullptr ||
         irradianceMapPrev->texture == nullptr ||
+        distanceMap == nullptr || distanceMapPrev == nullptr ||
+        distanceMap->texture == nullptr || distanceMapPrev->texture == nullptr ||
+        triangleBuffer == nullptr || materialBuffer == nullptr ||
+        sceneBLAS == nullptr ||
         copySrcFramebuffer == nullptr || copyDstFramebuffer == nullptr) {
+        return;
+    }
+
+    if (accelerationStructureDirty) {
+        commandBuffer->buildPrimitiveAccelerationStructure(sceneBLAS);
+        opal::AccelerationStructureInstance instance{};
+        instance.blas = sceneBLAS;
+        instance.transform = glm::mat4(1.0f);
+        instance.instanceId = 0;
+        instance.mask = 0xFF;
+        instance.cullDisable = true;
+        sceneTLAS = opal::InstanceAccelerationStructure::create({instance});
+        commandBuffer->buildInstanceAccelerationStructure(sceneTLAS);
+        accelerationStructureDirty = false;
+    }
+    if (sceneTLAS == nullptr || !sceneTLAS->isBuilt) {
         return;
     }
 
@@ -570,9 +685,6 @@ void photon::GlobalIllumination::render(
         static_cast<uint>(std::max(1, this->raysPerProbe));
     const uint effectiveRays = std::max(1u, requestedRays);
     uint updateStride = static_cast<uint>(std::max(1, this->probeUpdateStride));
-    if (frameIndex < static_cast<int>(updateStride) + 2) {
-        updateStride = 1u;
-    }
     uint updateOffset =
         (updateStride > 1u)
             ? static_cast<uint>(std::max(0, frameIndex)) % updateStride
@@ -595,6 +707,11 @@ void photon::GlobalIllumination::render(
     copySrcFramebuffer->attachTexture(irradianceMap->texture, 0);
     copyDstFramebuffer->attachTexture(irradianceMapPrev->texture, 0);
     auto copy = opal::ResolveAction::createForColorAttachment(
+        copySrcFramebuffer, copyDstFramebuffer, 0);
+    commandBuffer->performResolve(copy);
+    copySrcFramebuffer->attachTexture(distanceMap->texture, 0);
+    copyDstFramebuffer->attachTexture(distanceMapPrev->texture, 0);
+    copy = opal::ResolveAction::createForColorAttachment(
         copySrcFramebuffer, copyDstFramebuffer, 0);
     commandBuffer->performResolve(copy);
 
@@ -754,23 +871,8 @@ void photon::GlobalIllumination::render(
         areaLights.empty() ? sizeof(GPUAreaLight)
                            : areaLights.size() * sizeof(GPUAreaLight));
 
-    DDGITriangle fallbackTriangle{};
-    DDGIMaterial fallbackMaterial{};
-    const void *triangleData =
-        triangles.empty() ? static_cast<const void *>(&fallbackTriangle)
-                          : static_cast<const void *>(triangles.data());
-    const size_t triangleSize = triangles.empty()
-                                    ? sizeof(DDGITriangle)
-                                    : triangles.size() * sizeof(DDGITriangle);
-    const void *materialData =
-        materials.empty() ? static_cast<const void *>(&fallbackMaterial)
-                          : static_cast<const void *>(materials.data());
-    const size_t materialSize = materials.empty()
-                                    ? sizeof(DDGIMaterial)
-                                    : materials.size() * sizeof(DDGIMaterial);
-    giRaytracingPipeline->bindBufferData("tris", triangleData, triangleSize);
-    giRaytracingPipeline->bindBufferData("materials", materialData,
-                                         materialSize);
+    giRaytracingPipeline->bindBuffer("tris", triangleBuffer, 1);
+    giRaytracingPipeline->bindBuffer("materials", materialBuffer, 2);
 
     struct GPUSceneCounts {
         uint32_t triCount;
@@ -805,6 +907,31 @@ void photon::GlobalIllumination::render(
                                           kDdgiMaterialTextureUnitStart + i);
     }
 
+    static std::shared_ptr<opal::Texture> fallbackSkybox = nullptr;
+    if (fallbackSkybox == nullptr) {
+        fallbackSkybox = createDdgiFallbackSkyboxTexture();
+    }
+    std::shared_ptr<opal::Texture> skyboxTexture = fallbackSkybox;
+    int useSkybox = 0;
+    glm::vec3 skyColor(0.12f, 0.14f, 0.18f);
+    if (scene != nullptr) {
+        auto skybox = scene->getSkybox();
+        if (skybox != nullptr && skybox->cubemap.texture != nullptr) {
+            skyboxTexture = skybox->cubemap.texture;
+            useSkybox = 1;
+        } else if (scene->atmosphere.isEnabled()) {
+            Color atmosphereColor = scene->atmosphere.getLightColor();
+            skyColor = glm::vec3(atmosphereColor.r, atmosphereColor.g,
+                                 atmosphereColor.b) *
+                       std::max(scene->atmosphere.getLightIntensity(), 0.0f);
+        }
+    }
+    giRaytracingPipeline->bindTexture("skybox", skyboxTexture,
+                                      kDdgiSkyboxTextureUnit);
+    giRaytracingPipeline->bindTexture("previousIrradiance",
+                                      irradianceMapPrev->texture,
+                                      kDdgiPreviousIrradianceTextureUnit);
+
     giRaytracingPipeline->setUniform3f(
         "ps.origin", probeSpace->originWorldSpace.x,
         probeSpace->originWorldSpace.y, probeSpace->originWorldSpace.z);
@@ -837,8 +964,12 @@ void photon::GlobalIllumination::render(
                                        static_cast<int>(updateStride));
     giRaytracingPipeline->setUniform1i("rt.probeUpdateCount",
                                        static_cast<int>(activeProbeCount));
+    giRaytracingPipeline->setUniform3f("rt.skyColor", skyColor.x, skyColor.y,
+                                       skyColor.z);
+    giRaytracingPipeline->setUniform1i("rt.useSkybox", useSkybox);
 
     commandBuffer->bindPipeline(giRaytracingPipeline);
+    commandBuffer->bindInstanceAccelerationStructure(sceneTLAS, 10);
     commandBuffer->dispatch(totalRays, 1, 1);
 
     commandBuffer->computeBarrier();
@@ -846,6 +977,8 @@ void photon::GlobalIllumination::render(
     // Write to irradiance texture
     giPipeline->bindTexture("outTexture", irradianceMap->texture, 0);
     giPipeline->bindTexture("prevTexture", irradianceMapPrev->texture, 1);
+    giPipeline->bindTexture("outDistance", distanceMap->texture, 2);
+    giPipeline->bindTexture("prevDistance", distanceMapPrev->texture, 3);
 
     giPipeline->bindBuffer("probeRadiance", this->probeRadianceBuffer);
 

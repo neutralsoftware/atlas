@@ -919,6 +919,7 @@ sampleProbeDirectionalRadiance(texture2d<float> ddgiTexture,
 }
 
 static inline float3 sampleDDGIIrradiance(texture2d<float> ddgiTexture,
+                                          texture2d<float> ddgiDistance,
                                           constant ProbeSpace &ps, float3 posWS,
                                           float3 normalWS) {
     uint3 counts = uint3((uint)ps.probeCount.x, (uint)ps.probeCount.y,
@@ -955,13 +956,27 @@ static inline float3 sampleDDGIIrradiance(texture2d<float> ddgiTexture,
         uint pIndex = probeIndexFromCoord(nearest, counts);
         float4 nearestSample = sampleProbeDirectionalRadiance(
             ddgiTexture, ps, pIndex, atlasW, atlasH, safeNormal);
+        float3 nearestProbePos = ps.origin + float3(nearest) * safeSpacing;
+        float3 nearestDirection = safeNormalizeDDGI(
+            posWS - nearestProbePos, safeNormal);
+        float4 nearestMoments = sampleProbeDirectionalRadiance(
+            ddgiDistance, ps, pIndex, atlasW, atlasH, nearestDirection);
+        float nearestDistance = length(posWS - nearestProbePos);
+        float nearestVariance = max(nearestMoments.y - nearestMoments.x *
+                                                           nearestMoments.x,
+                                    0.0001f);
+        float nearestDelta = max(nearestDistance - nearestMoments.x, 0.0f);
+        float nearestVisibility = nearestDelta <= 0.0f
+                                      ? 1.0f
+                                      : nearestVariance /
+                                            (nearestVariance + nearestDelta *
+                                                                   nearestDelta);
         float nearestValidity = isfinite(nearestSample.w)
                                     ? clamp(nearestSample.w, 0.0f, 1.0f)
                                     : 0.0f;
-        nearestValidity = mix(0.05f, 1.0f, nearestValidity);
         float3 nearestIrr =
             all(isfinite(nearestSample.xyz)) ? nearestSample.xyz : float3(0.0f);
-        nearestIrr *= nearestValidity;
+        nearestIrr *= nearestValidity * nearestVisibility;
         return max(nearestIrr, float3(0.0f));
     }
 
@@ -1011,20 +1026,33 @@ static inline float3 sampleDDGIIrradiance(texture2d<float> ddgiTexture,
 
                 float4 irrSample = sampleProbeDirectionalRadiance(
                     ddgiTexture, ps, pIndex, atlasW, atlasH, safeNormal);
+                float3 probeToSurface = -surfaceToProbe;
+                float4 distanceSample = sampleProbeDirectionalRadiance(
+                    ddgiDistance, ps, pIndex, atlasW, atlasH,
+                    safeNormalizeDDGI(probeToSurface, safeNormal));
+                float variance = max(distanceSample.y -
+                                         distanceSample.x * distanceSample.x,
+                                     0.0001f);
+                float delta = max(sDist - distanceSample.x, 0.0f);
+                float visibility = delta <= 0.0f
+                                       ? 1.0f
+                                       : variance / (variance + delta * delta);
+                visibility = visibility * visibility * visibility;
                 float probeValidity = isfinite(irrSample.w)
                                           ? clamp(irrSample.w, 0.0f, 1.0f)
                                           : 0.0f;
-                float validityW = mix(0.05f, 1.0f, probeValidity);
+                float validityW = probeValidity;
                 float3 irr = irrSample.xyz;
                 if (!all(isfinite(irr))) {
                     irr = float3(0.0f);
                     validityW = 0.0f;
                 }
                 irr = max(irr, float3(0.0f));
-                float weightedW = w * validityW;
+                float weightedW = w * validityW * max(visibility, 0.001f);
                 result += irr * weightedW;
                 weightSum += weightedW;
-                float noBackfaceW = trilinearW * distanceW * validityW;
+                float noBackfaceW = trilinearW * distanceW * validityW *
+                                    max(visibility, 0.001f);
                 resultNoBackface += irr * noBackfaceW;
                 weightSumNoBackface += noBackfaceW;
             }
@@ -1047,7 +1075,6 @@ static inline float3 sampleDDGIIrradiance(texture2d<float> ddgiTexture,
         ddgiTexture, ps, nearestIndex, atlasW, atlasH, safeNormal);
     float fallbackValidity =
         isfinite(fallbackSample.w) ? clamp(fallbackSample.w, 0.0f, 1.0f) : 0.0f;
-    fallbackValidity = mix(0.05f, 1.0f, fallbackValidity);
     float3 fallback =
         all(isfinite(fallbackSample.xyz)) ? fallbackSample.xyz : float3(0.0f);
     fallback *= fallbackValidity;
@@ -1085,6 +1112,7 @@ fragment main0_out main0(
     texture2d<float> gMaterial [[texture(14)]],
     texture2d<float> ssao [[texture(15)]],
     texture2d<float> irradianceMap [[texture(16)]],
+    texture2d<float> ddgiDistanceMap [[texture(17)]],
     sampler texture1Smplr [[sampler(0)]], sampler texture2Smplr [[sampler(1)]],
     sampler texture3Smplr [[sampler(2)]], sampler texture4Smplr [[sampler(3)]],
     sampler texture5Smplr [[sampler(4)]], sampler cubeMap1Smplr [[sampler(5)]],
@@ -1414,7 +1442,8 @@ fragment main0_out main0(
         max(max(ps.spacing.x, max(ps.spacing.y, ps.spacing.z)) * 0.05f, 0.002f);
     float3 ddgiSamplePos = FragPos + ddgiNormal * ddgiSampleBias;
     float3 ddgiIrradiance =
-        sampleDDGIIrradiance(irradianceMap, ps, ddgiSamplePos, ddgiNormal);
+        sampleDDGIIrradiance(irradianceMap, ddgiDistanceMap, ps, ddgiSamplePos,
+                             ddgiNormal);
     if (!all(isfinite(ddgiIrradiance))) {
         ddgiIrradiance = float3(0.0f);
     }
@@ -1427,45 +1456,11 @@ fragment main0_out main0(
     }
 
     const float INV_PI = 0.31830988618379067153776752674503;
-    float ddgiLuma = dot(ddgiIrradiance, float3(0.2126f, 0.7152f, 0.0722f));
-    float3 ddgiChroma = ddgiIrradiance - float3(ddgiLuma);
-    float3 boostedIrradiance =
-        max(float3(ddgiLuma * 0.1500000059604644775390625) +
-                ddgiChroma * 1.35000002384185791015625,
-            float3(0.0f));
-    float3 bleedAlbedo = albedo;
-    float3 ddgiDiffuse = boostedIrradiance * bleedAlbedo * INV_PI *
-                         (1.0f - metallic) * ddgiGain *
-                         0.85000002384185791015625;
-    float sideFactor = clamp(1.0f - abs(N.y), 0.0f, 1.0f);
-    float ddgiSurfaceFactor =
-        0.550000011920928955078125 + sideFactor * 0.449999988079071044921875;
-    ddgiDiffuse *= ddgiSurfaceFactor;
-    float ddgiDiffuseLuma = dot(ddgiDiffuse, float3(0.2126f, 0.7152f, 0.0722f));
-    float sceneRefLuma =
-        dot(ambientBase + lighting * 0.35f, float3(0.2126f, 0.7152f, 0.0722f));
-    float ddgiLumaCap =
-        sceneRefLuma * 0.85000002384185791015625 + 0.07999999821186065673828125;
-    if (ddgiDiffuseLuma > ddgiLumaCap) {
-        ddgiDiffuse *= (ddgiLumaCap / ddgiDiffuseLuma);
-    }
-    ddgiDiffuse = max(ddgiDiffuse, float3(0.0f));
+    float3 ddgiDiffuse = ddgiIrradiance * albedo * INV_PI *
+                         (1.0f - metallic) * occlusion * ddgiGain;
     ambient += ddgiDiffuse;
 
     float3 ddgiSpecular = float3(0.0f);
-    if (ps.atlasParams.w > 0.0f && roughness < 0.7f) {
-        float3 reflectionDir = reflect(-V, N);
-        float3 ddgiReflection = sampleDDGIIrradiance(
-            irradianceMap, ps, ddgiSamplePos, reflectionDir);
-        if (!all(isfinite(ddgiReflection))) {
-            ddgiReflection = float3(0.0f);
-        }
-        ddgiReflection = max(ddgiReflection, float3(0.0f));
-        float3 Fddgi = fresnelSchlick(fast::max(dot(N, V), 0.0), F0);
-        float specGain = mix(0.03f, 0.004f, roughness);
-        ddgiReflection *= (0.5f + ddgiSurfaceFactor * 0.5f);
-        ddgiSpecular = ddgiReflection * Fddgi * specGain * INV_PI * ddgiGain;
-    }
 
     float3 iblContribution = float3(0.0);
     if (_526.useIBL != 0u) {

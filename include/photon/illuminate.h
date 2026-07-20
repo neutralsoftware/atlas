@@ -156,6 +156,8 @@ class GlobalIllumination {
     std::shared_ptr<Texture> irradianceMap;
     /** @brief Previous irradiance atlas for temporal blending. */
     std::shared_ptr<Texture> irradianceMapPrev;
+    std::shared_ptr<Texture> distanceMap;
+    std::shared_ptr<Texture> distanceMapPrev;
     /** @brief Compute program that writes probe irradiance tiles to the atlas.
      */
     std::shared_ptr<ShaderProgram> giWriteShader;
@@ -170,6 +172,12 @@ class GlobalIllumination {
     std::shared_ptr<opal::Buffer> probeRadianceBuffer;
     /** @brief Byte capacity currently allocated for probeRadianceBuffer. */
     int probeRadianceCapacity = 0;
+
+    std::shared_ptr<opal::Buffer> triangleBuffer;
+    std::shared_ptr<opal::Buffer> materialBuffer;
+    std::shared_ptr<opal::PrimitiveAccelerationStructure> sceneBLAS;
+    std::shared_ptr<opal::InstanceAccelerationStructure> sceneTLAS;
+    bool accelerationStructureDirty = false;
 
     /** @brief Active probe-space definition used for DDGI dispatch. */
     std::shared_ptr<ProbeSpace> probeSpace;

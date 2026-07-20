@@ -254,6 +254,7 @@ buildGPUAreaLights(const std::vector<AreaLight *> &lights, int maxCount) {
 #ifdef METAL
 void Window::enableGlobalIllumination() {
     usesGlobalIllumination = true;
+    useSSR = true;
     ddgiSystem = std::make_shared<photon::GlobalIllumination>();
     ddgiSystem->sampleNormalMaps = false;
     ddgiSystem->init();
@@ -627,7 +628,9 @@ void Window::deferredRendering(
     if (usesGlobalIllumination && ddgiSystem != nullptr &&
         ddgiSystem->probeSpace != nullptr &&
         ddgiSystem->irradianceMap != nullptr &&
-        ddgiSystem->irradianceMap->texture != nullptr) {
+        ddgiSystem->irradianceMap->texture != nullptr &&
+        ddgiSystem->distanceMap != nullptr &&
+        ddgiSystem->distanceMap->texture != nullptr) {
         lightPipeline->setUniform3f("ps.origin",
                                     ddgiSystem->probeSpace->originWorldSpace.x,
                                     ddgiSystem->probeSpace->originWorldSpace.y,
@@ -653,12 +656,10 @@ void Window::deferredRendering(
 
         std::shared_ptr<opal::Texture> ddgiIrradianceTexture =
             ddgiSystem->irradianceMap->texture;
-        if (ddgiSystem->irradianceMapPrev != nullptr &&
-            ddgiSystem->irradianceMapPrev->texture != nullptr &&
-            ddgiSystem->frameIndex <= 1) {
-            ddgiIrradianceTexture = ddgiSystem->irradianceMapPrev->texture;
-        }
+        std::shared_ptr<opal::Texture> ddgiDistanceTexture =
+            ddgiSystem->distanceMap->texture;
         lightPipeline->bindTexture("irradianceMap", ddgiIrradianceTexture, 16);
+        lightPipeline->bindTexture("ddgiDistanceMap", ddgiDistanceTexture, 17);
     } else {
         lightPipeline->setUniform3f("ps.origin", 0.0f, 0.0f, 0.0f);
         lightPipeline->setUniform3f("ps.spacing", 1.0f, 1.0f, 1.0f);
@@ -667,6 +668,8 @@ void Window::deferredRendering(
         lightPipeline->setUniform4f("ps.atlasParams", 0.0f, 0.0f, 0.0f, 0.0f);
         lightPipeline->bindTexture2D("irradianceMap",
                                      fallbackIrradianceTexture->textureID, 16);
+        lightPipeline->bindTexture2D("ddgiDistanceMap",
+                                     fallbackIrradianceTexture->textureID, 17);
     }
 #endif
 
