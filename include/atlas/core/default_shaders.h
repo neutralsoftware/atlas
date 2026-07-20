@@ -1305,7 +1305,7 @@ float2 parallaxMapping(thread const float2& texCoords, thread const float3& view
     }
     int param = textureIndex;
     float2 param_1 = currentTexCoords;
-    float currentDepthMapValue = sampleTextureAt(param, param_1, texture1, texture1Smplr, texture2, texture2Smplr, texture3, texture3Smplr, texture4, texture4Smplr, texture5, texture5Smplr, texture6, texture6Smplr, texture7, texture7Smplr, texture8, texture8Smplr, texture9, texture9Smplr, texture10, texture10Smplr).x;
+    float currentDepthMapValue = 1.0 - sampleTextureAt(param, param_1, texture1, texture1Smplr, texture2, texture2Smplr, texture3, texture3Smplr, texture4, texture4Smplr, texture5, texture5Smplr, texture6, texture6Smplr, texture7, texture7Smplr, texture8, texture8Smplr, texture9, texture9Smplr, texture10, texture10Smplr).x;
     int maxIterations = int(numLayers) + 1;
     int iteration = 0;
     while (currentLayerDepth < currentDepthMapValue && iteration < maxIterations)
@@ -1313,7 +1313,7 @@ float2 parallaxMapping(thread const float2& texCoords, thread const float3& view
         currentTexCoords -= deltaTexCoords;
         int param_2 = textureIndex;
         float2 param_3 = currentTexCoords;
-        currentDepthMapValue = sampleTextureAt(param_2, param_3, texture1, texture1Smplr, texture2, texture2Smplr, texture3, texture3Smplr, texture4, texture4Smplr, texture5, texture5Smplr, texture6, texture6Smplr, texture7, texture7Smplr, texture8, texture8Smplr, texture9, texture9Smplr, texture10, texture10Smplr).x;
+        currentDepthMapValue = 1.0 - sampleTextureAt(param_2, param_3, texture1, texture1Smplr, texture2, texture2Smplr, texture3, texture3Smplr, texture4, texture4Smplr, texture5, texture5Smplr, texture6, texture6Smplr, texture7, texture7Smplr, texture8, texture8Smplr, texture9, texture9Smplr, texture10, texture10Smplr).x;
         currentLayerDepth += layerDepth;
         iteration++;
     }
@@ -1321,9 +1321,9 @@ float2 parallaxMapping(thread const float2& texCoords, thread const float3& view
     float afterDepth = currentDepthMapValue - currentLayerDepth;
     int param_4 = textureIndex;
     float2 param_5 = prevTexCoords;
-    float beforeDepth = sampleTextureAt(param_4, param_5, texture1, texture1Smplr, texture2, texture2Smplr, texture3, texture3Smplr, texture4, texture4Smplr, texture5, texture5Smplr, texture6, texture6Smplr, texture7, texture7Smplr, texture8, texture8Smplr, texture9, texture9Smplr, texture10, texture10Smplr).x - (currentLayerDepth - layerDepth);
-    float denom = fast::max(afterDepth - beforeDepth, 9.9999997473787516355514526367188e-05);
-    float weight = fast::clamp(afterDepth / denom, 0.0, 1.0);
+    float beforeDepth = 1.0 - sampleTextureAt(param_4, param_5, texture1, texture1Smplr, texture2, texture2Smplr, texture3, texture3Smplr, texture4, texture4Smplr, texture5, texture5Smplr, texture6, texture6Smplr, texture7, texture7Smplr, texture8, texture8Smplr, texture9, texture9Smplr, texture10, texture10Smplr).x - (currentLayerDepth - layerDepth);
+    float denom = afterDepth - beforeDepth;
+    float weight = abs(denom) > 9.9999997473787516355514526367188e-05 ? fast::clamp(afterDepth / denom, 0.0, 1.0) : 0.0;
     currentTexCoords = (prevTexCoords * weight) + (currentTexCoords * (1.0 - weight));
     return currentTexCoords;
 }
@@ -1351,8 +1351,8 @@ float4 enableTextures(thread const int& type, constant UBO& _46, texture2d<float
                 {
                     if (i == 2)
                     {
-                        color += textu)",
-R"(re3.sample(texture3Smplr, texCoord);
+           )",
+R"(             color += texture3.sample(texture3Smplr, texCoord);
                     }
                     else
                     {
@@ -1442,38 +1442,6 @@ fragment main0_out main0(main0_in in [[stage_in]], constant UBO& _46 [[buffer(0)
         float2 param = texCoord;
         float3 param_1 = tangentViewDir;
         texCoord = parallaxMapping(param, param_1, _46, texture1, texture1Smplr, texture2, texture2Smplr, texture3, texture3Smplr, texture4, texture4Smplr, texture5, texture5Smplr, texture6, texture6Smplr, texture7, texture7Smplr, texture8, texture8Smplr, texture9, texture9Smplr, texture10, texture10Smplr);
-        bool _476 = texCoord.x > 1.0;
-        bool _483;
-        if (!_476)
-        {
-            _483 = texCoord.y > 1.0;
-        }
-        else
-        {
-            _483 = _476;
-        }
-        bool _490;
-        if (!_483)
-        {
-            _490 = texCoord.x < 0.0;
-        }
-        else
-        {
-            _490 = _483;
-        }
-        bool _497;
-        if (!_490)
-        {
-            _497 = texCoord.y < 0.0;
-        }
-        else
-        {
-            _497 = _490;
-        }
-        if (_497)
-        {
-            discard_fragment();
-        }
     }
     int param_2 = 0;
     float4 sampledColor = enableTextures(param_2, _46, texture1, texture1Smplr, texCoord, texture2, texture2Smplr, texture3, texture3Smplr, texture4, texture4Smplr, texture5, texture5Smplr, texture6, texture6Smplr, texture7, texture7Smplr, texture8, texture8Smplr, texture9, texture9Smplr, texture10, texture10Smplr);
@@ -1542,8 +1510,7 @@ fragment main0_out main0(main0_in in [[stage_in]], constant UBO& _46 [[buffer(0)
     float4 metallicTex = enableTextures(param_5, _46, texture1, texture1Smplr, texCoord, texture2, texture2Smplr, texture3, texture3Smplr, texture4, texture4Smplr, texture5, texture5Smplr, texture6, texture6Smplr, texture7, texture7Smplr, texture8, texture8Smplr, texture9, texture9Smplr, texture10, texture10Smplr);
     if (any(metallicTex != float4(-1.0)))
     {
-        metallicValue)",
-R"( *= metallicTex.x;
+        metallicValue *= metallicTex.x;
     }
     float roughnessValue = material.roughness;
     int param_6 = 10;
@@ -1552,7 +1519,8 @@ R"( *= metallicTex.x;
     {
         roughnessValue *= roughnessTex.x;
     }
-    float aoValue = material.ao;
+    float aoValue = material.ao)",
+R"(;
     int param_7 = 11;
     float4 aoTex = enableTextures(param_7, _46, texture1, texture1Smplr, texCoord, texture2, texture2Smplr, texture3, texture3Smplr, texture4, texture4Smplr, texture5, texture5Smplr, texture6, texture6Smplr, texture7, texture7Smplr, texture8, texture8Smplr, texture9, texture9Smplr, texture10, texture10Smplr);
     if (any(aoTex != float4(-1.0)))
@@ -5222,24 +5190,24 @@ float2 parallaxMapping(thread const float2& texCoords, thread const float3& view
     }
     int param = textureIndex;
     float2 param_1 = currentTexCoords;
-    float currentDepthMapValue = sampleTextureAt(param, param_1, texture1, texture1Smplr, texture2, texture2Smplr, texture3, texture3Smplr, texture4, texture4Smplr, texture5, texture5Smplr, texture6, texture6Smplr, texture7, texture7Smplr, texture8, texture8Smplr, texture9, texture9Smplr, texture10, texture10Smplr).x;
+    float currentDepthMapValue = 1.0 - sampleTextureAt(param, param_1, texture1, texture1Smplr, texture2, texture2Smplr, texture3, texture3Smplr, texture4, texture4Smplr, texture5, texture5Smplr, texture6, texture6Smplr, texture7, texture7Smplr, texture8, texture8Smplr, texture9, texture9Smplr, texture10, texture10Smplr).x;
     while (currentLayerDepth < currentDepthMapValue)
     {
-        currentTexCoords =)",
-R"( fast::clamp(currentTexCoords - deltaTexCoords, float2(0.0), float2(1.0));
+        currentTexCo)",
+R"(ords -= deltaTexCoords;
         int param_2 = textureIndex;
         float2 param_3 = currentTexCoords;
-        currentDepthMapValue = sampleTextureAt(param_2, param_3, texture1, texture1Smplr, texture2, texture2Smplr, texture3, texture3Smplr, texture4, texture4Smplr, texture5, texture5Smplr, texture6, texture6Smplr, texture7, texture7Smplr, texture8, texture8Smplr, texture9, texture9Smplr, texture10, texture10Smplr).x;
+        currentDepthMapValue = 1.0 - sampleTextureAt(param_2, param_3, texture1, texture1Smplr, texture2, texture2Smplr, texture3, texture3Smplr, texture4, texture4Smplr, texture5, texture5Smplr, texture6, texture6Smplr, texture7, texture7Smplr, texture8, texture8Smplr, texture9, texture9Smplr, texture10, texture10Smplr).x;
         currentLayerDepth += layerDepth;
     }
     float2 prevTexCoords = currentTexCoords + deltaTexCoords;
     float afterDepth = currentDepthMapValue - currentLayerDepth;
     int param_4 = textureIndex;
     float2 param_5 = prevTexCoords;
-    float beforeDepth = sampleTextureAt(param_4, param_5, texture1, texture1Smplr, texture2, texture2Smplr, texture3, texture3Smplr, texture4, texture4Smplr, texture5, texture5Smplr, texture6, texture6Smplr, texture7, texture7Smplr, texture8, texture8Smplr, texture9, texture9Smplr, texture10, texture10Smplr).x - (currentLayerDepth - layerDepth);
+    float beforeDepth = 1.0 - sampleTextureAt(param_4, param_5, texture1, texture1Smplr, texture2, texture2Smplr, texture3, texture3Smplr, texture4, texture4Smplr, texture5, texture5Smplr, texture6, texture6Smplr, texture7, texture7Smplr, texture8, texture8Smplr, texture9, texture9Smplr, texture10, texture10Smplr).x - (currentLayerDepth - layerDepth);
     float weight = afterDepth / (afterDepth - beforeDepth);
     currentTexCoords = (prevTexCoords * weight) + (currentTexCoords * (1.0 - weight));
-    return fast::clamp(currentTexCoords, float2(0.0), float2(1.0));
+    return currentTexCoords;
 }
 
 static inline __attribute__((always_inline))
@@ -5406,8 +5374,8 @@ float2 getTextureDimensions(thread const int& textureIndex, texture2d<float> tex
 }
 
 static inline __attribute__((always_inline))
-float calculat)",
-R"(eShadow(thread const ShadowParameters& shadowParam, thread const float4& fragPosLightSpace, constant Uniforms& _163, texture2d<float> texture1, sampler texture1Smplr, texture2d<float> texture2, sampler texture2Smplr, texture2d<float> texture3, sampler texture3Smplr, texture2d<float> texture4, sampler texture4Smplr, texture2d<float> texture5, sampler texture5Smplr, texture2d<float> texture6, sampler texture6Smplr, texture2d<float> texture7, sampler texture7Smplr, texture2d<float> texture8, sampler texture8Smplr, texture2d<float> texture9, sampler texture9Smplr, texture2d<float> texture10, sampler texture10Smplr, device DirectionalLightsUBO& _1083, thread float3& Normal, thread float3& FragPos)
+float calculateShadow(thread const ShadowParameters& shadowParam, thread const float4& fragP)",
+R"(osLightSpace, constant Uniforms& _163, texture2d<float> texture1, sampler texture1Smplr, texture2d<float> texture2, sampler texture2Smplr, texture2d<float> texture3, sampler texture3Smplr, texture2d<float> texture4, sampler texture4Smplr, texture2d<float> texture5, sampler texture5Smplr, texture2d<float> texture6, sampler texture6Smplr, texture2d<float> texture7, sampler texture7Smplr, texture2d<float> texture8, sampler texture8Smplr, texture2d<float> texture9, sampler texture9Smplr, texture2d<float> texture10, sampler texture10Smplr, device DirectionalLightsUBO& _1083, thread float3& Normal, thread float3& FragPos)
 {
     float3 projCoords = fragPosLightSpace.xyz / float3(fragPosLightSpace.w);
     projCoords = (projCoords * 0.5) + float3(0.5);
@@ -5615,9 +5583,9 @@ float3 calculatePBR(thread const float3& N, thread const float3& V, thread const
     float3 numerator = F * (NDF * G);
     float denominator = ((4.0 * fast::max(dot(N, V), 0.0)) * fast::max(dot(N, L), 0.0)) + 9.9999997473787516355514526367188e-05;
     float3 specular = numerator / float3(denominator);
- )",
-R"(   float NdotL = fast::max(dot(N, L), 0.0);
-    float3 Lo = ((((kD * albedo) / float3(3.1415927410125732421875)) + specular) * radiance) * NdotL;
+    float NdotL = fast::max(dot(N, L), 0.0);
+    float3 Lo = ((((kD * albedo) /)",
+R"( float3(3.1415927410125732421875)) + specular) * radiance) * NdotL;
     return Lo;
 }
 
@@ -5750,10 +5718,10 @@ float3 sampleHDRTexture(thread const int& textureIndex, thread const float3& dir
 }
 
 static inline __attribute__((always_inline))
-float3 sampleEnvironmentRadiance(thread const float3& direction, constant Uniforms& _163, texture2d<float> texture1, sampler texture1Smplr, texture2d<float> texture2, sampler texture2Smplr, texture2d<float> texture3, sampler texture3Smplr, texture2d<float> texture4, sampler texture4Smplr, texture2d<float> texture5, sampler texture5Smplr, texture2d<float> texture6, sampler texture6Smplr, texture2d<float> texture7, sampler texture7Smplr, texture2d<float> texture8, sampler texture8Smplr, texture2d<float> texture9, sampler texture9Sm)",
-R"(plr, texture2d<float> texture10, sampler texture10Smplr)
+float3 sampleEnvironmentRadiance(thread const float3& direction, constant Uniforms& _163, texture2d<float> texture1, sampler texture1Smplr, texture2d<float> texture2, sampler texture2Smplr, texture2d<float> texture3, sampler texture3Smplr, texture2d<float> texture4, sampler texture4Smplr, texture2d<float> texture5, sampler texture5Smplr, texture2d<float> texture6, sampler texture6Smplr, texture2d<float> texture7, sampler texture7Smplr, texture2d<float> texture8, sampler texture8Smplr, texture2d<float> texture9, sampler texture9Smplr, texture2d<float> texture10, sampler texture10Smplr)
 {
-    float3 envColor = float3(0.0);
+    float3 envColor)",
+R"( = float3(0.0);
     int count = 0;
     for (int i = 0; i < _163.textureCount; i++)
     {
@@ -5808,38 +5776,6 @@ fragment main0_out main0(main0_in in [[stage_in]], constant Uniforms& _163 [[buf
         float2 param = texCoord;
         float3 param_1 = tangentViewDir;
         texCoord = parallaxMapping(param, param_1, _163, texture1, texture1Smplr, texture2, texture2Smplr, texture3, texture3Smplr, texture4, texture4Smplr, texture5, texture5Smplr, texture6, texture6Smplr, texture7, texture7Smplr, texture8, texture8Smplr, texture9, texture9Smplr, texture10, texture10Smplr);
-        bool _1744 = texCoord.x > 1.0;
-        bool _1751;
-        if (!_1744)
-        {
-            _1751 = texCoord.y > 1.0;
-        }
-        else
-        {
-            _1751 = _1744;
-        }
-        bool _1758;
-        if (!_1751)
-        {
-            _1758 = texCoord.x < 0.0;
-        }
-        else
-        {
-            _1758 = _1751;
-        }
-        bool _1765;
-        if (!_1758)
-        {
-            _1765 = texCoord.y < 0.0;
-        }
-        else
-        {
-            _1765 = _1758;
-        }
-        if (_1765)
-        {
-            discard_fragment();
-        }
     }
     int param_2 = 5;
     float4 normTexture = enableTextures(param_2, _163, texture1, texture1Smplr, texCoord, texture2, texture2Smplr, texture3, texture3Smplr, texture4, texture4Smplr, texture5, texture5Smplr, texture6, texture6Smplr, texture7, texture7Smplr, texture8, texture8Smplr, texture9, texture9Smplr, texture10, texture10Smplr);
@@ -5918,8 +5854,7 @@ fragment main0_out main0(main0_in in [[stage_in]], constant Uniforms& _163 [[buf
     float ao = material.ao;
     int param_6 = 11;
     float4 aoTex = enableTextures(param_6, _163, texture1, texture1Smplr, texCoord, texture2, texture2Smplr, texture3, texture3Smplr, texture4, texture4Smplr, texture5, texture5Smplr, texture6, texture6Smplr, texture7, texture7Smplr, texture8, texture8Smplr, texture9, texture9Smplr, texture10, texture10Smplr);
-    if (any)",
-R"((aoTex != float4(-1.0)))
+    if (any(aoTex != float4(-1.0)))
     {
         ao *= aoTex.x;
     }
@@ -5937,7 +5872,8 @@ R"((aoTex != float4(-1.0)))
             {
                 float4 fragPosLightSpace = (_1905.shadowParams[i_1].lightProjection * _1905.shadowParams[i_1].lightView) * float4(in.FragPos, 1.0);
                 ShadowParameters _1934;
-                _1934.lightView = _1905.shadowParams[i_1].lightView;
+          )",
+R"(      _1934.lightView = _1905.shadowParams[i_1].lightView;
                 _1934.lightProjection = _1905.shadowParams[i_1].lightProjection;
                 _1934.bias0 = _1905.shadowParams[i_1].bias0;
                 _1934.textureIndex = _1905.shadowParams[i_1].textureIndex;
@@ -6065,8 +6001,7 @@ R"((aoTex != float4(-1.0)))
                 _2144 = fast::max(ndotl, 0.0);
             }
             float facing = _2144;
-            float cosTheta = cos(radians(_2058.areaLights[)",
-R"(i_2].angle));
+            float cosTheta = cos(radians(_2058.areaLights[i_2].angle));
             if ((facing >= cosTheta) && (facing > 0.0))
             {
                 float range = fast::max(_2058.areaLights[i_2].range, 0.001000000047497451305389404296875);
@@ -6075,7 +6010,8 @@ R"(i_2].angle));
                 float3 radiance = (((float3(_2058.areaLights[i_2].diffuse) * fast::max(_2058.areaLights[i_2].intensity, 0.0)) * attenuation) * facing) * fade;
                 float3 H = fast::normalize(V + L);
                 float3 param_42 = N;
-                float3 param_43 = H;
+                float3 pa)",
+R"(ram_43 = H;
                 float param_44 = roughness;
                 float NDF = distributionGGX(param_42, param_43, param_44);
                 float3 param_45 = N;

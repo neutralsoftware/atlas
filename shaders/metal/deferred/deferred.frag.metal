@@ -143,7 +143,7 @@ float2 parallaxMapping(thread const float2& texCoords, thread const float3& view
     }
     int param = textureIndex;
     float2 param_1 = currentTexCoords;
-    float currentDepthMapValue = sampleTextureAt(param, param_1, texture1, texture1Smplr, texture2, texture2Smplr, texture3, texture3Smplr, texture4, texture4Smplr, texture5, texture5Smplr, texture6, texture6Smplr, texture7, texture7Smplr, texture8, texture8Smplr, texture9, texture9Smplr, texture10, texture10Smplr).x;
+    float currentDepthMapValue = 1.0 - sampleTextureAt(param, param_1, texture1, texture1Smplr, texture2, texture2Smplr, texture3, texture3Smplr, texture4, texture4Smplr, texture5, texture5Smplr, texture6, texture6Smplr, texture7, texture7Smplr, texture8, texture8Smplr, texture9, texture9Smplr, texture10, texture10Smplr).x;
     int maxIterations = int(numLayers) + 1;
     int iteration = 0;
     while (currentLayerDepth < currentDepthMapValue && iteration < maxIterations)
@@ -151,7 +151,7 @@ float2 parallaxMapping(thread const float2& texCoords, thread const float3& view
         currentTexCoords -= deltaTexCoords;
         int param_2 = textureIndex;
         float2 param_3 = currentTexCoords;
-        currentDepthMapValue = sampleTextureAt(param_2, param_3, texture1, texture1Smplr, texture2, texture2Smplr, texture3, texture3Smplr, texture4, texture4Smplr, texture5, texture5Smplr, texture6, texture6Smplr, texture7, texture7Smplr, texture8, texture8Smplr, texture9, texture9Smplr, texture10, texture10Smplr).x;
+        currentDepthMapValue = 1.0 - sampleTextureAt(param_2, param_3, texture1, texture1Smplr, texture2, texture2Smplr, texture3, texture3Smplr, texture4, texture4Smplr, texture5, texture5Smplr, texture6, texture6Smplr, texture7, texture7Smplr, texture8, texture8Smplr, texture9, texture9Smplr, texture10, texture10Smplr).x;
         currentLayerDepth += layerDepth;
         iteration++;
     }
@@ -159,9 +159,9 @@ float2 parallaxMapping(thread const float2& texCoords, thread const float3& view
     float afterDepth = currentDepthMapValue - currentLayerDepth;
     int param_4 = textureIndex;
     float2 param_5 = prevTexCoords;
-    float beforeDepth = sampleTextureAt(param_4, param_5, texture1, texture1Smplr, texture2, texture2Smplr, texture3, texture3Smplr, texture4, texture4Smplr, texture5, texture5Smplr, texture6, texture6Smplr, texture7, texture7Smplr, texture8, texture8Smplr, texture9, texture9Smplr, texture10, texture10Smplr).x - (currentLayerDepth - layerDepth);
-    float denom = fast::max(afterDepth - beforeDepth, 9.9999997473787516355514526367188e-05);
-    float weight = fast::clamp(afterDepth / denom, 0.0, 1.0);
+    float beforeDepth = 1.0 - sampleTextureAt(param_4, param_5, texture1, texture1Smplr, texture2, texture2Smplr, texture3, texture3Smplr, texture4, texture4Smplr, texture5, texture5Smplr, texture6, texture6Smplr, texture7, texture7Smplr, texture8, texture8Smplr, texture9, texture9Smplr, texture10, texture10Smplr).x - (currentLayerDepth - layerDepth);
+    float denom = afterDepth - beforeDepth;
+    float weight = abs(denom) > 9.9999997473787516355514526367188e-05 ? fast::clamp(afterDepth / denom, 0.0, 1.0) : 0.0;
     currentTexCoords = (prevTexCoords * weight) + (currentTexCoords * (1.0 - weight));
     return currentTexCoords;
 }
@@ -279,38 +279,6 @@ fragment main0_out main0(main0_in in [[stage_in]], constant UBO& _46 [[buffer(0)
         float2 param = texCoord;
         float3 param_1 = tangentViewDir;
         texCoord = parallaxMapping(param, param_1, _46, texture1, texture1Smplr, texture2, texture2Smplr, texture3, texture3Smplr, texture4, texture4Smplr, texture5, texture5Smplr, texture6, texture6Smplr, texture7, texture7Smplr, texture8, texture8Smplr, texture9, texture9Smplr, texture10, texture10Smplr);
-        bool _476 = texCoord.x > 1.0;
-        bool _483;
-        if (!_476)
-        {
-            _483 = texCoord.y > 1.0;
-        }
-        else
-        {
-            _483 = _476;
-        }
-        bool _490;
-        if (!_483)
-        {
-            _490 = texCoord.x < 0.0;
-        }
-        else
-        {
-            _490 = _483;
-        }
-        bool _497;
-        if (!_490)
-        {
-            _497 = texCoord.y < 0.0;
-        }
-        else
-        {
-            _497 = _490;
-        }
-        if (_497)
-        {
-            discard_fragment();
-        }
     }
     int param_2 = 0;
     float4 sampledColor = enableTextures(param_2, _46, texture1, texture1Smplr, texCoord, texture2, texture2Smplr, texture3, texture3Smplr, texture4, texture4Smplr, texture5, texture5Smplr, texture6, texture6Smplr, texture7, texture7Smplr, texture8, texture8Smplr, texture9, texture9Smplr, texture10, texture10Smplr);
