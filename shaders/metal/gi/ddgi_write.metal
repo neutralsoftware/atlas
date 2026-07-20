@@ -133,7 +133,7 @@ kernel void main0(texture2d<float, access::write> outTexture [[texture(0)]],
     float spacingScale =
         max(max(ps.spacing.x, max(ps.spacing.y, ps.spacing.z)), 1e-4f);
     float nearHitThreshold =
-        max(max(rt.normalBias * 1.2f, spacingScale * 0.015f), 0.0008f);
+        max(max(rt.normalBias * 2.0f, spacingScale * 0.1f), 0.002f);
 
     for (uint r = 0; r < raysPerProbe; r += rayStep) {
         sampledRayCount++;
@@ -180,7 +180,7 @@ kernel void main0(texture2d<float, access::write> outTexture [[texture(0)]],
     float nearFraction = nearHitCount * invRayCount;
     float nearPenalty = smoothstep(0.82f, 0.995f, nearFraction);
     float probeValidity = 1.0f - nearPenalty;
-    probeValidity = clamp(probeValidity, 0.005f, 1.0f);
+    probeValidity = clamp(probeValidity, 0.0f, 1.0f);
 
     float h = clamp(rt.hysteresis, 0.0f, 0.995f);
     bool firstProbeUpdate = rt.frameIndex < updateStride;

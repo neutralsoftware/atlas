@@ -1436,7 +1436,8 @@ fragment main0_out main0(
     float3 ambientBase =
         ((ambientLight.color.xyz * ambientLight.intensity) * albedo) *
         occlusion;
-    float3 ambient = ambientBase;
+    bool ddgiEnabled = ps.atlasParams.w > 0.0f;
+    float3 ambient = ddgiEnabled ? ambientBase * 0.05f : ambientBase;
 
     float ddgiSampleBias =
         max(max(ps.spacing.x, max(ps.spacing.y, ps.spacing.z)) * 0.05f, 0.002f);

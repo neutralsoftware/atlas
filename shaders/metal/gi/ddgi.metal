@@ -667,11 +667,13 @@ static inline float3 samplePreviousIrradiance(texture2d<float> previous,
                    0.5f;
     float2 pixel = float2(tile * tileRes + border) +
                    inner * float(max(innerRes, 1u) - 1u) + 0.5f;
-    return max(previous.sample(ddgiLinearSampler,
-                               pixel / float2(previous.get_width(),
-                                              previous.get_height()))
-                   .xyz,
-               float3(0.0f));
+    float3 history = previous.sample(
+                                 ddgiLinearSampler,
+                                 pixel / float2(previous.get_width(),
+                                                previous.get_height()))
+                         .xyz;
+    return all(isfinite(history)) ? max(history, float3(0.0f))
+                                  : float3(0.0f);
 }
 
 static inline float3 sampleSky(float3 d, texturecube<float> skybox,
@@ -1033,8 +1035,11 @@ kernel void main0(device float4 *probeRadianceOut [[buffer(0)]],
 
         float diffuseWeight = 1.0f - metallic;
         float3 diffuseResponse = albedo * diffuseWeight * max(ao, 0.05f) / PI;
-        float3 previousBounce = samplePreviousIrradiance(
-            previousIrradiance, ps, hitPos + hitNormal * bias, hitNormal);
+        float3 previousBounce =
+            rt.frameIndex >= max(rt.probeUpdateStride, 1u)
+                ? samplePreviousIrradiance(previousIrradiance, ps,
+                                           hitPos + hitNormal * bias, hitNormal)
+                : float3(0.0f);
         float3 indirect = previousBounce * diffuseResponse * 0.35f;
         radiance = direct * diffuseResponse + indirect + emissive;
         radiance = clamp(radiance, float3(0.0f), float3(16.0f));

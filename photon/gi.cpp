@@ -54,6 +54,20 @@ std::shared_ptr<opal::Texture> createDdgiFallbackSkyboxTexture() {
     return texture;
 }
 
+void clearDdgiTexture(const std::shared_ptr<Texture> &texture) {
+    if (texture == nullptr || texture->texture == nullptr ||
+        texture->creationData.width <= 0 || texture->creationData.height <= 0) {
+        return;
+    }
+    std::vector<float> zeros(
+        static_cast<size_t>(texture->creationData.width) *
+            static_cast<size_t>(texture->creationData.height) * 4,
+        0.0f);
+    texture->texture->updateData(zeros.data(), texture->creationData.width,
+                                 texture->creationData.height,
+                                 opal::TextureDataFormat::Rgba);
+}
+
 int registerMaterialTextureSlot(
     const Texture &texture,
     std::vector<std::shared_ptr<opal::Texture>> &materialTextures,
@@ -148,12 +162,6 @@ uint64_t computeDdgiLayoutSignature(const std::vector<CoreObject *> &objects,
             hashCombineU64(signature, hashFloat(static_cast<float>(scl.y)));
         signature =
             hashCombineU64(signature, hashFloat(static_cast<float>(scl.z)));
-        for (int column = 0; column < 4; ++column) {
-            for (int row = 0; row < 4; ++row) {
-                signature = hashCombineU64(
-                    signature, hashFloat(object->model[column][row]));
-            }
-        }
         signature = hashCombineU64(
             signature, static_cast<uint64_t>(object->textures.size()));
         signature = hashCombineU64(
@@ -287,6 +295,11 @@ void photon::GlobalIllumination::init() {
     distanceMapPrev = std::make_shared<Texture>(
         Texture::create(512, 512, opal::TextureFormat::Rgba16F,
                         opal::TextureDataFormat::Rgba, TextureType::Color));
+
+    clearDdgiTexture(irradianceMap);
+    clearDdgiTexture(irradianceMapPrev);
+    clearDdgiTexture(distanceMap);
+    clearDdgiTexture(distanceMapPrev);
 
     giPipeline = opal::Pipeline::create();
     giPipeline->setShaderProgram(giWriteShader->shader);
@@ -630,6 +643,10 @@ void photon::GlobalIllumination::updateProbeLayout() {
         distanceMapPrev = std::make_shared<Texture>(
             Texture::create(atlasW, atlasH, opal::TextureFormat::Rgba16F,
                             opal::TextureDataFormat::Rgba, TextureType::Color));
+        clearDdgiTexture(irradianceMap);
+        clearDdgiTexture(irradianceMapPrev);
+        clearDdgiTexture(distanceMap);
+        clearDdgiTexture(distanceMapPrev);
     }
 
     int effectiveRaysPerProbe = std::max(1, raysPerProbe);

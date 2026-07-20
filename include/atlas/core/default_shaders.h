@@ -780,11 +780,13 @@ static inline float3 samplePreviousIrradiance(texture2d<float> previous,
                    0.5f;
     float2 pixel = float2(tile * tileRes + border) +
                    inner * float(max(innerRes, 1u) - 1u) + 0.5f;
-    return max(previous.sample(ddgiLinearSampler,
-                               pixel / float2(previous.get_width(),
-                                              previous.get_height()))
-                   .xyz,
-               float3(0.0f));
+    float3 history = previous.sample(
+                                 ddgiLinearSampler,
+                                 pixel / float2(previous.get_width(),
+                                                previous.get_height()))
+                         .xyz;
+    return all(isfinite(history)) ? max(history, float3(0.0f))
+                                  : float3(0.0f);
 }
 
 static inline float3 sampleSky(float3 d, texturecube<float> skybox,
@@ -903,12 +905,12 @@ static inline float3 evaluateDirectLights(
         float3 toPoint = posWS - center;
         float s = clamp(dot(toPoint, right), -halfSize.x, halfSize.x);
         float t = clamp(dot(toPoint, up), -halfSize.y, halfSize.y);
-        float3 closest = center + right * s + up * t;
+        float3 closest = center + right * s + up *)",
+R"( t;
 
         float3 Lvec = closest - posWS;
         float dist = length(Lvec);
-        float range = max(areaLights[i].range, 0.001f))",
-R"(;
+        float range = max(areaLights[i].range, 0.001f);
         if (dist <= 1e-4f || dist >= range)
             continue;
 
@@ -1070,10 +1072,10 @@ kernel void main0(device float4 *probeRadianceOut [[buffer(0)]],
     float3 ro = probePos + rayDir * bias;
     Hit h;
     float selfHitThreshold = bias * 4.0f;
-    for (uint escapeStep = 0u; escapeStep < 1u; escapeStep++) {
+    for (uint escapeStep = 0u)",
+R"(; escapeStep < 1u; escapeStep++) {
         h = traceScene(ro, rayDir, tris, sceneAS, maxDistance);
-        if (h.hit == 0u || h.t >= )",
-R"(selfHitThreshold) {
+        if (h.hit == 0u || h.t >= selfHitThreshold) {
             break;
         }
         ro += rayDir * (h.t + selfHitThreshold);
@@ -1148,8 +1150,11 @@ R"(selfHitThreshold) {
 
         float diffuseWeight = 1.0f - metallic;
         float3 diffuseResponse = albedo * diffuseWeight * max(ao, 0.05f) / PI;
-        float3 previousBounce = samplePreviousIrradiance(
-            previousIrradiance, ps, hitPos + hitNormal * bias, hitNormal);
+        float3 previousBounce =
+            rt.frameIndex >= max(rt.probeUpdateStride, 1u)
+                ? samplePreviousIrradiance(previousIrradiance, ps,
+                                           hitPos + hitNormal * bias, hitNormal)
+                : float3(0.0f);
         float3 indirect = previousBounce * diffuseResponse * 0.35f;
         radiance = direct * diffuseResponse + indirect + emissive;
         radiance = clamp(radiance, float3(0.0f), float3(16.0f));
@@ -1298,7 +1303,7 @@ kernel void main0(texture2d<float, access::write> outTexture [[texture(0)]],
     float spacingScale =
         max(max(ps.spacing.x, max(ps.spacing.y, ps.spacing.z)), 1e-4f);
     float nearHitThreshold =
-        max(max(rt.normalBias * 1.2f, spacingScale * 0.015f), 0.0008f);
+        max(max(rt.normalBias * 2.0f, spacingScale * 0.1f), 0.002f);
 
     for (uint r = 0; r < raysPerProbe; r += rayStep) {
         sampledRayCount++;
@@ -1345,7 +1350,7 @@ kernel void main0(texture2d<float, access::write> outTexture [[texture(0)]],
     float nearFraction = nearHitCount * invRayCount;
     float nearPenalty = smoothstep(0.82f, 0.995f, nearFraction);
     float probeValidity = 1.0f - nearPenalty;
-    probeValidity = clamp(probeValidity, 0.005f, 1.0f);
+    probeValidity = clamp(probeValidity, 0.0f, 1.0f);
 
     float h = clamp(rt.hysteresis, 0.0f, 0.995f);
     bool firstProbeUpdate = rt.frameIndex < updateStride;
@@ -4973,7 +4978,8 @@ R"(param_37, param_38, param_39, param_40,
     float3 ambientBase =
         ((ambientLight.color.xyz * ambientLight.intensity) * albedo) *
         occlusion;
-    float3 ambient = ambientBase;
+    bool ddgiEnabled = ps.atlasParams.w > 0.0f;
+    float3 ambient = ddgiEnabled ? ambientBase * 0.05f : ambientBase;
 
     float ddgiSampleBias =
         max(max(ps.spacing.x, max(ps.spacing.y, ps.spacing.z)) * 0.05f, 0.002f);
