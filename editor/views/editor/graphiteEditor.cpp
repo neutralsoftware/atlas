@@ -38,6 +38,7 @@
 #include <QVBoxLayout>
 
 #include <algorithm>
+#include <cmath>
 #include <functional>
 #include <memory>
 
@@ -81,6 +82,56 @@ QColor chooseColor(QWidget *parent, const QColor &initial,
     if (dialog.exec() == QDialog::Rejected)
         return {};
     return dialog.selectedColor();
+}
+
+bool isGraphiteColorField(const QString &key) {
+    return key.compare("background", Qt::CaseInsensitive) == 0 ||
+           key.compare("foreground", Qt::CaseInsensitive) == 0 ||
+           key.compare("border", Qt::CaseInsensitive) == 0 ||
+           key.compare("tint", Qt::CaseInsensitive) == 0 ||
+           key.compare("color", Qt::CaseInsensitive) == 0 ||
+           key.endsWith("Color", Qt::CaseInsensitive);
+}
+
+QJsonValue repairGraphiteColors(const QJsonValue &value, const QString &key,
+                                bool &changed) {
+    if (value.isObject()) {
+        QJsonObject object = value.toObject();
+        for (auto iterator = object.begin(); iterator != object.end(); ++iterator)
+            iterator.value() =
+                repairGraphiteColors(iterator.value(), iterator.key(), changed);
+        return object;
+    }
+    if (!value.isArray())
+        return value;
+    QJsonArray array = value.toArray();
+    if (isGraphiteColorField(key) && array.size() == 4 &&
+        std::abs(array.at(3).toDouble() - (1.0 / 255.0)) < 0.00001) {
+        array[3] = 1.0;
+        changed = true;
+    }
+    for (int index = 0; index < array.size(); ++index)
+        array[index] = repairGraphiteColors(array.at(index), {}, changed);
+    return array;
+}
+
+QString ensureGraphiteDefaultFont(const QString &projectRoot) {
+    QDir root(projectRoot);
+    if (!root.mkpath("assets/fonts"))
+        return {};
+    const QString path = root.filePath("assets/fonts/GraphiteDefault.ttf");
+    if (QFileInfo::exists(path))
+        return path;
+    QFile source(":/editor/assets/Manrope-VariableFont_wght.ttf");
+    QSaveFile destination(path);
+    if (!source.open(QIODevice::ReadOnly) ||
+        !destination.open(QIODevice::WriteOnly))
+        return {};
+    const QByteArray contents = source.readAll();
+    if (destination.write(contents) != contents.size() ||
+        !destination.commit())
+        return {};
+    return path;
 }
 
 QPointF jsonPoint(const QJsonValue &value, const QPointF &fallback = {}) {
@@ -566,7 +617,23 @@ void GraphiteEditorPanel::openUI(const QString &path) {
         }
         next.insert("elements", elements);
     }
+    bool repaired = false;
+    next = repairGraphiteColors(next, {}, repaired).toObject();
     uiPath = QFileInfo(path).absoluteFilePath();
+    QJsonObject defaultFont = next.value("defaultFont").toObject();
+    if (defaultFont.value("source").toString().trimmed().isEmpty()) {
+        const QString fontPath = ensureGraphiteDefaultFont(
+            QFileInfo(projectFile).absolutePath());
+        if (!fontPath.isEmpty()) {
+            defaultFont.insert(
+                "source",
+                QDir(QFileInfo(uiPath).absolutePath()).relativeFilePath(fontPath));
+            if (!defaultFont.contains("size"))
+                defaultFont.insert("size", 24);
+            next.insert("defaultFont", defaultFont);
+            repaired = true;
+        }
+    }
     document = next;
     undoStack->clear();
     titleLabel->setText(QFileInfo(uiPath).completeBaseName());
@@ -574,6 +641,8 @@ void GraphiteEditorPanel::openUI(const QString &path) {
     rebuildTree();
     rebuildInspector();
     canvas->setDocument(document, uiPath);
+    if (repaired)
+        saveUI();
 }
 
 void GraphiteEditorPanel::saveUI() {

@@ -3873,6 +3873,28 @@ void inheritGraphiteDocumentDefaults(json &element, const json &font) {
     }
 }
 
+void repairGraphiteColors(json &value, const std::string &key = {}) {
+    if (value.is_object()) {
+        for (auto iterator = value.begin(); iterator != value.end(); ++iterator)
+            repairGraphiteColors(iterator.value(), iterator.key());
+        return;
+    }
+    if (!value.is_array())
+        return;
+    const std::string normalizedKey = normalizeToken(key);
+    const bool colorField = normalizedKey == "background" ||
+                            normalizedKey == "foreground" ||
+                            normalizedKey == "border" ||
+                            normalizedKey == "tint" ||
+                            normalizedKey == "color" ||
+                            normalizedKey.ends_with("color");
+    if (colorField && value.size() == 4 && value[3].is_number() &&
+        std::abs(value[3].get<double>() - (1.0 / 255.0)) < 0.00001)
+        value[3] = 1.0;
+    for (auto &entry : value)
+        repairGraphiteColors(entry);
+}
+
 JsonDefinition loadGraphiteDocument(const json &value,
                                     const std::string &baseDir) {
     JsonDefinition definition;
@@ -3908,6 +3930,7 @@ JsonDefinition loadGraphiteDocument(const json &value,
         throw std::runtime_error("Unsupported Graphite UI document version: " +
                                  std::to_string(version));
     }
+    repairGraphiteColors(definition.data);
     const json defaultFont =
         definition.data.contains("defaultFont") &&
                 definition.data["defaultFont"].is_object()
