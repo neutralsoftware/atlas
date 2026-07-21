@@ -23,6 +23,8 @@
 #include <QFileSystemModel>
 #include <QHBoxLayout>
 #include <QInputDialog>
+#include <QJsonDocument>
+#include <QJsonObject>
 #include <QItemSelectionModel>
 #include <QKeySequence>
 #include <QLineEdit>
@@ -66,6 +68,23 @@ const QByteArray EmptyScene = R"({
             "display": true
         }
     ]
+}
+)";
+
+const QByteArray EmptyGraphiteUI = R"({
+    "format": "atlas.graphite.ui",
+    "version": 1,
+    "name": "New UI",
+    "canvas": {
+        "width": 1280,
+        "height": 720,
+        "background": [0.035, 0.04, 0.055, 1.0]
+    },
+    "defaultFont": {
+        "source": "",
+        "size": 24
+    },
+    "elements": []
 }
 )";
 
@@ -136,6 +155,8 @@ public:
             return styling::icon(styling::Icon::CubeFocus, "#8498A8");
         if (suffix == "amat" || suffix == "material")
             return styling::icon(styling::Icon::Material, "#9E897D");
+        if (suffix == "aui")
+            return styling::icon(styling::Icon::Palette, "#849589");
         if (suffix == "ts" || suffix == "js" || suffix == "cpp" ||
             suffix == "h" || suffix == "json")
             return styling::icon(styling::Icon::FileCode, "#7E929C");
@@ -302,6 +323,9 @@ ContentBrowserPanel::ContentBrowserPanel(const QString &projectFile,
     createMenu->addAction(styling::icon(styling::Icon::Material, "#9E897D"),
                           "Material", this,
                           &ContentBrowserPanel::createMaterial);
+    createMenu->addAction(styling::icon(styling::Icon::Palette, "#849589"),
+                          "Graphite UI", this,
+                          &ContentBrowserPanel::createUI);
     createMenu->addAction(styling::icon(styling::Icon::FileCode, "#7E929C"),
                           "TypeScript Script", this,
                           &ContentBrowserPanel::createScript);
@@ -468,6 +492,10 @@ void ContentBrowserPanel::openIndex(const QModelIndex &index) {
         emit sceneActivated(info.absoluteFilePath());
         return;
     }
+    if (suffix == "aui") {
+        emit uiActivated(info.absoluteFilePath());
+        return;
+    }
     QDesktopServices::openUrl(QUrl::fromLocalFile(info.absoluteFilePath()));
 }
 
@@ -596,6 +624,24 @@ void ContentBrowserPanel::createMaterial() {
             filterModel->mapFromSource(model->index(path));
         gridView->setCurrentIndex(index);
         emit assetActivated(path);
+    }
+}
+
+void ContentBrowserPanel::createUI() {
+    const QString path = requestFilePath(this, currentPath, "New Graphite UI",
+                                         "UI name", "New UI", "aui");
+    if (path.isEmpty())
+        return;
+    QJsonObject root =
+        QJsonDocument::fromJson(EmptyGraphiteUI).object();
+    root.insert("name", QFileInfo(path).completeBaseName());
+    const QByteArray contents =
+        QJsonDocument(root).toJson(QJsonDocument::Indented);
+    if (writeNewFile(path, contents)) {
+        const QModelIndex index =
+            filterModel->mapFromSource(model->index(path));
+        gridView->setCurrentIndex(index);
+        emit uiActivated(path);
     }
 }
 

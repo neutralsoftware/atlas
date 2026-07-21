@@ -39,12 +39,14 @@ class ContentBrowserPanel : public QWidget {
     void pasteSelection();
     void refreshAssets();
     void selectAllAssets();
+    void createUI();
     QString selectedPath() const;
 
   signals:
     void selectionChanged(const QString &path);
     void assetActivated(const QString &path);
     void sceneActivated(const QString &path);
+    void uiActivated(const QString &path);
 
   private:
     void navigateTo(const QString &path, bool recordHistory = true);
