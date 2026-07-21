@@ -506,8 +506,6 @@ void Window::deferredRendering(
     }
 #endif
 
-    this->ssaoMapsDirty = true;
-    this->ssaoUpdateCooldown = 0.0f;
     this->renderSSAO(commandBuffer);
 
     auto targetRenderPass = opal::RenderPass::create();
