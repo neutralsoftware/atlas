@@ -254,7 +254,6 @@ buildGPUAreaLights(const std::vector<AreaLight *> &lights, int maxCount) {
 #ifdef METAL
 void Window::enableGlobalIllumination() {
     usesGlobalIllumination = true;
-    useSSR = true;
     ddgiSystem = std::make_shared<photon::GlobalIllumination>();
     ddgiSystem->sampleNormalMaps = false;
     ddgiSystem->init();
@@ -293,9 +292,16 @@ void Window::deferredRendering(
         this->volumetricBuffer->getHeight() != targetHeight) {
         recreateDeferredTargets = true;
     }
+    const float ssrScale = this->ssrQuality == 2 ? 0.75f : 0.5f;
+    const int ssrWidth = std::max(1, static_cast<int>(targetWidth * ssrScale));
+    const int ssrHeight =
+        std::max(1, static_cast<int>(targetHeight * ssrScale));
     if (this->ssrFramebuffer == nullptr ||
-        this->ssrFramebuffer->getWidth() != targetWidth ||
-        this->ssrFramebuffer->getHeight() != targetHeight) {
+        this->ssrFramebuffer->getWidth() != ssrWidth ||
+        this->ssrFramebuffer->getHeight() != ssrHeight ||
+        this->ssrHistoryFramebuffer == nullptr ||
+        this->ssrHistoryFramebuffer->getWidth() != ssrWidth ||
+        this->ssrHistoryFramebuffer->getHeight() != ssrHeight) {
         recreateDeferredTargets = true;
     }
     if (recreateDeferredTargets) {
@@ -304,7 +310,9 @@ void Window::deferredRendering(
         this->volumetricBuffer = std::make_shared<RenderTarget>(
             RenderTarget(*this, RenderTargetType::Scene));
         this->ssrFramebuffer = std::make_shared<RenderTarget>(
-            RenderTarget(*this, RenderTargetType::Scene));
+            RenderTarget(*this, RenderTargetType::SSR, this->ssrQuality));
+        this->ssrHistoryFramebuffer = std::make_shared<RenderTarget>(
+            RenderTarget(*this, RenderTargetType::SSR, this->ssrQuality));
         this->ssaoBuffer = std::make_shared<RenderTarget>(
             RenderTarget(*this, RenderTargetType::SSAO));
         this->ssaoBlurBuffer = std::make_shared<RenderTarget>(
@@ -417,6 +425,8 @@ void Window::deferredRendering(
         }
     }
 
+    const glm::mat4 deferredView = this->camera->calculateViewMatrix();
+    const glm::mat4 deferredProjection = calculateProjectionMatrix();
     auto renderDeferredRenderable = [&](Renderable *obj) {
         if (obj == nullptr || !obj->canUseDeferredRendering()) {
             return;
@@ -454,8 +464,8 @@ void Window::deferredRendering(
             pipelineEntry.rasterizerMode = this->rasterizerMode;
         }
 
-        obj->setViewMatrix(this->camera->calculateViewMatrix());
-        obj->setProjectionMatrix(calculateProjectionMatrix());
+        obj->setViewMatrix(deferredView);
+        obj->setProjectionMatrix(deferredProjection);
         obj->setPipeline(pipelineEntry.pipeline);
         if (auto *coreObject = dynamic_cast<CoreObject *>(obj)) {
             ShaderProgram originalProgram = coreObject->shaderProgram;
@@ -475,6 +485,9 @@ void Window::deferredRendering(
 
     commandBuffer->endPass();
     this->gBuffer->unbind();
+    if (this->useSSR) {
+        commandBuffer->generateMipmaps(this->gBuffer->depthTexture.texture);
+    }
 
 #ifdef METAL
     if (usesGlobalIllumination) {
@@ -765,7 +778,9 @@ void Window::deferredRendering(
 #endif
 
     // Cycle though directional lights
-    for (auto *light : scene->directionalLights) {
+    for (size_t lightIndex = 0; lightIndex < scene->directionalLights.size();
+         ++lightIndex) {
+        auto *light = scene->directionalLights[lightIndex];
         if (!light->doesCastShadows) {
             continue;
         }
@@ -794,7 +809,7 @@ void Window::deferredRendering(
         gpuShadow.bias = shadowParams.bias;
         gpuShadow.textureIndex = shadow2DSamplerIndex;
         gpuShadow.farPlane = 0.0f;
-        gpuShadow._pad1 = 0.0f;
+        gpuShadow.lightIndex = static_cast<int>(lightIndex);
         gpuShadow.lightPos = glm::vec3(0.0f);
         gpuShadow.lightType = 0;
         gpuShadowParams.push_back(gpuShadow);
@@ -805,6 +820,8 @@ void Window::deferredRendering(
                                        shadowParams.lightProjection);
         lightPipeline->setUniform1f(baseName + ".bias", shadowParams.bias);
         lightPipeline->setUniform1i(baseName + ".lightType", 0);
+        lightPipeline->setUniform1i(baseName + ".lightIndex",
+                                    static_cast<int>(lightIndex));
 #endif
 
         boundParameters++;
@@ -813,7 +830,9 @@ void Window::deferredRendering(
     }
 
     // Cycle though spotlights
-    for (auto *light : scene->spotlights) {
+    for (size_t lightIndex = 0; lightIndex < scene->spotlights.size();
+         ++lightIndex) {
+        auto *light = scene->spotlights[lightIndex];
         if (!light->doesCastShadows) {
             continue;
         }
@@ -842,7 +861,7 @@ void Window::deferredRendering(
         gpuShadow.bias = shadowParams.bias;
         gpuShadow.textureIndex = shadow2DSamplerIndex;
         gpuShadow.farPlane = 0.0f;
-        gpuShadow._pad1 = 0.0f;
+        gpuShadow.lightIndex = static_cast<int>(lightIndex);
         gpuShadow.lightPos = glm::vec3(0.0f);
         gpuShadow.lightType = 1;
         gpuShadowParams.push_back(gpuShadow);
@@ -853,6 +872,8 @@ void Window::deferredRendering(
                                        shadowParams.lightProjection);
         lightPipeline->setUniform1f(baseName + ".bias", shadowParams.bias);
         lightPipeline->setUniform1i(baseName + ".lightType", 1);
+        lightPipeline->setUniform1i(baseName + ".lightIndex",
+                                    static_cast<int>(lightIndex));
 #endif
 
         boundParameters++;
@@ -860,7 +881,9 @@ void Window::deferredRendering(
         boundTextures++;
     }
 
-    for (auto *light : scene->areaLights) {
+    for (size_t lightIndex = 0; lightIndex < scene->areaLights.size();
+         ++lightIndex) {
+        auto *light = scene->areaLights[lightIndex];
         if (!light->doesCastShadows) {
             continue;
         }
@@ -889,7 +912,7 @@ void Window::deferredRendering(
         gpuShadow.bias = shadowParams.bias;
         gpuShadow.textureIndex = shadow2DSamplerIndex;
         gpuShadow.farPlane = 0.0f;
-        gpuShadow._pad1 = 0.0f;
+        gpuShadow.lightIndex = static_cast<int>(lightIndex);
         gpuShadow.lightPos = glm::vec3(0.0f);
         gpuShadow.lightType = 2;
         gpuShadowParams.push_back(gpuShadow);
@@ -900,6 +923,8 @@ void Window::deferredRendering(
                                        shadowParams.lightProjection);
         lightPipeline->setUniform1f(baseName + ".bias", shadowParams.bias);
         lightPipeline->setUniform1i(baseName + ".lightType", 2);
+        lightPipeline->setUniform1i(baseName + ".lightIndex",
+                                    static_cast<int>(lightIndex));
 #endif
 
         boundParameters++;
@@ -907,7 +932,9 @@ void Window::deferredRendering(
         boundTextures++;
     }
 
-    for (auto *light : scene->pointLights) {
+    for (size_t lightIndex = 0; lightIndex < scene->pointLights.size();
+         ++lightIndex) {
+        auto *light = scene->pointLights[lightIndex];
         if (!light->doesCastShadows) {
             continue;
         }
@@ -931,7 +958,7 @@ void Window::deferredRendering(
         gpuShadow.bias = 0.0f;
         gpuShadow.textureIndex = boundCubemaps;
         gpuShadow.farPlane = light->distance;
-        gpuShadow._pad1 = 0.0f;
+        gpuShadow.lightIndex = static_cast<int>(lightIndex);
         gpuShadow.lightPos = glm::vec3(static_cast<float>(light->position.x),
                                        static_cast<float>(light->position.y),
                                        static_cast<float>(light->position.z));
@@ -942,6 +969,8 @@ void Window::deferredRendering(
         lightPipeline->setUniform3f(baseName + ".lightPos", light->position.x,
                                     light->position.y, light->position.z);
         lightPipeline->setUniform1i(baseName + ".lightType", 3);
+        lightPipeline->setUniform1i(baseName + ".lightIndex",
+                                    static_cast<int>(lightIndex));
 #endif
 
         boundParameters++;
@@ -1065,6 +1094,12 @@ void Window::deferredRendering(
         commandBuffer->endPass();
     }
 
+    if (useSSR && this->ssrFramebuffer == nullptr) {
+        this->ssrFramebuffer = std::make_shared<RenderTarget>(
+            RenderTarget(*this, RenderTargetType::SSR, this->ssrQuality));
+        this->ssrHistoryFramebuffer = std::make_shared<RenderTarget>(
+            RenderTarget(*this, RenderTargetType::SSR, this->ssrQuality));
+    }
     if (this->ssrFramebuffer != nullptr && useSSR) {
         if (targetPassActive) {
             commandBuffer->endPass();
@@ -1097,6 +1132,8 @@ void Window::deferredRendering(
         ssrPipeline->bindTexture2D("gMaterial", gBuffer->gMaterial.id, 3);
         ssrPipeline->bindTexture2D("sceneColor", target->texture.id, 4);
         ssrPipeline->bindTexture2D("gDepth", gBuffer->depthTexture.id, 5);
+        ssrPipeline->bindTexture2D("historyTexture",
+                                   ssrHistoryFramebuffer->texture.id, 7);
         if (scene->skybox != nullptr && scene->skybox->cubemap.id != 0) {
             ssrPipeline->bindTextureCubemap("skybox", scene->skybox->cubemap.id,
                                             6);
@@ -1116,11 +1153,25 @@ void Window::deferredRendering(
                                      glm::inverse(projectionMatrix));
         ssrPipeline->setUniform3f("cameraPosition", camera->position.x,
                                   camera->position.y, camera->position.z);
-        ssrPipeline->setUniform1f("maxDistance", 40.0f);
-        ssrPipeline->setUniform1f("resolution", 0.5f);
-        ssrPipeline->setUniform1i("steps", 64);
-        ssrPipeline->setUniform1f("thickness", 1.0f);
-        ssrPipeline->setUniform1f("maxRoughness", 0.5f);
+        static constexpr float maxDistances[] = {20.0f, 32.0f, 48.0f};
+        static constexpr int stepCounts[] = {20, 36, 56};
+        static constexpr float thicknesses[] = {1.5f, 1.0f, 0.65f};
+        static constexpr float roughnessLimits[] = {0.3f, 0.45f, 0.6f};
+        const int quality = std::clamp(this->ssrQuality, 0, 2);
+        ssrPipeline->setUniform1f("maxDistance", maxDistances[quality]);
+        ssrPipeline->setUniform1f("resolution", quality == 2 ? 0.75f : 0.5f);
+        ssrPipeline->setUniform1i("steps", stepCounts[quality]);
+        ssrPipeline->setUniform1f("thickness", thicknesses[quality]);
+        ssrPipeline->setUniform1f("maxRoughness", roughnessLimits[quality]);
+        float viewDelta = 0.0f;
+        for (int column = 0; column < 4; ++column) {
+            viewDelta += glm::length(viewMatrix[column] -
+                                     this->lastViewMatrix[column]);
+        }
+        ssrPipeline->setUniform1f("historyWeight",
+                                  viewDelta < 0.001f ? 0.85f : 0.0f);
+        ssrPipeline->setUniform1i("debugMode",
+                                  this->ssrDebugMode ? 1 : 0);
 
         commandBuffer->bindDrawingState(quadState);
         commandBuffer->bindPipeline(ssrPipeline);
@@ -1137,6 +1188,7 @@ void Window::deferredRendering(
     }
     if (hasSSRTexture && ssrFramebuffer != nullptr) {
         target->ssrTexture = ssrFramebuffer->texture;
+        std::swap(ssrFramebuffer, ssrHistoryFramebuffer);
     }
     target->gPosition = gBuffer->gPosition;
 

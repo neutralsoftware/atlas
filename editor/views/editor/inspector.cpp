@@ -279,7 +279,7 @@ QJsonObject environmentSchema() {
              {"globalLight",
               QJsonObject{{"enabled", true},
                           {"castsShadows", true},
-                          {"shadowResolution", 4096}}},
+                          {"shadowResolution", 2048}}},
              {"clouds",
               QJsonObject{{"enabled", false},
                           {"frequency", 4},
@@ -443,7 +443,7 @@ QJsonObject lightSchema(const QString &type) {
     common.insert("shadowResolution", 2048);
     if (normalized == "directionallight" || normalized == "sun") {
         common.insert("direction", QJsonArray{0.0, -1.0, 0.0});
-        common.insert("shadowResolution", 4096);
+        common.insert("shadowResolution", 2048);
     } else if (normalized == "pointlight") {
         common.insert("distance", 50.0);
     } else if (normalized == "spotlight") {

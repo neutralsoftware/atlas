@@ -1613,6 +1613,8 @@ bool Window::stepFrame() {
             continue;
         }
         this->currentRenderTarget = target;
+        const glm::mat4 targetView = this->camera->calculateViewMatrix();
+        const glm::mat4 targetProjection = calculateProjectionMatrix();
         setViewportState(0, 0, target->getWidth(), target->getHeight());
         updatePipelineStateField(this->depthCompareOp, opal::CompareOp::Less);
         updatePipelineStateField(this->writeDepth, true);
@@ -1630,24 +1632,8 @@ bool Window::stepFrame() {
             }
 #ifdef METAL
             pathTracer->resizeOutput(target->getWidth(), target->getHeight());
-            pathTracer->render(commandBuffer);
-            pathTracer->copySrcFramebuffer->attachTexture(
-                pathTracer->pathTracingTexture->texture, 0);
-            pathTracer->copyDstFramebuffer->attachTexture(
-                target->texture.texture, 0);
-            auto copy = opal::ResolveAction::createForColorAttachment(
-                pathTracer->copySrcFramebuffer, pathTracer->copyDstFramebuffer,
-                0);
-            commandBuffer->performResolve(copy);
-
-            pathTracer->copySrcFramebuffer->attachTexture(
-                pathTracer->pathTracingTextureBright->texture, 0);
-            pathTracer->copyDstFramebuffer->attachTexture(
-                target->brightTexture.texture, 0);
-            auto brightCopy = opal::ResolveAction::createForColorAttachment(
-                pathTracer->copySrcFramebuffer, pathTracer->copyDstFramebuffer,
-                0);
-            commandBuffer->performResolve(brightCopy);
+            pathTracer->render(commandBuffer, target->texture.texture,
+                               target->brightTexture.texture);
 #endif
 
             continue;
@@ -1712,10 +1698,8 @@ bool Window::stepFrame() {
                         if (meshObject->canUseDeferredRendering()) {
                             continue;
                         }
-                        meshObject->setViewMatrix(
-                            this->camera->calculateViewMatrix());
-                        meshObject->setProjectionMatrix(
-                            calculateProjectionMatrix());
+                        meshObject->setViewMatrix(targetView);
+                        meshObject->setProjectionMatrix(targetProjection);
                         meshObject->render(getDeltaTime(), commandBuffer,
                                            shouldRefreshPipeline(meshObject));
                     }
@@ -1726,8 +1710,8 @@ bool Window::stepFrame() {
                 }
                 if (obj && obj->editorOnly && !this->areEditorControlsEnabled())
                     return;
-                obj->setViewMatrix(this->camera->calculateViewMatrix());
-                obj->setProjectionMatrix(calculateProjectionMatrix());
+                obj->setViewMatrix(targetView);
+                obj->setProjectionMatrix(targetProjection);
                 obj->render(getDeltaTime(), commandBuffer,
                             shouldRefreshPipeline(obj));
             };
@@ -1746,8 +1730,8 @@ bool Window::stepFrame() {
             for (auto &obj : this->lateForwardRenderables) {
                 if (obj && obj->editorOnly && !this->areEditorControlsEnabled())
                     continue;
-                obj->setViewMatrix(this->camera->calculateViewMatrix());
-                obj->setProjectionMatrix(calculateProjectionMatrix());
+                obj->setViewMatrix(targetView);
+                obj->setProjectionMatrix(targetProjection);
                 obj->render(getDeltaTime(), commandBuffer,
                             shouldRefreshPipeline(obj));
             }
@@ -1766,8 +1750,8 @@ bool Window::stepFrame() {
         for (auto &obj : this->firstRenderables) {
             if (obj && obj->editorOnly && !this->areEditorControlsEnabled())
                 continue;
-            obj->setViewMatrix(this->camera->calculateViewMatrix());
-            obj->setProjectionMatrix(calculateProjectionMatrix());
+            obj->setViewMatrix(targetView);
+            obj->setProjectionMatrix(targetProjection);
             obj->render(getDeltaTime(), commandBuffer,
                         shouldRefreshPipeline(obj));
         }
@@ -1778,8 +1762,8 @@ bool Window::stepFrame() {
             }
             if (obj && obj->editorOnly && !this->areEditorControlsEnabled())
                 continue;
-            obj->setViewMatrix(this->camera->calculateViewMatrix());
-            obj->setProjectionMatrix(calculateProjectionMatrix());
+            obj->setViewMatrix(targetView);
+            obj->setProjectionMatrix(targetProjection);
             obj->render(getDeltaTime(), commandBuffer,
                         shouldRefreshPipeline(obj));
         }
@@ -1787,8 +1771,8 @@ bool Window::stepFrame() {
         for (auto &obj : this->lateForwardRenderables) {
             if (obj && obj->editorOnly && !this->areEditorControlsEnabled())
                 continue;
-            obj->setViewMatrix(this->camera->calculateViewMatrix());
-            obj->setProjectionMatrix(calculateProjectionMatrix());
+            obj->setViewMatrix(targetView);
+            obj->setProjectionMatrix(targetProjection);
             obj->render(getDeltaTime(), commandBuffer,
                         shouldRefreshPipeline(obj));
         }
@@ -1825,6 +1809,8 @@ bool Window::stepFrame() {
     commandBuffer->clearColor(this->clearColor.r, this->clearColor.g,
                               this->clearColor.b, this->clearColor.a);
     commandBuffer->clearDepth(1.0f);
+    const glm::mat4 screenView = this->camera->calculateViewMatrix();
+    const glm::mat4 screenProjection = calculateProjectionMatrix();
 
     if (this->renderTargets.empty() && !usesModeScreenTarget) {
         updateBackbufferTarget(fbWidth, fbHeight);
@@ -1833,8 +1819,8 @@ bool Window::stepFrame() {
         for (auto &obj : this->firstRenderables) {
             if (obj && obj->editorOnly && !this->areEditorControlsEnabled())
                 continue;
-            obj->setViewMatrix(this->camera->calculateViewMatrix());
-            obj->setProjectionMatrix(calculateProjectionMatrix());
+            obj->setViewMatrix(screenView);
+            obj->setProjectionMatrix(screenProjection);
             obj->render(getDeltaTime(), commandBuffer,
                         shouldRefreshPipeline(obj));
         }
@@ -1845,8 +1831,8 @@ bool Window::stepFrame() {
             }
             if (obj && obj->editorOnly && !this->areEditorControlsEnabled())
                 continue;
-            obj->setViewMatrix(this->camera->calculateViewMatrix());
-            obj->setProjectionMatrix(calculateProjectionMatrix());
+            obj->setViewMatrix(screenView);
+            obj->setProjectionMatrix(screenProjection);
             obj->render(getDeltaTime(), commandBuffer,
                         shouldRefreshPipeline(obj));
         }
@@ -1856,8 +1842,8 @@ bool Window::stepFrame() {
         for (auto &obj : this->lateForwardRenderables) {
             if (obj && obj->editorOnly && !this->areEditorControlsEnabled())
                 continue;
-            obj->setViewMatrix(this->camera->calculateViewMatrix());
-            obj->setProjectionMatrix(calculateProjectionMatrix());
+            obj->setViewMatrix(screenView);
+            obj->setProjectionMatrix(screenProjection);
             obj->render(getDeltaTime(), commandBuffer,
                         shouldRefreshPipeline(obj));
         }
@@ -1870,8 +1856,8 @@ bool Window::stepFrame() {
     for (auto &obj : this->preferenceRenderables) {
         if (obj && obj->editorOnly && !this->areEditorControlsEnabled())
             continue;
-        obj->setViewMatrix(this->camera->calculateViewMatrix());
-        obj->setProjectionMatrix(calculateProjectionMatrix());
+        obj->setViewMatrix(screenView);
+        obj->setProjectionMatrix(screenProjection);
         obj->render(getDeltaTime(), commandBuffer, shouldRefreshPipeline(obj));
     }
 
@@ -1888,7 +1874,7 @@ bool Window::stepFrame() {
         obj->render(getDeltaTime(), commandBuffer, shouldRefreshPipeline(obj));
     }
 
-    this->lastViewMatrix = this->camera->calculateViewMatrix();
+    this->lastViewMatrix = screenView;
 
     commandBuffer->endPass();
     commandBuffer->commit();
@@ -4139,7 +4125,7 @@ void Window::setDefaultFramebufferRenderingEnabled(bool enabled) {
 
 void Window::renderLightsToShadowMaps(
     std::shared_ptr<opal::CommandBuffer> commandBuffer) {
-    if (this->currentScene == nullptr) {
+    if (this->currentScene == nullptr || this->usePathTracing) {
         return;
     }
 
@@ -4152,22 +4138,8 @@ void Window::renderLightsToShadowMaps(
 
     this->shadowUpdateCooldown =
         std::max(0.0f, this->shadowUpdateCooldown - this->deltaTime);
-
-    bool cameraMoved = false;
-    if (this->camera != nullptr) {
-        glm::vec3 currentPos = this->camera->position.toGlm();
-        glm::vec3 currentDir = this->camera->getFrontVector().toGlm();
-        if (!this->lastShadowCameraPosition.has_value() ||
-            !this->lastShadowCameraDirection.has_value()) {
-            cameraMoved = true;
-        } else {
-            glm::vec3 lastPos = this->lastShadowCameraPosition->toGlm();
-            glm::vec3 lastDir = this->lastShadowCameraDirection->toGlm();
-            if ((glm::length(currentPos - lastPos) > 0.25f) ||
-                glm::length(currentDir - lastDir) > 0.25f) {
-                cameraMoved = true;
-            }
-        }
+    if (this->shadowUpdateCooldown > 0.0f) {
+        return;
     }
 
     bool lightsChanged = false;
@@ -4313,16 +4285,11 @@ void Window::renderLightsToShadowMaps(
         !this->hasShadowCasterSignature ||
         this->lastShadowCasterSignature != shadowCasterSignature;
 
-    if (cameraMoved || lightsChanged || castersMoved) {
+    if (lightsChanged || castersMoved) {
         this->shadowMapsDirty = true;
     }
 
     if (!this->shadowMapsDirty) {
-        return;
-    }
-
-    if (this->shadowUpdateCooldown > 0.0f && !cameraMoved && !lightsChanged &&
-        !castersMoved) {
         return;
     }
 
@@ -4817,8 +4784,10 @@ void Window::useDeferredRendering() {
         RenderTarget(*this, RenderTargetType::Scene));
     this->volumetricBuffer = volumetricTarget;
     auto ssrTarget = std::make_shared<RenderTarget>(
-        RenderTarget(*this, RenderTargetType::Scene));
+        RenderTarget(*this, RenderTargetType::SSR, this->ssrQuality));
     this->ssrFramebuffer = ssrTarget;
+    this->ssrHistoryFramebuffer = std::make_shared<RenderTarget>(
+        RenderTarget(*this, RenderTargetType::SSR, this->ssrQuality));
     this->ssaoMapsDirty = true;
 }
 

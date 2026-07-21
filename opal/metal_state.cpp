@@ -742,6 +742,15 @@ void releasePipelineState(Pipeline *pipeline) {
     state.shaderBuffers.clear();
     state.uniformData.clear();
     state.texturesByUnit.clear();
+    state.textureArgumentTextures.clear();
+    if (state.textureArgumentBuffer != nullptr) {
+        state.textureArgumentBuffer->release();
+        state.textureArgumentBuffer = nullptr;
+    }
+    if (state.textureArgumentEncoder != nullptr) {
+        state.textureArgumentEncoder->release();
+        state.textureArgumentEncoder = nullptr;
+    }
     if (state.depthStencilState != nullptr) {
         state.depthStencilState->release();
         state.depthStencilState = nullptr;
@@ -787,6 +796,11 @@ void releaseCommandBufferState(CommandBuffer *commandBuffer) {
         state.passDescriptor->release();
         state.passDescriptor = nullptr;
     }
+    for (auto *submitted : state.inFlightCommandBuffers) {
+        submitted->waitUntilCompleted();
+        submitted->release();
+    }
+    state.inFlightCommandBuffers.clear();
     state.commandBuffer = nullptr;
     state.drawable = nullptr;
     state.boundVertexTextures.fill(nullptr);

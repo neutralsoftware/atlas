@@ -107,7 +107,7 @@ struct ShadowParameters {
     float bias0;
     int textureIndex;
     float farPlane;
-    float _pad1;
+    int lightIndex;
     float3 lightPos;
     int lightType;
 };
@@ -174,7 +174,7 @@ struct ShadowParameters_1 {
     float bias0;
     int textureIndex;
     float farPlane;
-    float _pad1;
+    int lightIndex;
     packed_float3 lightPos;
     int lightType;
 };
@@ -431,6 +431,9 @@ static inline __attribute__((always_inline)) float calculatePointShadow(
     }
     float3 fragToLight = fragPos - shadowParam.lightPos;
     float currentDepth = length(fragToLight);
+    if (currentDepth >= shadowParam.farPlane) {
+        return 0.0;
+    }
     float bias0 = 0.0500000007450580596923828125;
     float shadow = 0.0;
     float diskRadius = (1.0 + (currentDepth / shadowParam.farPlane)) *
@@ -1207,13 +1210,19 @@ fragment main0_out main0(
     int shadowCount = _1355.shadowParamCount;
     for (int i = 0; i < shadowCount; i++) {
         if (_1372.shadowParams[i].lightType == 3) {
+            int lightIndex = _1372.shadowParams[i].lightIndex;
+            if (lightIndex < 0 || lightIndex >= _1355.pointLightCount ||
+                distance(float3(_1465.pointLights[lightIndex].position),
+                         FragPos) >= _1465.pointLights[lightIndex].radius) {
+                continue;
+            }
             ShadowParameters _1386;
             _1386.lightView = _1372.shadowParams[i].lightView;
             _1386.lightProjection = _1372.shadowParams[i].lightProjection;
             _1386.bias0 = _1372.shadowParams[i].bias0;
             _1386.textureIndex = _1372.shadowParams[i].textureIndex;
             _1386.farPlane = _1372.shadowParams[i].farPlane;
-            _1386._pad1 = _1372.shadowParams[i]._pad1;
+            _1386.lightIndex = _1372.shadowParams[i].lightIndex;
             _1386.lightPos = float3(_1372.shadowParams[i].lightPos);
             _1386.lightType = _1372.shadowParams[i].lightType;
             ShadowParameters param = _1386;
@@ -1228,13 +1237,19 @@ fragment main0_out main0(
                               cubeMap3Smplr, cubeMap4, cubeMap4Smplr, cubeMap5,
                               cubeMap5Smplr));
         } else if (_1372.shadowParams[i].lightType == 1) {
+            int lightIndex = _1372.shadowParams[i].lightIndex;
+            if (lightIndex < 0 || lightIndex >= _1355.spotlightCount ||
+                distance(float3(_1510.spotlights[lightIndex].position),
+                         FragPos) >= _1510.spotlights[lightIndex].range) {
+                continue;
+            }
             ShadowParameters _1397;
             _1397.lightView = _1372.shadowParams[i].lightView;
             _1397.lightProjection = _1372.shadowParams[i].lightProjection;
             _1397.bias0 = _1372.shadowParams[i].bias0;
             _1397.textureIndex = _1372.shadowParams[i].textureIndex;
             _1397.farPlane = _1372.shadowParams[i].farPlane;
-            _1397._pad1 = _1372.shadowParams[i]._pad1;
+            _1397.lightIndex = _1372.shadowParams[i].lightIndex;
             _1397.lightPos = float3(_1372.shadowParams[i].lightPos);
             _1397.lightType = _1372.shadowParams[i].lightType;
             ShadowParameters param_2 = _1397;
@@ -1247,13 +1262,19 @@ fragment main0_out main0(
                                 texture3, texture3Smplr, texture4,
                                 texture4Smplr, texture5, texture5Smplr, _526));
         } else if (_1372.shadowParams[i].lightType == 2) {
+            int lightIndex = _1372.shadowParams[i].lightIndex;
+            if (lightIndex < 0 || lightIndex >= _1355.areaLightCount ||
+                distance(float3(_1552.areaLights[lightIndex].position),
+                         FragPos) >= _1552.areaLights[lightIndex].range) {
+                continue;
+            }
             ShadowParameters _1397;
             _1397.lightView = _1372.shadowParams[i].lightView;
             _1397.lightProjection = _1372.shadowParams[i].lightProjection;
             _1397.bias0 = _1372.shadowParams[i].bias0;
             _1397.textureIndex = _1372.shadowParams[i].textureIndex;
             _1397.farPlane = _1372.shadowParams[i].farPlane;
-            _1397._pad1 = _1372.shadowParams[i]._pad1;
+            _1397.lightIndex = _1372.shadowParams[i].lightIndex;
             _1397.lightPos = float3(_1372.shadowParams[i].lightPos);
             _1397.lightType = _1372.shadowParams[i].lightType;
             ShadowParameters param_2 = _1397;
@@ -1271,7 +1292,7 @@ fragment main0_out main0(
             _1397.bias0 = _1372.shadowParams[i].bias0;
             _1397.textureIndex = _1372.shadowParams[i].textureIndex;
             _1397.farPlane = _1372.shadowParams[i].farPlane;
-            _1397._pad1 = _1372.shadowParams[i]._pad1;
+            _1397.lightIndex = _1372.shadowParams[i].lightIndex;
             _1397.lightPos = float3(_1372.shadowParams[i].lightPos);
             _1397.lightType = _1372.shadowParams[i].lightType;
             ShadowParameters param_2 = _1397;

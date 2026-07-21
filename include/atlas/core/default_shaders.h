@@ -1831,7 +1831,7 @@ R"(ial.roughness;
         a = float3(0.0);
     }
     out.gAlbedoSpec = float4(a, aoValue);
-    out.gMaterial = float4(metallicValue, roughnessValue, aoValue, 1.0);
+    out.gMaterial = float4(metallicValue, roughnessValue, aoValue, fast::clamp(material.reflectivity, 0.0, 1.0));
     return out;
 }
 )",
@@ -3642,7 +3642,7 @@ struct ShadowParameters {
     float bias0;
     int textureIndex;
     float farPlane;
-    float _pad1;
+    int lightIndex;
     float3 lightPos;
     int lightType;
 };
@@ -3709,7 +3709,7 @@ struct ShadowParameters_1 {
     float bias0;
     int textureIndex;
     float farPlane;
-    float _pad1;
+    int lightIndex;
     packed_float3 lightPos;
     int lightType;
 };
@@ -3822,8 +3822,8 @@ constant spvUnsafeArray<float2, 12> _660 = spvUnsafeArray<float2, 12>(
      float2(-0.839999973773956298828125, -0.07400000095367431640625),
      float2(-0.69599997997283935546875, 0.4569999873638153076171875),
      float2(-0.20299999415874481201171875, 0.620999991893768310546875),
-     float2(0.96200001239776)",
-R"(611328125, -0.194999992847442626953125),
+     float2(0.96200001)",
+R"(239776611328125, -0.194999992847442626953125),
      float2(0.472999989986419677734375, -0.4799999892711639404296875),
      float2(0.518999993801116943359375, 0.767000019550323486328125),
      float2(0.185000002384185791015625, -0.89300000667572021484375),
@@ -3967,6 +3967,9 @@ static inline __attribute__((always_inline)) float calculatePointShadow(
     }
     float3 fragToLight = fragPos - shadowParam.lightPos;
     float currentDepth = length(fragToLight);
+    if (currentDepth >= shadowParam.farPlane) {
+        return 0.0;
+    }
     float bias0 = 0.0500000007450580596923828125;
     float shadow = 0.0;
     float diskRadius = (1.0 + (currentDepth / shadowParam.farPlane)) *
@@ -4003,10 +4006,10 @@ static inline __attribute__((always_inline)) float4 sampleTextureAt(
         if (textureIndex == 1) {
             return texture2.sample(texture2Smplr, uv);
         } else {
-            if (textureIndex == 2) {
+            if (textureIn)",
+R"(dex == 2) {
                 return texture3.sample(texture3Smplr, uv);
-         )",
-R"(   } else {
+            } else {
                 if (textureIndex == 3) {
                     return texture4.sample(texture4Smplr, uv);
                 } else {
@@ -4238,10 +4241,10 @@ static inline __attribute__((always_inline)) float3 calcDirectionalLight(
     thread const float3 &albedo, thread const float &metallic,
     thread const float &roughness) {
     float3 L = fast::normalize(-light.direction);
-    float3 radiance = light.diffuse * fast::max(light.intensity, 0.0);
+    float3 radiance = light.diffuse * fast:)",
+R"(:max(light.intensity, 0.0);
     float3 param = L;
-    float3 param_1 = radiance;)",
-R"(
+    float3 param_1 = radiance;
     float3 param_2 = N;
     float3 param_3 = V;
     float3 param_4 = F0;
@@ -4452,12 +4455,12 @@ static inline float4
 sampleProbeDirectionalRadiance(texture2d<float> ddgiTexture,
                                constant ProbeSpace &ps, uint probeIndex,
                                uint atlasW, uint atlasH, float3 dirWS) {
-    float2 uv = ddgiAtlasUV(probeIndex, dirWS, ps, atlasW, atlasH);
+    float2 uv = ddgiAtlasUV(probeIndex, dirWS, ps, atlasW)",
+R"(, atlasH);
     return sampleDDGITextureBilinear(ddgiTexture, uv);
 }
 
-static inli)",
-R"(ne float3 sampleDDGIIrradiance(texture2d<float> ddgiTexture,
+static inline float3 sampleDDGIIrradiance(texture2d<float> ddgiTexture,
                                           texture2d<float> ddgiDistance,
                                           constant ProbeSpace &ps, float3 posWS,
                                           float3 normalWS) {
@@ -4626,9 +4629,9 @@ R"(ne float3 sampleDDGIIrradiance(texture2d<float> ddgiTexture,
 fragment main0_out main0(
     main0_in in [[stage_in]], constant UBO &_526 [[buffer(0)]],
     constant Environment &environment [[buffer(1)]],
-    constant PushConstants &_1355 [[buffer(2)]],
-    device ShadowParams &_1372 [[b)",
-R"(uffer(3)]],
+   )",
+R"( constant PushConstants &_1355 [[buffer(2)]],
+    device ShadowParams &_1372 [[buffer(3)]],
     device DirectionalLights &_1422 [[buffer(4)]],
     device PointLights &_1465 [[buffer(5)]],
     device SpotLights &_1510 [[buffer(6)]],
@@ -4747,13 +4750,19 @@ R"(uffer(3)]],
     int shadowCount = _1355.shadowParamCount;
     for (int i = 0; i < shadowCount; i++) {
         if (_1372.shadowParams[i].lightType == 3) {
+            int lightIndex = _1372.shadowParams[i].lightIndex;
+            if (lightIndex < 0 || lightIndex >= _1355.pointLightCount ||
+                distance(float3(_1465.pointLights[lightIndex].position),
+                         FragPos) >= _1465.pointLights[lightIndex].radius) {
+                continue;
+            }
             ShadowParameters _1386;
             _1386.lightView = _1372.shadowParams[i].lightView;
             _1386.lightProjection = _1372.shadowParams[i].lightProjection;
             _1386.bias0 = _1372.shadowParams[i].bias0;
             _1386.textureIndex = _1372.shadowParams[i].textureIndex;
             _1386.farPlane = _1372.shadowParams[i].farPlane;
-            _1386._pad1 = _1372.shadowParams[i]._pad1;
+            _1386.lightIndex = _1372.shadowParams[i].lightIndex;
             _1386.lightPos = float3(_1372.shadowParams[i].lightPos);
             _1386.lightType = _1372.shadowParams[i].lightType;
             ShadowParameters param = _1386;
@@ -4768,13 +4777,19 @@ R"(uffer(3)]],
                               cubeMap3Smplr, cubeMap4, cubeMap4Smplr, cubeMap5,
                               cubeMap5Smplr));
         } else if (_1372.shadowParams[i].lightType == 1) {
+            int lightIndex = _1372.shadowParams[i].lightIndex;
+            if (lightIndex < 0 || lightIndex >= _1355.spotlightCount ||
+                distance(float3(_1510.spotlights[lightIndex].position),
+                         FragPos) >= _1510.spotlights[lightIndex].range) {
+                continue;
+            }
             ShadowParameters _1397;
             _1397.lightView = _1372.shadowParams[i].lightView;
             _1397.lightProjection = _1372.shadowParams[i].lightProjection;
             _1397.bias0 = _1372.shadowParams[i].bias0;
             _1397.textureIndex = _1372.shadowParams[i].textureIndex;
             _1397.farPlane = _1372.shadowParams[i].farPlane;
-            _1397._pad1 = _1372.shadowParams[i]._pad1;
+            _1397.lightIndex = _1372.shadowParams[i].lightIndex;
             _1397.lightPos = float3(_1372.shadowParams[i].lightPos);
             _1397.lightType = _1372.shadowParams[i].lightType;
             ShadowParameters param_2 = _1397;
@@ -4782,20 +4797,26 @@ R"(uffer(3)]],
             float3 param_4 = shadowNormal;
             spotShadow = fast::max(
                 spotShadow,
-                calculateShadow(param_2, param_3, param_4, texture1,
+                calculateShadow(param_2, param_3, pa)",
+R"(ram_4, texture1,
                                 texture1Smplr, texture2, texture2Smplr,
                                 texture3, texture3Smplr, texture4,
                                 texture4Smplr, texture5, texture5Smplr, _526));
         } else if (_1372.shadowParams[i].lightType == 2) {
+            int lightIndex = _1372.shadowParams[i].lightIndex;
+            if (lightIndex < 0 || lightIndex >= _1355.areaLightCount ||
+                distance(float3(_1552.areaLights[lightIndex].position),
+                         FragPos) >= _1552.areaLights[lightIndex].range) {
+                continue;
+            }
             ShadowParameters _1397;
             _1397.lightView = _1372.shadowParams[i].lightView;
             _1397.lightProjection = _1372.shadowParams[i].lightProjection;
             _1397.bias0 = _1372.shadowParams[i].bias0;
             _1397.textureIndex = _1372.shadowParams[i].textureIndex;
             _1397.farPlane = _1372.shadowParams[i].farPlane;
-            _1397._pad1 = _1372.shadowParams[i]._pad1;
-            _1397.lightPos = float3(_13)",
-R"(72.shadowParams[i].lightPos);
+            _1397.lightIndex = _1372.shadowParams[i].lightIndex;
+            _1397.lightPos = float3(_1372.shadowParams[i].lightPos);
             _1397.lightType = _1372.shadowParams[i].lightType;
             ShadowParameters param_2 = _1397;
             float3 param_3 = FragPos;
@@ -4812,7 +4833,7 @@ R"(72.shadowParams[i].lightPos);
             _1397.bias0 = _1372.shadowParams[i].bias0;
             _1397.textureIndex = _1372.shadowParams[i].textureIndex;
             _1397.farPlane = _1372.shadowParams[i].farPlane;
-            _1397._pad1 = _1372.shadowParams[i]._pad1;
+            _1397.lightIndex = _1372.shadowParams[i].lightIndex;
             _1397.lightPos = float3(_1372.shadowParams[i].lightPos);
             _1397.lightType = _1372.shadowParams[i].lightType;
             ShadowParameters param_2 = _1397;
@@ -4938,7 +4959,8 @@ R"(72.shadowParams[i].lightPos);
                 float attenuation = 1.0 / ((1.0 + (dist / range)) +
                                            ((dist * dist) / (range * range)));
                 float fade = 1.0 - smoothstep(range * 0.89999997615814208984375,
-                                              range, dist);
+                                           )",
+R"(   range, dist);
                 float3 radiance =
                     (((float3(_1552.areaLights[i_4].diffuse) *
                        fast::max(_1552.areaLights[i_4].intensity, 0.0)) *
@@ -4967,8 +4989,7 @@ R"(72.shadowParams[i].lightPos);
     float3 param_40 = albedo;
     float param_41 = metallic;
     float param_42 = roughness;
-    float3 _1714 = getRimLight(param_36, )",
-R"(param_37, param_38, param_39, param_40,
+    float3 _1714 = getRimLight(param_36, param_37, param_38, param_39, param_40,
                                param_41, param_42, _526, environment);
     float3 rimResult = _1714;
     float3 lighting =
@@ -6604,6 +6625,7 @@ using namespace raytracing;
 
 struct CameraUniforms {
     float4x4 invViewProj;
+    float4x4 prevViewProj;
     float3 camPos;
     float _pad0;
 };
@@ -6849,8 +6871,8 @@ constexpr sampler materialTexSampler(coord::normalized, address::repeat,
         texture2d<float> materialTexture32,                                    \
         texture2d<float> materialTexture33,                                    \
         texture2d<float> materialTexture34,                                    \
-        texture2d<float> materialTexture35,                                   )",
-R"( \
+        texture2d<float> materialTexture35,        )",
+R"(                            \
         texture2d<float> materialTexture36,                                    \
         texture2d<float> materialTexture37,                                    \
         texture2d<float> materialTexture38,                                    \
@@ -6981,9 +7003,9 @@ float4 sampleMaterialTexture(int textureIndex, float2 uv,
     case 22:
         return materialTexture22.sample(materialTexSampler, uv);
     case 23:
-        return materialTexture23.sample(materialTexSampler, uv);
-    case 24:)",
-R"(
+        return materialTexture23.sample(materialTe)",
+R"(xSampler, uv);
+    case 24:
         return materialTexture24.sample(materialTexSampler, uv);
     case 25:
         return materialTexture25.sample(materialTexSampler, uv);
@@ -7036,6 +7058,26 @@ R"(
     }
     return float4(0.0);
 }
+
+struct MaterialTextureArguments {
+    array<texture2d<float>, 256> textures [[id(0)]];
+};
+
+float4 sampleMaterialTexture(
+    int textureIndex, float2 uv,
+    constant MaterialTextureArguments &materialTextureArguments) {
+    return materialTextureArguments.textures[textureIndex].sample(
+        materialTexSampler, uv);
+}
+
+#undef PT_MATERIAL_TEXTURE_PARAMS
+#undef PT_MATERIAL_TEXTURE_ARGS
+#undef PT_MATERIAL_TEXTURE_BINDINGS
+#define PT_MATERIAL_TEXTURE_PARAMS                                            \
+    constant MaterialTextureArguments &materialTextureArguments
+#define PT_MATERIAL_TEXTURE_ARGS materialTextureArguments
+#define PT_MATERIAL_TEXTURE_BINDINGS                                          \
+    constant MaterialTextureArguments &materialTextureArguments [[buffer(12)]]
 
 void resolveMaterialParameters(Material mat, float2 uv, uint textureCount,
                                PT_MATERIAL_TEXTURE_PARAMS,
@@ -7160,7 +7202,8 @@ bool isOccludedDirectionalLight(DirectionalLightData light, float3 P, float3 N,
     float2 u = float2(rand(rng), rand(rng));
     float r = sunRadius * sqrt(u.x);
     float phi = 2.0 * M_PI_F * u.y;
-    float3 jittered =
+  )",
+R"(  float3 jittered =
         baseL + basis[0] * (r * cos(phi)) + basis[1] * (r * sin(phi));
     float3 L = normalize(jittered);
     return isOccluded(isect, sceneAS, P, N, L, 1e30);
@@ -7179,8 +7222,7 @@ bool isOccludedPointLight(PointLight light, float3 P, float3 N,
         float3(r * cos(phi), r * sin(phi), z) * lightRadius;
     float3 sampledLightPos = light.position + sphereOffset;
 
-    float3 toL)",
-R"(ight = sampledLightPos - P;
+    float3 toLight = sampledLightPos - P;
     float dist2 = max(dot(toLight, toLight), 0.001);
     float dist = sqrt(dist2);
     float3 L = toLight / dist;
@@ -7346,7 +7388,8 @@ float3 evalDirectLightingPBR(intersector<triangle_data, instancing> isect,
                            max(dirLight.intensity, 0.0));
         float3 s = evalSubsurface(albedo, N, V, L, dirLight.color,
                                   max(dirLight.intensity, 0.0), roughness,
-                                  sssStrength, sssThickness);
+          )",
+R"(                        sssStrength, sssThickness);
         float3 t =
             evalTransmission(albedo, N, V, L, dirLight.color,
                              max(dirLight.intensity, 0.0), roughness, ior) *
@@ -7364,8 +7407,7 @@ float3 evalDirectLightingPBR(intersector<triangle_data, instancing> isect,
         float dist = max(length(toLight), 1e-4);
         float3 L = toLight / dist;
         float lightRange = max(pointLights[i].range, 1e-4);
-        float minDist = max)",
-R"((lightRange * 0.08, 0.15);
+        float minDist = max(lightRange * 0.08, 0.15);
         float distSq = dist * dist + minDist * minDist;
         float rangeFade = 1.0 - smoothstep(lightRange * 0.75, lightRange, dist);
         float atten = rangeFade / max(distSq, 1e-4);
@@ -7464,7 +7506,14 @@ float3 sampleRadiance(uint2 gid, uint sampleIndex, uint w,
                       constant PointLight *pointLights,
                       constant SpotLight *spotLights,
                       constant AreaLight *areaLights,
-                      PT_MATERIAL_TEXTURE_PARAMS, texturecube<float> skybox) {
+                      PT_MATERIAL_TEXTURE_PARAMS, texturecube<float> skybox,
+                      thread float3 &primaryAlbedo,
+                      thread float3 &primaryNormal,
+                      thread float3 &primaryPosition,
+                      thread float &primaryDepth,
+                      thread float &primaryRoughness,
+                      thread float &primaryHitDistance,
+                      thread uint &primaryObjectId) {
     uint rng = seedBase(gid, w, sceneData.frameIndex, sampleIndex);
 
     ray surfaceRay = primaryRay;
@@ -7509,7 +7558,8 @@ float3 sampleRadiance(uint2 gid, uint sampleIndex, uint w,
                                  float3(vertices[i1].tangent) * b1 +
                                  float3(vertices[i2].tangent) * b2,
                              float3(1.0, 0.0, 0.0));
-        localB = normalizeOr(float3(vertices[i0].bitangent) * b0 +
+        localB)",
+R"( = normalizeOr(float3(vertices[i0].bitangent) * b0 +
                                  float3(vertices[i1].bitangent) * b1 +
                                  float3(vertices[i2].bitangent) * b2,
                              float3(0.0, 0.0, 1.0));
@@ -7539,8 +7589,7 @@ float3 sampleRadiance(uint2 gid, uint sampleIndex, uint w,
         return skyColor(surfaceRay.direction, 0.0, skybox, sceneData);
     }
 
-    float3 N = resolveShadingNormal(mat, texUV, localN, localT, localB, inst)",
-R"(,
+    float3 N = resolveShadingNormal(mat, texUV, localN, localT, localB, inst,
                                     sceneData.materialTextureCount,
                                     PT_MATERIAL_TEXTURE_ARGS);
     float3 P = surfaceRay.origin + surfaceRay.direction * hit.distance;
@@ -7559,6 +7608,13 @@ R"(,
     resolveMaterialParameters(mat, texUV, sceneData.materialTextureCount,
                               PT_MATERIAL_TEXTURE_ARGS, albedo, metallic,
                               roughness, ao, emissive, ior, transmittance);
+    primaryAlbedo = albedo;
+    primaryNormal = N;
+    primaryPosition = P;
+    primaryDepth = length(P - primaryRay.origin);
+    primaryRoughness = roughness;
+    primaryHitDistance = hit.distance;
+    primaryObjectId = hit.instance_id;
     float reflectivity = clamp(mat.reflectivity, 0.0, 1.0);
     float sssStrength = clamp(1.0 - mat.albedo.w, 0.0, 1.0) * (1.0 - metallic);
     float sssThickness = mix(0.25, 1.75, ao);
@@ -7697,7 +7753,8 @@ R"(,
                 float3 tLocalB = normalizeOr(float3(vertices[tj0].bitangent) * tb0 +
                                                  float3(vertices[tj1].bitangent) * tb1 +
                                                  float3(vertices[tj2].bitangent) * tb2,
-                                             float3(0.0, 0.0, 1.0));
+                                   )",
+R"(          float3(0.0, 0.0, 1.0));
 
                 float3 tN = resolveShadingNormal(tmat, tUV, tLocalN, tLocalT,
                                                  tLocalB, tinst,
@@ -7729,8 +7786,7 @@ R"(,
                 bool enteringShell = dot(tN, tV) > 0.0;
                 float etaShell = enteringShell ? (1.0 / tIor) : tIor;
                 float3 faceNShell = enteringShell ? tN : -tN;
-                float)",
-R"(3 refractShell = refract(-tV, faceNShell, etaShell);
+                float3 refractShell = refract(-tV, faceNShell, etaShell);
                 if (length(refractShell) < 1e-5) {
                     refractShell = reflect(-tV, faceNShell);
                 }
@@ -7818,6 +7874,11 @@ R"(3 refractShell = refract(-tV, faceNShell, etaShell);
                 isect, sceneAS, bP, bN, bV, bAlbedo, bMetallic, bRoughness,
                 bIor, bTransmittance, bSssStrength, bSssThickness, rng, dirLight,
                 sceneData, pointLights, spotLights, areaLights);
+            if (choseTransmission) {
+                float causticFocus = mix(1.0, 4.0,
+                                         transmittance * (1.0 - roughness));
+                bounceDirect *= causticFocus;
+            }
 
             float3 bAmbient = bAlbedo * max(sceneData.ambientIntensity, 0.0) *
                               (1.0 - bMetallic) * bAo;
@@ -7839,8 +7900,13 @@ R"(3 refractShell = refract(-tV, faceNShell, etaShell);
 }
 
 kernel void main0(texture2d<float, access::write> outTex [[texture(0)]],
-                  texture2d<float, access::read> prevTex [[texture(1)]],
+                  texture2d<float, access::read_write> historyTex [[texture(1)]],
                   texture2d<float, access::write> brightTex [[texture(2)]],
+                  texture2d<float, access::write> albedoRoughnessTex [[texture(3)]],
+                  texture2d<float, access::write> normalDepthTex [[texture(4)]],
+                  texture2d<float, access::write> motionObjectTex [[texture(5)]],
+                  texture2d<float, access::write> momentsHitTex [[texture(6)]],
+                  texture2d<float, access::read_write> historyGuideTex [[texture(7)]],
                   instance_acceleration_structure sceneAS [[buffer(0)]],
                   constant CameraUniforms &cam [[buffer(1)]],
                   constant Material *materials [[buffer(2)]],
@@ -7855,7 +7921,8 @@ kernel void main0(texture2d<float, access::write> outTex [[texture(0)]],
                   constant AreaLight *areaLights [[buffer(11)]],
                   PT_MATERIAL_TEXTURE_BINDINGS,
                   texturecube<float> skybox [[texture(60)]],
-                  uint2 gid [[thread_position_in_grid]]) {
+                  uint2 gid [[thread_position_i)",
+R"(n_grid]]) {
     uint w = outTex.get_width();
     uint h = outTex.get_height();
     if (gid.x >= w || gid.y >= h)
@@ -7877,6 +7944,13 @@ kernel void main0(texture2d<float, access::write> outTex [[texture(0)]],
     isect.set_triangle_cull_mode(triangle_cull_mode::none);
 
     float3 color = float3(0.0);
+    float3 primaryAlbedo = float3(0.0);
+    float3 primaryNormal = float3(0.0);
+    float3 primaryPosition = float3(0.0);
+    float primaryDepth = 0.0;
+    float primaryRoughness = 1.0;
+    float primaryHitDistance = 0.0;
+    uint primaryObjectId = 0xFFFFFFFFu;
 
     uint spp = max(sceneData.raysPerPixel, 1u);
     for (uint s = 0; s < spp; ++s) {
@@ -7889,7 +7963,9 @@ kernel void main0(texture2d<float, access::write> outTex [[texture(0)]],
         float3 sample = sampleRadiance(
             gid, s, w, isect, sceneAS, primaryRay, materials, meshData,
             vertices, indices, instanceData, dirLight, sceneData, pointLights,
-            spotLights, areaLights, PT_MATERIAL_TEXTURE_ARGS, skybox);
+            spotLights, areaLights, PT_MATERIAL_TEXTURE_ARGS, skybox,
+            primaryAlbedo, primaryNormal, primaryPosition, primaryDepth,
+            primaryRoughness, primaryHitDistance, primaryObjectId);
         color += clampLuminance(sample, 24.0);
     }
 
@@ -7897,9 +7973,22 @@ kernel void main0(texture2d<float, access::write> outTex [[texture(0)]],
 
     int frameIndex = int(sceneData.frameIndex);
 
-    float4 prevColor = prevTex.read(gid);
+    float4 prevColor = historyTex.read(gid);
+    float4 previousGuide = historyGuideTex.read(gid);
+    float objectIdValue = primaryObjectId == 0xFFFFFFFFu
+                              ? -1.0
+                              : float(primaryObjectId);
+    float4 currentGuide =
+        float4(primaryNormal.xy, primaryDepth, objectIdValue);
+    bool historyValid = frameIndex > 0 &&
+                        abs(previousGuide.z - primaryDepth) <
+                            max(0.05, primaryDepth * 0.02) &&
+                        distance(previousGuide.xy, primaryNormal.xy) < 0.12 &&
+                        abs(previousGuide.w - objectIdValue) < 0.5;
     if (frameIndex == 0)
         prevColor = float4(0, 0, 0, 1);
+    if (!historyValid)
+        prevColor = float4(color, 1.0);
 
     if (frameIndex > 2) {
         float prevL = luminance(prevColor.xyz);
@@ -7910,7 +7999,12 @@ kernel void main0(texture2d<float, access::write> outTex [[texture(0)]],
         }
     }
 
-    float3 accum = (prevColor.xyz * frameIndex + color) / (frameIndex + 1);
+    float historyLength = historyValid ? min(float(frameIndex), 31.0) : 0.0;
+    float3 lower = min(prevColor.xyz, color) - float3(0.35);
+    float3 upper = max(prevColor.xyz, color) + float3(0.35);
+    float3 clippedHistory = clamp(prevColor.xyz, lower, upper);
+    float3 accum = mix(color, clippedHistory,
+                       historyLength / (historyLength + 1.0));
     accum = clampLuminance(accum, 24.0);
 
     constexpr float bloomThreshold = 1.0;
@@ -7925,19 +8019,83 @@ kernel void main0(texture2d<float, access::write> outTex [[texture(0)]],
 
 	soft = soft * soft / max(bloomKnee * 4.0, 0.00001);
 
-	float c)",
-R"(ontribution =
+	float contribution =
     	max(brightness - bloomThreshold, soft) /
     	max(brightness, 0.00001);
 
 	float3 brightColor = accum * contribution;
+	float4 previousClip = cam.prevViewProj * float4(primaryPosition, 1.0);
+	float2 previousUv = previousClip.xy / max(abs(previousClip.w), 0.0001);
+	previousUv = previousUv * 0.5 + 0.5;
+	float2 motion = uv - previousUv;
+	float moment = luminance(color);
 
+	historyTex.write(float4(accum, 1.0), gid);
+	historyGuideTex.write(currentGuide, gid);
+	albedoRoughnessTex.write(float4(primaryAlbedo, primaryRoughness), gid);
+	normalDepthTex.write(float4(primaryNormal, primaryDepth), gid);
+	motionObjectTex.write(float4(motion, objectIdValue, 1.0), gid);
+	momentsHitTex.write(float4(moment, moment * moment,
+	                           primaryRoughness, primaryHitDistance), gid);
 	outTex.write(float4(accum, 1.0), gid);
 	brightTex.write(float4(brightColor, 1.0), gid);
 }
 )",
 };
 static const AtlasPackedShaderSource PATH = {PATH_PARTS, 8};
+
+static const char* const PATH_DENOISE_PARTS[] = {
+R"(#include <metal_stdlib>
+using namespace metal;
+
+struct DenoiseParameters {
+    int stepWidth;
+};
+
+kernel void main0(texture2d<float, access::read> inputTexture [[texture(0)]],
+                  texture2d<float, access::write> outputTexture [[texture(1)]],
+                  texture2d<float, access::write> brightTexture [[texture(2)]],
+                  texture2d<float, access::read> guideTexture [[texture(3)]],
+                  constant DenoiseParameters &parameters [[buffer(0)]],
+                  uint2 gid [[thread_position_in_grid]]) {
+    uint width = outputTexture.get_width();
+    uint height = outputTexture.get_height();
+    if (gid.x >= width || gid.y >= height) return;
+
+    constexpr int2 offsets[9] = {
+        int2(0, 0), int2(1, 0), int2(-1, 0), int2(0, 1), int2(0, -1),
+        int2(1, 1), int2(-1, 1), int2(1, -1), int2(-1, -1)};
+    constexpr float weights[9] = {0.28, 0.12, 0.12, 0.12, 0.12,
+                                  0.06, 0.06, 0.06, 0.06};
+    float3 center = inputTexture.read(gid).xyz;
+    float4 centerGuide = guideTexture.read(gid);
+    float centerLuminance = dot(center, float3(0.2126, 0.7152, 0.0722));
+    float3 filtered = float3(0.0);
+    float totalWeight = 0.0;
+    for (int i = 0; i < 9; ++i) {
+        int2 samplePosition = clamp(int2(gid) + offsets[i] * parameters.stepWidth,
+                                    int2(0), int2(width - 1, height - 1));
+        float3 sampleColor = inputTexture.read(uint2(samplePosition)).xyz;
+        float4 sampleGuide = guideTexture.read(uint2(samplePosition));
+        float sampleLuminance = dot(sampleColor, float3(0.2126, 0.7152, 0.0722));
+        float edgeWeight = exp(-abs(sampleLuminance - centerLuminance) * 6.0);
+        float normalWeight =
+            pow(max(dot(centerGuide.xyz, sampleGuide.xyz), 0.0), 24.0);
+        float depthWeight = exp(-abs(sampleGuide.w - centerGuide.w) /
+                                max(0.05, centerGuide.w * 0.02));
+        float weight = weights[i] * edgeWeight * normalWeight * depthWeight;
+        filtered += sampleColor * weight;
+        totalWeight += weight;
+    }
+    float3 result = filtered / max(totalWeight, 0.0001);
+    float brightness = dot(result, float3(0.2126, 0.7152, 0.0722));
+    float contribution = smoothstep(0.5, 1.5, brightness);
+    outputTexture.write(float4(result, 1.0), gid);
+    brightTexture.write(float4(result * contribution, 1.0), gid);
+}
+)",
+};
+static const AtlasPackedShaderSource PATH_DENOISE = {PATH_DENOISE_PARTS, 1};
 
 static const char* const POINT_DEPTH_FRAG_PARTS[] = {
 R"(#include <metal_stdlib>
@@ -8716,6 +8874,8 @@ struct SSRParameters
     int steps;
     float thickness;
     float maxRoughness;
+    float historyWeight;
+    int debugMode;
 };
 
 struct main0_out
@@ -8753,17 +8913,17 @@ float3 sampleSkyReflection(thread const float3& normal, thread const float3& vie
 }
 
 static inline __attribute__((always_inline))
-float4 SSR(thread const float3& worldPos, thread const float3& normal, thread const float3& viewDir, thread const float& roughness, thread const float& metallic, thread const float3& albedo, constant Uniforms& _42, constant SSRParameters& _96, thread float4& gl_FragCoord, texture2d<float> gPosition, sampler gPositionSmplr, texture2d<float> sceneColor, sampler sceneColorSmplr, texture2d<float> gNormal, sampler gNormalSmplr, texture2d<float> gDepth, sampler gDepthSmplr, texturecube<float> skybox, sampler skyboxSmplr)
+float4 SSR(thread const float3& worldPos, thread const float3& normal, thread const float3& viewDir, thread const float& roughness, thread const float& metallic, thread const float& reflectivity, thread const float3& albedo, constant Uniforms& _42, constant SSRParameters& _96, thread float4& gl_FragCoord, texture2d<float> gPosition, sampler gPositionSmplr, texture2d<float> sceneColor, sampler sceneColorSmplr, texture2d<float> gNormal, sampler gNormalSmplr, texture2d<float> gDepth, sampler gDepthSmplr, texturecube<float> skybox, sampler skyboxSmplr)
 {
     float3 viewPos = (_42.view * float4(worldPos, 1.0)).xyz;
     float3 viewNormal = fast::normalize((_42.view * float4(normal, 0.0)).xyz);
-    float mirrorFactor = fast::clamp(metallic * (1.0 - roughness), 0.0, 1.0);
+    float mirrorFactor = fast::clamp(fast::max(metallic, reflectivity) * (1.0 - roughness), 0.0, 1.0);
     float3 skyReflection = sampleSkyReflection(normal, viewDir, albedo, metallic, skybox, skyboxSmplr);
     float3 viewDirection = fast::normalize(viewPos);
     float3 viewReflect = fast::normalize(reflect(viewDirection, viewNormal));
     if (viewReflect.z > 0.0)
     {
-        return float4(skyReflection, mirrorFactor);
+        return float4(0.0);
     }
     float3 rayOrigin = viewPos + (viewNormal * 0.00999999977648258209228515625);
     float3 rayDir = viewReflect;
@@ -8827,9 +8987,13 @@ float4 SSR(thread const float3& worldPos, thread const float3& normal, thread co
         {
             break;
         }
-        float rawDepth = gDepth.sample(gDepthSmplr, screenUV).x;
+        float hierarchyLevel = fast::clamp(floor(log2(1.0 + float(i) * 0.25)),
+                                           0.0, 5.0);
+        float rawDepth = gDepth.sample(gDepthSmplr, screenUV,
+                                       level(hierarchyLevel)).x;
         if (rawDepth >= 0.99989998340606689453125)
         {
+            currentPos += rayDir * stepSize * (exp2(hierarchyLevel) - 1.0);
             lastPos = currentPos;
             continue;
         }
@@ -8918,14 +9082,14 @@ float4 SSR(thread const float3& worldPos, thread const float3& normal, thread co
                     binarySearchStart = midPoint;
                     continue;
                 }
-                float3 midSampleWorldPos = gPosition.sample(gPositionSmplr, midUV).xyz;
+                float3 midSampleWorldPos = gPositio)",
+R"(n.sample(gPositionSmplr, midUV).xyz;
                 float3 midSampleViewPos = (_42.view * float4(midSampleWorldPos, 1.0)).xyz;
                 float midSampleDepth = -midSampleViewPos.z;
                 float midCurrentDepth = -midPoint.z;
                 if (midCurrentDepth < midSampleDepth)
                 {
-                    binarySearchStart)",
-R"( = midPoint;
+                    binarySearchStart = midPoint;
                 }
                 else
                 {
@@ -8948,23 +9112,9 @@ R"( = midPoint;
     }
     if (!hit)
     {
-        float3 fallbackReflection = skyReflection;
-        if (hasFallbackUV)
-        {
-            float mipLevel = roughness * 5.0;
-            float3 screenFallback = sceneColor.sample(sceneColorSmplr, fallbackUV, level(mipLevel)).xyz;
-            float fallbackDepth = gDepth.sample(gDepthSmplr, fallbackUV).x;
-            float screenValidity = 1.0 - smoothstep(0.99800002574920654296875, 1.0, fallbackDepth);
-            float fallbackLuma = dot(screenFallback, float3(0.2125999927520751953125, 0.715200006961822509765625, 0.072200000286102294921875));
-            screenValidity *= smoothstep(0.004999999888241291046142578125, 0.02999999932944774627685546875, fallbackLuma);
-            float tintStrength = metallic * 0.3499999940395355224609375;
-            float3 metalTint = mix(float3(1.0), albedo, float3(tintStrength));
-            fallbackReflection = mix(skyReflection, screenFallback * metalTint, float3(screenValidity));
-        }
-        return float4(fallbackReflection, mirrorFactor);
+        return float4(0.0);
     }
-    float mipLevel = roughness * 5.0;
-    float3 hitColor = sceneColor.sample(sceneColorSmplr, hitUV, level(mipLevel)).xyz;
+    float3 hitColor = sceneColor.sample(sceneColorSmplr, hitUV).xyz;
     float tintStrength = metallic * 0.3499999940395355224609375;
     float3 metalTint = mix(float3(1.0), albedo, float3(tintStrength));
     hitColor *= metalTint;
@@ -8999,7 +9149,7 @@ R"( = midPoint;
     return float4(reflectionColor, finalFade);
 }
 
-fragment main0_out main0(main0_in in [[stage_in]], constant Uniforms& _42 [[buffer(0)]], constant SSRParameters& _96 [[buffer(1)]], texture2d<float> gPosition [[texture(0)]], texture2d<float> sceneColor [[texture(1)]], texture2d<float> gNormal [[texture(2)]], texture2d<float> gAlbedoSpec [[texture(3)]], texture2d<float> gMaterial [[texture(4)]], texture2d<float> gDepth [[texture(5)]], texturecube<float> skybox [[texture(6)]], sampler gPositionSmplr [[sampler(0)]], sampler sceneColorSmplr [[sampler(1)]], sampler gNormalSmplr [[sampler(2)]], sampler gAlbedoSpecSmplr [[sampler(3)]], sampler gMaterialSmplr [[sampler(4)]], sampler gDepthSmplr [[sampler(5)]], sampler skyboxSmplr [[sampler(6)]], float4 gl_FragCoord [[position]])
+fragment main0_out main0(main0_in in [[stage_in]], constant Uniforms& _42 [[buffer(0)]], constant SSRParameters& _96 [[buffer(1)]], texture2d<float> gPosition [[texture(0)]], texture2d<float> sceneColor [[texture(1)]], texture2d<float> gNormal [[texture(2)]], texture2d<float> gAlbedoSpec [[texture(3)]], texture2d<float> gMaterial [[texture(4)]], texture2d<float> gDepth [[texture(5)]], texturecube<float> skybox [[texture(6)]], texture2d<float> historyTexture [[texture(7)]], sampler gPositionSmplr [[sampler(0)]], sampler sceneColorSmplr [[sampler(1)]], sampler gNormalSmplr [[sampler(2)]], sampler gAlbedoSpecSmplr [[sampler(3)]], sampler gMaterialSmplr [[sampler(4)]], sampler gDepthSmplr [[sampler(5)]], sampler skyboxSmplr [[sampler(6)]], sampler historyTextureSmplr [[sampler(7)]], float4 gl_FragCoord [[position]])
 {
     main0_out out = {};
     float3 worldPos = gPosition.sample(gPositionSmplr, in.TexCoord).xyz;
@@ -9008,12 +9158,13 @@ fragment main0_out main0(main0_in in [[stage_in]], constant Uniforms& _42 [[buff
     float4 material = gMaterial.sample(gMaterialSmplr, in.TexCoord);
     float metallic = material.x;
     float roughness = material.y;
+    float reflectivity = material.w;
     if (length(normal) < 0.001000000047497451305389404296875)
     {
         out.FragColor = float4(0.0);
         return out;
     }
-    if (roughness > _96.maxRoughness)
+    if (roughness > _96.maxRoughness || fast::max(metallic, reflectivity) < 0.02)
     {
         out.FragColor = float4(0.0);
         return out;
@@ -9024,8 +9175,20 @@ fragment main0_out main0(main0_in in [[stage_in]], constant Uniforms& _42 [[buff
     float3 param_2 = viewDir;
     float param_3 = roughness;
     float param_4 = metallic;
-    float3 param_5 = albedo;
-    float4 reflection = SSR(param, param_1, param_2, param_3, param_4, param_5, _42, _96, gl_FragCoord, gPosition, gPositionSmplr, sceneColor, sceneColorSmplr, gNormal, gNormalSmplr, gDepth, gDepthSmplr, skybox, skyboxSmplr);
+    float param_5 = reflectivity;
+    float3 param_6 = albedo;
+    float4 reflection = SSR(param, param_1, param_2, param_3, param_4, param_5, param_6, _42, _96, gl_FragCoord, gPosition, gPositionSmplr, sceneColor, sceneColorSmplr, gNormal, gNormalSmplr, gDepth, gDepthSmplr, skybox, skyboxSmplr);
+    if (_96.debugMode != 0)
+    {
+        out.FragColor = float4(1.0 - reflection.w, reflection.w, 0.0, 1.0);
+        return out;
+    }
+    if (reflection.w > 0.0 && _96.historyWeight > 0.0)
+    {
+        float4 history = historyTexture.sample(historyTextureSmplr, in.TexCoord);
+        float validHistory = step(0.001, history.w);
+        reflection = mix(reflection, history, _96.historyWeight * validHistory * reflection.w);
+    }
     out.FragColor = reflection;
     return out;
 }

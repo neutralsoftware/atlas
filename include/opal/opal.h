@@ -723,6 +723,10 @@ class Pipeline {
                        int callerId = -1);
     void bindTextureCubemap(const std::string &name, uint textureId, int unit,
                             int callerId = -1);
+#ifdef METAL
+    void bindTextureArray(const std::vector<std::shared_ptr<Texture>> &textures,
+                          uint32_t bufferIndex);
+#endif
 
 #ifdef VULKAN
     VkPipelineLayout pipelineLayout = VK_NULL_HANDLE;
@@ -1212,6 +1216,7 @@ class CommandBuffer {
     void dispatch(uint threadCountX, uint threadCountY = 1,
                   uint threadCountZ = 1);
     void computeBarrier();
+    void generateMipmaps(const std::shared_ptr<Texture> &texture);
     void performResolve(const std::shared_ptr<ResolveAction> &resolveAction);
     bool performSpatialUpscale(const std::shared_ptr<Texture> &sourceTexture);
 

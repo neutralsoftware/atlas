@@ -216,5 +216,5 @@ void main() {
     }
     gAlbedoSpec = vec4(a, ao);
 
-    gMaterial = vec4(metallic, roughness, ao, 1.0);
+    gMaterial = vec4(metallic, roughness, ao, clamp(material.reflectivity, 0.0, 1.0));
 }

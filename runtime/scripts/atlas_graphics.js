@@ -27,6 +27,7 @@ export const RenderTargetType = Object.freeze({
     GBuffer: 4,
     SSAO: 5,
     SSAOBlur: 6,
+    SSR: 7,
 });
 
 export const RenderPassType = Object.freeze({
@@ -247,7 +248,7 @@ export class DirectionalLight {
         return globalThis.__atlasUpdateDirectionalLight(this);
     }
 
-    castShadows(resolution = 4096) {
+    castShadows(resolution = 2048) {
         return globalThis.__atlasCastDirectionalLightShadows(
             this,
             resolution,

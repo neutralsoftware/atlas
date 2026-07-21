@@ -69,7 +69,12 @@ QString projectConfig(const QString& name,
     stream << "[renderer]\n";
     stream << "default = \"" << renderer << "\"\n";
     stream << "global_illumination = "
-           << (globalIllumination ? "true" : "false") << "\n\n";
+           << (globalIllumination ? "true" : "false") << "\n";
+    stream << "ssr = false\n";
+    stream << "ssr_quality = 1\n";
+    stream << "ssr_debug = false\n";
+    stream << "use_upscaling = true\n";
+    stream << "upscaling_ratio = 0.5\n\n";
     stream << "[window]\n";
     stream << "dimensions = [1280, 720]\n";
     stream << "mouse_capture = false\n";
@@ -124,7 +129,7 @@ QByteArray starterScene(AtlasProjectTemplate projectTemplate) {
             "globalLight": {
                 "enabled": true,
                 "castsShadows": true,
-                "shadowResolution": 4096
+                "shadowResolution": 2048
             }
         }
     }

@@ -556,24 +556,20 @@ void photon::GlobalIllumination::updateProbeLayout() {
         accelerationStructureDirty = false;
     }
 
-    float layoutPad = spacing * 0.25f;
-    Position3d minWs = hasGeometry ? Position3d(boundsMin.x - layoutPad,
-                                                boundsMin.y - layoutPad,
-                                                boundsMin.z - layoutPad)
+    float layoutInset = spacing * 0.5f;
+    Position3d minWs = hasGeometry ? Position3d(boundsMin.x + layoutInset,
+                                                boundsMin.y + layoutInset,
+                                                boundsMin.z + layoutInset)
                                    : Position3d(-spacing, -spacing, -spacing);
-    Position3d maxWs = hasGeometry ? Position3d(boundsMax.x + layoutPad,
-                                                boundsMax.y + layoutPad,
-                                                boundsMax.z + layoutPad)
+    Position3d maxWs = hasGeometry ? Position3d(boundsMax.x - layoutInset,
+                                                boundsMax.y - layoutInset,
+                                                boundsMax.z - layoutInset)
                                    : Position3d(spacing, spacing, spacing);
-
-    auto snapDown = [&](float v) { return std::floor(v / spacing) * spacing; };
-    auto snapUp = [&](float v) { return std::ceil(v / spacing) * spacing; };
-    minWs.x = snapDown(minWs.x);
-    minWs.y = snapDown(minWs.y);
-    minWs.z = snapDown(minWs.z);
-    maxWs.x = snapUp(maxWs.x);
-    maxWs.y = snapUp(maxWs.y);
-    maxWs.z = snapUp(maxWs.z);
+    if (hasGeometry) {
+        if (minWs.x > maxWs.x) minWs.x = maxWs.x = (boundsMin.x + boundsMax.x) * 0.5f;
+        if (minWs.y > maxWs.y) minWs.y = maxWs.y = (boundsMin.y + boundsMax.y) * 0.5f;
+        if (minWs.z > maxWs.z) minWs.z = maxWs.z = (boundsMin.z + boundsMax.z) * 0.5f;
+    }
 
     Position3d extent = maxWs - minWs;
     extent.x = std::max(0.0f, extent.x);

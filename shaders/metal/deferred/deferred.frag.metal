@@ -405,6 +405,6 @@ fragment main0_out main0(main0_in in [[stage_in]], constant UBO& _46 [[buffer(0)
         a = float3(0.0);
     }
     out.gAlbedoSpec = float4(a, aoValue);
-    out.gMaterial = float4(metallicValue, roughnessValue, aoValue, 1.0);
+    out.gMaterial = float4(metallicValue, roughnessValue, aoValue, fast::clamp(material.reflectivity, 0.0, 1.0));
     return out;
 }

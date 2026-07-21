@@ -376,6 +376,8 @@ RenderTargetType toNativeRenderTargetType(int type) {
         return RenderTargetType::SSAO;
     case 6:
         return RenderTargetType::SSAOBlur;
+    case 7:
+        return RenderTargetType::SSR;
     case 0:
     default:
         return RenderTargetType::Scene;
@@ -396,6 +398,8 @@ int toScriptRenderTargetType(RenderTargetType type) {
         return 5;
     case RenderTargetType::SSAOBlur:
         return 6;
+    case RenderTargetType::SSR:
+        return 7;
     case RenderTargetType::Scene:
     default:
         return 0;

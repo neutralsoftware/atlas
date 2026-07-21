@@ -30,6 +30,11 @@ supported_platforms = "all"
 [renderer]
 default = "((RENDERER_DEFAULT))"
 global_illumination = ((GLOBAL_ILLUMINATION))
+ssr = false
+ssr_quality = 1
+ssr_debug = false
+use_upscaling = true
+upscaling_ratio = 0.5
 
 [window]
 dimensions = [1280, 720]
@@ -79,7 +84,7 @@ const SCENE_TEMPLATE: &str = r#"{
             "globalLight": {
                 "enabled": true,
                 "castsShadows": true,
-                "shadowResolution": 4096,
+                "shadowResolution": 2048,
             },
         },
     },
