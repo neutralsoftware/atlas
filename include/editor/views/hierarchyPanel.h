@@ -46,6 +46,7 @@ class HierarchyPanel : public QWidget {
     void objectActivated(int id);
     void cameraActivated();
     void environmentActivated();
+    void graphiteActivated(const QString &path);
 
   protected:
     bool eventFilter(QObject *watched, QEvent *event) override;
@@ -53,13 +54,14 @@ class HierarchyPanel : public QWidget {
   private:
     void applySceneSnapshot(const QString &snapshot);
     void rebuildScene(const QString &sceneName, const QJsonArray &objects,
-                      int selectedId);
+                      const QJsonArray &interfaces, int selectedId);
     void appendObjects(QStandardItem *parent, const QJsonArray &objects);
     void showAddObjectMenu(const QPoint &position);
     void showContextMenu(const QPoint &position);
     int selectedObjectId() const;
     QString sceneSignature(const QString &sceneName,
-                           const QJsonArray &objects) const;
+                           const QJsonArray &objects,
+                           const QJsonArray &interfaces) const;
 
     ViewportPanel *viewport = nullptr;
     QTreeView *treeView = nullptr;

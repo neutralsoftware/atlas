@@ -5260,6 +5260,7 @@ std::string Context::sceneObjectsJson() const {
     snapshot["targets"] = editorTargetData;
     snapshot["environment"] = editorEnvironmentData;
     snapshot["propertySyncs"] = editorPropertySyncs;
+    snapshot["ui"] = editorUIData;
 
     std::unordered_map<int, std::vector<int>> children;
     for (const auto &[childId, parentId] : objectParents) {

@@ -731,6 +731,21 @@ void EditorWindow::setupDocks() {
             &InspectorPanel::inspectCamera);
     connect(hierarchyPanel, &HierarchyPanel::environmentActivated,
             inspectorPanel, &InspectorPanel::inspectEnvironment);
+    connect(hierarchyPanel, &HierarchyPanel::graphiteActivated, this,
+            [this](const QString &path) {
+                if (!path.isEmpty() && graphiteEditorPanel != nullptr &&
+                    viewportPanel != nullptr) {
+                    QString resolved = path;
+                    if (QFileInfo(resolved).isRelative()) {
+                        resolved =
+                            QDir(QFileInfo(viewportPanel->currentRuntimeScene())
+                                     .absolutePath())
+                                .filePath(resolved);
+                    }
+                    graphiteEditorPanel->openUI(resolved);
+                }
+                activateWorkspace(3);
+            });
     connect(hierarchyPanel, &HierarchyPanel::objectActivated, contentBrowser,
             &ContentBrowserPanel::clearSelection);
     connect(viewportPanel, &ViewportPanel::runtimeObjectActivated,
