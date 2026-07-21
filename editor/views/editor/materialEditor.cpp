@@ -28,6 +28,7 @@
 #include <QPair>
 #include <QSaveFile>
 #include <QScrollArea>
+#include <QSettings>
 #include <QSizePolicy>
 #include <QStyle>
 #include <QSignalBlocker>
@@ -482,6 +483,7 @@ void MaterialEditorPanel::rebuildBody() {
         delete item;
     }
     preview = nullptr;
+    materialSplitter = nullptr;
     textureFields.clear();
     texturePreviews.clear();
 }
@@ -504,10 +506,10 @@ void MaterialEditorPanel::showMaterial() {
     titleLabel->setText(QFileInfo(materialPath).completeBaseName());
     statusLabel->setText("Ready");
 
-    auto *splitter = new QSplitter(Qt::Horizontal, body);
-    splitter->setChildrenCollapsible(false);
-    auto *previewPane = new QWidget(splitter);
-    previewPane->setMinimumWidth(1);
+    materialSplitter = new QSplitter(Qt::Horizontal, body);
+    materialSplitter->setChildrenCollapsible(false);
+    auto *previewPane = new QWidget(materialSplitter);
+    previewPane->setMinimumWidth(180);
     previewPane->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Expanding);
     auto *previewLayout = new QVBoxLayout(previewPane);
     previewLayout->setContentsMargins(0, 0, 5, 0);
@@ -528,22 +530,45 @@ void MaterialEditorPanel::showMaterial() {
     connect(environment, &QComboBox::currentIndexChanged, preview,
             &MaterialPreviewWidget::setEnvironmentMode);
 
-    auto *propertiesScroll = new QScrollArea(splitter);
+    auto *propertiesScroll = new QScrollArea(materialSplitter);
     propertiesScroll->setObjectName("materialPropertiesScroll");
     propertiesScroll->setWidgetResizable(true);
     propertiesScroll->setHorizontalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
     auto *properties = new QWidget(propertiesScroll);
-    properties->setMinimumWidth(1);
+    propertiesScroll->setMinimumWidth(280);
+    properties->setMinimumWidth(260);
     properties->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Expanding);
     auto *propertiesLayout = new QVBoxLayout(properties);
     propertiesLayout->setContentsMargins(5, 0, 0, 0);
     propertiesLayout->setSpacing(9);
     propertiesScroll->setWidget(properties);
-    splitter->addWidget(previewPane);
-    splitter->addWidget(propertiesScroll);
-    splitter->setStretchFactor(0, 3);
-    splitter->setStretchFactor(1, 2);
-    bodyLayout->addWidget(splitter, 1);
+    materialSplitter->addWidget(previewPane);
+    materialSplitter->addWidget(propertiesScroll);
+    materialSplitter->setStretchFactor(0, 2);
+    materialSplitter->setStretchFactor(1, 3);
+    bodyLayout->addWidget(materialSplitter, 1);
+
+    QSettings settings("Neutral Software", "Atlas Engine");
+    const QByteArray splitterState =
+        settings.value("materialEditor/splitterState").toByteArray();
+    if (splitterState.isEmpty() ||
+        !materialSplitter->restoreState(splitterState)) {
+        QTimer::singleShot(0, materialSplitter, [this] {
+            if (materialSplitter == nullptr)
+                return;
+            const int available = std::max(materialSplitter->width(), 500);
+            materialSplitter->setSizes(
+                {available * 2 / 5, available * 3 / 5});
+        });
+    }
+    connect(materialSplitter, &QSplitter::splitterMoved, this,
+            [this](int, int) {
+                if (materialSplitter == nullptr)
+                    return;
+                QSettings settings("Neutral Software", "Atlas Engine");
+                settings.setValue("materialEditor/splitterState",
+                                  materialSplitter->saveState());
+            });
 
     auto *surface = new QGroupBox("Surface", properties);
     auto *surfaceForm = new QFormLayout(surface);

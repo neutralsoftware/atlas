@@ -12,6 +12,7 @@ class QDoubleSpinBox;
 class QLabel;
 class QLineEdit;
 class QPushButton;
+class QSplitter;
 class QTimer;
 class QVBoxLayout;
 class MaterialPreviewWidget;
@@ -51,6 +52,7 @@ class MaterialEditorPanel : public QWidget {
     QWidget *body = nullptr;
     QVBoxLayout *bodyLayout = nullptr;
     MaterialPreviewWidget *preview = nullptr;
+    QSplitter *materialSplitter = nullptr;
     QLabel *titleLabel = nullptr;
     QLabel *statusLabel = nullptr;
     QPushButton *albedoButton = nullptr;
