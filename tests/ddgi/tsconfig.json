@@ -1,0 +1,49 @@
+{
+  "compilerOptions": {
+    "baseUrl": ".",
+    "ignoreDeprecations": "6.0",
+    "module": "ESNext",
+    "moduleResolution": "Bundler",
+    "noEmit": true,
+    "paths": {
+      "atlas": [
+        "lib/atlas.d.ts"
+      ],
+      "atlas/*": [
+        "lib/*"
+      ]
+    },
+    "skipLibCheck": true,
+    "strict": true,
+    "target": "ES2022",
+    "verbatimModuleSyntax": true
+  },
+  "exclude": [
+    ".git",
+    "node_modules",
+    "dist",
+    "build",
+    "target",
+    "extern",
+    "atlas",
+    "aurora",
+    "bezel",
+    "finewave",
+    "graphite",
+    "hydra",
+    "include",
+    "opal",
+    "photon",
+    "cli",
+    "docs",
+    "tests",
+    "runtime/lib",
+    "runtime/docs",
+    "runtime/executable"
+  ],
+  "include": [
+    "**/*.ts",
+    "**/*.mts",
+    "**/*.cts"
+  ]
+}

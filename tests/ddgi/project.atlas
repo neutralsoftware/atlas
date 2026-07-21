@@ -1,0 +1,23 @@
+app_name = "ddgi"
+atlas_version = "alpha9"
+backend = "AUTO"
+name = "ddgi"
+platform = "DESKTOP"
+
+[game]
+assets = ["assets/"]
+main_scene = "main.ascene"
+
+[pack]
+icon = "none"
+supported_platforms = "all"
+
+[renderer]
+default = "deferred"
+global_illumination = true
+
+[window]
+dimensions = [1280, 720]
+mouse_capture = false
+multisampling = true
+ssaoScale = 0.5

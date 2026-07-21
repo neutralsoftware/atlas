@@ -1,0 +1,201 @@
+{
+    "camera": {
+        "actions": [],
+        "automaticMoving": false,
+        "controllerLookSensitivity": 180.0,
+        "farClip": 1000.0,
+        "focusDepth": 20.0,
+        "focusRange": 10.0,
+        "fov": 60.0,
+        "lookSmoothness": 0.15000000596046448,
+        "mouseSensitivity": 0.10000000149011612,
+        "movementSpeed": 2.0,
+        "nearClip": 0.5,
+        "orthoSize": 5.0,
+        "orthographic": false,
+        "position": [
+            0.04393434524536133,
+            1.856296420097351,
+            -1.224806308746338
+        ],
+        "target": [
+            1.236834168434143,
+            0.3583019971847534,
+            1.0845232009887695
+        ]
+    },
+    "environment": {
+        "atmosphere": {
+            "enabled": false,
+            "globalLight": {
+                "castsShadows": false,
+                "enabled": false,
+                "shadowResolution": 4096
+            }
+        },
+        "atmosphereSky": false,
+        "automaticAmbient": true
+    },
+    "id": "main_scene",
+    "lights": [
+        {
+            "color": [
+                1.0,
+                1.0,
+                1.0,
+                1.0
+            ],
+            "id": "ambientLight_0",
+            "intensity": 0.25,
+            "name": "ambientLight_0",
+            "position": [
+                0.0,
+                0.0,
+                0.0
+            ],
+            "type": "ambientLight"
+        },
+        {
+            "angle": 90.0,
+            "castsBothSides": false,
+            "castsShadows": true,
+            "color": [
+                1.0,
+                1.0,
+                1.0,
+                1.0
+            ],
+            "id": "792417628",
+            "intensity": 1.0,
+            "name": "Area Light",
+            "position": [
+                -0.9037287831306458,
+                1.741339921951294,
+                -0.8576900362968445
+            ],
+            "range": 50.0,
+            "right": [
+                0.14835353195667267,
+                -0.10242944955825806,
+                -0.983615517616272
+            ],
+            "shadowResolution": 2048,
+            "shineColor": [
+                1.0,
+                1.0,
+                1.0,
+                1.0
+            ],
+            "size": [
+                1.0,
+                1.0
+            ],
+            "type": "areaLight",
+            "up": [
+                0.568171501159668,
+                0.8229101896286011,
+                6.357552706504066e-09
+            ]
+        }
+    ],
+    "name": "Main Scene",
+    "objects": [
+        {
+            "components": [],
+            "id": 1991996539,
+            "name": "Cube",
+            "position": [
+                0.0,
+                0.0,
+                0.0
+            ],
+            "rotation": [
+                0.0,
+                0.0,
+                0.0
+            ],
+            "scale": [
+                3.5489842891693115,
+                0.06517583131790161,
+                3.5489842891693115
+            ],
+            "solid_type": "cube",
+            "type": "solid"
+        },
+        {
+            "components": [],
+            "name": "Cube 2",
+            "position": [
+                1.6440476179122925,
+                0.0,
+                -0.0001589655876159668
+            ],
+            "rotation": [
+                0.0,
+                0.0,
+                90.35289764404297
+            ],
+            "scale": [
+                3.5489842891693115,
+                0.06517583131790161,
+                3.5489842891693115
+            ],
+            "solid_type": "cube",
+            "type": "solid"
+        },
+        {
+            "components": [],
+            "name": "Cube 2 2",
+            "position": [
+                0.22580254077911377,
+                0.0,
+                1.727804183959961
+            ],
+            "rotation": [
+                95.30328369140625,
+                -89.0549545288086,
+                88.7397689819336
+            ],
+            "scale": [
+                3.5489842891693115,
+                0.06517583131790161,
+                3.5489842891693115
+            ],
+            "solid_type": "cube",
+            "type": "solid"
+        },
+        {
+            "components": [],
+            "id": 167521360,
+            "material": "Red.amat",
+            "name": "Cube 3",
+            "parent": "Area Light",
+            "position": [
+                1.236834168434143,
+                0.3583019971847534,
+                1.0845232009887695
+            ],
+            "rotation": [
+                0.0,
+                0.0,
+                0.0
+            ],
+            "scale": [
+                0.28361332416534424,
+                0.28361332416534424,
+                0.28361332416534424
+            ],
+            "solid_type": "cube",
+            "type": "solid"
+        }
+    ],
+    "property_syncs": [],
+    "targets": [
+        {
+            "display": true,
+            "name": "Main Target",
+            "render": true,
+            "type": "multisampled"
+        }
+    ]
+}

@@ -7,8 +7,8 @@
  Copyright (c) 2025 maxvdec
 */
 
-#ifndef WINDOW_H
-#define WINDOW_H
+#ifndef ATLAS_WINDOW_H
+#define ATLAS_WINDOW_H
 
 #include "atlas/camera.h"
 #include "atlas/core/windowing.h"
@@ -902,8 +902,8 @@ class Window {
     void updateBackbufferTarget(int backbufferWidth, int backbufferHeight);
     void renderEditorControls(
         const std::shared_ptr<opal::CommandBuffer> &commandBuffer);
-    void renderEditorGrid(
-        const std::shared_ptr<opal::CommandBuffer> &commandBuffer);
+    void
+    renderEditorGrid(const std::shared_ptr<opal::CommandBuffer> &commandBuffer);
     void renderEditorOverlays(
         const std::shared_ptr<opal::CommandBuffer> &commandBuffer);
     void updateEditorControlGeometry();
@@ -1062,4 +1062,4 @@ class Window {
     friend struct Fluid;
 };
 
-#endif // WINDOW_H
+#endif // ATLAS_WINDOW_H
