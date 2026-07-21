@@ -547,8 +547,14 @@ void GraphiteEditorPanel::openUI(const QString &path) {
                              "This is not a supported Graphite UI document.");
         return;
     }
-    if (!next.value("elements").isArray())
-        next.insert("elements", QJsonArray{});
+    if (!next.value("elements").isArray()) {
+        QJsonArray elements;
+        if (next.value("root").isObject()) {
+            elements.append(next.value("root"));
+            next.remove("root");
+        }
+        next.insert("elements", elements);
+    }
     uiPath = QFileInfo(path).absoluteFilePath();
     document = next;
     undoStack->clear();
@@ -1025,19 +1031,31 @@ void GraphiteEditorPanel::rebuildInspector() {
     auto *appearance = new QGroupBox("Appearance", inspectorBody);
     auto *appearanceForm = new QFormLayout(appearance);
     QJsonObject style = element.value("style").toObject();
-    QJsonObject normal = style.value("normal").toObject();
+    auto *state = new QComboBox(appearance);
+    state->addItems(
+        {"normal", "hovered", "pressed", "focused", "disabled", "checked"});
+    state->setCurrentText(styleVariant);
+    QJsonObject normal = style.value(styleVariant).toObject();
+    const QJsonObject fallbackNormal = style.value("normal").toObject();
     const QColor background =
-        jsonColor(normal.value("background"), QColor("#303440"));
+        jsonColor(normal.value("background"),
+                  jsonColor(fallbackNormal.value("background"),
+                            QColor("#303440")));
     const QColor foreground =
-        jsonColor(normal.value("foreground"), QColor("#F5F6F8"));
+        jsonColor(normal.value("foreground"),
+                  jsonColor(fallbackNormal.value("foreground"),
+                            QColor("#F5F6F8")));
     auto *backgroundButton = new QPushButton(appearance);
     backgroundButton->setIcon(styling::colorSwatch(background));
     backgroundButton->setText(background.name(QColor::HexArgb));
     auto *foregroundButton = new QPushButton(appearance);
     foregroundButton->setIcon(styling::colorSwatch(foreground));
     foregroundButton->setText(foreground.name(QColor::HexArgb));
-    auto *radius = spin(normal.value("cornerRadius").toDouble(8), 0, 1000,
-                        appearance);
+    auto *radius =
+        spin(normal.value("cornerRadius")
+                 .toDouble(fallbackNormal.value("cornerRadius").toDouble(8)),
+             0, 1000, appearance);
+    appearanceForm->addRow("State", state);
     appearanceForm->addRow("Background", backgroundButton);
     appearanceForm->addRow("Foreground", foregroundButton);
     appearanceForm->addRow("Corner Radius", radius);
@@ -1045,9 +1063,9 @@ void GraphiteEditorPanel::rebuildInspector() {
     auto updateStyle = [this, path](const QString &key, const QJsonValue &value) {
         QJsonObject changed = elementAtPath(path);
         QJsonObject style = changed.value("style").toObject();
-        QJsonObject normal = style.value("normal").toObject();
+        QJsonObject normal = style.value(styleVariant).toObject();
         normal.insert(key, value);
-        style.insert("normal", normal);
+        style.insert(styleVariant, normal);
         changed.insert("style", style);
         replaceElement(path, changed);
     };
@@ -1068,6 +1086,11 @@ void GraphiteEditorPanel::rebuildInspector() {
     connect(radius, &QDoubleSpinBox::editingFinished, this,
             [radius, updateStyle] {
                 updateStyle("cornerRadius", radius->value());
+            });
+    connect(state, &QComboBox::currentTextChanged, this,
+            [this](const QString &value) {
+                styleVariant = value;
+                rebuildInspector();
             });
 
     auto *components = new QGroupBox("Components", inspectorBody);

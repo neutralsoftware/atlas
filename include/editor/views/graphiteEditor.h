@@ -65,6 +65,7 @@ class GraphiteEditorPanel : public QWidget {
     QUndoStack *undoStack = nullptr;
     bool loading = false;
     int nextElementNumber = 1;
+    QString styleVariant = "normal";
 };
 
 #endif

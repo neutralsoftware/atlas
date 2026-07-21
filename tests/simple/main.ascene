@@ -59,4 +59,7 @@
         "automaticAmbient": true,
         "atmosphereSky": true,
     },
+    "ui": [
+        "assets/ui/main-hud.aui",
+    ],
 }
