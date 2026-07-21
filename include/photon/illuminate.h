@@ -94,9 +94,9 @@ class PathTracing {
     /** @brief Rays traced per pixel each dispatch. */
     int raysPerPixel = 1;
     /** @brief Maximum bounce count for indirect transport. */
-    int maxBounces = 1;
+    int maxBounces = 6;
     /** @brief Scalar multiplier for indirect lighting contribution. */
-    float indirectStrength = 0.55f;
+    float indirectStrength = 1.0f;
     /** @brief Whether normal maps are evaluated during shading. */
     bool sampleNormalMaps = true;
     /** @brief Strength multiplier applied to sampled normal maps. */
