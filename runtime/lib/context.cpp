@@ -5455,42 +5455,44 @@ int Context::createObject(const std::string &type, const std::string &name) {
         auto light = std::make_unique<Light>(position, Color::white(), 50.0f,
                                              Color::white(), 1.0f);
         light->createDebugObject();
-        int id = registerEditorLightObject(*this, light->debugObject,
-                                           json::object(), "pointLight");
+        auto debugObject = light->debugObject;
+        int id = registerEditorLightObject(*this, debugObject, json::object(),
+                                           "pointLight");
         if (id < 0) {
             return -1;
         }
         const std::string displayName =
             uniqueEditorObjectName(*this, name.empty() ? "Point Light" : name);
-        light->debugObject->name = displayName;
+        debugObject->name = displayName;
         objectNames[id] = displayName;
         objectSceneReferences[id] = std::to_string(id);
-        registerObjectReference(*this, displayName, light->debugObject.get());
+        registerObjectReference(*this, displayName, debugObject.get());
         editorPointLights[id] = light.get();
         scene->addLight(light.get());
         pointLights.push_back(std::move(light));
-        window->selectEditorObject(light->debugObject.get(), true);
+        window->selectEditorObject(debugObject.get(), true);
         return id;
     } else if (solidType == "spotlight" || solidType == "spot") {
         auto light = std::make_unique<Spotlight>(position, Position3d::down(),
                                                  Color::white(), 35.0f, 40.0f,
                                                  Color::white(), 1.0f, 50.0f);
         light->createDebugObject();
-        int id = registerEditorLightObject(*this, light->debugObject,
-                                           json::object(), "spotLight");
+        auto debugObject = light->debugObject;
+        int id = registerEditorLightObject(*this, debugObject, json::object(),
+                                           "spotLight");
         if (id < 0) {
             return -1;
         }
         const std::string displayName =
             uniqueEditorObjectName(*this, name.empty() ? "Spot Light" : name);
-        light->debugObject->name = displayName;
+        debugObject->name = displayName;
         objectNames[id] = displayName;
         objectSceneReferences[id] = std::to_string(id);
-        registerObjectReference(*this, displayName, light->debugObject.get());
+        registerObjectReference(*this, displayName, debugObject.get());
         editorSpotlights[id] = light.get();
         scene->addSpotlight(light.get());
         spotlights.push_back(std::move(light));
-        window->selectEditorObject(light->debugObject.get(), true);
+        window->selectEditorObject(debugObject.get(), true);
         return id;
     } else if (solidType == "directionallight" || solidType == "directional" ||
                solidType == "sun") {
@@ -5519,21 +5521,22 @@ int Context::createObject(const std::string &type, const std::string &name) {
         auto light = std::make_unique<AreaLight>();
         light->position = position;
         light->createDebugObject();
-        int id = registerEditorLightObject(*this, light->debugObject,
-                                           json::object(), "areaLight");
+        auto debugObject = light->debugObject;
+        int id = registerEditorLightObject(*this, debugObject, json::object(),
+                                           "areaLight");
         if (id < 0) {
             return -1;
         }
         const std::string displayName =
             uniqueEditorObjectName(*this, name.empty() ? "Area Light" : name);
-        light->debugObject->name = displayName;
+        debugObject->name = displayName;
         objectNames[id] = displayName;
         objectSceneReferences[id] = std::to_string(id);
-        registerObjectReference(*this, displayName, light->debugObject.get());
+        registerObjectReference(*this, displayName, debugObject.get());
         editorAreaLights[id] = light.get();
         scene->addAreaLight(light.get());
         areaLights.push_back(std::move(light));
-        window->selectEditorObject(light->debugObject.get(), true);
+        window->selectEditorObject(debugObject.get(), true);
         return id;
     } else if (solidType == "ambientlight" || solidType == "ambient") {
         scene->setAmbientColor(Color::white());
@@ -5591,10 +5594,15 @@ int Context::createObject(const std::string &type, const std::string &name) {
     return id;
 }
 
-std::string Context::objectDefinitionJson(int id) const {
+std::string Context::objectDefinitionJson(int id) {
     GameObject *object = findContextObject(*this, id);
-    return object != nullptr ? serializeNewObject(*this, *object).dump()
-                             : std::string();
+    if (object == nullptr) {
+        return {};
+    }
+    if (isEditorLightObject(*this, *object)) {
+        return serializeEditorLightObject(*this, *object).dump();
+    }
+    return serializeNewObject(*this, *object).dump();
 }
 
 int Context::pasteObjectDefinition(const std::string &definition) {
@@ -5623,9 +5631,20 @@ int Context::pasteObjectDefinition(const std::string &definition) {
         json sceneData = loadJsonFile(currentSceneFile);
         if (!sceneData.is_object())
             return -1;
-        if (!sceneData.contains("objects") || !sceneData["objects"].is_array())
-            sceneData["objects"] = json::array();
-        sceneData["objects"].push_back(objectData);
+        const std::string type =
+            normalizeToken(objectData.value("type", std::string()));
+        const bool isLight =
+            type == "point" || type == "pointlight" || type == "spot" ||
+            type == "spotlight" || type == "directional" ||
+            type == "directionallight" || type == "sun" || type == "area" ||
+            type == "arealight" || type == "ambient" ||
+            type == "ambientlight";
+        const char *collection = isLight ? "lights" : "objects";
+        if (!sceneData.contains(collection) ||
+            !sceneData[collection].is_array()) {
+            sceneData[collection] = json::array();
+        }
+        sceneData[collection].push_back(objectData);
         std::ofstream output(currentSceneFile, std::ios::trunc);
         if (!output.is_open())
             return -1;

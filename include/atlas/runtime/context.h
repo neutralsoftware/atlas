@@ -149,7 +149,7 @@ class Context {
     bool setObjectParent(int childId, int parentId);
     bool deleteObject(int id);
     int createObject(const std::string &type, const std::string &name);
-    std::string objectDefinitionJson(int id) const;
+    std::string objectDefinitionJson(int id);
     int pasteObjectDefinition(const std::string &definition);
     int pasteObjectDefinition(
         const std::string &definition,

@@ -1,0 +1,13 @@
+{
+  "devDependencies": {
+    "esbuild": "^0.25.5",
+    "typescript": "^5.9.2"
+  },
+  "name": "ddgi",
+  "private": true,
+  "scripts": {
+    "atlas:compile": "atlas script compile",
+    "typecheck": "tsc --noEmit"
+  },
+  "type": "module"
+}
