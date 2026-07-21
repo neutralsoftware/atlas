@@ -54,11 +54,11 @@ QColor jsonColor(const QJsonValue &value, const QColor &fallback) {
     const QJsonArray values = value.toArray();
     if (values.size() < 3)
         return fallback;
-    const double scale = values.at(0).toDouble() > 1.0 ||
-                                 values.at(1).toDouble() > 1.0 ||
-                                 values.at(2).toDouble() > 1.0
-                             ? 1.0
-                             : 255.0;
+    double maximum = std::max(
+        {values.at(0).toDouble(), values.at(1).toDouble(),
+         values.at(2).toDouble(),
+         values.size() > 3 ? values.at(3).toDouble() : 1.0});
+    const double scale = maximum > 1.0 ? 255.0 : 1.0;
     return QColor::fromRgbF(
         std::clamp(values.at(0).toDouble() / scale, 0.0, 1.0),
         std::clamp(values.at(1).toDouble() / scale, 0.0, 1.0),
@@ -70,6 +70,17 @@ QColor jsonColor(const QJsonValue &value, const QColor &fallback) {
 
 QJsonArray colorJson(const QColor &color) {
     return {color.redF(), color.greenF(), color.blueF(), color.alphaF()};
+}
+
+QColor chooseColor(QWidget *parent, const QColor &initial,
+                   const QString &title) {
+    QColorDialog dialog(initial, parent);
+    dialog.setWindowTitle(title);
+    dialog.setOption(QColorDialog::ShowAlphaChannel);
+    dialog.setOption(QColorDialog::DontUseNativeDialog);
+    if (dialog.exec() == QDialog::Rejected)
+        return {};
+    return dialog.selectedColor();
 }
 
 QPointF jsonPoint(const QJsonValue &value, const QPointF &fallback = {}) {
@@ -1071,15 +1082,15 @@ void GraphiteEditorPanel::rebuildInspector() {
     };
     connect(backgroundButton, &QPushButton::clicked, this,
             [this, background, updateStyle] {
-                const QColor selected = QColorDialog::getColor(
-                    background, this, "Background", QColorDialog::ShowAlphaChannel);
+                const QColor selected =
+                    chooseColor(this, background, "Background");
                 if (selected.isValid())
                     updateStyle("background", colorJson(selected));
             });
     connect(foregroundButton, &QPushButton::clicked, this,
             [this, foreground, updateStyle] {
-                const QColor selected = QColorDialog::getColor(
-                    foreground, this, "Foreground", QColorDialog::ShowAlphaChannel);
+                const QColor selected =
+                    chooseColor(this, foreground, "Foreground");
                 if (selected.isValid())
                     updateStyle("foreground", colorJson(selected));
             });
