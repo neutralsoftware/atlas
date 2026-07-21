@@ -111,7 +111,7 @@ struct alignas(16) GPUShadowParams {
     float bias;
     int textureIndex;
     float farPlane;
-    float _pad1;
+    int lightIndex;
     glm::vec3 lightPos;
     int lightType;
 };
@@ -404,7 +404,7 @@ class DirectionalLight {
      * @param window  The window in which to cast shadows.
      * @param resolution The resolution to use for the shadow map.
      */
-    void castShadows(Window &window, int resolution = 4096);
+    void castShadows(Window &window, int resolution = 2048);
 
   private:
     bool doesCastShadows = false;

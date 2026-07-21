@@ -1016,6 +1016,53 @@ void Pipeline::bindTexture(const std::string &name,
     resourceInfo.send();
 }
 
+#ifdef METAL
+void Pipeline::bindTextureArray(
+    const std::vector<std::shared_ptr<Texture>> &textures,
+    uint32_t bufferIndex) {
+    if (shaderProgram == nullptr || Device::globalInstance == nullptr) {
+        return;
+    }
+    auto &state = metal::pipelineState(this);
+    if (state.textureArgumentBuffer != nullptr &&
+        state.textureArgumentBufferIndex == bufferIndex &&
+        state.textureArgumentTextures == textures) {
+        return;
+    }
+    auto &programState = metal::programState(shaderProgram.get());
+    if (programState.computeFunction == nullptr) {
+        return;
+    }
+    if (state.textureArgumentBuffer != nullptr) {
+        state.textureArgumentBuffer->release();
+        state.textureArgumentBuffer = nullptr;
+    }
+    if (state.textureArgumentEncoder != nullptr) {
+        state.textureArgumentEncoder->release();
+    }
+    state.textureArgumentEncoder =
+        programState.computeFunction->newArgumentEncoder(bufferIndex);
+    if (state.textureArgumentEncoder == nullptr) {
+        return;
+    }
+    auto &deviceState = metal::deviceState(Device::globalInstance);
+    state.textureArgumentBuffer = deviceState.device->newBuffer(
+        state.textureArgumentEncoder->encodedLength(),
+        MTL::ResourceStorageModeShared);
+    state.textureArgumentEncoder->setArgumentBuffer(
+        state.textureArgumentBuffer, 0);
+    for (size_t i = 0; i < textures.size(); ++i) {
+        if (textures[i] == nullptr) {
+            continue;
+        }
+        auto &textureState = metal::textureState(textures[i].get());
+        state.textureArgumentEncoder->setTexture(textureState.texture, i);
+    }
+    state.textureArgumentBufferIndex = bufferIndex;
+    state.textureArgumentTextures = textures;
+}
+#endif
+
 void Pipeline::bindTexture2D(const std::string &name, uint textureId, int unit,
                              int callerId) {
 #ifdef OPENGL

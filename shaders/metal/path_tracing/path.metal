@@ -5,6 +5,7 @@ using namespace raytracing;
 
 struct CameraUniforms {
     float4x4 invViewProj;
+    float4x4 prevViewProj;
     float3 camPos;
     float _pad0;
 };
@@ -436,6 +437,26 @@ float4 sampleMaterialTexture(int textureIndex, float2 uv,
     return float4(0.0);
 }
 
+struct MaterialTextureArguments {
+    array<texture2d<float>, 256> textures [[id(0)]];
+};
+
+float4 sampleMaterialTexture(
+    int textureIndex, float2 uv,
+    constant MaterialTextureArguments &materialTextureArguments) {
+    return materialTextureArguments.textures[textureIndex].sample(
+        materialTexSampler, uv);
+}
+
+#undef PT_MATERIAL_TEXTURE_PARAMS
+#undef PT_MATERIAL_TEXTURE_ARGS
+#undef PT_MATERIAL_TEXTURE_BINDINGS
+#define PT_MATERIAL_TEXTURE_PARAMS                                            \
+    constant MaterialTextureArguments &materialTextureArguments
+#define PT_MATERIAL_TEXTURE_ARGS materialTextureArguments
+#define PT_MATERIAL_TEXTURE_BINDINGS                                          \
+    constant MaterialTextureArguments &materialTextureArguments [[buffer(12)]]
+
 void resolveMaterialParameters(Material mat, float2 uv, uint textureCount,
                                PT_MATERIAL_TEXTURE_PARAMS,
                                thread float3 &albedo, thread float &metallic,
@@ -861,7 +882,14 @@ float3 sampleRadiance(uint2 gid, uint sampleIndex, uint w,
                       constant PointLight *pointLights,
                       constant SpotLight *spotLights,
                       constant AreaLight *areaLights,
-                      PT_MATERIAL_TEXTURE_PARAMS, texturecube<float> skybox) {
+                      PT_MATERIAL_TEXTURE_PARAMS, texturecube<float> skybox,
+                      thread float3 &primaryAlbedo,
+                      thread float3 &primaryNormal,
+                      thread float3 &primaryPosition,
+                      thread float &primaryDepth,
+                      thread float &primaryRoughness,
+                      thread float &primaryHitDistance,
+                      thread uint &primaryObjectId) {
     uint rng = seedBase(gid, w, sceneData.frameIndex, sampleIndex);
 
     ray surfaceRay = primaryRay;
@@ -955,6 +983,13 @@ float3 sampleRadiance(uint2 gid, uint sampleIndex, uint w,
     resolveMaterialParameters(mat, texUV, sceneData.materialTextureCount,
                               PT_MATERIAL_TEXTURE_ARGS, albedo, metallic,
                               roughness, ao, emissive, ior, transmittance);
+    primaryAlbedo = albedo;
+    primaryNormal = N;
+    primaryPosition = P;
+    primaryDepth = length(P - primaryRay.origin);
+    primaryRoughness = roughness;
+    primaryHitDistance = hit.distance;
+    primaryObjectId = hit.instance_id;
     float reflectivity = clamp(mat.reflectivity, 0.0, 1.0);
     float sssStrength = clamp(1.0 - mat.albedo.w, 0.0, 1.0) * (1.0 - metallic);
     float sssThickness = mix(0.25, 1.75, ao);
@@ -1213,6 +1248,11 @@ float3 sampleRadiance(uint2 gid, uint sampleIndex, uint w,
                 isect, sceneAS, bP, bN, bV, bAlbedo, bMetallic, bRoughness,
                 bIor, bTransmittance, bSssStrength, bSssThickness, rng, dirLight,
                 sceneData, pointLights, spotLights, areaLights);
+            if (choseTransmission) {
+                float causticFocus = mix(1.0, 4.0,
+                                         transmittance * (1.0 - roughness));
+                bounceDirect *= causticFocus;
+            }
 
             float3 bAmbient = bAlbedo * max(sceneData.ambientIntensity, 0.0) *
                               (1.0 - bMetallic) * bAo;
@@ -1234,8 +1274,13 @@ float3 sampleRadiance(uint2 gid, uint sampleIndex, uint w,
 }
 
 kernel void main0(texture2d<float, access::write> outTex [[texture(0)]],
-                  texture2d<float, access::read> prevTex [[texture(1)]],
+                  texture2d<float, access::read_write> historyTex [[texture(1)]],
                   texture2d<float, access::write> brightTex [[texture(2)]],
+                  texture2d<float, access::write> albedoRoughnessTex [[texture(3)]],
+                  texture2d<float, access::write> normalDepthTex [[texture(4)]],
+                  texture2d<float, access::write> motionObjectTex [[texture(5)]],
+                  texture2d<float, access::write> momentsHitTex [[texture(6)]],
+                  texture2d<float, access::read_write> historyGuideTex [[texture(7)]],
                   instance_acceleration_structure sceneAS [[buffer(0)]],
                   constant CameraUniforms &cam [[buffer(1)]],
                   constant Material *materials [[buffer(2)]],
@@ -1272,6 +1317,13 @@ kernel void main0(texture2d<float, access::write> outTex [[texture(0)]],
     isect.set_triangle_cull_mode(triangle_cull_mode::none);
 
     float3 color = float3(0.0);
+    float3 primaryAlbedo = float3(0.0);
+    float3 primaryNormal = float3(0.0);
+    float3 primaryPosition = float3(0.0);
+    float primaryDepth = 0.0;
+    float primaryRoughness = 1.0;
+    float primaryHitDistance = 0.0;
+    uint primaryObjectId = 0xFFFFFFFFu;
 
     uint spp = max(sceneData.raysPerPixel, 1u);
     for (uint s = 0; s < spp; ++s) {
@@ -1284,7 +1336,9 @@ kernel void main0(texture2d<float, access::write> outTex [[texture(0)]],
         float3 sample = sampleRadiance(
             gid, s, w, isect, sceneAS, primaryRay, materials, meshData,
             vertices, indices, instanceData, dirLight, sceneData, pointLights,
-            spotLights, areaLights, PT_MATERIAL_TEXTURE_ARGS, skybox);
+            spotLights, areaLights, PT_MATERIAL_TEXTURE_ARGS, skybox,
+            primaryAlbedo, primaryNormal, primaryPosition, primaryDepth,
+            primaryRoughness, primaryHitDistance, primaryObjectId);
         color += clampLuminance(sample, 24.0);
     }
 
@@ -1292,9 +1346,22 @@ kernel void main0(texture2d<float, access::write> outTex [[texture(0)]],
 
     int frameIndex = int(sceneData.frameIndex);
 
-    float4 prevColor = prevTex.read(gid);
+    float4 prevColor = historyTex.read(gid);
+    float4 previousGuide = historyGuideTex.read(gid);
+    float objectIdValue = primaryObjectId == 0xFFFFFFFFu
+                              ? -1.0
+                              : float(primaryObjectId);
+    float4 currentGuide =
+        float4(primaryNormal.xy, primaryDepth, objectIdValue);
+    bool historyValid = frameIndex > 0 &&
+                        abs(previousGuide.z - primaryDepth) <
+                            max(0.05, primaryDepth * 0.02) &&
+                        distance(previousGuide.xy, primaryNormal.xy) < 0.12 &&
+                        abs(previousGuide.w - objectIdValue) < 0.5;
     if (frameIndex == 0)
         prevColor = float4(0, 0, 0, 1);
+    if (!historyValid)
+        prevColor = float4(color, 1.0);
 
     if (frameIndex > 2) {
         float prevL = luminance(prevColor.xyz);
@@ -1305,7 +1372,12 @@ kernel void main0(texture2d<float, access::write> outTex [[texture(0)]],
         }
     }
 
-    float3 accum = (prevColor.xyz * frameIndex + color) / (frameIndex + 1);
+    float historyLength = historyValid ? min(float(frameIndex), 31.0) : 0.0;
+    float3 lower = min(prevColor.xyz, color) - float3(0.35);
+    float3 upper = max(prevColor.xyz, color) + float3(0.35);
+    float3 clippedHistory = clamp(prevColor.xyz, lower, upper);
+    float3 accum = mix(color, clippedHistory,
+                       historyLength / (historyLength + 1.0));
     accum = clampLuminance(accum, 24.0);
 
     constexpr float bloomThreshold = 1.0;
@@ -1325,7 +1397,19 @@ kernel void main0(texture2d<float, access::write> outTex [[texture(0)]],
     	max(brightness, 0.00001);
 
 	float3 brightColor = accum * contribution;
+	float4 previousClip = cam.prevViewProj * float4(primaryPosition, 1.0);
+	float2 previousUv = previousClip.xy / max(abs(previousClip.w), 0.0001);
+	previousUv = previousUv * 0.5 + 0.5;
+	float2 motion = uv - previousUv;
+	float moment = luminance(color);
 
+	historyTex.write(float4(accum, 1.0), gid);
+	historyGuideTex.write(currentGuide, gid);
+	albedoRoughnessTex.write(float4(primaryAlbedo, primaryRoughness), gid);
+	normalDepthTex.write(float4(primaryNormal, primaryDepth), gid);
+	motionObjectTex.write(float4(motion, objectIdValue, 1.0), gid);
+	momentsHitTex.write(float4(moment, moment * moment,
+	                           primaryRoughness, primaryHitDistance), gid);
 	outTex.write(float4(accum, 1.0), gid);
 	brightTex.write(float4(brightColor, 1.0), gid);
 }

@@ -102,7 +102,7 @@ struct RuntimeEnvironmentDefinition {
     bool useAtmosphereSkybox = false;
     bool useGlobalLight = false;
     bool atmosphereCastsShadows = false;
-    int atmosphereShadowResolution = 4096;
+    int atmosphereShadowResolution = 2048;
 };
 
 class RuntimeScriptComponent final : public Component {
@@ -1662,7 +1662,7 @@ void syncEditorLightObject(Context &context, GameObject &object) {
             tryReadColorAny(*source, {"shineColor"}, it->second->shineColor);
             tryReadFloatAny(*source, {"intensity"}, it->second->intensity);
             bool castsShadows = false;
-            int resolution = 4096;
+            int resolution = 2048;
             tryReadBoolAny(*source, {"castsShadows"}, castsShadows);
             tryReadIntAny(*source, {"shadowResolution"}, resolution);
             if (castsShadows && it->second->shadowRenderTarget == nullptr &&
@@ -4051,6 +4051,8 @@ makeContextWithWindowOptions(std::string projectFile, void *metalView,
     bool mouseCaptured = false;
     bool multisampling = false;
     float ssaoScale = 0.4f;
+    float renderScale = 0.5f;
+    bool useUpscaling = false;
     bool editorControls = false;
 
     if (auto *windowTable = configTable["window"].as_table()) {
@@ -4065,6 +4067,12 @@ makeContextWithWindowOptions(std::string projectFile, void *metalView,
         multisampling = (*windowTable)["multisampling"].value_or(false);
         ssaoScale = (*windowTable)["ssaoScale"].value_or(0.4f);
     }
+    if (auto *rendererTable = configTable["renderer"].as_table()) {
+        useUpscaling =
+            (*rendererTable)["use_upscaling"].value_or(false);
+        renderScale = std::clamp(
+            (*rendererTable)["upscaling_ratio"].value_or(0.5f), 0.5f, 1.0f);
+    }
     if (auto *editorTable = configTable["editor"].as_table()) {
         editorControls = (*editorTable)["controls"].value_or(false);
     }
@@ -4075,7 +4083,7 @@ makeContextWithWindowOptions(std::string projectFile, void *metalView,
         .title = "Atlas Runtime",
         .width = embedded ? 1 : resWidth,
         .height = embedded ? 1 : resHeight,
-        .renderScale = 1.f,
+        .renderScale = useUpscaling ? renderScale : 1.0f,
         .mouseCaptured = embedded ? false : mouseCaptured,
         .multisampling = multisampling,
         .decorations = !embedded,
@@ -5836,11 +5844,21 @@ void Context::loadProject() {
     std::string mainScene = "main.ascene";
     std::vector<std::string> assetDirectories;
     bool useUpscaling = false;
+    float upscalingRatio = 0.5f;
+    bool screenSpaceReflections = false;
+    int screenSpaceReflectionQuality = 1;
+    bool screenSpaceReflectionDebug = false;
 
     if (auto *renderer = configTable["renderer"].as_table()) {
         defaultRenderer = (*renderer)["default"].value_or("normal");
         globalIllumination = (*renderer)["global_illumination"].value_or(false);
         useUpscaling = (*renderer)["use_upscaling"].value_or(false);
+        upscalingRatio = (*renderer)["upscaling_ratio"].value_or(0.5f);
+        screenSpaceReflections = (*renderer)["ssr"].value_or(false);
+        screenSpaceReflectionQuality =
+            std::clamp((*renderer)["ssr_quality"].value_or(1), 0, 2);
+        screenSpaceReflectionDebug =
+            (*renderer)["ssr_debug"].value_or(false);
     }
 
     if (auto *gameTable = configTable["game"].as_table()) {
@@ -5874,6 +5892,10 @@ void Context::loadProject() {
     config.mainScene = mainScene;
     config.assetDirectories = assetDirectories;
     config.useUpscaling = useUpscaling;
+    config.upscalingRatio = std::clamp(upscalingRatio, 0.5f, 1.0f);
+    config.screenSpaceReflections = screenSpaceReflections;
+    config.screenSpaceReflectionQuality = screenSpaceReflectionQuality;
+    config.screenSpaceReflectionDebug = screenSpaceReflectionDebug;
 
     Workspace::get().setRootPath(projectDir);
     initializeScripting();
@@ -6223,7 +6245,7 @@ void Context::loadScene(Window &window, const json &sceneData) {
                 Color color = Color::white();
                 Color shineColor = Color::white();
                 float intensity = 1.0f;
-                int shadowResolution = 4096;
+                int shadowResolution = 2048;
                 bool castsShadows = false;
 
                 tryReadVec3(lightData, "direction", direction);

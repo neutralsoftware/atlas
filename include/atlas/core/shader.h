@@ -117,6 +117,7 @@ enum class AtlasComputeShader {
     DDGI_WRITE,
     /** @brief Compute shader used for path tracing output generation. */
     PathTracer,
+    PathDenoiser,
 };
 
 /**

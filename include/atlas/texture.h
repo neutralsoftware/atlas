@@ -392,6 +392,7 @@ enum class RenderTargetType {
     GBuffer,
     SSAO,
     SSAOBlur,
+    SSR,
 };
 
 class Effect;

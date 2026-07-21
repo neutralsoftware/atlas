@@ -865,6 +865,18 @@ void bindComputeTextures(const std::shared_ptr<Pipeline> &pipeline,
     }
 
     auto &pipelineState = metal::pipelineState(pipeline.get());
+    if (pipelineState.textureArgumentBuffer != nullptr) {
+        encoder->setBuffer(pipelineState.textureArgumentBuffer, 0,
+                           pipelineState.textureArgumentBufferIndex);
+        for (const auto &texture : pipelineState.textureArgumentTextures) {
+            if (texture == nullptr) {
+                continue;
+            }
+            auto &textureState = metal::textureState(texture.get());
+            encoder->useResource(textureState.texture,
+                                 MTL::ResourceUsageRead);
+        }
+    }
     std::array<MTL::Texture *, 64> desiredTextures{};
     std::array<MTL::SamplerState *, 16> desiredSamplers{};
     desiredTextures.fill(nullptr);
@@ -1161,6 +1173,24 @@ void CommandBuffer::start() {
     vkResetFences(device->logicalDevice, 1, &inFlightFences[currentFrame]);
 #elif defined(METAL)
     auto &state = metal::commandBufferState(this);
+    state.inFlightCommandBuffers.erase(
+        std::remove_if(state.inFlightCommandBuffers.begin(),
+                       state.inFlightCommandBuffers.end(),
+                       [](MTL::CommandBuffer *buffer) {
+                           if (buffer->status() < MTL::CommandBufferStatusCompleted) {
+                               return false;
+                           }
+                           buffer->release();
+                           return true;
+                       }),
+        state.inFlightCommandBuffers.end());
+    if (state.inFlightCommandBuffers.size() >= 3) {
+        auto *oldest = state.inFlightCommandBuffers.front();
+        oldest->waitUntilCompleted();
+        oldest->release();
+        state.inFlightCommandBuffers.erase(
+            state.inFlightCommandBuffers.begin());
+    }
     if (state.autoreleasePool != nullptr) {
         state.autoreleasePool->release();
     }
@@ -1495,8 +1525,9 @@ void CommandBuffer::commit() {
         state.commandBuffer->presentDrawable(state.drawable);
     }
 
+    state.commandBuffer->retain();
+    state.inFlightCommandBuffers.push_back(state.commandBuffer);
     state.commandBuffer->commit();
-    state.commandBuffer->waitUntilCompleted();
     state.commandBuffer = nullptr;
     state.passDescriptor = nullptr;
     state.drawable = nullptr;
@@ -2128,6 +2159,32 @@ void CommandBuffer::computeBarrier() {
         state.computeEncoder->memoryBarrier(MTL::BarrierScope(
             MTL::BarrierScopeBuffers | MTL::BarrierScopeTextures));
     }
+#endif
+}
+
+void CommandBuffer::generateMipmaps(const std::shared_ptr<Texture> &texture) {
+    if (texture == nullptr) {
+        return;
+    }
+#ifdef OPENGL
+    texture->generateMipmaps(0);
+#elif defined(METAL)
+    auto &state = metal::commandBufferState(this);
+    auto &textureState = metal::textureState(texture.get());
+    if (state.commandBuffer == nullptr || textureState.texture == nullptr) {
+        return;
+    }
+    if (state.encoder != nullptr) {
+        state.encoder->endEncoding();
+        state.encoder = nullptr;
+    }
+    if (state.computeEncoder != nullptr) {
+        state.computeEncoder->endEncoding();
+        state.computeEncoder = nullptr;
+    }
+    auto *blitEncoder = state.commandBuffer->blitCommandEncoder();
+    blitEncoder->generateMipmaps(textureState.texture);
+    blitEncoder->endEncoding();
 #endif
 }
 

@@ -135,7 +135,7 @@ The scene can define an `environment` object. This combines the scene `Environme
     "globalLight": {
       "enabled": true,
       "castsShadows": true,
-      "shadowResolution": 4096
+      "shadowResolution": 2048
     },
     "clouds": {
       "enabled": true,

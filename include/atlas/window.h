@@ -748,6 +748,15 @@ class Window {
 
     void enableSSR(bool enabled = true) { this->useSSR = enabled; }
     bool isSSREnabled() const { return this->useSSR; }
+    void setSSRDebugMode(bool enabled) { this->ssrDebugMode = enabled; }
+    void setSSRQuality(int quality) {
+        const int clamped = std::clamp(quality, 0, 2);
+        if (this->ssrQuality != clamped) {
+            this->ssrQuality = clamped;
+            this->ssrFramebuffer.reset();
+            this->ssrHistoryFramebuffer.reset();
+        }
+    }
 
     /**
      * @brief Points to the render target currently bound for drawing.
@@ -857,6 +866,7 @@ class Window {
     std::shared_ptr<RenderTarget> volumetricBuffer;
     std::shared_ptr<RenderTarget> lightBuffer;
     std::shared_ptr<RenderTarget> ssrFramebuffer;
+    std::shared_ptr<RenderTarget> ssrHistoryFramebuffer;
     std::shared_ptr<BloomRenderTarget> bloomBuffer;
 
     bool waitForTracer = false;
@@ -953,6 +963,8 @@ class Window {
 
     bool debug = false;
     bool useSSR = false;
+    int ssrQuality = 1;
+    bool ssrDebugMode = false;
 
     /**
      * @brief Whether to use multi-pass point light shadow rendering.

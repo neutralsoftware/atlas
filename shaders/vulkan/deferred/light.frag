@@ -87,7 +87,7 @@ struct ShadowParameters {
     float bias;
     int textureIndex;
     float farPlane;
-    float _pad1;
+    int lightIndex;
     vec3 lightPos;
     int lightType;
 };
@@ -239,17 +239,16 @@ float calculateShadow(ShadowParameters shadowParam, vec3 fragPos, vec3 normal) {
     float desiredKernel = mix(1.0, 1.5, distFactor) * resFactor;
     int kernelSize = int(clamp(floor(desiredKernel + 0.5), 1.0, 2.0));
 
-    const vec2 poissonDisk[12] = vec2[](
+    const vec2 poissonDisk[8] = vec2[](
             vec2(-0.326, -0.406), vec2(-0.840, -0.074), vec2(-0.696, 0.457),
             vec2(-0.203, 0.621), vec2(0.962, -0.195), vec2(0.473, -0.480),
-            vec2(0.519, 0.767), vec2(0.185, -0.893), vec2(0.507, 0.064),
-            vec2(0.896, 0.412), vec2(-0.322, -0.933), vec2(-0.792, -0.598)
+            vec2(0.519, 0.767), vec2(0.185, -0.893)
         );
     float texelRadius = mix(1.0, 3.0, distFactor) * resFactor;
     vec2 filterRadius = texelSize * texelRadius;
 
     int sampleCount = 0;
-    for (int i = 0; i < 12; ++i) {
+    for (int i = 0; i < 8; ++i) {
         vec2 offset = poissonDisk[i] * filterRadius;
         vec2 uv = projCoords.xy + offset;
         if (uv.x < 0.0 || uv.x > 1.0 || uv.y < 0.0 || uv.y > 1.0) {
@@ -273,12 +272,13 @@ float calculatePointShadow(ShadowParameters shadowParam, vec3 fragPos) {
         }
     vec3 fragToLight = fragPos - shadowParam.lightPos;
     float currentDepth = length(fragToLight);
+    if (currentDepth >= shadowParam.farPlane) return 0.0;
 
     float bias = 0.05;
     float shadow = 0.0;
     float diskRadius = (1.0 + (currentDepth / shadowParam.farPlane)) * 0.05;
 
-    const int samples = 20;
+    const int samples = 8;
     const vec3 sampleOffsetDirections[] = vec3[](
             vec3(0.5381, 0.1856, -0.4319), vec3(0.1379, 0.2486, 0.4430),
             vec3(0.3371, 0.5679, -0.0057), vec3(-0.6999, -0.0451, -0.0019),
@@ -302,6 +302,18 @@ float calculatePointShadow(ShadowParameters shadowParam, vec3 fragPos) {
 
     shadow /= float(samples);
     return shadow;
+}
+
+float shadowForLight(int lightType, int lightIndex, vec3 fragPos, vec3 normal) {
+    for (int i = 0; i < shadowParamCount; ++i) {
+        if (shadowParams[i].lightType != lightType ||
+            shadowParams[i].lightIndex != lightIndex) continue;
+        float shadow = lightType == 3
+            ? calculatePointShadow(shadowParams[i], fragPos)
+            : calculateShadow(shadowParams[i], fragPos, normal);
+        return clamp(shadow * 0.85, 0.0, 1.0);
+    }
+    return 0.0;
 }
 
 vec3 evaluateBRDF(vec3 L, vec3 radiance, vec3 N, vec3 V, vec3 F0, vec3 albedo, float metallic, float roughness) {
@@ -421,45 +433,25 @@ void main() {
     float occlusion = clamp(ao * (0.2 + 0.8 * ssaoDesaturated), 0.0, 1.0);
     float lightingOcclusion = clamp(ssaoDesaturated, 0.25, 1.0);
 
-    float directionalShadow = 0.0;
-    float spotShadow = 0.0;
-    float areaShadow = 0.0;
-    float pointShadow = 0.0;
-
-    int shadowCount = shadowParamCount;
-    for (int i = 0; i < shadowCount; ++i) {
-        if (shadowParams[i].lightType == 3) {
-            pointShadow = max(pointShadow, calculatePointShadow(shadowParams[i], FragPos));
-        } else if (shadowParams[i].lightType == 1) {
-            spotShadow = max(spotShadow, calculateShadow(shadowParams[i], FragPos, N));
-        } else if (shadowParams[i].lightType == 2) {
-            areaShadow = max(areaShadow, calculateShadow(shadowParams[i], FragPos, N));
-        } else {
-            directionalShadow = max(directionalShadow, calculateShadow(shadowParams[i], FragPos, N));
-        }
-    }
-    directionalShadow = clamp(directionalShadow * 0.85, 0.0, 1.0);
-    spotShadow = clamp(spotShadow * 0.85, 0.0, 1.0);
-    areaShadow = clamp(areaShadow * 0.85, 0.0, 1.0);
-    pointShadow = clamp(pointShadow * 0.85, 0.0, 1.0);
-
     vec3 directionalResult = vec3(0.0);
     for (int i = 0; i < directionalLightCount; ++i) {
-        directionalResult += calcDirectionalLight(directionalLights[i], N, V, F0, albedo, metallic, roughness);
+        float shadow = shadowForLight(0, i, FragPos, N);
+        directionalResult += calcDirectionalLight(directionalLights[i], N, V, F0, albedo, metallic, roughness) * (1.0 - shadow);
     }
-    directionalResult *= (1.0 - directionalShadow);
 
     vec3 pointResult = vec3(0.0);
     for (int i = 0; i < pointLightCount; ++i) {
-        pointResult += calcPointLight(pointLights[i], FragPos, N, V, F0, albedo, metallic, roughness);
+        if (length(pointLights[i].position - FragPos) >= pointLights[i].radius) continue;
+        float shadow = shadowForLight(3, i, FragPos, N);
+        pointResult += calcPointLight(pointLights[i], FragPos, N, V, F0, albedo, metallic, roughness) * (1.0 - shadow);
     }
-    pointResult *= (1.0 - pointShadow);
 
     vec3 spotResult = vec3(0.0);
     for (int i = 0; i < spotlightCount; ++i) {
-        spotResult += calcSpotLight(spotlights[i], FragPos, N, V, F0, albedo, metallic, roughness);
+        if (length(spotlights[i].position - FragPos) >= spotlights[i].range) continue;
+        float shadow = shadowForLight(1, i, FragPos, N);
+        spotResult += calcSpotLight(spotlights[i], FragPos, N, V, F0, albedo, metallic, roughness) * (1.0 - shadow);
     }
-    spotResult *= (1.0 - spotShadow);
 
     vec3 areaResult = vec3(0.0);
     for (int i = 0; i < areaLightCount; ++i) {
@@ -488,12 +480,11 @@ void main() {
                 float attenuation = 1.0 / (1.0 + (dist / range) + (dist * dist) / (range * range));
                 float fade = 1.0 - smoothstep(range * 0.9, range, dist);
                 vec3 radiance = areaLights[i].diffuse * max(areaLights[i].intensity, 0.0) * attenuation * facing * fade;
-                areaResult += evaluateBRDF(L, radiance, N, V, F0, albedo, metallic, roughness);
+                float shadow = shadowForLight(2, i, FragPos, N);
+                areaResult += evaluateBRDF(L, radiance, N, V, F0, albedo, metallic, roughness) * (1.0 - shadow);
             }
         }
     }
-    areaResult *= (1.0 - areaShadow);
-
     vec3 rimResult = getRimLight(FragPos, N, V, F0, albedo, metallic, roughness);
     vec3 lighting = (directionalResult + pointResult + spotResult + areaResult + rimResult) * lightingOcclusion;
 

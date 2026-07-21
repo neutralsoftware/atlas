@@ -9,6 +9,7 @@ uniform sampler2D gAlbedoSpec;
 uniform sampler2D gMaterial;
 uniform sampler2D sceneColor;  
 uniform sampler2D gDepth;     
+uniform sampler2D historyTexture;
 uniform samplerCube skybox;
 
 uniform mat4 projection;
@@ -22,6 +23,8 @@ uniform float resolution = 0.5;
 uniform int steps = 64;            
 uniform float thickness = 2.0;      
 uniform float maxRoughness = 0.5;  
+uniform float historyWeight = 0.0;
+uniform int debugMode = 0;
 
 const float PI = 3.14159265359;
 
@@ -55,17 +58,17 @@ vec3 sampleSkyReflection(vec3 normal, vec3 viewDir, vec3 albedo, float metallic)
     return skyColor * tint;
 }
 
-vec4 SSR(vec3 worldPos, vec3 normal, vec3 viewDir, float roughness, float metallic, vec3 albedo) {
+vec4 SSR(vec3 worldPos, vec3 normal, vec3 viewDir, float roughness, float metallic, float reflectivity, vec3 albedo) {
     vec3 viewPos = (view * vec4(worldPos, 1.0)).xyz;
     vec3 viewNormal = normalize((view * vec4(normal, 0.0)).xyz);
-    float mirrorFactor = clamp(metallic * (1.0 - roughness), 0.0, 1.0);
+    float mirrorFactor = clamp(max(metallic, reflectivity) * (1.0 - roughness), 0.0, 1.0);
     vec3 skyReflection = sampleSkyReflection(normal, viewDir, albedo, metallic);
     
     vec3 viewDirection = normalize(viewPos);
     vec3 viewReflect = normalize(reflect(viewDirection, viewNormal));
     
     if (viewReflect.z > 0.0) {
-        return vec4(skyReflection, mirrorFactor);
+        return vec4(0.0);
     }
     
     vec3 rayOrigin = viewPos + viewNormal * 0.01;
@@ -102,8 +105,11 @@ vec4 SSR(vec3 worldPos, vec3 normal, vec3 viewDir, float roughness, float metall
             break;
         }
 
-        float rawDepth = texture(gDepth, screenUV).r;
+        float hierarchyLevel = clamp(floor(log2(1.0 + float(i) * 0.25)),
+                                     0.0, 5.0);
+        float rawDepth = textureLod(gDepth, screenUV, hierarchyLevel).r;
         if (rawDepth >= 0.9999) {
+            currentPos += rayDir * stepSize * (exp2(hierarchyLevel) - 1.0);
             lastPos = currentPos;
             continue;
         }
@@ -175,24 +181,10 @@ vec4 SSR(vec3 worldPos, vec3 normal, vec3 viewDir, float roughness, float metall
     }
     
     if (!hit) {
-        vec3 fallbackReflection = skyReflection;
-        if (hasFallbackUV) {
-            float mipLevel = roughness * 5.0;
-            vec3 screenFallback = textureLod(sceneColor, fallbackUV, mipLevel).rgb;
-            float fallbackDepth = texture(gDepth, fallbackUV).r;
-            float screenValidity = 1.0 - smoothstep(0.998, 1.0, fallbackDepth);
-            float fallbackLuma = dot(screenFallback, vec3(0.2126, 0.7152, 0.0722));
-            screenValidity *= smoothstep(0.005, 0.03, fallbackLuma);
-            float tintStrength = metallic * 0.35;
-            vec3 metalTint = mix(vec3(1.0), albedo, tintStrength);
-            fallbackReflection = mix(
-                skyReflection, screenFallback * metalTint, screenValidity);
-        }
-        return vec4(fallbackReflection, mirrorFactor);
+        return vec4(0.0);
     }
     
-    float mipLevel = roughness * 5.0;
-    vec3 hitColor = textureLod(sceneColor, hitUV, mipLevel).rgb;
+    vec3 hitColor = texture(sceneColor, hitUV).rgb;
     float tintStrength = metallic * 0.35;
     vec3 metalTint = mix(vec3(1.0), albedo, tintStrength);
     hitColor *= metalTint;
@@ -241,20 +233,31 @@ void main() {
     
     float metallic = material.r;
     float roughness = material.g;
+    float reflectivity = material.a;
     
     if (length(normal) < 0.001) {
         FragColor = vec4(0.0, 0.0, 0.0, 0.0);
         return;
     }
     
-    if (roughness > maxRoughness) {
+    if (roughness > maxRoughness || max(metallic, reflectivity) < 0.02) {
         FragColor = vec4(0.0, 0.0, 0.0, 0.0);
         return;
     }
     
     vec3 viewDir = normalize(cameraPosition - worldPos);
     
-    vec4 reflection = SSR(worldPos, normal, viewDir, roughness, metallic, albedo);
+    vec4 reflection = SSR(worldPos, normal, viewDir, roughness, metallic, reflectivity, albedo);
+    if (debugMode != 0) {
+        FragColor = vec4(1.0 - reflection.a, reflection.a, 0.0, 1.0);
+        return;
+    }
+    if (reflection.a > 0.0 && historyWeight > 0.0) {
+        vec4 history = texture(historyTexture, TexCoord);
+        float validHistory = step(0.001, history.a);
+        reflection = mix(reflection, history,
+                         historyWeight * validHistory * reflection.a);
+    }
     
     FragColor = reflection;
 }

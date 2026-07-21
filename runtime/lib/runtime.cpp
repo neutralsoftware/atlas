@@ -23,13 +23,18 @@ void RuntimeScene::initialize(Window &window) {
         if (runtimeContext->config.globalIllumination) {
             window.enableGlobalIllumination();
         }
+        window.enableSSR(runtimeContext->config.screenSpaceReflections);
+        window.setSSRQuality(
+            runtimeContext->config.screenSpaceReflectionQuality);
+        window.setSSRDebugMode(
+            runtimeContext->config.screenSpaceReflectionDebug);
     } else if (runtimeContext->config.renderer == "pathtracing") {
         window.enablePathTracing();
     }
 
     if (runtimeContext->config.useUpscaling) {
 #ifdef METAL
-        window.useMetalUpscaling();
+        window.useMetalUpscaling(runtimeContext->config.upscalingRatio);
 #endif
     }
 

@@ -267,6 +267,17 @@ ComputeShader ComputeShader::fromDefaultShader(AtlasComputeShader shader) {
             "AtlasComputeShader::PathTracer is only supported on Metal");
 #endif
     }
+    case AtlasComputeShader::PathDenoiser: {
+#ifdef METAL
+        computeShader = ComputeShader::fromSource(PATH_DENOISE);
+        computeShader.fromDefaultShaderType = shader;
+        ComputeShader::computeShaderCache[shader] = computeShader;
+        break;
+#else
+        throw std::runtime_error(
+            "AtlasComputeShader::PathDenoiser is only supported on Metal");
+#endif
+    }
     default:
         throw std::runtime_error("Unknown default compute shader");
     }

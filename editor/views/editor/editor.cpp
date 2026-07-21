@@ -1005,7 +1005,28 @@ void EditorWindow::showProjectSettings() {
     auto *frameLimit = new QSpinBox(&dialog);
     frameLimit->setRange(0, 1000);
     frameLimit->setValue(settings.value("project/frameLimit", 0).toInt());
+    auto *ssr = new QCheckBox("Enable screen-space reflections", &dialog);
+    ssr->setChecked(settings.value("project/ssr", false).toBool());
+    auto *ssrQuality = new QComboBox(&dialog);
+    ssrQuality->addItems({"Low", "Medium", "High"});
+    ssrQuality->setCurrentIndex(
+        settings.value("project/ssrQuality", 1).toInt());
+    auto *ssrDebug = new QCheckBox("Show SSR hit confidence", &dialog);
+    ssrDebug->setChecked(settings.value("project/ssrDebug", false).toBool());
+    auto *upscaling = new QCheckBox("Enable Metal upscaling", &dialog);
+    upscaling->setChecked(
+        settings.value("project/useUpscaling", true).toBool());
+    auto *internalScale = new QSpinBox(&dialog);
+    internalScale->setRange(50, 100);
+    internalScale->setSuffix("%");
+    internalScale->setValue(
+        settings.value("project/internalScale", 50).toInt());
     rendering->addRow("Renderer", renderer);
+    rendering->addRow(QString(), ssr);
+    rendering->addRow("SSR quality", ssrQuality);
+    rendering->addRow(QString(), ssrDebug);
+    rendering->addRow(QString(), upscaling);
+    rendering->addRow("Internal render scale", internalScale);
     rendering->addRow("Frame limit (0 = unlimited)", frameLimit);
     auto *physics = addPage("Physics", styling::Icon::Wrench, "#A1957D");
     auto *gravity = new QLineEdit(
@@ -1076,6 +1097,11 @@ void EditorWindow::showProjectSettings() {
     settings.setValue("project/fullscreen", fullscreen->isChecked());
     settings.setValue("project/renderer", renderer->currentText());
     settings.setValue("project/frameLimit", frameLimit->value());
+    settings.setValue("project/ssr", ssr->isChecked());
+    settings.setValue("project/ssrQuality", ssrQuality->currentIndex());
+    settings.setValue("project/ssrDebug", ssrDebug->isChecked());
+    settings.setValue("project/useUpscaling", upscaling->isChecked());
+    settings.setValue("project/internalScale", internalScale->value());
     settings.setValue("project/gravity", gravity->text());
     settings.setValue("project/fixedStep", fixedStep->text());
     settings.setValue("project/inputMap", inputMap->text());
@@ -1114,6 +1140,16 @@ void EditorWindow::showProjectSettings() {
         setTomlValue(&lines, "renderer", "global_illumination",
                      renderer->currentText() == "PBR + DDGI" ? "true"
                                                              : "false");
+        setTomlValue(&lines, "renderer", "ssr",
+                     ssr->isChecked() ? "true" : "false");
+        setTomlValue(&lines, "renderer", "ssr_quality",
+                     QString::number(ssrQuality->currentIndex()));
+        setTomlValue(&lines, "renderer", "ssr_debug",
+                     ssrDebug->isChecked() ? "true" : "false");
+        setTomlValue(&lines, "renderer", "use_upscaling",
+                     upscaling->isChecked() ? "true" : "false");
+        setTomlValue(&lines, "renderer", "upscaling_ratio",
+                     QString::number(internalScale->value() / 100.0, 'f', 2));
         QSaveFile outputFile(projectFile);
         const QByteArray contents = lines.join('\n').toUtf8();
         if (!outputFile.open(QIODevice::WriteOnly) ||

@@ -75,25 +75,24 @@ class PathTracing {
   public:
 #ifdef METAL
     /** @brief Runs one path tracing pass into the active output texture. */
-    void render(const std::shared_ptr<opal::CommandBuffer> &commandBuffer);
+    void render(const std::shared_ptr<opal::CommandBuffer> &commandBuffer,
+                const std::shared_ptr<opal::Texture> &output,
+                const std::shared_ptr<opal::Texture> &brightOutput);
     /** @brief Rebuilds BLAS/TLAS data for the current scene geometry. */
     void buildAccelerationStructure(
         const std::shared_ptr<opal::CommandBuffer> &commandBuffer);
     /** @brief Uploads light lists used by path tracing shaders. */
-    void createLightBuffers();
+    bool createLightBuffers();
     /** @brief Initializes compute pipelines and internal buffers. */
     void init();
     /** @brief Resizes path tracing output and history textures. */
     void resizeOutput(int width, int height);
 
     /** @brief Current frame output texture. */
-    std::shared_ptr<Texture> pathTracingTexture;
-    /** @brief Previous frame output texture used for accumulation. */
     std::shared_ptr<Texture> pathTracingTexturePrev;
-    std::shared_ptr<Texture> pathTracingTextureBright;
 
     /** @brief Rays traced per pixel each dispatch. */
-    int raysPerPixel = 4;
+    int raysPerPixel = 1;
     /** @brief Maximum bounce count for indirect transport. */
     int maxBounces = 1;
     /** @brief Scalar multiplier for indirect lighting contribution. */
@@ -102,12 +101,6 @@ class PathTracing {
     bool sampleNormalMaps = true;
     /** @brief Strength multiplier applied to sampled normal maps. */
     float normalMapStrength = 1.0f;
-
-    /** @brief Source framebuffer used when copying accumulation history. */
-    std::shared_ptr<opal::Framebuffer> copySrcFramebuffer;
-    /** @brief Destination framebuffer used when copying accumulation history.
-     */
-    std::shared_ptr<opal::Framebuffer> copyDstFramebuffer;
 
   private:
     std::shared_ptr<opal::Buffer> pointLights;
@@ -122,16 +115,25 @@ class PathTracing {
     std::vector<std::shared_ptr<opal::Texture>> materialTextures;
     std::shared_ptr<opal::InstanceAccelerationStructure> sceneTLAS;
     std::shared_ptr<opal::Pipeline> pathTracingPipeline;
+    std::shared_ptr<opal::Pipeline> pathDenoisePipeline;
     std::shared_ptr<ShaderProgram> computePathTracer;
+    std::shared_ptr<ShaderProgram> computePathDenoiser;
+    std::array<std::shared_ptr<Texture>, 2> denoiseTextures;
+    std::array<std::shared_ptr<Texture>, 4> pathTracingAovTextures;
+    std::shared_ptr<Texture> pathTracingHistoryGuide;
     std::unordered_map<int,
                        std::shared_ptr<opal::PrimitiveAccelerationStructure>>
         objectBLAS;
     std::vector<CoreObject *> cachedObjects;
+    std::vector<glm::mat4> cachedInstanceTransforms;
+    std::vector<uint64_t> cachedObjectStateHashes;
+    uint64_t cachedLightHash = 0;
 
     int frameIndex = 0;
     int outputWidth = 0;
     int outputHeight = 0;
     glm::mat4 cachedInvViewProj = glm::mat4(1.0f);
+    glm::mat4 previousViewProj = glm::mat4(1.0f);
     glm::vec3 cachedDirectionalLightDirection = glm::vec3(0.0f, -1.0f, 0.0f);
     glm::vec3 cachedDirectionalLightColor = glm::vec3(1.0f, 1.0f, 1.0f);
     float cachedDirectionalLightIntensity = -1.0f;

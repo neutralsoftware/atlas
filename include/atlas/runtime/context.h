@@ -46,6 +46,10 @@ class ProjectConfig {
     std::string mainScene;
     std::string inputActions;
     bool useUpscaling = false;
+    float upscalingRatio = 0.5f;
+    bool screenSpaceReflections = false;
+    int screenSpaceReflectionQuality = 1;
+    bool screenSpaceReflectionDebug = false;
     std::vector<std::string> assetDirectories;
 };
 

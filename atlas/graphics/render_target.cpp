@@ -9,6 +9,7 @@
 
 #include <glad/glad.h>
 #include <algorithm>
+#include <cmath>
 #include <iostream>
 #include <memory>
 #include <vector>
@@ -38,6 +39,8 @@ RenderTarget::RenderTarget(Window &window, RenderTargetType type,
     float targetScale = window.getRenderScale();
     if (type == RenderTargetType::SSAO || type == RenderTargetType::SSAOBlur) {
         targetScale = window.getSSAORenderScale();
+    } else if (type == RenderTargetType::SSR) {
+        targetScale *= resolution == 2 ? 0.75f : 0.5f;
     }
     targetScale = std::clamp(targetScale, 0.1f, 1.0f);
 
@@ -47,7 +50,7 @@ RenderTarget::RenderTarget(Window &window, RenderTargetType type,
     const auto height = static_cast<GLsizei>(scaledHeight);
     this->type = type;
 
-    if (type == RenderTargetType::Scene) {
+    if (type == RenderTargetType::Scene || type == RenderTargetType::SSR) {
         fb = opal::Framebuffer::create(width, height);
         std::vector<std::shared_ptr<opal::Texture>> colorTextures;
         for (unsigned int i = 0; i < 2; i++) {
@@ -361,10 +364,13 @@ RenderTarget::RenderTarget(Window &window, RenderTargetType type,
         gMaterial.creationData.height = scaledHeight;
         gMaterial.type = TextureType::Color;
 
+        const uint depthMipLevels = static_cast<uint>(
+            std::floor(std::log2(std::max(width, height)))) + 1;
         auto gbufferDepth = opal::Texture::create(
             opal::TextureType::Texture2D, opal::TextureFormat::DepthComponent24,
-            width, height, opal::TextureDataFormat::DepthComponent, nullptr, 1);
-        gbufferDepth->setFilterMode(opal::TextureFilterMode::Nearest,
+            width, height, opal::TextureDataFormat::DepthComponent, nullptr,
+            depthMipLevels);
+        gbufferDepth->setFilterMode(opal::TextureFilterMode::NearestMipmapNearest,
                                     opal::TextureFilterMode::Nearest);
         gbufferDepth->setWrapMode(opal::TextureAxis::S,
                                   opal::TextureWrapMode::ClampToEdge);

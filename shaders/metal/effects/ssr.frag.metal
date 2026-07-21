@@ -21,6 +21,8 @@ struct SSRParameters
     int steps;
     float thickness;
     float maxRoughness;
+    float historyWeight;
+    int debugMode;
 };
 
 struct main0_out
@@ -58,17 +60,17 @@ float3 sampleSkyReflection(thread const float3& normal, thread const float3& vie
 }
 
 static inline __attribute__((always_inline))
-float4 SSR(thread const float3& worldPos, thread const float3& normal, thread const float3& viewDir, thread const float& roughness, thread const float& metallic, thread const float3& albedo, constant Uniforms& _42, constant SSRParameters& _96, thread float4& gl_FragCoord, texture2d<float> gPosition, sampler gPositionSmplr, texture2d<float> sceneColor, sampler sceneColorSmplr, texture2d<float> gNormal, sampler gNormalSmplr, texture2d<float> gDepth, sampler gDepthSmplr, texturecube<float> skybox, sampler skyboxSmplr)
+float4 SSR(thread const float3& worldPos, thread const float3& normal, thread const float3& viewDir, thread const float& roughness, thread const float& metallic, thread const float& reflectivity, thread const float3& albedo, constant Uniforms& _42, constant SSRParameters& _96, thread float4& gl_FragCoord, texture2d<float> gPosition, sampler gPositionSmplr, texture2d<float> sceneColor, sampler sceneColorSmplr, texture2d<float> gNormal, sampler gNormalSmplr, texture2d<float> gDepth, sampler gDepthSmplr, texturecube<float> skybox, sampler skyboxSmplr)
 {
     float3 viewPos = (_42.view * float4(worldPos, 1.0)).xyz;
     float3 viewNormal = fast::normalize((_42.view * float4(normal, 0.0)).xyz);
-    float mirrorFactor = fast::clamp(metallic * (1.0 - roughness), 0.0, 1.0);
+    float mirrorFactor = fast::clamp(fast::max(metallic, reflectivity) * (1.0 - roughness), 0.0, 1.0);
     float3 skyReflection = sampleSkyReflection(normal, viewDir, albedo, metallic, skybox, skyboxSmplr);
     float3 viewDirection = fast::normalize(viewPos);
     float3 viewReflect = fast::normalize(reflect(viewDirection, viewNormal));
     if (viewReflect.z > 0.0)
     {
-        return float4(skyReflection, mirrorFactor);
+        return float4(0.0);
     }
     float3 rayOrigin = viewPos + (viewNormal * 0.00999999977648258209228515625);
     float3 rayDir = viewReflect;
@@ -132,9 +134,13 @@ float4 SSR(thread const float3& worldPos, thread const float3& normal, thread co
         {
             break;
         }
-        float rawDepth = gDepth.sample(gDepthSmplr, screenUV).x;
+        float hierarchyLevel = fast::clamp(floor(log2(1.0 + float(i) * 0.25)),
+                                           0.0, 5.0);
+        float rawDepth = gDepth.sample(gDepthSmplr, screenUV,
+                                       level(hierarchyLevel)).x;
         if (rawDepth >= 0.99989998340606689453125)
         {
+            currentPos += rayDir * stepSize * (exp2(hierarchyLevel) - 1.0);
             lastPos = currentPos;
             continue;
         }
@@ -252,23 +258,9 @@ float4 SSR(thread const float3& worldPos, thread const float3& normal, thread co
     }
     if (!hit)
     {
-        float3 fallbackReflection = skyReflection;
-        if (hasFallbackUV)
-        {
-            float mipLevel = roughness * 5.0;
-            float3 screenFallback = sceneColor.sample(sceneColorSmplr, fallbackUV, level(mipLevel)).xyz;
-            float fallbackDepth = gDepth.sample(gDepthSmplr, fallbackUV).x;
-            float screenValidity = 1.0 - smoothstep(0.99800002574920654296875, 1.0, fallbackDepth);
-            float fallbackLuma = dot(screenFallback, float3(0.2125999927520751953125, 0.715200006961822509765625, 0.072200000286102294921875));
-            screenValidity *= smoothstep(0.004999999888241291046142578125, 0.02999999932944774627685546875, fallbackLuma);
-            float tintStrength = metallic * 0.3499999940395355224609375;
-            float3 metalTint = mix(float3(1.0), albedo, float3(tintStrength));
-            fallbackReflection = mix(skyReflection, screenFallback * metalTint, float3(screenValidity));
-        }
-        return float4(fallbackReflection, mirrorFactor);
+        return float4(0.0);
     }
-    float mipLevel = roughness * 5.0;
-    float3 hitColor = sceneColor.sample(sceneColorSmplr, hitUV, level(mipLevel)).xyz;
+    float3 hitColor = sceneColor.sample(sceneColorSmplr, hitUV).xyz;
     float tintStrength = metallic * 0.3499999940395355224609375;
     float3 metalTint = mix(float3(1.0), albedo, float3(tintStrength));
     hitColor *= metalTint;
@@ -303,7 +295,7 @@ float4 SSR(thread const float3& worldPos, thread const float3& normal, thread co
     return float4(reflectionColor, finalFade);
 }
 
-fragment main0_out main0(main0_in in [[stage_in]], constant Uniforms& _42 [[buffer(0)]], constant SSRParameters& _96 [[buffer(1)]], texture2d<float> gPosition [[texture(0)]], texture2d<float> sceneColor [[texture(1)]], texture2d<float> gNormal [[texture(2)]], texture2d<float> gAlbedoSpec [[texture(3)]], texture2d<float> gMaterial [[texture(4)]], texture2d<float> gDepth [[texture(5)]], texturecube<float> skybox [[texture(6)]], sampler gPositionSmplr [[sampler(0)]], sampler sceneColorSmplr [[sampler(1)]], sampler gNormalSmplr [[sampler(2)]], sampler gAlbedoSpecSmplr [[sampler(3)]], sampler gMaterialSmplr [[sampler(4)]], sampler gDepthSmplr [[sampler(5)]], sampler skyboxSmplr [[sampler(6)]], float4 gl_FragCoord [[position]])
+fragment main0_out main0(main0_in in [[stage_in]], constant Uniforms& _42 [[buffer(0)]], constant SSRParameters& _96 [[buffer(1)]], texture2d<float> gPosition [[texture(0)]], texture2d<float> sceneColor [[texture(1)]], texture2d<float> gNormal [[texture(2)]], texture2d<float> gAlbedoSpec [[texture(3)]], texture2d<float> gMaterial [[texture(4)]], texture2d<float> gDepth [[texture(5)]], texturecube<float> skybox [[texture(6)]], texture2d<float> historyTexture [[texture(7)]], sampler gPositionSmplr [[sampler(0)]], sampler sceneColorSmplr [[sampler(1)]], sampler gNormalSmplr [[sampler(2)]], sampler gAlbedoSpecSmplr [[sampler(3)]], sampler gMaterialSmplr [[sampler(4)]], sampler gDepthSmplr [[sampler(5)]], sampler skyboxSmplr [[sampler(6)]], sampler historyTextureSmplr [[sampler(7)]], float4 gl_FragCoord [[position]])
 {
     main0_out out = {};
     float3 worldPos = gPosition.sample(gPositionSmplr, in.TexCoord).xyz;
@@ -312,12 +304,13 @@ fragment main0_out main0(main0_in in [[stage_in]], constant Uniforms& _42 [[buff
     float4 material = gMaterial.sample(gMaterialSmplr, in.TexCoord);
     float metallic = material.x;
     float roughness = material.y;
+    float reflectivity = material.w;
     if (length(normal) < 0.001000000047497451305389404296875)
     {
         out.FragColor = float4(0.0);
         return out;
     }
-    if (roughness > _96.maxRoughness)
+    if (roughness > _96.maxRoughness || fast::max(metallic, reflectivity) < 0.02)
     {
         out.FragColor = float4(0.0);
         return out;
@@ -328,8 +321,20 @@ fragment main0_out main0(main0_in in [[stage_in]], constant Uniforms& _42 [[buff
     float3 param_2 = viewDir;
     float param_3 = roughness;
     float param_4 = metallic;
-    float3 param_5 = albedo;
-    float4 reflection = SSR(param, param_1, param_2, param_3, param_4, param_5, _42, _96, gl_FragCoord, gPosition, gPositionSmplr, sceneColor, sceneColorSmplr, gNormal, gNormalSmplr, gDepth, gDepthSmplr, skybox, skyboxSmplr);
+    float param_5 = reflectivity;
+    float3 param_6 = albedo;
+    float4 reflection = SSR(param, param_1, param_2, param_3, param_4, param_5, param_6, _42, _96, gl_FragCoord, gPosition, gPositionSmplr, sceneColor, sceneColorSmplr, gNormal, gNormalSmplr, gDepth, gDepthSmplr, skybox, skyboxSmplr);
+    if (_96.debugMode != 0)
+    {
+        out.FragColor = float4(1.0 - reflection.w, reflection.w, 0.0, 1.0);
+        return out;
+    }
+    if (reflection.w > 0.0 && _96.historyWeight > 0.0)
+    {
+        float4 history = historyTexture.sample(historyTextureSmplr, in.TexCoord);
+        float validHistory = step(0.001, history.w);
+        reflection = mix(reflection, history, _96.historyWeight * validHistory * reflection.w);
+    }
     out.FragColor = reflection;
     return out;
 }
