@@ -94,6 +94,7 @@ class Column : public UIObject {
           position(pos) {
         recalculatePositions();
     }
+    void initialize() override;
     /** @brief Renders the column background and all children. */
     void render(float dt, std::shared_ptr<opal::CommandBuffer> commandBuffer,
                 bool updatePipeline) override;
@@ -210,6 +211,8 @@ class Row : public UIObject {
           position(pos) {
         recalculatePositions();
     }
+
+    void initialize() override;
 
     /** @brief Renders the row background and all children. */
     void render(float dt, std::shared_ptr<opal::CommandBuffer> commandBuffer,
@@ -331,6 +334,8 @@ class Stack : public UIObject {
         : padding(padding), children(children), position(pos) {
         recalculatePositions();
     }
+
+    void initialize() override;
 
     /** @brief Renders the stack background and all children. */
     void render(float dt, std::shared_ptr<opal::CommandBuffer> commandBuffer,

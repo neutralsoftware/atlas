@@ -24,6 +24,10 @@
 #include "aurora/terrain.h"
 #include "atlas/runtime/atlasScripts.h"
 #include "hydra/fluid.h"
+#include "graphite/image.h"
+#include "graphite/input.h"
+#include "graphite/layout.h"
+#include "graphite/text.h"
 #include <algorithm>
 #include <array>
 #include <cctype>
@@ -40,6 +44,7 @@
 #include <string>
 #include <toml.hpp>
 #include <unordered_set>
+#include <unordered_map>
 #include <variant>
 #include <vector>
 
@@ -3719,6 +3724,230 @@ std::shared_ptr<Effect> parseEffect(const json &effectData) {
     throw std::runtime_error("Unknown render target effect type: " + type);
 }
 
+void applyGraphiteStyleVariant(const json &data,
+                               graphite::UIStyleVariant &variant) {
+    if (!data.is_object()) {
+        return;
+    }
+    Position2d padding;
+    if (tryReadVec2Any(data, {"padding"}, padding)) {
+        variant.padding(Size2d{padding.x, padding.y});
+    }
+    float value = 0.0f;
+    if (tryReadFloatAny(data, {"cornerRadius"}, value)) {
+        variant.cornerRadius(value);
+    }
+    Color color;
+    if (tryReadColorAny(data, {"background", "backgroundColor"}, color)) {
+        variant.background(color);
+    }
+    float borderWidth = 0.0f;
+    Color borderColor;
+    const bool hasBorderWidth =
+        tryReadFloatAny(data, {"borderWidth"}, borderWidth);
+    const bool hasBorderColor =
+        tryReadColorAny(data, {"border", "borderColor"}, borderColor);
+    if (hasBorderWidth || hasBorderColor) {
+        variant.border(hasBorderWidth ? borderWidth : 1.0f,
+                       hasBorderColor ? borderColor : Color::white());
+    }
+    if (tryReadColorAny(data, {"foreground", "foregroundColor", "color"},
+                        color)) {
+        variant.foreground(color);
+    }
+    if (tryReadColorAny(data, {"tint", "tintColor"}, color)) {
+        variant.tint(color);
+    }
+    if (tryReadFloatAny(data, {"fontSize"}, value)) {
+        variant.fontSize(value);
+    }
+}
+
+graphite::UIStyle parseGraphiteStyle(const json &data) {
+    graphite::UIStyle style;
+    if (!data.is_object()) {
+        return style;
+    }
+    const std::array<std::pair<const char *, graphite::UIStyleState>, 6>
+        variants{{{"normal", graphite::UIStyleState::Normal},
+                  {"hovered", graphite::UIStyleState::Hovered},
+                  {"pressed", graphite::UIStyleState::Pressed},
+                  {"focused", graphite::UIStyleState::Focused},
+                  {"disabled", graphite::UIStyleState::Disabled},
+                  {"checked", graphite::UIStyleState::Checked}}};
+    bool foundVariant = false;
+    for (const auto &[name, state] : variants) {
+        auto it = data.find(name);
+        if (it == data.end()) {
+            continue;
+        }
+        foundVariant = true;
+        applyGraphiteStyleVariant(*it, style.variant(state));
+    }
+    if (!foundVariant) {
+        applyGraphiteStyleVariant(data, style.normal());
+    }
+    return style;
+}
+
+Font loadGraphiteFont(const json &data, const std::string &baseDir) {
+    if (!data.is_object()) {
+        return {};
+    }
+    std::string source;
+    tryReadStringAny(data, {"source", "path"}, source);
+    if (source.empty()) {
+        return {};
+    }
+    int size = 24;
+    tryReadIntAny(data, {"size"}, size);
+    size = std::max(size, 1);
+    const std::string resolved = resolveRuntimePath(baseDir, source);
+    std::string name;
+    tryReadStringAny(data, {"name", "id"}, name);
+    if (name.empty()) {
+        name = "graphite:" + resolved + ":" + std::to_string(size);
+    }
+    static std::unordered_map<std::string, Font> cache;
+    const std::string key = resolved + "#" + std::to_string(size);
+    if (const auto found = cache.find(key); found != cache.end()) {
+        return found->second;
+    }
+    Resource resource = createRuntimeResource(baseDir, source,
+                                              ResourceType::Font,
+                                              "graphite-font");
+    Font font = Font::fromResource(name, resource, size);
+    cache[key] = font;
+    return font;
+}
+
+LayoutAnchor parseGraphiteAnchor(const json &data) {
+    std::string value;
+    if (data.is_string()) {
+        value = normalizeToken(data.get<std::string>());
+    }
+    if (value == "topcenter")
+        return LayoutAnchor::TopCenter;
+    if (value == "topright")
+        return LayoutAnchor::TopRight;
+    if (value == "centerleft")
+        return LayoutAnchor::CenterLeft;
+    if (value == "center")
+        return LayoutAnchor::Center;
+    if (value == "centerright")
+        return LayoutAnchor::CenterRight;
+    if (value == "bottomleft")
+        return LayoutAnchor::BottomLeft;
+    if (value == "bottomcenter")
+        return LayoutAnchor::BottomCenter;
+    if (value == "bottomright")
+        return LayoutAnchor::BottomRight;
+    return LayoutAnchor::TopLeft;
+}
+
+ElementAlignment parseGraphiteAlignment(const json &data) {
+    std::string value;
+    if (data.is_string()) {
+        value = normalizeToken(data.get<std::string>());
+    }
+    if (value == "center" || value == "middle")
+        return ElementAlignment::Center;
+    if (value == "bottom" || value == "right" || value == "end")
+        return ElementAlignment::Bottom;
+    return ElementAlignment::Top;
+}
+
+void inheritGraphiteDocumentDefaults(json &element, const json &font) {
+    if (!element.is_object()) {
+        return;
+    }
+    if (!element.contains("font") && font.is_object()) {
+        element["font"] = font;
+    }
+    auto children = element.find("children");
+    if (children == element.end() || !children->is_array()) {
+        return;
+    }
+    for (auto &child : *children) {
+        inheritGraphiteDocumentDefaults(child, font);
+    }
+}
+
+void repairGraphiteColors(json &value, const std::string &key = {}) {
+    if (value.is_object()) {
+        for (auto iterator = value.begin(); iterator != value.end(); ++iterator)
+            repairGraphiteColors(iterator.value(), iterator.key());
+        return;
+    }
+    if (!value.is_array())
+        return;
+    const std::string normalizedKey = normalizeToken(key);
+    const bool colorField = normalizedKey == "background" ||
+                            normalizedKey == "foreground" ||
+                            normalizedKey == "border" ||
+                            normalizedKey == "tint" ||
+                            normalizedKey == "color" ||
+                            normalizedKey.ends_with("color");
+    if (colorField && value.size() == 4 && value[3].is_number() &&
+        std::abs(value[3].get<double>() - (1.0 / 255.0)) < 0.00001)
+        value[3] = 1.0;
+    for (auto &entry : value)
+        repairGraphiteColors(entry);
+}
+
+JsonDefinition loadGraphiteDocument(const json &value,
+                                    const std::string &baseDir) {
+    JsonDefinition definition;
+    bool enabled = true;
+    if (value.is_object()) {
+        JSON_READ_BOOL(value, "enabled", enabled);
+        std::string source;
+        tryReadStringAny(value, {"source"}, source);
+        if (!source.empty()) {
+            definition = loadJsonDefinition(source, baseDir);
+        } else {
+            definition = {.data = value, .baseDir = baseDir};
+        }
+    } else {
+        definition = loadJsonDefinition(value, baseDir);
+    }
+    if (!enabled) {
+        definition.data = json::object();
+        return definition;
+    }
+    if (!definition.data.is_object()) {
+        throw std::runtime_error("Graphite UI document must be an object");
+    }
+    std::string format;
+    tryReadStringAny(definition.data, {"format"}, format);
+    if (!format.empty() && normalizeToken(format) != "atlasgraphiteui") {
+        throw std::runtime_error("Unsupported Graphite UI document format: " +
+                                 format);
+    }
+    int version = 1;
+    tryReadIntAny(definition.data, {"version"}, version);
+    if (version != 1) {
+        throw std::runtime_error("Unsupported Graphite UI document version: " +
+                                 std::to_string(version));
+    }
+    repairGraphiteColors(definition.data);
+    const json defaultFont =
+        definition.data.contains("defaultFont") &&
+                definition.data["defaultFont"].is_object()
+            ? definition.data["defaultFont"]
+            : json::object();
+    if (definition.data.contains("root")) {
+        inheritGraphiteDocumentDefaults(definition.data["root"], defaultFont);
+    }
+    if (definition.data.contains("elements") &&
+        definition.data["elements"].is_array()) {
+        for (auto &element : definition.data["elements"]) {
+            inheritGraphiteDocumentDefaults(element, defaultFont);
+        }
+    }
+    return definition;
+}
+
 std::shared_ptr<Renderable>
 createRenderable(Context &context, const json &objectData,
                  const std::string &baseDir,
@@ -3737,6 +3966,241 @@ createRenderable(Context &context, const json &objectData,
 
     const std::string normalizedType = normalizeToken(type);
     const size_t generatedIndex = context.objects.size();
+
+    if (normalizedType == "text" || normalizedType == "image" ||
+        normalizedType == "button" || normalizedType == "checkbox" ||
+        normalizedType == "textfield" || normalizedType == "column" ||
+        normalizedType == "row" || normalizedType == "stack") {
+        Position2d position{0.0f, 0.0f};
+        tryReadVec2Any(objectData, {"position"}, position);
+        Position2d size{0.0f, 0.0f};
+        tryReadVec2Any(objectData, {"size", "minimumSize"}, size);
+        Font font;
+        if (const json *fontData = findField(objectData, {"font"});
+            fontData != nullptr) {
+            font = loadGraphiteFont(*fontData, baseDir);
+        }
+        graphite::UIStyle style;
+        const bool hasStyle = objectData.contains("style") &&
+                              objectData["style"].is_object();
+        if (hasStyle) {
+            style = parseGraphiteStyle(objectData["style"]);
+        }
+        auto registerUIObject = [&](const auto &object) {
+            registerGameObject(context, *object, objectData, normalizedType,
+                               generatedIndex);
+            context.objects.push_back(object);
+            collectPendingComponents(context, *object, objectData, baseDir,
+                                     rigidbodies, standard, joints);
+            return std::static_pointer_cast<Renderable>(object);
+        };
+
+        if (normalizedType == "text") {
+            std::string content;
+            tryReadStringAny(objectData, {"content", "text"}, content);
+            Color color = Color::white();
+            tryReadColorAny(objectData, {"color", "textColor"}, color);
+            auto object = std::make_shared<Text>(content, font, color, position);
+            tryReadFloatAny(objectData, {"fontSize"}, object->fontSize);
+            if (hasStyle)
+                object->setStyle(style);
+            return registerUIObject(object);
+        }
+
+        if (normalizedType == "image") {
+            auto object = std::make_shared<Image>();
+            object->position = position;
+            object->size = Size2d{size.x, size.y};
+            tryReadColorAny(objectData, {"tint"}, object->tint);
+            if (const json *source = findField(objectData, {"source", "texture"});
+                source != nullptr && !isEmptyStringValue(*source)) {
+                object->texture = loadTextureDefinition(
+                    *source, baseDir, TextureType::Color, false);
+            }
+            if (hasStyle)
+                object->setStyle(style);
+            return registerUIObject(object);
+        }
+
+        if (normalizedType == "button") {
+            std::string label;
+            tryReadStringAny(objectData, {"label", "content", "text"}, label);
+            auto object = std::make_shared<Button>(font, label, position);
+            object->minimumSize = Size2d{size.x, size.y};
+            tryReadFloatAny(objectData, {"fontSize"}, object->fontSize);
+            Position2d padding;
+            if (tryReadVec2Any(objectData, {"padding"}, padding))
+                object->padding = Size2d{padding.x, padding.y};
+            JSON_READ_BOOL(objectData, "enabled", object->enabled);
+            tryReadColorAny(objectData, {"textColor"}, object->textColor);
+            tryReadColorAny(objectData, {"backgroundColor"},
+                            object->backgroundColor);
+            tryReadColorAny(objectData, {"hoverBackgroundColor"},
+                            object->hoverBackgroundColor);
+            tryReadColorAny(objectData, {"pressedBackgroundColor"},
+                            object->pressedBackgroundColor);
+            tryReadColorAny(objectData, {"borderColor"},
+                            object->borderColor);
+            tryReadColorAny(objectData, {"hoverBorderColor"},
+                            object->hoverBorderColor);
+            if (hasStyle)
+                object->setStyle(style);
+            return registerUIObject(object);
+        }
+
+        if (normalizedType == "checkbox") {
+            std::string label;
+            tryReadStringAny(objectData, {"label", "content", "text"}, label);
+            bool checked = false;
+            JSON_READ_BOOL(objectData, "checked", checked);
+            auto object =
+                std::make_shared<Checkbox>(font, label, checked, position);
+            tryReadFloatAny(objectData, {"fontSize"}, object->fontSize);
+            tryReadFloatAny(objectData, {"boxSize"}, object->boxSize);
+            tryReadFloatAny(objectData, {"spacing"}, object->spacing);
+            Position2d padding;
+            if (tryReadVec2Any(objectData, {"padding"}, padding))
+                object->padding = Size2d{padding.x, padding.y};
+            JSON_READ_BOOL(objectData, "enabled", object->enabled);
+            tryReadColorAny(objectData, {"textColor"}, object->textColor);
+            tryReadColorAny(objectData, {"boxBackgroundColor"},
+                            object->boxBackgroundColor);
+            tryReadColorAny(objectData, {"hoverBoxBackgroundColor"},
+                            object->hoverBoxBackgroundColor);
+            tryReadColorAny(objectData, {"borderColor"},
+                            object->borderColor);
+            tryReadColorAny(objectData, {"activeBorderColor"},
+                            object->activeBorderColor);
+            tryReadColorAny(objectData, {"checkColor"}, object->checkColor);
+            if (hasStyle)
+                object->setStyle(style);
+            return registerUIObject(object);
+        }
+
+        if (normalizedType == "textfield") {
+            std::string text;
+            std::string placeholder;
+            tryReadStringAny(objectData, {"text", "content"}, text);
+            tryReadStringAny(objectData, {"placeholder"}, placeholder);
+            float width = size.x > 0.0f ? size.x : 320.0f;
+            tryReadFloatAny(objectData, {"maximumWidth", "width"}, width);
+            auto object = std::make_shared<TextField>(font, width, position,
+                                                      text, placeholder);
+            tryReadFloatAny(objectData, {"fontSize"}, object->fontSize);
+            Position2d padding;
+            if (tryReadVec2Any(objectData, {"padding"}, padding))
+                object->padding = Size2d{padding.x, padding.y};
+            tryReadColorAny(objectData, {"textColor"}, object->textColor);
+            tryReadColorAny(objectData, {"placeholderColor"},
+                            object->placeholderColor);
+            tryReadColorAny(objectData, {"backgroundColor"},
+                            object->backgroundColor);
+            tryReadColorAny(objectData, {"borderColor"},
+                            object->borderColor);
+            tryReadColorAny(objectData, {"focusedBorderColor"},
+                            object->focusedBorderColor);
+            tryReadColorAny(objectData, {"cursorColor"},
+                            object->cursorColor);
+            if (hasStyle)
+                object->setStyle(style);
+            return registerUIObject(object);
+        }
+
+        auto createChildren = [&](GameObject &parent) {
+            std::vector<UIObject *> children;
+            if (!objectData.contains("children") ||
+                !objectData["children"].is_array()) {
+                return children;
+            }
+            for (const auto &childData : objectData["children"]) {
+                auto child = createRenderable(context, childData, baseDir,
+                                              rigidbodies, standard, joints);
+                auto uiChild = std::dynamic_pointer_cast<UIObject>(child);
+                if (uiChild == nullptr) {
+                    throw std::runtime_error(
+                        "Graphite layouts can only contain UI elements");
+                }
+                children.push_back(uiChild.get());
+                context.objectParents[static_cast<int>(uiChild->getId())] =
+                    static_cast<int>(parent.getId());
+            }
+            return children;
+        };
+
+        if (normalizedType == "column") {
+            auto object = std::make_shared<Column>(position);
+            registerGameObject(context, *object, objectData, normalizedType,
+                               generatedIndex);
+            context.objects.push_back(object);
+            tryReadFloatAny(objectData, {"spacing"}, object->spacing);
+            object->maxSize = Size2d{size.x, size.y};
+            Position2d padding;
+            if (tryReadVec2Any(objectData, {"padding"}, padding))
+                object->padding = Size2d{padding.x, padding.y};
+            if (const json *alignment = findField(objectData, {"alignment"});
+                alignment != nullptr)
+                object->alignment = parseGraphiteAlignment(*alignment);
+            if (const json *anchor = findField(objectData, {"anchor"});
+                anchor != nullptr)
+                object->anchor = parseGraphiteAnchor(*anchor);
+            if (hasStyle)
+                object->setStyle(style);
+            object->setChildren(createChildren(*object));
+            collectPendingComponents(context, *object, objectData, baseDir,
+                                     rigidbodies, standard, joints);
+            return object;
+        }
+
+        if (normalizedType == "row") {
+            auto object = std::make_shared<Row>(position);
+            registerGameObject(context, *object, objectData, normalizedType,
+                               generatedIndex);
+            context.objects.push_back(object);
+            tryReadFloatAny(objectData, {"spacing"}, object->spacing);
+            object->maxSize = Size2d{size.x, size.y};
+            Position2d padding;
+            if (tryReadVec2Any(objectData, {"padding"}, padding))
+                object->padding = Size2d{padding.x, padding.y};
+            if (const json *alignment = findField(objectData, {"alignment"});
+                alignment != nullptr)
+                object->alignment = parseGraphiteAlignment(*alignment);
+            if (const json *anchor = findField(objectData, {"anchor"});
+                anchor != nullptr)
+                object->anchor = parseGraphiteAnchor(*anchor);
+            if (hasStyle)
+                object->setStyle(style);
+            object->setChildren(createChildren(*object));
+            collectPendingComponents(context, *object, objectData, baseDir,
+                                     rigidbodies, standard, joints);
+            return object;
+        }
+
+        auto object = std::make_shared<Stack>(position);
+        registerGameObject(context, *object, objectData, normalizedType,
+                           generatedIndex);
+        context.objects.push_back(object);
+        object->maxSize = Size2d{size.x, size.y};
+        Position2d padding;
+        if (tryReadVec2Any(objectData, {"padding"}, padding))
+            object->padding = Size2d{padding.x, padding.y};
+        if (const json *alignment =
+                findField(objectData, {"horizontalAlignment"});
+            alignment != nullptr)
+            object->horizontalAlignment = parseGraphiteAlignment(*alignment);
+        if (const json *alignment =
+                findField(objectData, {"verticalAlignment"});
+            alignment != nullptr)
+            object->verticalAlignment = parseGraphiteAlignment(*alignment);
+        if (const json *anchor = findField(objectData, {"anchor"});
+            anchor != nullptr)
+            object->anchor = parseGraphiteAnchor(*anchor);
+        if (hasStyle)
+            object->setStyle(style);
+        object->setChildren(createChildren(*object));
+        collectPendingComponents(context, *object, objectData, baseDir,
+                                 rigidbodies, standard, joints);
+        return object;
+    }
 
     if (normalizedType == "solid") {
         std::string solidType;
@@ -4796,6 +5260,7 @@ std::string Context::sceneObjectsJson() const {
     snapshot["targets"] = editorTargetData;
     snapshot["environment"] = editorEnvironmentData;
     snapshot["propertySyncs"] = editorPropertySyncs;
+    snapshot["ui"] = editorUIData;
 
     std::unordered_map<int, std::vector<int>> children;
     for (const auto &[childId, parentId] : objectParents) {
@@ -4808,7 +5273,7 @@ std::string Context::sceneObjectsJson() const {
             continue;
         }
         auto *object = dynamic_cast<GameObject *>(renderable.get());
-        if (object == nullptr ||
+        if (object == nullptr || dynamic_cast<UIObject *>(object) != nullptr ||
             objectParents.contains(static_cast<int>(object->getId()))) {
             continue;
         }
@@ -5733,6 +6198,10 @@ bool Context::saveCurrentScene() {
             continue;
         }
 
+        if (dynamic_cast<UIObject *>(object) != nullptr) {
+            continue;
+        }
+
         if (isEditorLightObject(*this, *object)) {
             serializedLights.push_back(
                 serializeEditorLightObject(*this, *object));
@@ -5758,6 +6227,7 @@ bool Context::saveCurrentScene() {
         sceneData["environment"] = editorEnvironmentData;
     }
     sceneData["property_syncs"] = editorPropertySyncs;
+    sceneData["ui"] = editorUIData;
 
     std::ofstream output(currentSceneFile, std::ios::trunc);
     if (!output.is_open()) {
@@ -6007,6 +6477,10 @@ void Context::loadScene(Window &window, const json &sceneData) {
         sceneData.contains("property_syncs") &&
                 sceneData["property_syncs"].is_array()
             ? sceneData["property_syncs"]
+            : json::array();
+    editorUIData =
+        sceneData.contains("ui") && sceneData["ui"].is_array()
+            ? sceneData["ui"]
             : json::array();
 
     scene->atmosphere.resetRuntimeState();
@@ -6449,6 +6923,37 @@ void Context::loadScene(Window &window, const json &sceneData) {
         }
     }
 
+    if (sceneData.contains("ui") && sceneData["ui"].is_array()) {
+        for (const auto &uiData : sceneData["ui"]) {
+            try {
+                JsonDefinition definition =
+                    loadGraphiteDocument(uiData, baseDir);
+                if (!definition.data.is_object() || definition.data.empty()) {
+                    continue;
+                }
+                if (definition.data.contains("root") &&
+                    definition.data["root"].is_object()) {
+                    topLevelRenderables.push_back(createRenderable(
+                        *this, definition.data["root"], definition.baseDir,
+                        rigidbodyComponents, standardComponents,
+                        jointComponents));
+                }
+                if (definition.data.contains("elements") &&
+                    definition.data["elements"].is_array()) {
+                    for (const auto &element : definition.data["elements"]) {
+                        topLevelRenderables.push_back(createRenderable(
+                            *this, element, definition.baseDir,
+                            rigidbodyComponents, standardComponents,
+                            jointComponents));
+                    }
+                }
+            } catch (const std::exception &error) {
+                RUNTIME_LOG("Skipping Graphite UI: " +
+                            std::string(error.what()));
+            }
+        }
+    }
+
     resolveObjectParentReferences(*this);
     for (const auto &[childId, parentId] : objectParents) {
         GameObject *child = findContextObject(*this, childId);
@@ -6526,6 +7031,10 @@ void Context::loadScene(Window &window, const json &sceneData) {
             }
         }
 
-        window.addObject(renderable.get());
+        if (std::dynamic_pointer_cast<UIObject>(renderable) != nullptr) {
+            window.addUIObject(renderable.get());
+        } else {
+            window.addObject(renderable.get());
+        }
     }
 }

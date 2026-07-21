@@ -80,6 +80,7 @@
 #include "editor/views/inspectorView.h"
 #include "editor/views/inputActionsDialog.h"
 #include "editor/views/materialEditor.h"
+#include "editor/views/graphiteEditor.h"
 #include "editor/views/postProcessing.h"
 #include "editor/views/viewport.h"
 #include "editor/views/viewportTools.h"
@@ -306,6 +307,10 @@ void EditorWindow::setupMenus() {
         return action;
     };
     addCommand(fileMenu, "New Scene", "Meta+N", [this] { createScene(); });
+    addCommand(fileMenu, "New Graphite UI", QString(), [this] {
+        if (contentBrowser != nullptr)
+            contentBrowser->createUI();
+    });
     addCommand(fileMenu, "Open Scene…", "Meta+O", [this] { openScene(); });
     auto *saveAction = fileMenu->addAction("Save Scene");
     saveAction->setIcon(styling::icon(styling::Icon::FloppyDisk, "#A1957D"));
@@ -315,6 +320,10 @@ void EditorWindow::setupMenus() {
         if (materialEditorPanel != nullptr &&
             materialEditorPanel->isVisible()) {
             materialEditorPanel->saveMaterial();
+        }
+        if (graphiteEditorPanel != nullptr &&
+            graphiteEditorPanel->isVisible()) {
+            graphiteEditorPanel->saveUI();
         }
         if (viewportPanel != nullptr) {
             viewportPanel->saveRuntimeScene();
@@ -352,6 +361,10 @@ void EditorWindow::setupMenus() {
                    materialEditorPanel->isAncestorOf(
                        QApplication::focusWidget())) {
             materialEditorPanel->undo();
+        } else if (graphiteEditorPanel != nullptr &&
+                   graphiteEditorPanel->isAncestorOf(
+                       QApplication::focusWidget())) {
+            graphiteEditorPanel->undo();
         } else if (viewportPanel != nullptr) {
             viewportPanel->undo();
         }
@@ -369,6 +382,10 @@ void EditorWindow::setupMenus() {
                    materialEditorPanel->isAncestorOf(
                        QApplication::focusWidget())) {
             materialEditorPanel->redo();
+        } else if (graphiteEditorPanel != nullptr &&
+                   graphiteEditorPanel->isAncestorOf(
+                       QApplication::focusWidget())) {
+            graphiteEditorPanel->redo();
         } else if (viewportPanel != nullptr) {
             viewportPanel->redo();
         }
@@ -599,11 +616,14 @@ void EditorWindow::setupDocks() {
     viewportTools = new ViewportTools(viewportPanel, projectFile);
     materialEditorPanel = new MaterialEditorPanel(viewportPanel);
     postProcessingPanel = new PostProcessingPanel(viewportPanel);
+    graphiteEditorPanel =
+        new GraphiteEditorPanel(viewportPanel, projectFile);
     workspaceStack = new QStackedWidget(this);
     workspaceStack->setObjectName("editorWorkspaceStack");
     workspaceStack->addWidget(viewportTools);
     workspaceStack->addWidget(materialEditorPanel);
     workspaceStack->addWidget(postProcessingPanel);
+    workspaceStack->addWidget(graphiteEditorPanel);
     workspaceStack->setCurrentIndex(0);
     auto *workspaceDock = dockManager->addPanel(
         {.id = "workspace",
@@ -682,7 +702,10 @@ void EditorWindow::setupDocks() {
         }
         windowMenu->addSeparator();
         const QList<QPair<QString, int>> workspaceModes{
-            {"Scene", 0}, {"Shading", 1}, {"Post-Processing", 2}};
+            {"Scene", 0},
+            {"Shading", 1},
+            {"Post-Processing", 2},
+            {"Graphite", 3}};
         for (const auto &[name, index] : workspaceModes) {
             auto *action = windowMenu->addAction(
                 QStringLiteral("Open %1 Workspace").arg(name), this,
@@ -696,7 +719,9 @@ void EditorWindow::setupDocks() {
                 index == 0 ? styling::icon(styling::Icon::CubeFocus, "#7E929C")
                 : index == 1
                     ? styling::icon(styling::Icon::Material, "#A1957D")
-                    : styling::icon(styling::Icon::FilmStrip, "#849589"));
+                : index == 2
+                    ? styling::icon(styling::Icon::FilmStrip, "#849589")
+                    : styling::icon(styling::Icon::Palette, "#849589"));
         }
     }
 
@@ -706,6 +731,21 @@ void EditorWindow::setupDocks() {
             &InspectorPanel::inspectCamera);
     connect(hierarchyPanel, &HierarchyPanel::environmentActivated,
             inspectorPanel, &InspectorPanel::inspectEnvironment);
+    connect(hierarchyPanel, &HierarchyPanel::graphiteActivated, this,
+            [this](const QString &path) {
+                if (!path.isEmpty() && graphiteEditorPanel != nullptr &&
+                    viewportPanel != nullptr) {
+                    QString resolved = path;
+                    if (QFileInfo(resolved).isRelative()) {
+                        resolved =
+                            QDir(QFileInfo(viewportPanel->currentRuntimeScene())
+                                     .absolutePath())
+                                .filePath(resolved);
+                    }
+                    graphiteEditorPanel->openUI(resolved);
+                }
+                activateWorkspace(3);
+            });
     connect(hierarchyPanel, &HierarchyPanel::objectActivated, contentBrowser,
             &ContentBrowserPanel::clearSelection);
     connect(viewportPanel, &ViewportPanel::runtimeObjectActivated,
@@ -734,6 +774,13 @@ void EditorWindow::setupDocks() {
                     viewportTools->openSceneTab(path);
                 }
             });
+    connect(contentBrowser, &ContentBrowserPanel::uiActivated, this,
+            [this](const QString &path) {
+                graphiteEditorPanel->openUI(path);
+                activateWorkspace(3);
+            });
+    connect(graphiteEditorPanel, &GraphiteEditorPanel::previewRequested, this,
+            [this] { activateWorkspace(0); });
 }
 
 void EditorWindow::setupWorkspaceBar() {
@@ -782,6 +829,7 @@ void EditorWindow::setupWorkspaceBar() {
     addMode("Scene", styling::Icon::CubeFocus, "#7E929C", 0, true);
     addMode("Shading", styling::Icon::Material, "#A1957D", 1);
     addMode("Post-Processing", styling::Icon::FilmStrip, "#849589", 2);
+    addMode("Graphite", styling::Icon::Palette, "#849589", 3);
 
     auto *spacer = new QWidget(bar);
     spacer->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Preferred);
@@ -795,6 +843,8 @@ void EditorWindow::setupWorkspaceBar() {
     connect(save, &QToolButton::clicked, this, [this] {
         if (materialEditorPanel != nullptr && materialEditorPanel->isVisible())
             materialEditorPanel->saveMaterial();
+        if (graphiteEditorPanel != nullptr && graphiteEditorPanel->isVisible())
+            graphiteEditorPanel->saveUI();
         if (viewportPanel != nullptr)
             viewportPanel->saveRuntimeScene();
     });

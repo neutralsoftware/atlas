@@ -27,6 +27,7 @@ class HierarchyPanel;
 class ContentBrowserPanel;
 class ViewportTools;
 class MaterialEditorPanel;
+class GraphiteEditorPanel;
 class PostProcessingPanel;
 class QMenu;
 class QButtonGroup;
@@ -77,6 +78,7 @@ private:
     ViewportPanel* viewportPanel = nullptr;
     InspectorPanel* inspectorPanel = nullptr;
     MaterialEditorPanel* materialEditorPanel = nullptr;
+    GraphiteEditorPanel* graphiteEditorPanel = nullptr;
     PostProcessingPanel* postProcessingPanel = nullptr;
     HierarchyPanel* hierarchyPanel = nullptr;
     ContentBrowserPanel* contentBrowser = nullptr;

@@ -1870,8 +1870,11 @@ bool Window::stepFrame() {
 
     updatePipelineStateField(this->useBlending, true);
 
-    for (auto &obj : this->uiRenderables) {
-        obj->render(getDeltaTime(), commandBuffer, shouldRefreshPipeline(obj));
+    if (!editorControlsEnabled || editorCameraFocused) {
+        for (auto &obj : this->uiRenderables) {
+            obj->render(getDeltaTime(), commandBuffer,
+                        shouldRefreshPipeline(obj));
+        }
     }
 
     this->lastViewMatrix = screenView;

@@ -1,0 +1,79 @@
+{
+    "format": "atlas.graphite.ui",
+    "version": 1,
+    "name": "Main HUD",
+    "canvas": {
+        "width": 1280,
+        "height": 720,
+        "background": [0.025, 0.03, 0.04, 1.0]
+    },
+    "defaultFont": {
+        "source": "../../../resources/arial.ttf",
+        "size": 28
+    },
+    "elements": [
+        {
+            "id": "hud_panel",
+            "name": "HUD Panel",
+            "type": "column",
+            "position": [48, 48],
+            "size": [360, 190],
+            "padding": [20, 20],
+            "spacing": 12,
+            "alignment": "start",
+            "anchor": "top-left",
+            "style": {
+                "normal": {
+                    "background": [0.07, 0.08, 0.11, 0.94],
+                    "borderWidth": 1,
+                    "border": [1, 1, 1, 0.18],
+                    "cornerRadius": 16
+                }
+            },
+            "components": [],
+            "children": [
+                {
+                    "id": "hud_title",
+                    "name": "HUD Title",
+                    "type": "text",
+                    "content": "Graphite UI",
+                    "fontSize": 34,
+                    "color": [1, 1, 1, 1],
+                    "components": []
+                },
+                {
+                    "id": "status_button",
+                    "name": "Status Button",
+                    "type": "button",
+                    "label": "Click the component",
+                    "size": [280, 58],
+                    "enabled": true,
+                    "style": {
+                        "normal": {
+                            "background": [0.18, 0.2, 0.27, 1],
+                            "foreground": [1, 1, 1, 1],
+                            "borderWidth": 1,
+                            "border": [1, 1, 1, 0.2],
+                            "cornerRadius": 10
+                        },
+                        "hovered": {
+                            "background": [0.28, 0.34, 0.42, 1],
+                            "border": [0.89, 0.59, 0.34, 1]
+                        },
+                        "pressed": {
+                            "background": [0.89, 0.59, 0.34, 1]
+                        }
+                    },
+                    "components": [
+                        {
+                            "type": "script",
+                            "source": "../scripts/uiStatus.ts",
+                            "className": "UIStatus",
+                            "variables": {}
+                        }
+                    ]
+                }
+            ]
+        }
+    ]
+}

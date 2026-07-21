@@ -40,6 +40,7 @@
 namespace {
 constexpr int ObjectIdRole = Qt::UserRole + 1;
 constexpr int ObjectTypeRole = Qt::UserRole + 2;
+constexpr int AssetPathRole = Qt::UserRole + 3;
 
 QIcon hierarchyIcon(QWidget *, const QString &type) {
     const QString normalized = type.toLower();
@@ -51,6 +52,8 @@ QIcon hierarchyIcon(QWidget *, const QString &type) {
         return styling::icon(styling::Icon::Camera, "#9E897D");
     if (normalized == "environment")
         return styling::icon(styling::Icon::Globe, "#7E929C");
+    if (normalized == "graphite" || normalized == "graphiteasset")
+        return styling::icon(styling::Icon::Palette, "#849589");
     if (normalized.contains("light") || normalized == "sun")
         return styling::icon(styling::Icon::Lightbulb, "#A1957D");
     if (normalized == "terrain" || normalized == "landscape")
@@ -275,11 +278,12 @@ void HierarchyPanel::applySceneSnapshot(const QString &snapshot) {
     const QJsonObject scene = document.object();
     const QString sceneName = scene.value("name").toString("Scene");
     const QJsonArray objects = scene.value("objects").toArray();
+    const QJsonArray interfaces = scene.value("ui").toArray();
     const int selectedId = scene.value("selectedId").toInt(-1);
-    const QString signature = sceneSignature(sceneName, objects);
+    const QString signature = sceneSignature(sceneName, objects, interfaces);
 
     if (signature != lastStructureSignature) {
-        rebuildScene(sceneName, objects, selectedId);
+        rebuildScene(sceneName, objects, interfaces, selectedId);
         lastStructureSignature = signature;
         return;
     }
@@ -307,7 +311,8 @@ void HierarchyPanel::applySceneSnapshot(const QString &snapshot) {
 }
 
 void HierarchyPanel::rebuildScene(const QString &sceneName,
-                                  const QJsonArray &objects, int selectedId) {
+                                  const QJsonArray &objects,
+                                  const QJsonArray &interfaces, int selectedId) {
     applyingSnapshot = true;
     model->clear();
     itemsById.clear();
@@ -336,6 +341,43 @@ void HierarchyPanel::rebuildScene(const QString &sceneName,
     environment->setEditable(false);
     specialItems.insert("environment", environment);
     root->appendRow(environment);
+
+    auto *graphite = new QStandardItem(
+        hierarchyIcon(this, "graphite"), "Graphite Overlay");
+    graphite->setData(-1, ObjectIdRole);
+    graphite->setData("graphite", ObjectTypeRole);
+    graphite->setToolTip("Scene UI overlays");
+    graphite->setEditable(false);
+    specialItems.insert("graphite", graphite);
+    for (const QJsonValue &value : interfaces) {
+        QString source;
+        bool enabled = true;
+        if (value.isString()) {
+            source = value.toString();
+        } else if (value.isObject()) {
+            const QJsonObject entry = value.toObject();
+            source = entry.value("source").toString();
+            enabled = entry.value("enabled").toBool(true);
+        }
+        if (source.isEmpty())
+            continue;
+        QString label = QFileInfo(source).completeBaseName();
+        if (label.isEmpty())
+            label = source;
+        if (!enabled)
+            label += " (Disabled)";
+        auto *asset = new QStandardItem(
+            hierarchyIcon(this, "graphiteAsset"), label);
+        asset->setData(-1, ObjectIdRole);
+        asset->setData("graphiteAsset", ObjectTypeRole);
+        asset->setData(source, AssetPathRole);
+        asset->setToolTip(source);
+        asset->setEditable(false);
+        const QString key = "graphite:" + source;
+        specialItems.insert(key, asset);
+        graphite->appendRow(asset);
+    }
+    root->appendRow(graphite);
     model->appendRow(root);
     treeView->expandAll();
 
@@ -524,6 +566,13 @@ void HierarchyPanel::focusSelectedObject() {
         selectedSpecialType = type;
         viewport->selectRuntimeObject(-1, false);
         emit environmentActivated();
+    } else if (type == "graphite" || type == "graphiteAsset") {
+        const QString source =
+            treeView->currentIndex().data(AssetPathRole).toString();
+        selectedSpecialType =
+            source.isEmpty() ? "graphite" : "graphite:" + source;
+        viewport->selectRuntimeObject(-1, false);
+        emit graphiteActivated(source);
     }
 }
 
@@ -576,6 +625,9 @@ void HierarchyPanel::showCreationPopup() {
 }
 
 QString HierarchyPanel::sceneSignature(const QString &sceneName,
-                                       const QJsonArray &objects) const {
-    return sceneName + ':' + objectSignature(objects);
+                                       const QJsonArray &objects,
+                                       const QJsonArray &interfaces) const {
+    return sceneName + ':' + objectSignature(objects) + ':' +
+           QString::fromUtf8(
+               QJsonDocument(interfaces).toJson(QJsonDocument::Compact));
 }

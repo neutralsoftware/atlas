@@ -110,6 +110,7 @@ class Context {
     json editorTargetData = json::array();
     json editorEnvironmentData = json::object();
     json editorPropertySyncs = json::array();
+    json editorUIData = json::array();
     bool applyingPropertySyncs = false;
     std::function<void(float, const std::string &)> modelImportProgress;
     std::vector<std::pair<std::string, std::string>> deletedObjectReferences;

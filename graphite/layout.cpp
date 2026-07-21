@@ -83,6 +83,18 @@ void setChildTopLeft(UIObject *child, const Position2d &topLeft,
 
 } // namespace
 
+void Column::initialize() {
+    for (auto &component : components) {
+        component->init();
+    }
+    graphite::initializeBoxRenderer(boxRenderer, id);
+    for (auto *child : children) {
+        if (child != nullptr) {
+            child->initialize();
+        }
+    }
+}
+
 void Column::addChild(UIObject *child) {
     children.push_back(child);
     recalculatePositions();
@@ -114,6 +126,13 @@ void Column::setProjectionMatrix(const glm::mat4 &projection) {
 void Column::render(float dt,
                     std::shared_ptr<opal::CommandBuffer> commandBuffer,
                     bool updatePipeline) {
+    if (boxRenderer.shader.shader == nullptr || boxRenderer.vao == nullptr ||
+        boxRenderer.vertexBuffer == nullptr) {
+        initialize();
+    }
+    for (auto &component : components) {
+        component->update(dt);
+    }
     recalculatePositions();
     const graphite::UIResolvedStyle style = graphite::resolveStyle(
         makeLayoutStyle(padding), &graphite::Theme::current().column,
@@ -180,6 +199,18 @@ void Row::addChild(UIObject *child) {
     recalculatePositions();
 }
 
+void Row::initialize() {
+    for (auto &component : components) {
+        component->init();
+    }
+    graphite::initializeBoxRenderer(boxRenderer, id);
+    for (auto *child : children) {
+        if (child != nullptr) {
+            child->initialize();
+        }
+    }
+}
+
 void Row::setChildren(const std::vector<UIObject *> &newChildren) {
     children = newChildren;
     recalculatePositions();
@@ -205,6 +236,13 @@ void Row::setProjectionMatrix(const glm::mat4 &projection) {
 
 void Row::render(float dt, std::shared_ptr<opal::CommandBuffer> commandBuffer,
                  bool updatePipeline) {
+    if (boxRenderer.shader.shader == nullptr || boxRenderer.vao == nullptr ||
+        boxRenderer.vertexBuffer == nullptr) {
+        initialize();
+    }
+    for (auto &component : components) {
+        component->update(dt);
+    }
     recalculatePositions();
     const graphite::UIResolvedStyle style = graphite::resolveStyle(
         makeLayoutStyle(padding), &graphite::Theme::current().row,
@@ -271,6 +309,18 @@ void Stack::addChild(UIObject *child) {
     recalculatePositions();
 }
 
+void Stack::initialize() {
+    for (auto &component : components) {
+        component->init();
+    }
+    graphite::initializeBoxRenderer(boxRenderer, id);
+    for (auto *child : children) {
+        if (child != nullptr) {
+            child->initialize();
+        }
+    }
+}
+
 void Stack::setChildren(const std::vector<UIObject *> &newChildren) {
     children = newChildren;
     recalculatePositions();
@@ -296,6 +346,13 @@ void Stack::setProjectionMatrix(const glm::mat4 &projection) {
 
 void Stack::render(float dt, std::shared_ptr<opal::CommandBuffer> commandBuffer,
                    bool updatePipeline) {
+    if (boxRenderer.shader.shader == nullptr || boxRenderer.vao == nullptr ||
+        boxRenderer.vertexBuffer == nullptr) {
+        initialize();
+    }
+    for (auto &component : components) {
+        component->update(dt);
+    }
     recalculatePositions();
     const graphite::UIResolvedStyle style = graphite::resolveStyle(
         makeLayoutStyle(padding), &graphite::Theme::current().stack,
