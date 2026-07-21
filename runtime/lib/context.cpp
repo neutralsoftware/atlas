@@ -4266,6 +4266,24 @@ bool Context::setEditorSimulationEnabled(bool enabled) {
         throw std::runtime_error("Window is not initialized");
     }
     window->setEditorSimulationEnabled(enabled);
+    if (editorRuntime) {
+        window->setCamera(enabled || editorCameraFocused ||
+                                  editorViewCamera == nullptr
+                              ? camera.get()
+                              : editorViewCamera.get());
+        window->setEditorCameraFocused(enabled || editorCameraFocused);
+    }
+    return true;
+}
+
+bool Context::setEditorCameraFocused(bool focused) {
+    if (window == nullptr || !editorRuntime || camera == nullptr ||
+        editorViewCamera == nullptr) {
+        return false;
+    }
+    editorCameraFocused = focused;
+    window->setCamera(focused ? camera.get() : editorViewCamera.get());
+    window->setEditorCameraFocused(focused);
     return true;
 }
 
@@ -6029,6 +6047,8 @@ void Context::loadScene(Window &window, const json &sceneData) {
     areaLights.clear();
     cameraActions.clear();
     cameraAutomaticMoving = false;
+    editorCameraFocused = false;
+    editorViewCamera.reset();
     camera = std::make_unique<Camera>();
     window.resetInputActions();
     if (context != nullptr) {
@@ -6154,7 +6174,15 @@ void Context::loadScene(Window &window, const json &sceneData) {
 
     applyEditorCameraData(*this);
 
-    window.setCamera(camera.get());
+    if (editorRuntime) {
+        editorViewCamera = std::make_unique<Camera>(*camera);
+        window.setEditorSceneCamera(camera.get());
+        window.setEditorCameraFocused(false);
+        window.setCamera(editorViewCamera.get());
+    } else {
+        window.setEditorSceneCamera(nullptr);
+        window.setCamera(camera.get());
+    }
 
     if (sceneData.contains("lights") && sceneData["lights"].is_array()) {
         for (const auto &lightData : sceneData["lights"]) {

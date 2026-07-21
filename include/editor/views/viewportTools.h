@@ -31,7 +31,9 @@ class ViewportTools : public QWidget {
     QToolButton *stopButton = nullptr;
     QToolButton *reloadButton = nullptr;
     QToolButton *spaceButton = nullptr;
+    QToolButton *cameraButton = nullptr;
     QLabel *fpsLabel = nullptr;
+    QLabel *cameraLabel = nullptr;
     QLabel *shortcutHint = nullptr;
     QTabBar *sceneTabs = nullptr;
     QString projectRoot;

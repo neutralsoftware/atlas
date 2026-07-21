@@ -100,7 +100,19 @@ ViewportTools::ViewportTools(ViewportPanel *viewport,
     spaceButton->setToolTip("World transform space · Shift+T");
     tools->addWidget(spaceButton);
 
+    cameraButton = new QToolButton(toolbar);
+    cameraButton->setObjectName("viewportOptionButton");
+    cameraButton->setIcon(styling::icon(styling::Icon::Camera, "#9E897D"));
+    cameraButton->setCheckable(true);
+    cameraButton->setToolTip("Look through Main Camera · Numpad 0");
+    tools->addWidget(cameraButton);
+
     tools->addStretch();
+
+    cameraLabel = new QLabel("MAIN CAMERA", toolbar);
+    cameraLabel->setObjectName("viewportFpsLabel");
+    cameraLabel->setVisible(false);
+    tools->addWidget(cameraLabel);
     tools->addWidget(playButton);
     tools->addWidget(pauseButton);
     tools->addWidget(stepButton);
@@ -147,9 +159,10 @@ ViewportTools::ViewportTools(ViewportPanel *viewport,
 
     layout->addWidget(toolbar);
     layout->addWidget(viewport, 1);
-    shortcutHint = new QLabel(
-        "Tab Frame · Right-Drag Pan · Middle-Drag Orbit · G Move · R Rotate · S Scale · X Delete",
-        this);
+    shortcutHint =
+        new QLabel("Tab Frame · Num 0 Camera · Right-Drag Pan · Middle-Drag "
+                   "Orbit · G Move · R Rotate · S Scale · X Delete",
+                   this);
     shortcutHint->setObjectName("viewportShortcutHint");
     shortcutHint->setTextInteractionFlags(Qt::NoTextInteraction);
     layout->addWidget(shortcutHint);
@@ -174,6 +187,21 @@ ViewportTools::ViewportTools(ViewportPanel *viewport,
             });
     connect(spaceButton, &QToolButton::clicked, viewport,
             &ViewportPanel::toggleTransformSpace);
+    connect(cameraButton, &QToolButton::clicked, viewport,
+            &ViewportPanel::toggleCameraFocus);
+    connect(viewport, &ViewportPanel::cameraFocusChanged, this,
+            [this](bool focused) {
+                const QSignalBlocker blocker(cameraButton);
+                cameraButton->setChecked(focused);
+                cameraButton->setIcon(styling::icon(
+                    styling::Icon::Camera,
+                    focused ? QColor("#5CC8FF") : QColor("#9E897D")));
+                cameraButton->setToolTip(
+                    focused
+                        ? "Main Camera view active · Esc or Numpad 0 to exit"
+                        : "Look through Main Camera · Numpad 0");
+                cameraLabel->setVisible(focused);
+            });
     connect(viewport, &ViewportPanel::transformSpaceChanged, this,
             [this](bool local) {
                 spaceButton->setIcon(styling::icon(

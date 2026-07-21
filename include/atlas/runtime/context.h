@@ -71,6 +71,7 @@ class Context {
     std::string scriptBundleModuleName = "__atlas_scripts__";
 
     std::unique_ptr<Camera> camera;
+    std::unique_ptr<Camera> editorViewCamera;
     std::map<std::string, std::unique_ptr<RenderTarget>> renderTargets;
     std::vector<std::unique_ptr<DirectionalLight>> directionalLights;
     std::vector<std::unique_ptr<Light>> pointLights;
@@ -78,6 +79,7 @@ class Context {
     std::vector<std::unique_ptr<AreaLight>> areaLights;
     std::vector<std::string> cameraActions;
     bool cameraAutomaticMoving = false;
+    bool editorCameraFocused = false;
     bool editorRuntime = false;
 
     std::unique_ptr<Window> window;
@@ -115,6 +117,8 @@ class Context {
     bool resize(int width, int height, float scale);
     bool setEditorControlsEnabled(bool enabled);
     bool setEditorSimulationEnabled(bool enabled);
+    bool setEditorCameraFocused(bool focused);
+    bool isEditorCameraFocused() const { return editorCameraFocused; }
     bool setEditorControlMode(int mode);
     bool setEditorShadingMode(int mode);
     float frameRate() const;
