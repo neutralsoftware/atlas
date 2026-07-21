@@ -99,6 +99,9 @@ class ViewportPanel : public QWidget {
     void toggleTransformSpace();
     void toggleTransformSnapping();
     void changeTransformSnapIncrement(float factor);
+    bool setCameraFocused(bool focused);
+    void toggleCameraFocus();
+    bool isCameraFocused() const;
 
   signals:
     void sceneSnapshotChanged(const QString &snapshot);
@@ -112,6 +115,7 @@ class ViewportPanel : public QWidget {
     void sceneOpened(const QString &path);
     void transformSpaceChanged(bool local);
     void transformSnappingChanged(bool enabled, float increment);
+    void cameraFocusChanged(bool focused);
 
   protected:
     QPaintEngine *paintEngine() const override;

@@ -440,6 +440,8 @@ class Window {
     void resize(int width, int height, float scale = 1.0f);
     void setEditorControlsEnabled(bool enabled);
     bool areEditorControlsEnabled() const { return editorControlsEnabled; }
+    void setEditorSceneCamera(Camera *sceneCamera);
+    void setEditorCameraFocused(bool focused);
     void setEditorSimulationEnabled(bool enabled);
     bool isEditorSimulationEnabled() const { return editorSimulationEnabled; }
     void setEditorControlMode(EditorControlMode mode);
@@ -1033,9 +1035,13 @@ class Window {
     std::unique_ptr<CoreObject> editorGridObject;
     std::unique_ptr<CoreObject> editorOutlineObject;
     std::unique_ptr<CoreObject> editorGizmoObject;
+    std::unique_ptr<CoreObject> editorCameraFrustumObject;
     bool editorGridInitialized = false;
     bool editorOutlineInitialized = false;
     bool editorGizmoInitialized = false;
+    bool editorCameraFrustumInitialized = false;
+    bool editorCameraFocused = false;
+    Camera *editorSceneCamera = nullptr;
     std::array<bool, 6> editorCameraKeys{};
     std::unordered_map<GameObject *, GameObject *> editorObjectParents;
     std::unordered_map<GameObject *, std::vector<GameObject *>>

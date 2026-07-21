@@ -2028,6 +2028,21 @@ void Window::setEditorControlsEnabled(bool enabled) {
     }
 }
 
+void Window::setEditorSceneCamera(Camera *sceneCamera) {
+    editorSceneCamera = sceneCamera;
+    editorCameraFrustumInitialized = false;
+}
+
+void Window::setEditorCameraFocused(bool focused) {
+    editorCameraFocused = focused;
+    editorCameraDragging = false;
+    editorCameraPanning = false;
+    editorOrbitVelocityX = 0.0f;
+    editorOrbitVelocityY = 0.0f;
+    editorZoomVelocity = 0.0f;
+    editorCameraKeys.fill(false);
+}
+
 void Window::setEditorSimulationEnabled(bool enabled) {
     editorSimulationEnabled = enabled;
     editorDragging = false;
@@ -2260,6 +2275,8 @@ void Window::editorPointerEvent(int action, float x, float y, int button,
     }
 
     if (button == 3) {
+        if (editorCameraFocused)
+            return;
         if (action == 0) {
             editorCameraPanning = true;
             editorCameraLastX = x;
@@ -2273,6 +2290,8 @@ void Window::editorPointerEvent(int action, float x, float y, int button,
     }
 
     if (button == 2) {
+        if (editorCameraFocused)
+            return;
         if (action == 0) {
             editorCameraDragging = true;
             editorCameraLastX = x;
@@ -2348,7 +2367,7 @@ void Window::editorPointerEvent(int action, float x, float y, int button,
 }
 
 void Window::editorScrollEvent(float delta, float scale) {
-    if (!editorControlsEnabled || camera == nullptr) {
+    if (!editorControlsEnabled || camera == nullptr || editorCameraFocused) {
         return;
     }
 
@@ -2368,6 +2387,10 @@ void Window::editorScrollEvent(float delta, float scale) {
 
 void Window::editorKeyEvent(int key, bool pressed) {
     if (key < 0 || key >= static_cast<int>(editorCameraKeys.size())) {
+        return;
+    }
+    if (editorCameraFocused) {
+        editorCameraKeys.fill(false);
         return;
     }
     editorCameraKeys[static_cast<std::size_t>(key)] = pressed;
@@ -2989,7 +3012,7 @@ void Window::applyEditorZoomDelta(float scrollAmount) {
 }
 
 void Window::updateEditorCameraMovement(float deltaTime) {
-    if (camera == nullptr) {
+    if (camera == nullptr || editorCameraFocused) {
         return;
     }
 
@@ -3040,7 +3063,7 @@ void Window::updateEditorCameraMovement(float deltaTime) {
 }
 
 void Window::updateEditorCameraInertia(float deltaTime) {
-    if (camera == nullptr) {
+    if (camera == nullptr || editorCameraFocused) {
         return;
     }
 
@@ -3140,6 +3163,62 @@ void Window::updateEditorControlGeometry() {
     }
     ensureEditorLineObject(editorGridObject, editorGridInitialized,
                            gridVertices);
+
+    if (editorSceneCamera != nullptr && !editorCameraFocused) {
+        const glm::vec3 scenePosition = editorSceneCamera->position.toGlm();
+        glm::vec3 sceneForward =
+            editorSceneCamera->target.toGlm() - scenePosition;
+        if (glm::length(sceneForward) < 0.000001f)
+            sceneForward = editorSceneCamera->getFrontVector().toGlm();
+        sceneForward = glm::normalize(sceneForward);
+        glm::vec3 sceneUp(0.0f, 1.0f, 0.0f);
+        if (std::abs(glm::dot(sceneForward, sceneUp)) > 0.98f)
+            sceneUp = glm::vec3(1.0f, 0.0f, 0.0f);
+        const glm::vec3 sceneRight =
+            glm::normalize(glm::cross(sceneForward, sceneUp));
+        sceneUp = glm::normalize(glm::cross(sceneRight, sceneForward));
+
+        const float depth = std::clamp(editorSceneCamera->farClip, 1.5f, 4.0f);
+        float halfHeight =
+            editorSceneCamera->useOrthographic
+                ? std::max(0.1f, editorSceneCamera->orthographicSize)
+                : std::tan(glm::radians(editorSceneCamera->fov) * 0.5f) * depth;
+        halfHeight = std::clamp(halfHeight, 0.15f, 6.0f);
+        const float halfWidth = halfHeight * aspect;
+        const glm::vec3 planeCenter = scenePosition + sceneForward * depth;
+        const glm::vec3 bottomLeft =
+            planeCenter - sceneRight * halfWidth - sceneUp * halfHeight;
+        const glm::vec3 bottomRight =
+            planeCenter + sceneRight * halfWidth - sceneUp * halfHeight;
+        const glm::vec3 topRight =
+            planeCenter + sceneRight * halfWidth + sceneUp * halfHeight;
+        const glm::vec3 topLeft =
+            planeCenter - sceneRight * halfWidth + sceneUp * halfHeight;
+        const Color cameraColor{0.2f, 0.78f, 1.0f, 0.95f};
+        const Color directionColor{1.0f, 0.72f, 0.2f, 1.0f};
+        std::vector<CoreVertex> cameraVertices;
+        cameraVertices.reserve(30);
+        appendEditorLine(cameraVertices, bottomLeft, bottomRight, cameraColor);
+        appendEditorLine(cameraVertices, bottomRight, topRight, cameraColor);
+        appendEditorLine(cameraVertices, topRight, topLeft, cameraColor);
+        appendEditorLine(cameraVertices, topLeft, bottomLeft, cameraColor);
+        appendEditorLine(cameraVertices, scenePosition, bottomLeft,
+                         cameraColor);
+        appendEditorLine(cameraVertices, scenePosition, bottomRight,
+                         cameraColor);
+        appendEditorLine(cameraVertices, scenePosition, topRight, cameraColor);
+        appendEditorLine(cameraVertices, scenePosition, topLeft, cameraColor);
+        appendEditorLine(cameraVertices, scenePosition,
+                         scenePosition + sceneForward * (depth * 1.18f),
+                         directionColor);
+        const glm::vec3 markerCenter =
+            (topLeft + topRight) * 0.5f + sceneUp * (halfHeight * 0.18f);
+        appendEditorLine(cameraVertices, topLeft, markerCenter, directionColor);
+        appendEditorLine(cameraVertices, markerCenter, topRight,
+                         directionColor);
+        ensureEditorLineObject(editorCameraFrustumObject,
+                               editorCameraFrustumInitialized, cameraVertices);
+    }
 
     if (selectedEditorObject == nullptr) {
         return;
@@ -3374,7 +3453,9 @@ void Window::renderEditorGrid(
 void Window::renderEditorOverlays(
     const std::shared_ptr<opal::CommandBuffer> &commandBuffer) {
     if (!editorControlsEnabled || commandBuffer == nullptr ||
-        camera == nullptr || selectedEditorObject == nullptr) {
+        camera == nullptr ||
+        (selectedEditorObject == nullptr &&
+         (editorSceneCamera == nullptr || editorCameraFocused))) {
         return;
     }
 
@@ -3399,17 +3480,31 @@ void Window::renderEditorOverlays(
     updatePipelineStateField(this->dstBlend, opal::BlendFunc::OneMinusSrcAlpha);
     updatePipelineStateField(this->writeDepth, false);
 
-    updatePipelineStateField(this->primitiveStyle,
-                             opal::PrimitiveStyle::Triangles);
-    updatePipelineStateField(this->useDepth, true);
-    updatePipelineStateField(this->depthCompareOp, opal::CompareOp::Less);
-    renderEditorLineObject(editorOutlineObject.get(), view, projection,
-                           commandBuffer);
-    if (editorControlMode != EditorControlMode::None) {
+    if (editorSceneCamera != nullptr && !editorCameraFocused &&
+        editorCameraFrustumObject != nullptr) {
+        updatePipelineStateField(this->primitiveStyle,
+                                 opal::PrimitiveStyle::Lines);
         updatePipelineStateField(this->useDepth, false);
         updatePipelineStateField(this->depthCompareOp, opal::CompareOp::Always);
-        renderEditorLineObject(editorGizmoObject.get(), view, projection,
+        updatePipelineStateField(this->lineWidth, 2.2f);
+        renderEditorLineObject(editorCameraFrustumObject.get(), view,
+                               projection, commandBuffer);
+    }
+
+    if (selectedEditorObject != nullptr) {
+        updatePipelineStateField(this->primitiveStyle,
+                                 opal::PrimitiveStyle::Triangles);
+        updatePipelineStateField(this->useDepth, true);
+        updatePipelineStateField(this->depthCompareOp, opal::CompareOp::Less);
+        renderEditorLineObject(editorOutlineObject.get(), view, projection,
                                commandBuffer);
+        if (editorControlMode != EditorControlMode::None) {
+            updatePipelineStateField(this->useDepth, false);
+            updatePipelineStateField(this->depthCompareOp,
+                                     opal::CompareOp::Always);
+            renderEditorLineObject(editorGizmoObject.get(), view, projection,
+                                   commandBuffer);
+        }
     }
 
     updatePipelineStateField(this->primitiveStyle, previousPrimitiveStyle);

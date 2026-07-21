@@ -501,6 +501,17 @@ void ViewportPanel::wheelEvent(QWheelEvent *event) {
 void ViewportPanel::keyPressEvent(QKeyEvent *event) {
     if (!event->isAutoRepeat() && runtimeContext != nullptr &&
         playbackState == 0) {
+        if (event->key() == Qt::Key_0 &&
+            event->modifiers().testFlag(Qt::KeypadModifier)) {
+            toggleCameraFocus();
+            event->accept();
+            return;
+        }
+        if (event->key() == Qt::Key_Escape && isCameraFocused()) {
+            setCameraFocused(false);
+            event->accept();
+            return;
+        }
         if (keyboardTransformActive) {
             if (event->key() == Qt::Key_Escape) {
                 finishKeyboardTransform(false);
@@ -617,6 +628,7 @@ void ViewportPanel::startRuntime() {
             }
         }
         emit runtimeAvailabilityChanged(true);
+        emit cameraFocusChanged(false);
         playbackState = 0;
         emit playbackStateChanged(playbackState);
         frameTimer->start(16);
@@ -661,6 +673,7 @@ void ViewportPanel::stopRuntime() {
     if (undoStack != nullptr)
         undoStack->clear();
     emit runtimeAvailabilityChanged(false);
+    emit cameraFocusChanged(false);
     playbackState = 0;
     emit playbackStateChanged(playbackState);
     try {
@@ -745,6 +758,24 @@ bool ViewportPanel::selectRuntimeObject(int id, bool focusCamera) {
         setFocus(Qt::OtherFocusReason);
     }
     return true;
+}
+
+bool ViewportPanel::setCameraFocused(bool focused) {
+    if (runtimeContext == nullptr || playbackState != 0 ||
+        !runtimeContext->setEditorCameraFocused(focused)) {
+        return false;
+    }
+    emit cameraFocusChanged(focused);
+    setFocus(Qt::OtherFocusReason);
+    return true;
+}
+
+void ViewportPanel::toggleCameraFocus() {
+    setCameraFocused(!isCameraFocused());
+}
+
+bool ViewportPanel::isCameraFocused() const {
+    return runtimeContext != nullptr && runtimeContext->isEditorCameraFocused();
 }
 
 bool ViewportPanel::focusRuntimeObjects(const QList<int> &ids) {

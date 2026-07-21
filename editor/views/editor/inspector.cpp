@@ -1679,6 +1679,30 @@ void InspectorPanel::showCamera() {
     headerLayout->addWidget(identity, 1);
     contentLayout->addWidget(header);
 
+    auto *cameraView = new QToolButton(content);
+    cameraView->setObjectName("inspectorAddComponentButton");
+    cameraView->setCheckable(true);
+    cameraView->setChecked(viewport != nullptr && viewport->isCameraFocused());
+    cameraView->setIcon(styling::icon(styling::Icon::Camera, "#9E897D"));
+    cameraView->setText(cameraView->isChecked() ? "Camera View Active"
+                                                : "Look Through Camera");
+    cameraView->setToolButtonStyle(Qt::ToolButtonTextBesideIcon);
+    cameraView->setToolTip("Toggle Main Camera view · Numpad 0");
+    contentLayout->addWidget(cameraView);
+    connect(cameraView, &QToolButton::clicked, this, [this] {
+        if (viewport != nullptr)
+            viewport->toggleCameraFocus();
+    });
+    if (viewport != nullptr) {
+        connect(viewport, &ViewportPanel::cameraFocusChanged, cameraView,
+                [cameraView](bool focused) {
+                    const QSignalBlocker blocker(cameraView);
+                    cameraView->setChecked(focused);
+                    cameraView->setText(focused ? "Camera View Active"
+                                                : "Look Through Camera");
+                });
+    }
+
     auto update = [this](const QString &path, const QJsonValue &value) {
         if (viewport != nullptr) {
             viewport->setRuntimeSceneProperty("camera", -1, path, value);
