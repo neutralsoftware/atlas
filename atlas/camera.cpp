@@ -31,9 +31,8 @@ glm::vec2 sampleControllerAxisPair(Window &window, int axisIndexX,
     float bestMagnitude = -1.0f;
 
     for (const auto &controller : window.getControllers()) {
-        auto pair =
-            window.getControllerAxisPairValue(controller.id, axisIndexX,
-                                              axisIndexY);
+        auto pair = window.getControllerAxisPairValue(controller.id, axisIndexX,
+                                                      axisIndexY);
         float x = applyControllerDeadzone(pair.first);
         float y = applyControllerDeadzone(pair.second);
         if (invertY) {
@@ -49,7 +48,7 @@ glm::vec2 sampleControllerAxisPair(Window &window, int axisIndexX,
 
     return selected;
 }
-}
+} // namespace
 
 glm::mat4 Camera::calculateViewMatrix() const {
     glm::dvec3 camPos(position.x, position.y, position.z);
@@ -214,8 +213,8 @@ void Camera::updateWithActions(Window &window, const std::string &moveAxis,
     glm::vec2 fallbackLook = sampleControllerAxisPair(
         window, CONTROLLER_AXIS_RIGHT_X, CONTROLLER_AXIS_RIGHT_Y, true);
     if (glm::length(fallbackLook) > 0.0f &&
-        glm::length(fallbackLook) > glm::length(glm::vec2(lookInput.valueX,
-                                                          lookInput.valueY))) {
+        glm::length(fallbackLook) >
+            glm::length(glm::vec2(lookInput.valueX, lookInput.valueY))) {
         xoffset += fallbackLook.x * controllerLookSensitivity * deltaTime;
         yoffset += fallbackLook.y * controllerLookSensitivity * deltaTime;
     }

@@ -7,9 +7,9 @@
  Copyright (c) 2026 Max Van den Eynde
 */
 
+#include "atlas/window.h"
 #include "atlas/core/shader.h"
 #include "atlas/object.h"
-#include "atlas/window.h"
 #include "photon/illuminate.h"
 #include "opal/opal.h"
 #include <algorithm>
@@ -385,21 +385,21 @@ void photon::PathTracing::buildAccelerationStructure(
                 }
             }
             data.normalTextureIndex = normalTextureIndex;
-            const int pbrPackTextureIndex = findTextureSlotForType(
-                object->textures, TextureType::PBRPack, materialTextures,
-                textureSlots);
+            const int pbrPackTextureIndex =
+                findTextureSlotForType(object->textures, TextureType::PBRPack,
+                                       materialTextures, textureSlots);
             data.metallicTextureIndex =
                 pbrPackTextureIndex >= 0
                     ? pbrPackTextureIndex
-                    : findTextureSlotForType(
-                          object->textures, TextureType::Metallic,
-                          materialTextures, textureSlots);
+                    : findTextureSlotForType(object->textures,
+                                             TextureType::Metallic,
+                                             materialTextures, textureSlots);
             data.roughnessTextureIndex =
                 pbrPackTextureIndex >= 0
                     ? pbrPackTextureIndex
-                    : findTextureSlotForType(
-                          object->textures, TextureType::Roughness,
-                          materialTextures, textureSlots);
+                    : findTextureSlotForType(object->textures,
+                                             TextureType::Roughness,
+                                             materialTextures, textureSlots);
             data.aoTextureIndex =
                 pbrPackTextureIndex >= 0
                     ? pbrPackTextureIndex

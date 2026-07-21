@@ -20,8 +20,8 @@
 #include <vector>
 #include <cstdint>
 
-class Window;
 class CoreObject;
+class Window;
 
 namespace photon {
 
@@ -138,7 +138,7 @@ class PathTracing {
     int cachedDirectionalLightCount = -1;
     uint64_t cachedSkyboxTextureId = 0;
 
-    friend class Window;
+    friend class ::Window;
 #endif
 };
 
