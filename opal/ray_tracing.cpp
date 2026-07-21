@@ -21,20 +21,33 @@ std::shared_ptr<opal::PrimitiveAccelerationStructure>
 opal::PrimitiveAccelerationStructure::create(
     const std::vector<PrimitiveVertex> &vertices,
     const std::vector<uint32_t> &indices) {
+    if (vertices.empty() || indices.size() < 3) {
+        return nullptr;
+    }
     auto blas = std::make_shared<PrimitiveAccelerationStructure>();
-    blas->vertices = vertices;
-    blas->indices = indices;
 
     auto &deviceState = metal::deviceState(Device::globalInstance);
 
+    std::vector<float> positions;
+    positions.reserve(vertices.size() * 3);
+    for (const auto &vertex : vertices) {
+        positions.push_back(vertex.position[0]);
+        positions.push_back(vertex.position[1]);
+        positions.push_back(vertex.position[2]);
+    }
+
     blas->vertexBuffer = std::shared_ptr<MTL::Buffer>(
-        deviceState.device->newBuffer(vertices.data(),
-                                      vertices.size() * sizeof(PrimitiveVertex),
+        deviceState.device->newBuffer(positions.data(),
+                                      positions.size() * sizeof(float),
                                       MTL::ResourceStorageModeShared),
         [](MTL::Buffer *b) {
             if (b)
                 b->release();
         });
+
+    if (blas->vertexBuffer == nullptr || blas->indexBuffer == nullptr) {
+        return nullptr;
+    }
 
     blas->indexBuffer = std::shared_ptr<MTL::Buffer>(
         deviceState.device->newBuffer(indices.data(),
@@ -49,9 +62,9 @@ opal::PrimitiveAccelerationStructure::create(
         MTL::AccelerationStructureTriangleGeometryDescriptor::descriptor();
 
     triDesc->setVertexBuffer(blas->vertexBuffer.get());
-    triDesc->setVertexStride(sizeof(PrimitiveVertex));
+    triDesc->setVertexStride(sizeof(float) * 3);
     triDesc->setVertexFormat(MTL::AttributeFormatFloat3);
-    triDesc->setVertexBufferOffset(offsetof(PrimitiveVertex, position));
+    triDesc->setVertexBufferOffset(0);
 
     triDesc->setIndexBuffer(blas->indexBuffer.get());
     triDesc->setIndexType(MTL::IndexType::IndexTypeUInt32);
@@ -65,14 +78,22 @@ opal::PrimitiveAccelerationStructure::create(
     MTL::AccelerationStructureSizes sizes =
         deviceState.device->accelerationStructureSizes(blasDesc);
 
-    blas->asBuffer = Buffer::create(BufferUsage::GeneralPurpose,
-                                    sizes.accelerationStructureSize);
-    blas->scratch = Buffer::create(BufferUsage::GeneralPurpose,
-                                   sizes.buildScratchBufferSize);
+    try {
+        blas->scratch = Buffer::create(BufferUsage::GeneralPurpose,
+                                       sizes.buildScratchBufferSize);
+    } catch (const std::runtime_error &) {
+        blasDesc->release();
+        return nullptr;
+    }
 
     MTL::AccelerationStructure *blasPtr =
         deviceState.device->newAccelerationStructure(
             sizes.accelerationStructureSize);
+
+    if (blasPtr == nullptr) {
+        blasDesc->release();
+        return nullptr;
+    }
 
     blas->blas = blasPtr;
     blas->blasDescriptor = blasDesc;
@@ -105,6 +126,9 @@ void opal::CommandBuffer::buildPrimitiveAccelerationStructure(
     asEnc->endEncoding();
 
     blas->isBuilt = true;
+    blas->scratch.reset();
+    blas->vertexBuffer.reset();
+    blas->indexBuffer.reset();
 }
 
 static inline void opal::writeMetalTransform3x4(const glm::mat4 &M,

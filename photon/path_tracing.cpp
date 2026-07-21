@@ -333,6 +333,12 @@ void photon::PathTracing::buildAccelerationStructure(
         if (object->vertices.size() < 3 || object->indices.size() < 3) {
             continue;
         }
+        if (object->indices.size() % 3 != 0 ||
+            std::ranges::any_of(object->indices, [&](uint32_t index) {
+                return index >= object->vertices.size();
+            })) {
+            continue;
+        }
         traceableObjects.push_back(object);
     }
     std::vector<MaterialData> materialData;
@@ -421,6 +427,9 @@ void photon::PathTracing::buildAccelerationStructure(
             auto blas =
                 opal::PrimitiveAccelerationStructure::create(vertices, indices);
             objectBLAS[objectID] = blas;
+            if (blas != nullptr) {
+                commandBuffer->buildPrimitiveAccelerationStructure(blas);
+            }
 
             MaterialData data;
             data.albedo[0] = object->material.albedo.r;
@@ -493,12 +502,6 @@ void photon::PathTracing::buildAccelerationStructure(
             objectID++;
         }
 
-        for (const auto &[_, blas] : objectBLAS) {
-            if (blas != nullptr) {
-                commandBuffer->buildPrimitiveAccelerationStructure(blas);
-            }
-        }
-
         materialBuffer = opal::Buffer::create(
             opal::BufferUsage::ShaderRead,
             materialData.size() * sizeof(MaterialData), materialData.data());
@@ -526,7 +529,7 @@ void photon::PathTracing::buildAccelerationStructure(
         float normalCol2[4];
     };
 
-    std::vector<InstanceData> instanceData;
+    std::vector<InstanceData> instanceData(traceableObjects.size());
 
     for (size_t objectIndex = 0; objectIndex < traceableObjects.size();
          ++objectIndex) {
@@ -569,7 +572,7 @@ void photon::PathTracing::buildAccelerationStructure(
         d.normalCol2[1] = normalMatrix[2][1];
         d.normalCol2[2] = normalMatrix[2][2];
         d.normalCol2[3] = 0.0f;
-        instanceData.push_back(d);
+        instanceData[objectIndex] = d;
     }
 
     bool transformsChanged = needsRebuild ||
@@ -593,6 +596,11 @@ void photon::PathTracing::buildAccelerationStructure(
         instanceDataBuffer = opal::Buffer::create(
             opal::BufferUsage::ShaderRead,
             instanceData.size() * sizeof(InstanceData), instanceData.data());
+        if (instances.empty()) {
+            sceneTLAS.reset();
+            frameIndex = 0;
+            return;
+        }
         sceneTLAS = opal::InstanceAccelerationStructure::create(instances);
         commandBuffer->buildInstanceAccelerationStructure(sceneTLAS);
         frameIndex = 0;
@@ -891,6 +899,13 @@ void photon::PathTracing::render(
                                       this->indirectStrength);
 
     this->buildAccelerationStructure(commandBuffer);
+    if (sceneTLAS == nullptr || !sceneTLAS->isBuilt ||
+        instanceDataBuffer == nullptr || materialBuffer == nullptr ||
+        meshInfo == nullptr || globalVertices == nullptr ||
+        globalIndices == nullptr) {
+        frameIndex = 0;
+        return;
+    }
     if (this->createLightBuffers()) {
         frameIndex = 0;
     }

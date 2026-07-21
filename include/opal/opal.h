@@ -1132,9 +1132,6 @@ struct PrimitiveVertex {
 
 class PrimitiveAccelerationStructure {
   public:
-    std::vector<PrimitiveVertex> vertices;
-    std::vector<uint32_t> indices;
-
     static std::shared_ptr<PrimitiveAccelerationStructure>
     create(const std::vector<PrimitiveVertex> &vertices,
            const std::vector<uint32_t> &indices);
@@ -1144,7 +1141,6 @@ class PrimitiveAccelerationStructure {
   private:
     friend class CommandBuffer;
     friend class InstanceAccelerationStructure;
-    std::shared_ptr<Buffer> asBuffer;
     std::shared_ptr<Buffer> scratch;
 
     MTL::AccelerationStructureDescriptor *blasDescriptor = nullptr;
