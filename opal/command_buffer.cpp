@@ -1578,6 +1578,27 @@ void CommandBuffer::commit() {
 #endif
 }
 
+void CommandBuffer::waitForSubmittedWork() {
+#ifdef METAL
+    auto &state = metal::commandBufferState(this);
+    for (auto *submitted : state.inFlightCommandBuffers) {
+        submitted->waitUntilCompleted();
+        if (submitted->status() == MTL::CommandBufferStatusError) {
+            auto *error = submitted->error();
+            const char *description =
+                error != nullptr && error->localizedDescription() != nullptr
+                    ? error->localizedDescription()->utf8String()
+                    : "Unknown Metal command buffer error";
+            atlas_error(std::string("Metal GPU command failed: ") +
+                        description);
+        }
+        submitted->release();
+    }
+    state.inFlightCommandBuffers.clear();
+    state.inFlightResources.clear();
+#endif
+}
+
 void CommandBuffer::bindPipeline(const std::shared_ptr<Pipeline> &pipeline) {
 #ifdef METAL
     metal::pipelineState(pipeline.get()).suppressTextureReset = true;

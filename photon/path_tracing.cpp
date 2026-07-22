@@ -830,6 +830,7 @@ bool photon::PathTracing::render(
         brightOutput == nullptr) {
         return fail("The render target or command buffer is unavailable");
     }
+    commandBuffer->waitForSubmittedWork();
     if (Window::mainWindow == nullptr ||
         Window::mainWindow->getCamera() == nullptr) {
         return fail("The active window or camera is unavailable");

@@ -1197,6 +1197,7 @@ class CommandBuffer {
                       const std::shared_ptr<Framebuffer> &writeFramebuffer);
     void endPass();
     void commit();
+    void waitForSubmittedWork();
 
     // The different commands
     void bindPipeline(const std::shared_ptr<Pipeline> &pipeline);
