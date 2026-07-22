@@ -15,6 +15,7 @@
 #include "atlas/units.h"
 #include "opal/opal.h"
 #include <memory>
+#include <string>
 #include <unordered_map>
 #include <utility>
 #include <vector>
@@ -75,11 +76,11 @@ class PathTracing {
   public:
 #ifdef METAL
     /** @brief Runs one path tracing pass into the active output texture. */
-    void render(const std::shared_ptr<opal::CommandBuffer> &commandBuffer,
+    bool render(const std::shared_ptr<opal::CommandBuffer> &commandBuffer,
                 const std::shared_ptr<opal::Texture> &output,
                 const std::shared_ptr<opal::Texture> &brightOutput);
     /** @brief Rebuilds BLAS/TLAS data for the current scene geometry. */
-    void buildAccelerationStructure(
+    bool buildAccelerationStructure(
         const std::shared_ptr<opal::CommandBuffer> &commandBuffer);
     /** @brief Uploads light lists used by path tracing shaders. */
     bool createLightBuffers();
@@ -87,6 +88,7 @@ class PathTracing {
     void init();
     /** @brief Resizes path tracing output and history textures. */
     void resizeOutput(int width, int height);
+    const std::string &getLastError() const { return lastError; }
 
     /** @brief Current frame output texture. */
     std::shared_ptr<Texture> pathTracingTexturePrev;
@@ -125,13 +127,19 @@ class PathTracing {
                        std::shared_ptr<opal::PrimitiveAccelerationStructure>>
         objectBLAS;
     std::vector<CoreObject *> cachedObjects;
+    std::vector<CoreObject *> cachedSceneObjects;
     std::vector<glm::mat4> cachedInstanceTransforms;
     std::vector<uint64_t> cachedObjectStateHashes;
+    std::vector<uint64_t> cachedSceneObjectStateHashes;
     uint64_t cachedLightHash = 0;
 
     int frameIndex = 0;
     int outputWidth = 0;
     int outputHeight = 0;
+    int interactiveFramesRemaining = 0;
+    bool interactive = false;
+    bool accelerationBuildFailed = false;
+    std::string lastError;
     glm::mat4 cachedInvViewProj = glm::mat4(1.0f);
     glm::mat4 previousViewProj = glm::mat4(1.0f);
     glm::vec3 cachedDirectionalLightDirection = glm::vec3(0.0f, -1.0f, 0.0f);

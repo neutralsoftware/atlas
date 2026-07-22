@@ -17,6 +17,15 @@
 #include "Metal/Metal.hpp"
 #include "metal_state.h"
 
+opal::PrimitiveAccelerationStructure::~PrimitiveAccelerationStructure() {
+    if (blasDescriptor != nullptr) {
+        blasDescriptor->release();
+    }
+    if (blas != nullptr) {
+        blas->release();
+    }
+}
+
 std::shared_ptr<opal::PrimitiveAccelerationStructure>
 opal::PrimitiveAccelerationStructure::create(
     const std::vector<PrimitiveVertex> &vertices,
@@ -45,10 +54,6 @@ opal::PrimitiveAccelerationStructure::create(
                 b->release();
         });
 
-    if (blas->vertexBuffer == nullptr || blas->indexBuffer == nullptr) {
-        return nullptr;
-    }
-
     blas->indexBuffer = std::shared_ptr<MTL::Buffer>(
         deviceState.device->newBuffer(indices.data(),
                                       indices.size() * sizeof(uint32_t),
@@ -57,6 +62,10 @@ opal::PrimitiveAccelerationStructure::create(
             if (b)
                 b->release();
         });
+
+    if (blas->vertexBuffer == nullptr || blas->indexBuffer == nullptr) {
+        return nullptr;
+    }
 
     auto *triDesc =
         MTL::AccelerationStructureTriangleGeometryDescriptor::descriptor();
@@ -147,9 +156,21 @@ static inline void opal::writeMetalTransform3x4(const glm::mat4 &M,
     out[11] = M[3][2];
 }
 
+opal::InstanceAccelerationStructure::~InstanceAccelerationStructure() {
+    if (tlasDescriptor != nullptr) {
+        tlasDescriptor->release();
+    }
+    if (tlas != nullptr) {
+        tlas->release();
+    }
+}
+
 std::shared_ptr<opal::InstanceAccelerationStructure>
 opal::InstanceAccelerationStructure::create(
     const std::vector<opal::AccelerationStructureInstance> &instances) {
+    if (instances.empty()) {
+        return nullptr;
+    }
     auto tlas = std::make_shared<opal::InstanceAccelerationStructure>();
     tlas->instances = instances;
 
@@ -189,6 +210,9 @@ opal::InstanceAccelerationStructure::create(
     tlas->instanceBuffer =
         Buffer::create(BufferUsage::GeneralPurpose,
                        descs.size() * sizeof(descs[0]), descs.data());
+    if (tlas->instanceBuffer == nullptr) {
+        return nullptr;
+    }
 
     tlas->tlasDescriptor =
         MTL::InstanceAccelerationStructureDescriptor::descriptor()->retain();
@@ -216,6 +240,10 @@ opal::InstanceAccelerationStructure::create(
     MTL::AccelerationStructure *tlasPtr =
         deviceState.device->newAccelerationStructure(
             sizes.accelerationStructureSize);
+
+    if (tlasPtr == nullptr) {
+        return nullptr;
+    }
 
     tlas->tlas = tlasPtr;
 

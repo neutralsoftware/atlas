@@ -21,11 +21,15 @@
 #include <assimp/postprocess.h>
 #include <algorithm>
 #include <chrono>
+#include <cctype>
 #include <cmath>
 #include <cstring>
+#include <filesystem>
+#include <fstream>
 #include <future>
 #include <iostream>
 #include <memory>
+#include <optional>
 #include <stdexcept>
 #include <string>
 #include <thread>
@@ -97,20 +101,143 @@ struct DecodedModelTexture {
     int height = 0;
 };
 
+struct DecodedTextureCacheHeader {
+    uint64_t magic = 0x41544C4153544558ULL;
+    uint32_t version = 1;
+    uint32_t width = 0;
+    uint32_t height = 0;
+    uint64_t pixelBytes = 0;
+    uint64_t aoBytes = 0;
+};
+
+uint64_t modelTextureCacheKey(const ModelTextureJob &job) {
+    uint64_t hash = 1469598103934665603ULL;
+    auto append = [&hash](const void *data, size_t size) {
+        const auto *bytes = static_cast<const unsigned char *>(data);
+        for (size_t index = 0; index < size; ++index) {
+            hash ^= bytes[index];
+            hash *= 1099511628211ULL;
+        }
+    };
+    auto appendPath = [&](const std::string &path) {
+        append(path.data(), path.size());
+        std::error_code error;
+        const auto size = std::filesystem::file_size(path, error);
+        if (!error) {
+            append(&size, sizeof(size));
+        }
+        const auto timestamp = std::filesystem::last_write_time(path, error);
+        if (!error) {
+            const auto count = timestamp.time_since_epoch().count();
+            append(&count, sizeof(count));
+        }
+    };
+    appendPath(job.fullPath);
+    appendPath(job.aoPath);
+    append(&job.maximumDimension, sizeof(job.maximumDimension));
+    append(&job.textureType, sizeof(job.textureType));
+    return hash;
+}
+
+std::filesystem::path modelTextureCachePath(const ModelTextureJob &job) {
+    std::error_code error;
+    const auto temporaryDirectory = std::filesystem::temp_directory_path(error);
+    if (error) {
+        return {};
+    }
+    return temporaryDirectory / "atlas-model-cache-v1" /
+           (std::to_string(modelTextureCacheKey(job)) + ".rgba");
+}
+
+std::optional<DecodedModelTexture>
+loadDecodedTextureCache(const ModelTextureJob &job) {
+    if (job.maximumDimension <= 0) {
+        return std::nullopt;
+    }
+    const std::filesystem::path path = modelTextureCachePath(job);
+    if (path.empty()) {
+        return std::nullopt;
+    }
+    std::ifstream input(path, std::ios::binary);
+    if (!input) {
+        return std::nullopt;
+    }
+    DecodedTextureCacheHeader header;
+    input.read(reinterpret_cast<char *>(&header), sizeof(header));
+    const uint64_t expectedPixels = static_cast<uint64_t>(header.width) *
+                                    static_cast<uint64_t>(header.height) * 4;
+    const uint64_t expectedAo = static_cast<uint64_t>(header.width) *
+                                static_cast<uint64_t>(header.height);
+    if (!input || header.magic != 0x41544C4153544558ULL ||
+        header.version != 1 || header.width == 0 || header.height == 0 ||
+        header.width > static_cast<uint32_t>(job.maximumDimension) ||
+        header.height > static_cast<uint32_t>(job.maximumDimension) ||
+        header.pixelBytes != expectedPixels ||
+        (header.aoBytes != 0 && header.aoBytes != expectedAo)) {
+        return std::nullopt;
+    }
+    DecodedModelTexture decoded;
+    decoded.width = static_cast<int>(header.width);
+    decoded.height = static_cast<int>(header.height);
+    decoded.pixels.resize(header.pixelBytes);
+    decoded.ao.resize(header.aoBytes);
+    input.read(reinterpret_cast<char *>(decoded.pixels.data()),
+               static_cast<std::streamsize>(decoded.pixels.size()));
+    if (!decoded.ao.empty()) {
+        input.read(reinterpret_cast<char *>(decoded.ao.data()),
+                   static_cast<std::streamsize>(decoded.ao.size()));
+    }
+    if (!input) {
+        return std::nullopt;
+    }
+    return decoded;
+}
+
+void storeDecodedTextureCache(const ModelTextureJob &job,
+                              const DecodedModelTexture &decoded) {
+    if (job.maximumDimension <= 0 || decoded.pixels.empty()) {
+        return;
+    }
+    const std::filesystem::path path = modelTextureCachePath(job);
+    if (path.empty()) {
+        return;
+    }
+    std::error_code error;
+    std::filesystem::create_directories(path.parent_path(), error);
+    if (error) {
+        return;
+    }
+    std::ofstream output(path, std::ios::binary | std::ios::trunc);
+    if (!output) {
+        return;
+    }
+    DecodedTextureCacheHeader header;
+    header.width = static_cast<uint32_t>(decoded.width);
+    header.height = static_cast<uint32_t>(decoded.height);
+    header.pixelBytes = decoded.pixels.size();
+    header.aoBytes = decoded.ao.size();
+    output.write(reinterpret_cast<const char *>(&header), sizeof(header));
+    output.write(reinterpret_cast<const char *>(decoded.pixels.data()),
+                 static_cast<std::streamsize>(decoded.pixels.size()));
+    if (!decoded.ao.empty()) {
+        output.write(reinterpret_cast<const char *>(decoded.ao.data()),
+                     static_cast<std::streamsize>(decoded.ao.size()));
+    }
+}
+
 std::vector<unsigned char> resizeModelTexture(const unsigned char *source,
-                                              int sourceWidth,
-                                              int sourceHeight,
+                                              int sourceWidth, int sourceHeight,
                                               int channels, int targetWidth,
                                               int targetHeight) {
-    std::vector<unsigned char> resized(
-        static_cast<size_t>(targetWidth) * targetHeight * channels);
-    const bool halfResolution = sourceWidth == targetWidth * 2 &&
-                                sourceHeight == targetHeight * 2;
+    std::vector<unsigned char> resized(static_cast<size_t>(targetWidth) *
+                                       targetHeight * channels);
+    const bool halfResolution =
+        sourceWidth == targetWidth * 2 && sourceHeight == targetHeight * 2;
     for (int y = 0; y < targetHeight; ++y) {
-        const int sourceY = std::min(
-            sourceHeight - 1,
-            static_cast<int>((static_cast<int64_t>(y) * sourceHeight) /
-                             targetHeight));
+        const int sourceY =
+            std::min(sourceHeight - 1,
+                     static_cast<int>((static_cast<int64_t>(y) * sourceHeight) /
+                                      targetHeight));
         for (int x = 0; x < targetWidth; ++x) {
             const int sourceX = std::min(
                 sourceWidth - 1,
@@ -146,6 +273,9 @@ std::vector<unsigned char> resizeModelTexture(const unsigned char *source,
 }
 
 DecodedModelTexture decodeModelTexture(const ModelTextureJob &job) {
+    if (auto cached = loadDecodedTextureCache(job)) {
+        return std::move(*cached);
+    }
     stbi_set_flip_vertically_on_load_thread(false);
     int width = 0;
     int height = 0;
@@ -189,15 +319,15 @@ DecodedModelTexture decodeModelTexture(const ModelTextureJob &job) {
             if (aoWidth == targetWidth && aoHeight == targetHeight) {
                 const size_t byteCount =
                     static_cast<size_t>(aoWidth) * aoHeight;
-                decoded.ao.assign(aoSource.get(),
-                                  aoSource.get() + byteCount);
+                decoded.ao.assign(aoSource.get(), aoSource.get() + byteCount);
             } else {
-                decoded.ao = resizeModelTexture(
-                    aoSource.get(), aoWidth, aoHeight, 1, targetWidth,
-                    targetHeight);
+                decoded.ao =
+                    resizeModelTexture(aoSource.get(), aoWidth, aoHeight, 1,
+                                       targetWidth, targetHeight);
             }
         }
     }
+    storeDecodedTextureCache(job, decoded);
     return decoded;
 }
 
@@ -216,17 +346,15 @@ Texture uploadModelTexture(const ModelTextureJob &job,
 
     Resource resource = Workspace::get().createResource(
         job.fullPath, job.filename, job.resourceType);
-    const opal::TextureFormat format =
-        job.textureType == TextureType::Color
-            ? opal::TextureFormat::sRgba8
-            : opal::TextureFormat::Rgba8;
+    const opal::TextureFormat format = job.textureType == TextureType::Color
+                                           ? opal::TextureFormat::sRgba8
+                                           : opal::TextureFormat::Rgba8;
     auto opalTexture = opal::Texture::create(
         opal::TextureType::Texture2D, format, decoded.width, decoded.height,
         opal::TextureDataFormat::Rgba, decoded.pixels.data(), 1);
-    opalTexture->setParameters(opal::TextureWrapMode::Repeat,
-                               opal::TextureWrapMode::Repeat,
-                               opal::TextureFilterMode::Linear,
-                               opal::TextureFilterMode::Linear);
+    opalTexture->setParameters(
+        opal::TextureWrapMode::Repeat, opal::TextureWrapMode::Repeat,
+        opal::TextureFilterMode::Linear, opal::TextureFilterMode::Linear);
     return Texture{.resource = resource,
                    .creationData = {decoded.width, decoded.height, 4},
                    .id = opalTexture->textureID,
@@ -241,7 +369,8 @@ void importMaterialProperties(aiMaterial *material, CoreObject &object) {
                                   baseColor.a};
     } else {
         aiColor3D diffuseColor;
-        if (material->Get(AI_MATKEY_COLOR_DIFFUSE, diffuseColor) == AI_SUCCESS) {
+        if (material->Get(AI_MATKEY_COLOR_DIFFUSE, diffuseColor) ==
+            AI_SUCCESS) {
             object.material.albedo.r = diffuseColor.r;
             object.material.albedo.g = diffuseColor.g;
             object.material.albedo.b = diffuseColor.b;
@@ -342,8 +471,14 @@ void Model::loadModel(
 
     unsigned int importFlags =
         aiProcess_Triangulate | aiProcess_CalcTangentSpace |
-        aiProcess_JoinIdenticalVertices | aiProcess_ImproveCacheLocality |
         aiProcess_SortByPType | aiProcess_GenSmoothNormals;
+    std::string extension = resource.path.extension().string();
+    std::transform(extension.begin(), extension.end(), extension.begin(),
+                   [](unsigned char value) { return std::tolower(value); });
+    if (extension != ".gltf" && extension != ".glb") {
+        importFlags |=
+            aiProcess_JoinIdenticalVertices | aiProcess_ImproveCacheLocality;
+    }
 
     const aiScene *scene =
         importer.ReadFile(resource.path.string(), importFlags);
@@ -425,35 +560,35 @@ void Model::preloadMaterialTextures(
                 aiString aoTexturePath;
                 if (material->GetTexture(aiTextureType_AMBIENT_OCCLUSION, 0,
                                          &aoTexturePath) == AI_SUCCESS) {
-                    aoPath = directory + "/" +
-                             std::string(aoTexturePath.C_Str());
+                    aoPath =
+                        directory + "/" + std::string(aoTexturePath.C_Str());
                     cacheKey += "|" + std::string(aoTexturePath.C_Str());
                 }
             }
             if (!scheduled.insert(cacheKey).second) {
                 continue;
             }
-            jobs.push_back(ModelTextureJob{
-                .cacheKey = std::move(cacheKey),
-                .fullPath = fullPath,
-                .filename = filename,
-                .aoPath = std::move(aoPath),
-                .textureType = textureType,
-                .resourceType = typeName == "texture_specular"
-                                    ? ResourceType::SpecularMap
-                                    : ResourceType::Image});
+            jobs.push_back(
+                ModelTextureJob{.cacheKey = std::move(cacheKey),
+                                .fullPath = fullPath,
+                                .filename = filename,
+                                .aoPath = std::move(aoPath),
+                                .textureType = textureType,
+                                .resourceType = typeName == "texture_specular"
+                                                    ? ResourceType::SpecularMap
+                                                    : ResourceType::Image});
         }
     };
 
-    for (unsigned int materialIndex = 0;
-         materialIndex < scene->mNumMaterials; ++materialIndex) {
+    for (unsigned int materialIndex = 0; materialIndex < scene->mNumMaterials;
+         ++materialIndex) {
         aiMaterial *material = scene->mMaterials[materialIndex];
         if (material->GetTextureCount(aiTextureType_DIFFUSE) > 0) {
             queueTextures(material, aiTextureType_DIFFUSE, "texture_diffuse",
                           TextureType::Color);
         } else if (material->GetTextureCount(aiTextureType_BASE_COLOR) > 0) {
-            queueTextures(material, aiTextureType_BASE_COLOR,
-                          "texture_diffuse", TextureType::Color);
+            queueTextures(material, aiTextureType_BASE_COLOR, "texture_diffuse",
+                          TextureType::Color);
         } else {
             queueTextures(material, aiTextureType_AMBIENT, "texture_diffuse",
                           TextureType::Color);
@@ -477,8 +612,8 @@ void Model::preloadMaterialTextures(
             queueTextures(material, aiTextureType_GLTF_METALLIC_ROUGHNESS,
                           "texture_pbr_pack", TextureType::PBRPack);
         } else {
-            queueTextures(material, aiTextureType_METALNESS,
-                          "texture_metallic", TextureType::Metallic);
+            queueTextures(material, aiTextureType_METALNESS, "texture_metallic",
+                          TextureType::Metallic);
             queueTextures(material, aiTextureType_DIFFUSE_ROUGHNESS,
                           "texture_roughness", TextureType::Roughness);
             if (material->GetTextureCount(aiTextureType_AMBIENT_OCCLUSION) >
@@ -494,8 +629,8 @@ void Model::preloadMaterialTextures(
                       TextureType::Opacity);
     }
 
-    const size_t workerCount = std::clamp<size_t>(
-        std::thread::hardware_concurrency(), 2, 4);
+    const size_t workerCount =
+        std::clamp<size_t>(std::thread::hardware_concurrency(), 2, 6);
     if (jobs.size() >= 48) {
         for (auto &job : jobs) {
             job.maximumDimension = 2048;
@@ -503,15 +638,14 @@ void Model::preloadMaterialTextures(
     }
     for (size_t batchStart = 0; batchStart < jobs.size();
          batchStart += workerCount) {
-        const size_t batchEnd =
-            std::min(jobs.size(), batchStart + workerCount);
+        const size_t batchEnd = std::min(jobs.size(), batchStart + workerCount);
         std::vector<std::future<DecodedModelTexture>> futures;
         futures.reserve(batchEnd - batchStart);
         for (size_t index = batchStart; index < batchEnd; ++index) {
-            futures.push_back(std::async(std::launch::async,
-                                         [job = jobs[index]] {
-                                             return decodeModelTexture(job);
-                                         }));
+            futures.push_back(
+                std::async(std::launch::async, [job = jobs[index]] {
+                    return decodeModelTexture(job);
+                }));
         }
         for (size_t index = batchStart; index < batchEnd; ++index) {
             try {
@@ -525,8 +659,7 @@ void Model::preloadMaterialTextures(
                                        "Loading model textures");
                     }
                 }
-                DecodedModelTexture decoded =
-                    futures[index - batchStart].get();
+                DecodedModelTexture decoded = futures[index - batchStart].get();
                 textureCache[jobs[index].cacheKey] =
                     uploadModelTexture(jobs[index], std::move(decoded));
             } catch (const std::exception &error) {
@@ -739,8 +872,8 @@ Model::processMesh(aiMesh *mesh, const aiScene *scene,
 
         if (pbrPackMaps.empty()) {
             auto metallicMaps = loadMaterialTextures(
-                material, std::any(aiTextureType_METALNESS),
-                "texture_metallic", textureCache);
+                material, std::any(aiTextureType_METALNESS), "texture_metallic",
+                textureCache);
             textures.insert(textures.end(), metallicMaps.begin(),
                             metallicMaps.end());
 
@@ -876,15 +1009,16 @@ std::vector<Texture> Model::loadMaterialTextures(
                     const std::string fullAoPath =
                         directory + "/" + std::string(aoPath.C_Str());
                     std::unique_ptr<unsigned char, decltype(&stbi_image_free)>
-                        aoData(stbi_load(fullAoPath.c_str(), &aoWidth, &aoHeight,
-                                         &aoChannels, STBI_grey),
+                        aoData(stbi_load(fullAoPath.c_str(), &aoWidth,
+                                         &aoHeight, &aoChannels, STBI_grey),
                                stbi_image_free);
                     if (aoData != nullptr && aoWidth > 0 && aoHeight > 0) {
                         for (int y = 0; y < height; y++) {
                             const int aoY = y * aoHeight / height;
                             for (int x = 0; x < width; x++) {
                                 const int aoX = x * aoWidth / width;
-                                data.get()[(static_cast<size_t>(y) * width + x) *
+                                data.get()[(static_cast<size_t>(y) * width +
+                                            x) *
                                            4] =
                                     aoData.get()[static_cast<size_t>(aoY) *
                                                      aoWidth +
@@ -896,12 +1030,12 @@ std::vector<Texture> Model::loadMaterialTextures(
 
                 auto opalTexture = opal::Texture::create(
                     opal::TextureType::Texture2D, opal::TextureFormat::Rgba8,
-                    width, height, opal::TextureDataFormat::Rgba, data.get(), 1);
-                opalTexture->setParameters(
-                    opal::TextureWrapMode::Repeat,
-                    opal::TextureWrapMode::Repeat,
-                    opal::TextureFilterMode::Linear,
-                    opal::TextureFilterMode::Linear);
+                    width, height, opal::TextureDataFormat::Rgba, data.get(),
+                    1);
+                opalTexture->setParameters(opal::TextureWrapMode::Repeat,
+                                           opal::TextureWrapMode::Repeat,
+                                           opal::TextureFilterMode::Linear,
+                                           opal::TextureFilterMode::Linear);
                 opalTexture->automaticallyGenerateMipmaps();
                 loadedTexture = Texture{.resource = resource,
                                         .creationData = {width, height, 4},

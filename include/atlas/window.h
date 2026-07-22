@@ -506,6 +506,7 @@ class Window {
     void enableGlobalIllumination();
     void enablePathTracing();
     bool setEditorPathTracingPreview(bool enabled);
+    const std::string &getPathTracingError() const;
 #endif
 
     /**

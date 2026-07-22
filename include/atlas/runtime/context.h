@@ -127,6 +127,7 @@ class Context {
     bool setEditorControlMode(int mode);
     bool setEditorShadingMode(int mode);
     bool setEditorPathTracingPreview(bool enabled);
+    std::string getPathTracingError() const;
     float frameRate() const;
     bool editorPointerEvent(int action, float x, float y, int button,
                             float scale);

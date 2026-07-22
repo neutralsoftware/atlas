@@ -1132,6 +1132,7 @@ struct PrimitiveVertex {
 
 class PrimitiveAccelerationStructure {
   public:
+    ~PrimitiveAccelerationStructure();
     static std::shared_ptr<PrimitiveAccelerationStructure>
     create(const std::vector<PrimitiveVertex> &vertices,
            const std::vector<uint32_t> &indices);
@@ -1161,6 +1162,7 @@ struct AccelerationStructureInstance {
 
 class InstanceAccelerationStructure {
   public:
+    ~InstanceAccelerationStructure();
     static std::shared_ptr<opal::InstanceAccelerationStructure>
     create(const std::vector<opal::AccelerationStructureInstance> &instances);
 

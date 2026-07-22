@@ -1632,8 +1632,13 @@ bool Window::stepFrame() {
             }
 #ifdef METAL
             pathTracer->resizeOutput(target->getWidth(), target->getHeight());
-            pathTracer->render(commandBuffer, target->texture.texture,
-                               target->brightTexture.texture);
+            if (!pathTracer->render(commandBuffer, target->texture.texture,
+                                    target->brightTexture.texture)) {
+                commandBuffer->beginPass(newRenderPass);
+                commandBuffer->clearColor(0.08f, 0.01f, 0.01f, 1.0f);
+                commandBuffer->clearDepth(1.0f);
+                commandBuffer->endPass();
+            }
 #endif
 
             continue;
@@ -5561,5 +5566,10 @@ bool Window::setEditorPathTracingPreview(bool enabled) {
         usePathTracing = true;
     }
     return true;
+}
+
+const std::string &Window::getPathTracingError() const {
+    static const std::string noError;
+    return pathTracer != nullptr ? pathTracer->getLastError() : noError;
 }
 #endif

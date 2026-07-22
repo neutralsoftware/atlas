@@ -111,7 +111,7 @@ struct SceneData {
     float3 atmosphereSunDirection;
     float atmosphereSunIntensity;
     float3 atmosphereSunColor;
-    float _pad0;
+    uint pixelStride;
 };
 
 float pow5(float x) {
@@ -1151,6 +1151,8 @@ kernel void main0(texture2d<float, access::write> outTex [[texture(0)]],
                   uint2 gid [[thread_position_in_grid]]) {
     uint w = outTex.get_width();
     uint h = outTex.get_height();
+    uint pixelStride = max(sceneData.pixelStride, 1u);
+    gid *= pixelStride;
     if (gid.x >= w || gid.y >= h)
         return;
 
@@ -1267,13 +1269,23 @@ kernel void main0(texture2d<float, access::write> outTex [[texture(0)]],
 	float2 motion = uv - previousUv;
 	float moment = luminance(color);
 
-	historyTex.write(float4(accum, 1.0), gid);
-	historyGuideTex.write(currentGuide, gid);
-	albedoRoughnessTex.write(float4(primaryAlbedo, primaryRoughness), gid);
-	normalDepthTex.write(float4(primaryNormal, primaryDepth), gid);
-	motionObjectTex.write(float4(motion, objectIdValue, 1.0), gid);
-	momentsHitTex.write(float4(moment, moment * moment,
-	                           primaryRoughness, primaryHitDistance), gid);
-	outTex.write(float4(accum, 1.0), gid);
-	brightTex.write(float4(brightColor, 1.0), gid);
+    for (uint y = 0; y < pixelStride; ++y) {
+        for (uint x = 0; x < pixelStride; ++x) {
+            uint2 pixel = gid + uint2(x, y);
+            if (pixel.x >= w || pixel.y >= h) {
+                continue;
+            }
+            historyTex.write(float4(accum, 1.0), pixel);
+            historyGuideTex.write(currentGuide, pixel);
+            albedoRoughnessTex.write(float4(primaryAlbedo, primaryRoughness),
+                                     pixel);
+            normalDepthTex.write(float4(primaryNormal, primaryDepth), pixel);
+            motionObjectTex.write(float4(motion, objectIdValue, 1.0), pixel);
+            momentsHitTex.write(float4(moment, moment * moment,
+                                       primaryRoughness, primaryHitDistance),
+                                pixel);
+            outTex.write(float4(accum, 1.0), pixel);
+            brightTex.write(float4(brightColor, 1.0), pixel);
+        }
+    }
 }

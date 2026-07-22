@@ -6731,7 +6731,7 @@ struct SceneData {
     float3 atmosphereSunDirection;
     float atmosphereSunIntensity;
     float3 atmosphereSunColor;
-    float _pad0;
+    uint pixelStride;
 };
 
 float pow5(float x) {
@@ -6875,9 +6875,9 @@ constexpr sampler materialTexSampler(coord::normalized, address::repeat,
         texture2d<float> materialTexture28,                                    \
         texture2d<float> materialTexture29,                                    \
         texture2d<float> materialTexture30,                                    \
-        texture2d<float> materialTexture31,                                    \
-  )",
-R"(      texture2d<float> materialTexture32,                                    \
+        texture2d<float> materialTexture31,                                   )",
+R"( \
+        texture2d<float> materialTexture32,                                    \
         texture2d<float> materialTexture33,                                    \
         texture2d<float> materialTexture34,                                    \
         texture2d<float> materialTexture35,                                    \
@@ -7004,8 +7004,8 @@ float4 sampleMaterialTexture(int textureIndex, float2 uv,
         return materialTexture18.sample(materialTexSampler, uv);
     case 19:
         return materialTexture19.sample(materialTexSampler, uv);
-    c)",
-R"(ase 20:
+)",
+R"(    case 20:
         return materialTexture20.sample(materialTexSampler, uv);
     case 21:
         return materialTexture21.sample(materialTexSampler, uv);
@@ -7203,8 +7203,8 @@ bool isOccluded(intersector<triangle_data, instancing> isect,
 bool isOccludedDirectionalLight(DirectionalLightData light, float3 P, float3 N,
                                 thread uint &rng,
                                 intersector<triangle_data, instancing> isect,
-                                )",
-R"(instance_acceleration_structure sceneAS) {
+                           )",
+R"(     instance_acceleration_structure sceneAS) {
     float3 baseL = normalize(-light.direction);
     float3x3 basis = buildOrthonormalBasis(baseL);
     float sunRadius = 0.0025;
@@ -7391,8 +7391,8 @@ float3 evalDirectLightingPBR(intersector<triangle_data, instancing> isect,
 
     // Directional
     if (sceneData.numDirectionalLights > 0) {
-        float3 L = normalize(-dirLight.direction);)",
-R"(
+        float3 L = normalize(-dirLight.direct)",
+R"(ion);
         float3 c = evalPBR(albedo, metallic, roughness, N, V, L, dirLight.color,
                            max(dirLight.intensity, 0.0));
         float3 s = evalSubsurface(albedo, N, V, L, dirLight.color,
@@ -7559,10 +7559,10 @@ float3 sampleRadiance(uint2 gid, uint sampleIndex, uint w,
             float2 bary = hit.triangle_barycentric_coord;
             float b0 = 1.0 - bary.x - bary.y;
             float b1 = bary.x;
-            float b2 = bary.y;
+            float b2 = bary.y;)",
+R"(
 
-   )",
-R"(         texUV = float2(vertices[i0].uv) * b0 +
+            texUV = float2(vertices[i0].uv) * b0 +
                     float2(vertices[i1].uv) * b1 +
                     float2(vertices[i2].uv) * b2;
             localN = normalizeOr(float3(vertices[i0].normal) * b0 +
@@ -7753,8 +7753,8 @@ R"(         texUV = float2(vertices[i0].uv) * b0 +
 
 kernel void main0(texture2d<float, access::write> outTex [[texture(0)]],
                   texture2d<float, access::read_write> historyTex [[texture(1)]],
-                  texture2d<float, access::write> brightT)",
-R"(ex [[texture(2)]],
+                  texture2d<float, access::write> br)",
+R"(ightTex [[texture(2)]],
                   texture2d<float, access::write> albedoRoughnessTex [[texture(3)]],
                   texture2d<float, access::write> normalDepthTex [[texture(4)]],
                   texture2d<float, access::write> motionObjectTex [[texture(5)]],
@@ -7777,6 +7777,8 @@ R"(ex [[texture(2)]],
                   uint2 gid [[thread_position_in_grid]]) {
     uint w = outTex.get_width();
     uint h = outTex.get_height();
+    uint pixelStride = max(sceneData.pixelStride, 1u);
+    gid *= pixelStride;
     if (gid.x >= w || gid.y >= h)
         return;
 
@@ -7893,15 +7895,25 @@ R"(ex [[texture(2)]],
 	float2 motion = uv - previousUv;
 	float moment = luminance(color);
 
-	historyTex.write(float4(accum, 1.0), gid);
-	historyGuideTex.write(currentGuide, gid);
-	albedoRoughnessTex.write(float4(primaryAlbedo, primaryRoughness), gid);
-	normalDepthTex.write(float4(primaryNormal, primaryDepth), gid);
-	motionObjectTex.write(float4(motion, objectIdValue, 1.0), gid);
-	momentsHitTex.write(float4(moment, moment * moment,
-	                           primaryRoughness, primaryHitDistance), gid);
-	outTex.write(float4(accum, 1.0), gid);
-	brightTex.write(float4(brightColor, 1.0), gid);
+    for (uint y = 0; y < pixelStride; ++y) {
+        for (uint x = 0; x < pixelStride; ++x) {
+            uint2 pixel = gid + uint2(x, y);
+            if (pixel.x >= w || pixel.y >= h) {
+                continue;
+            }
+            historyTex.write(float4(accum, 1.0), pixel);
+            historyGuideTex.write(currentGuide, pixel);
+            albedoRoughnessTex.write(float4(primaryAlbedo, primaryRoughness),
+                                     pixel);
+            normalDepthTex.write(float4(primaryNormal, primaryDepth), pixel);
+            motionObjectTex.write(float4(motion, objectIdValue, 1.0), pixel);
+            momentsHitTex.write(float4(moment, moment * moment,
+                                       primaryRoughness, primaryHitDistance),
+                                pixel);
+            outTex.write(float4(accum, 1.0), pixel);
+            brightTex.write(float4(brightColor, 1.0), pixel);
+        }
+    }
 }
 )",
 };

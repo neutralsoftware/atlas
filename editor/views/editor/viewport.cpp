@@ -137,8 +137,8 @@ QJsonObject findSnapshotObjectByName(const QJsonArray &objects,
         const QJsonObject object = entry.toObject();
         if (object.value("name").toString() == name)
             return object;
-        const QJsonObject child = findSnapshotObjectByName(
-            object.value("children").toArray(), name);
+        const QJsonObject child =
+            findSnapshotObjectByName(object.value("children").toArray(), name);
         if (!child.isEmpty())
             return child;
     }
@@ -184,25 +184,27 @@ class RuntimePropertyCommand : public QUndoCommand {
 
     void undo() override {
         if (viewport != nullptr) {
-            viewport->applyRuntimeObjectProperty(
-                objectId, component, componentIndex, path, before);
+            viewport->applyRuntimeObjectProperty(objectId, component,
+                                                 componentIndex, path, before);
         }
     }
 
     void redo() override {
         if (viewport != nullptr) {
-            viewport->applyRuntimeObjectProperty(
-                objectId, component, componentIndex, path, after);
+            viewport->applyRuntimeObjectProperty(objectId, component,
+                                                 componentIndex, path, after);
         }
     }
 
     int id() const override { return 0x415450; }
 
     bool mergeWith(const QUndoCommand *other) override {
-        const auto *command = dynamic_cast<const RuntimePropertyCommand *>(other);
+        const auto *command =
+            dynamic_cast<const RuntimePropertyCommand *>(other);
         if (command == nullptr || command->viewport != viewport ||
             command->objectId != objectId || command->component != component ||
-            command->componentIndex != componentIndex || command->path != path) {
+            command->componentIndex != componentIndex ||
+            command->path != path) {
             return false;
         }
         after = command->after;
@@ -270,15 +272,13 @@ ViewportPanel::ViewportPanel(const QString &projectFile, QWidget *parent)
     environmentReloadTimer->setSingleShot(true);
     environmentReloadTimer->setInterval(140);
     connect(frameTimer, &QTimer::timeout, this, [this] { stepRuntime(); });
-    connect(resizeTimer, &QTimer::timeout, this,
-            [this] { resizeRuntime(); });
+    connect(resizeTimer, &QTimer::timeout, this, [this] { resizeRuntime(); });
     connect(environmentReloadTimer, &QTimer::timeout, this,
             &ViewportPanel::reloadRuntime);
     if (auto *app = QCoreApplication::instance()) {
         connect(app, &QCoreApplication::aboutToQuit, this,
                 [this] { shutdownRuntime(); });
     }
-
 }
 
 ViewportPanel::~ViewportPanel() { shutdownRuntime(); }
@@ -305,9 +305,7 @@ void ViewportPanel::showEvent(QShowEvent *event) {
         scheduleRuntimeStart();
 }
 
-void ViewportPanel::hideEvent(QHideEvent *event) {
-    QWidget::hideEvent(event);
-}
+void ViewportPanel::hideEvent(QHideEvent *event) { QWidget::hideEvent(event); }
 
 void ViewportPanel::closeEvent(QCloseEvent *event) {
     shutdownRuntime();
@@ -323,12 +321,11 @@ void ViewportPanel::dragEnterEvent(QDragEnterEvent *event) {
         const bool model = suffix == "obj" || suffix == "fbx" ||
                            suffix == "gltf" || suffix == "glb" ||
                            suffix == "dae";
-        if (model ||
-            (selectedRuntimeObjectId() >= 0 &&
-             (suffix == "amat" || suffix == "material" || suffix == "ts" ||
-            suffix == "js" || suffix == "wav" || suffix == "mp3" ||
-            suffix == "ogg" || suffix == "flac" || suffix == "m4a" ||
-              suffix == "aac"))) {
+        if (model || (selectedRuntimeObjectId() >= 0 &&
+                      (suffix == "amat" || suffix == "material" ||
+                       suffix == "ts" || suffix == "js" || suffix == "wav" ||
+                       suffix == "mp3" || suffix == "ogg" || suffix == "flac" ||
+                       suffix == "m4a" || suffix == "aac"))) {
             event->acceptProposedAction();
             return;
         }
@@ -351,8 +348,7 @@ void ViewportPanel::dropEvent(QDropEvent *event) {
     const int objectId = selectedRuntimeObjectId();
     if (objectId >= 0 && event->mimeData()->hasUrls() &&
         attachRuntimeAsset(
-            objectId,
-            event->mimeData()->urls().constFirst().toLocalFile())) {
+            objectId, event->mimeData()->urls().constFirst().toLocalFile())) {
         event->acceptProposedAction();
         emit runtimeObjectActivated(objectId);
         return;
@@ -399,9 +395,8 @@ void ViewportPanel::shutdownRuntime() {
 
 void ViewportPanel::mousePressEvent(QMouseEvent *event) {
     setFocus(Qt::MouseFocusReason);
-    if (keyboardTransformActive &&
-        (event->button() == Qt::LeftButton ||
-         event->button() == Qt::RightButton)) {
+    if (keyboardTransformActive && (event->button() == Qt::LeftButton ||
+                                    event->button() == Qt::RightButton)) {
         finishKeyboardTransform(event->button() == Qt::LeftButton);
         event->accept();
         return;
@@ -409,20 +404,18 @@ void ViewportPanel::mousePressEvent(QMouseEvent *event) {
     if (event->button() == Qt::LeftButton) {
         leftPointerMoved = false;
         const int selected = selectedRuntimeObjectId();
-        transformUndoBefore =
-            findSnapshotObject(
-                QJsonDocument::fromJson(lastSceneSnapshot.toUtf8())
-                    .object()
-                    .value("objects")
-                    .toArray(),
-                selected);
+        transformUndoBefore = findSnapshotObject(
+            QJsonDocument::fromJson(lastSceneSnapshot.toUtf8())
+                .object()
+                .value("objects")
+                .toArray(),
+            selected);
     }
     int pointerButton = runtimeMouseButton(event->button());
     if (event->button() == Qt::RightButton) {
-        rightDragRuntimeButton =
-            event->modifiers().testFlag(Qt::ShiftModifier)
-                ? runtimeMouseButton(Qt::RightButton)
-                : runtimeMouseButton(Qt::MiddleButton);
+        rightDragRuntimeButton = event->modifiers().testFlag(Qt::ShiftModifier)
+                                     ? runtimeMouseButton(Qt::RightButton)
+                                     : runtimeMouseButton(Qt::MiddleButton);
         pointerButton = rightDragRuntimeButton;
     }
     sendPointerEvent(0, static_cast<float>(event->position().x()),
@@ -436,10 +429,10 @@ void ViewportPanel::mousePressEvent(QMouseEvent *event) {
 void ViewportPanel::mouseMoveEvent(QMouseEvent *event) {
     if (event->buttons().testFlag(Qt::LeftButton))
         leftPointerMoved = true;
-    sendPointerEvent(1, static_cast<float>(event->position().x()),
-                     static_cast<float>(event->position().y()),
-                     activeRuntimeMouseButton(event->buttons(),
-                                              rightDragRuntimeButton));
+    sendPointerEvent(
+        1, static_cast<float>(event->position().x()),
+        static_cast<float>(event->position().y()),
+        activeRuntimeMouseButton(event->buttons(), rightDragRuntimeButton));
     if (keyboardTransformActive) {
         const QRect bounds(mapToGlobal(QPoint(0, 0)), size());
         QPoint cursor = event->globalPosition().toPoint();
@@ -537,8 +530,7 @@ void ViewportPanel::keyPressEvent(QKeyEvent *event) {
             deleteRuntimeObject(selectedRuntimeObjectId());
             event->accept();
             return;
-        } else if (event->key() == Qt::Key_G ||
-                   event->key() == Qt::Key_R ||
+        } else if (event->key() == Qt::Key_G || event->key() == Qt::Key_R ||
                    event->key() == Qt::Key_S) {
             beginKeyboardTransform(event->key() == Qt::Key_G   ? 1
                                    : event->key() == Qt::Key_R ? 2
@@ -610,16 +602,16 @@ void ViewportPanel::startRuntime() {
         QCoreApplication::processEvents(QEventLoop::ExcludeUserInputEvents);
         runtimeContext =
             runtime::makeContextForMetalView(runtimeProjectFile, metalView);
-        runtimeContext->modelImportProgress =
-            [this](float value, const std::string &status) {
-                const int percentage = std::clamp(
-                    static_cast<int>(std::round(value * 100.0f)), 0, 100);
-                emit runtimeLoadingStatusChanged(
-                    QString::fromStdString(status) +
-                    QStringLiteral("... %1%").arg(percentage));
-                QCoreApplication::processEvents(
-                    QEventLoop::ExcludeUserInputEvents);
-            };
+        runtimeContext->modelImportProgress = [this](
+                                                  float value,
+                                                  const std::string &status) {
+            const int percentage = std::clamp(
+                static_cast<int>(std::round(value * 100.0f)), 0, 100);
+            emit runtimeLoadingStatusChanged(
+                QString::fromStdString(status) +
+                QStringLiteral("... %1%").arg(percentage));
+            QCoreApplication::processEvents(QEventLoop::ExcludeUserInputEvents);
+        };
         runtimeContext->loadProject();
         runtimeContext->setEditorControlsEnabled(true);
         runtimeContext->setEditorSimulationEnabled(false);
@@ -671,8 +663,7 @@ void ViewportPanel::startRuntime() {
         runtimeContext.reset();
         playAfterRuntimeStart = false;
         emit runtimeLoadingFinished();
-        emit runtimeStartupFinished(false,
-                                    QString::fromUtf8(error.what()));
+        emit runtimeStartupFinished(false, QString::fromUtf8(error.what()));
     } catch (...) {
         qWarning() << "Failed to start Atlas viewport runtime";
         runtimeContext.reset();
@@ -820,12 +811,12 @@ bool ViewportPanel::focusRuntimeObjects(const QList<int> &ids) {
 bool ViewportPanel::renameRuntimeObject(int id, const QString &name) {
     if (playbackState != 0)
         return false;
-    const QJsonObject object = findSnapshotObject(
-        QJsonDocument::fromJson(lastSceneSnapshot.toUtf8())
-            .object()
-            .value("objects")
-            .toArray(),
-        id);
+    const QJsonObject object =
+        findSnapshotObject(QJsonDocument::fromJson(lastSceneSnapshot.toUtf8())
+                               .object()
+                               .value("objects")
+                               .toArray(),
+                           id);
     const QString previous = object.value("name").toString();
     if (previous.isEmpty() || previous == name) {
         return previous == name;
@@ -845,13 +836,14 @@ bool ViewportPanel::renameRuntimeObjectDirect(int id, const QString &name) {
     return true;
 }
 
-bool ViewportPanel::setRuntimeObjectProperty(
-    int id, const QString &component, int componentIndex,
-    const QString &propertyPath, const QJsonValue &value) {
+bool ViewportPanel::setRuntimeObjectProperty(int id, const QString &component,
+                                             int componentIndex,
+                                             const QString &propertyPath,
+                                             const QJsonValue &value) {
     if (playbackState != 0)
         return false;
-    const QJsonValue previous = runtimeObjectProperty(
-        id, component, componentIndex, propertyPath);
+    const QJsonValue previous =
+        runtimeObjectProperty(id, component, componentIndex, propertyPath);
     if (previous.isUndefined()) {
         return applyRuntimeObjectProperty(id, component, componentIndex,
                                           propertyPath, value);
@@ -864,9 +856,9 @@ bool ViewportPanel::setRuntimeObjectProperty(
     return true;
 }
 
-bool ViewportPanel::setRuntimeSceneProperty(
-    const QString &section, int index, const QString &propertyPath,
-    const QJsonValue &value) {
+bool ViewportPanel::setRuntimeSceneProperty(const QString &section, int index,
+                                            const QString &propertyPath,
+                                            const QJsonValue &value) {
     if (runtimeContext == nullptr || playbackState != 0 || section.isEmpty()) {
         return false;
     }
@@ -877,9 +869,9 @@ bool ViewportPanel::setRuntimeSceneProperty(
     try {
         const json parsed = json::parse(payload.constData());
         if (!parsed.is_array() || parsed.empty() ||
-            !runtimeContext->setSceneProperty(
-                section.toStdString(), index, propertyPath.toStdString(),
-                parsed.front())) {
+            !runtimeContext->setSceneProperty(section.toStdString(), index,
+                                              propertyPath.toStdString(),
+                                              parsed.front())) {
             return false;
         }
     } catch (const json::exception &) {
@@ -934,9 +926,10 @@ bool ViewportPanel::clearRuntimePropertySync(const QJsonObject &target) {
     return true;
 }
 
-bool ViewportPanel::applyRuntimeObjectProperty(
-    int id, const QString &component, int componentIndex,
-    const QString &propertyPath, const QJsonValue &value) {
+bool ViewportPanel::applyRuntimeObjectProperty(int id, const QString &component,
+                                               int componentIndex,
+                                               const QString &propertyPath,
+                                               const QJsonValue &value) {
     if (runtimeContext == nullptr || playbackState != 0) {
         return false;
     }
@@ -961,8 +954,8 @@ bool ViewportPanel::applyRuntimeObjectProperty(
     return true;
 }
 
-int ViewportPanel::addRuntimeObjectComponent(
-    int id, const QString &type, const QJsonObject &properties) {
+int ViewportPanel::addRuntimeObjectComponent(int id, const QString &type,
+                                             const QJsonObject &properties) {
     if (runtimeContext == nullptr || playbackState != 0 || type.isEmpty()) {
         return -1;
     }
@@ -1076,8 +1069,8 @@ bool ViewportPanel::pasteRuntimeObject() {
         objectClipboard.isEmpty()) {
         return false;
     }
-    const int id = runtimeContext->pasteObjectDefinition(
-        objectClipboard.toStdString());
+    const int id =
+        runtimeContext->pasteObjectDefinition(objectClipboard.toStdString());
     if (id < 0)
         return false;
     if (undoStack != nullptr)
@@ -1140,7 +1133,8 @@ bool ViewportPanel::saveRuntimeSceneAs(const QString &path) {
     const QString source = currentRuntimeScene();
     if (source.isEmpty())
         return false;
-    if (QFileInfo(source).absoluteFilePath() != QFileInfo(path).absoluteFilePath()) {
+    if (QFileInfo(source).absoluteFilePath() !=
+        QFileInfo(path).absoluteFilePath()) {
         if (QFile::exists(path) && !QFile::remove(path))
             return false;
         if (!QFile::copy(source, path))
@@ -1205,14 +1199,13 @@ bool ViewportPanel::attachRuntimeAsset(int id, const QString &path) {
 bool ViewportPanel::importRuntimeModel(const QString &path) {
     if (runtimeContext == nullptr || playbackState != 0 || path.isEmpty())
         return false;
-    const QJsonObject definition{
-        {"type", "model"},
-        {"name", QFileInfo(path).completeBaseName()},
-        {"source", QFileInfo(path).absoluteFilePath()},
-        {"position", QJsonArray{0.0, 0.0, 0.0}},
-        {"rotation", QJsonArray{0.0, 0.0, 0.0}},
-        {"scale", QJsonArray{1.0, 1.0, 1.0}},
-        {"components", QJsonArray{}}};
+    const QJsonObject definition{{"type", "model"},
+                                 {"name", QFileInfo(path).completeBaseName()},
+                                 {"source", QFileInfo(path).absoluteFilePath()},
+                                 {"position", QJsonArray{0.0, 0.0, 0.0}},
+                                 {"rotation", QJsonArray{0.0, 0.0, 0.0}},
+                                 {"scale", QJsonArray{1.0, 1.0, 1.0}},
+                                 {"components", QJsonArray{}}};
     QProgressDialog progress(this);
     progress.setWindowTitle(tr("Importing Model"));
     progress.setLabelText(tr("Preparing %1…").arg(QFileInfo(path).fileName()));
@@ -1228,13 +1221,12 @@ bool ViewportPanel::importRuntimeModel(const QString &path) {
     const int id = runtimeContext->pasteObjectDefinition(
         QJsonDocument(definition).toJson(QJsonDocument::Compact).toStdString(),
         [&progress, &fileName](float value, const std::string &status) {
-            const int percentage =
-                std::clamp(static_cast<int>(std::round(value * 100.0f)), 0, 100);
+            const int percentage = std::clamp(
+                static_cast<int>(std::round(value * 100.0f)), 0, 100);
             progress.setValue(percentage);
-            progress.setLabelText(QString::fromStdString(status) +
-                                  QObject::tr("\n%1 — %2%")
-                                      .arg(fileName)
-                                      .arg(percentage));
+            progress.setLabelText(
+                QString::fromStdString(status) +
+                QObject::tr("\n%1 — %2%").arg(fileName).arg(percentage));
             QCoreApplication::processEvents(QEventLoop::ExcludeUserInputEvents);
         });
     progress.setValue(100);
@@ -1271,13 +1263,14 @@ void ViewportPanel::setSceneDirty(bool dirty) {
     emit sceneDirtyChanged(sceneDirty);
 }
 
-QJsonValue ViewportPanel::runtimeObjectProperty(
-    int id, const QString &component, int componentIndex,
-    const QString &propertyPath) const {
+QJsonValue
+ViewportPanel::runtimeObjectProperty(int id, const QString &component,
+                                     int componentIndex,
+                                     const QString &propertyPath) const {
     const QJsonDocument document =
         QJsonDocument::fromJson(lastSceneSnapshot.toUtf8());
-    const QJsonObject object = findSnapshotObject(
-        document.object().value("objects").toArray(), id);
+    const QJsonObject object =
+        findSnapshotObject(document.object().value("objects").toArray(), id);
     if (object.isEmpty())
         return QJsonValue(QJsonValue::Undefined);
     const QString normalized = component.toLower();
@@ -1301,9 +1294,9 @@ void ViewportPanel::playRuntime() {
         return;
     }
     QString error;
-    if (!ToolchainInstaller::run(
-            {"script", "compile"}, QFileInfo(projectFile).absolutePath(),
-            &error)) {
+    if (!ToolchainInstaller::run({"script", "compile"},
+                                 QFileInfo(projectFile).absolutePath(),
+                                 &error)) {
         QMessageBox::warning(
             this, "Script Compilation Failed",
             error.isEmpty() ? "Atlas could not compile the project scripts."
@@ -1360,13 +1353,11 @@ void ViewportPanel::reloadRuntime() {
         if (selected >= 0) {
             const QJsonDocument document =
                 QJsonDocument::fromJson(lastSceneSnapshot.toUtf8());
-            selectionToRestore = findSnapshotObject(
-                                     document.object()
-                                         .value("objects")
-                                         .toArray(),
-                                     selected)
-                                     .value("name")
-                                     .toString();
+            selectionToRestore =
+                findSnapshotObject(document.object().value("objects").toArray(),
+                                   selected)
+                    .value("name")
+                    .toString();
         }
     }
     finishKeyboardTransform(false);
@@ -1390,13 +1381,20 @@ void ViewportPanel::setPathTracingPreview(bool enabled) {
         return;
     }
     emit runtimeLoadingStarted();
-    emit runtimeLoadingStatusChanged(
-        enabled ? "Preparing PBR preview..."
-                : "Preparing path-traced viewport...");
+    emit runtimeLoadingStatusChanged(enabled
+                                         ? "Preparing PBR preview..."
+                                         : "Preparing path-traced viewport...");
     QCoreApplication::processEvents(QEventLoop::ExcludeUserInputEvents);
     runtimeContext->setEditorPathTracingPreview(enabled);
     stepRuntime();
     emit runtimeLoadingFinished();
+    if (!enabled) {
+        const std::string error = runtimeContext->getPathTracingError();
+        if (!error.empty()) {
+            QMessageBox::critical(this, "Path Tracing Error",
+                                  QString::fromStdString(error));
+        }
+    }
 }
 
 void ViewportPanel::setRuntimeControlMode(int mode) {
@@ -1409,7 +1407,8 @@ void ViewportPanel::setRuntimeControlMode(int mode) {
 
 void ViewportPanel::toggleTransformSpace() {
     if (runtimeContext != nullptr)
-        emit transformSpaceChanged(runtimeContext->toggleEditorTransformSpace());
+        emit transformSpaceChanged(
+            runtimeContext->toggleEditorTransformSpace());
 }
 
 void ViewportPanel::toggleTransformSnapping() {
@@ -1433,12 +1432,11 @@ void ViewportPanel::beginKeyboardTransform(int mode) {
     if (runtimeContext == nullptr || selectedRuntimeObjectId() < 0)
         return;
     transformUndoBefore =
-        findSnapshotObject(
-            QJsonDocument::fromJson(lastSceneSnapshot.toUtf8())
-                .object()
-                .value("objects")
-                .toArray(),
-            selectedRuntimeObjectId());
+        findSnapshotObject(QJsonDocument::fromJson(lastSceneSnapshot.toUtf8())
+                               .object()
+                               .value("objects")
+                               .toArray(),
+                           selectedRuntimeObjectId());
     const QPoint pointer = mapFromGlobal(QCursor::pos());
     if (!runtimeContext->beginEditorKeyboardTransform(
             mode, static_cast<float>(pointer.x()),
@@ -1449,8 +1447,9 @@ void ViewportPanel::beginKeyboardTransform(int mode) {
     keyboardTransformMode = mode;
     keyboardTransformAxes = 7;
     grabMouse();
-    const QString operation =
-        mode == 1 ? "Move" : mode == 2 ? "Rotate" : "Scale";
+    const QString operation = mode == 1   ? "Move"
+                              : mode == 2 ? "Rotate"
+                                          : "Scale";
     emit transformHintChanged(
         QStringLiteral("%1 · All axes · X/Y/Z constrain · Shift+Axis exclude "
                        "· Enter/LMB confirm · Esc/RMB cancel")
@@ -1506,27 +1505,25 @@ void ViewportPanel::finishKeyboardTransform(bool commit) {
     keyboardTransformMode = 0;
     keyboardTransformAxes = 7;
     transformUndoBefore = {};
-    emit transformHintChanged(
-        "Tab Frame · Right-Drag Pan · Middle-Drag Orbit · G Move · R Rotate · S Scale · X Delete");
+    emit transformHintChanged("Tab Frame · Right-Drag Pan · Middle-Drag Orbit "
+                              "· G Move · R Rotate · S Scale · X Delete");
 }
 
-void ViewportPanel::pushTransformUndo(int objectId,
-                                      const QJsonObject &before) {
+void ViewportPanel::pushTransformUndo(int objectId, const QJsonObject &before) {
     if (undoStack == nullptr || objectId < 0 || before.isEmpty())
         return;
-    const QJsonObject after = findSnapshotObject(
-        QJsonDocument::fromJson(lastSceneSnapshot.toUtf8())
-            .object()
-            .value("objects")
-            .toArray(),
-        objectId);
+    const QJsonObject after =
+        findSnapshotObject(QJsonDocument::fromJson(lastSceneSnapshot.toUtf8())
+                               .object()
+                               .value("objects")
+                               .toArray(),
+                           objectId);
     if (after.isEmpty())
         return;
     auto *command = new QUndoCommand("Transform Object");
-    const QList<QPair<QString, QString>> properties{
-        {"position", "/position"},
-        {"rotation", "/rotation"},
-        {"scale", "/scale"}};
+    const QList<QPair<QString, QString>> properties{{"position", "/position"},
+                                                    {"rotation", "/rotation"},
+                                                    {"scale", "/scale"}};
     for (const auto &[key, path] : properties) {
         if (before.value(key) != after.value(key)) {
             new RuntimePropertyCommand(this, objectId, "transform", -1, path,

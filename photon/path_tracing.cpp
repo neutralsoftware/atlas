@@ -10,12 +10,14 @@
 #include "atlas/window.h"
 #include "atlas/core/shader.h"
 #include "atlas/object.h"
+#include "atlas/tracer/log.h"
 #include "photon/illuminate.h"
 #include "opal/opal.h"
 #include <algorithm>
 #include <cmath>
 #include <cstdint>
 #include <cstring>
+#include <exception>
 #include <ranges>
 #include <unordered_map>
 #include <unordered_set>
@@ -189,6 +191,12 @@ void photon::PathTracing::init() {
     materialTextures.clear();
     objectBLAS.clear();
     cachedObjects.clear();
+    cachedSceneObjects.clear();
+    cachedObjectStateHashes.clear();
+    cachedSceneObjectStateHashes.clear();
+    cachedInstanceTransforms.clear();
+    accelerationBuildFailed = false;
+    lastError.clear();
 
     ComputeShader pathTracerShader =
         ComputeShader::fromDefaultShader(AtlasComputeShader::PathTracer);
@@ -220,22 +228,17 @@ void photon::PathTracing::init() {
         Texture::create(outputWidth, outputHeight, opal::TextureFormat::Rgba16F,
                         opal::TextureDataFormat::Rgba, TextureType::Color));
     for (auto &texture : denoiseTextures) {
-        texture = std::make_shared<Texture>(
-            Texture::create(outputWidth, outputHeight,
-                            opal::TextureFormat::Rgba16F,
-                            opal::TextureDataFormat::Rgba,
-                            TextureType::Color));
+        texture = std::make_shared<Texture>(Texture::create(
+            outputWidth, outputHeight, opal::TextureFormat::Rgba16F,
+            opal::TextureDataFormat::Rgba, TextureType::Color));
     }
     for (auto &texture : pathTracingAovTextures) {
-        texture = std::make_shared<Texture>(
-            Texture::create(outputWidth, outputHeight,
-                            opal::TextureFormat::Rgba16F,
-                            opal::TextureDataFormat::Rgba,
-                            TextureType::Color));
+        texture = std::make_shared<Texture>(Texture::create(
+            outputWidth, outputHeight, opal::TextureFormat::Rgba16F,
+            opal::TextureDataFormat::Rgba, TextureType::Color));
     }
     pathTracingHistoryGuide = std::make_shared<Texture>(
-        Texture::create(outputWidth, outputHeight,
-                        opal::TextureFormat::Rgba16F,
+        Texture::create(outputWidth, outputHeight, opal::TextureFormat::Rgba16F,
                         opal::TextureDataFormat::Rgba, TextureType::Color));
 }
 
@@ -253,27 +256,22 @@ void photon::PathTracing::resizeOutput(int width, int height) {
         Texture::create(outputWidth, outputHeight, opal::TextureFormat::Rgba16F,
                         opal::TextureDataFormat::Rgba, TextureType::Color));
     for (auto &texture : denoiseTextures) {
-        texture = std::make_shared<Texture>(
-            Texture::create(outputWidth, outputHeight,
-                            opal::TextureFormat::Rgba16F,
-                            opal::TextureDataFormat::Rgba,
-                            TextureType::Color));
+        texture = std::make_shared<Texture>(Texture::create(
+            outputWidth, outputHeight, opal::TextureFormat::Rgba16F,
+            opal::TextureDataFormat::Rgba, TextureType::Color));
     }
     for (auto &texture : pathTracingAovTextures) {
-        texture = std::make_shared<Texture>(
-            Texture::create(outputWidth, outputHeight,
-                            opal::TextureFormat::Rgba16F,
-                            opal::TextureDataFormat::Rgba,
-                            TextureType::Color));
+        texture = std::make_shared<Texture>(Texture::create(
+            outputWidth, outputHeight, opal::TextureFormat::Rgba16F,
+            opal::TextureDataFormat::Rgba, TextureType::Color));
     }
     pathTracingHistoryGuide = std::make_shared<Texture>(
-        Texture::create(outputWidth, outputHeight,
-                        opal::TextureFormat::Rgba16F,
+        Texture::create(outputWidth, outputHeight, opal::TextureFormat::Rgba16F,
                         opal::TextureDataFormat::Rgba, TextureType::Color));
     frameIndex = 0;
 }
 
-void photon::PathTracing::buildAccelerationStructure(
+bool photon::PathTracing::buildAccelerationStructure(
     const std::shared_ptr<opal::CommandBuffer> &commandBuffer) {
     struct MaterialData {
         float albedo[4];
@@ -321,25 +319,55 @@ void photon::PathTracing::buildAccelerationStructure(
         collectPathTracingObjectsFromQueue(Window::mainWindow->firstRenderables,
                                            seenPathObjects, pathTracingObjects);
     }
+    std::vector<uint64_t> sceneObjectStateHashes;
+    sceneObjectStateHashes.reserve(pathTracingObjects.size());
+    for (const auto *object : pathTracingObjects) {
+        sceneObjectStateHashes.push_back(pathTracingObjectStateHash(object));
+    }
+
+    bool needsRebuild = cachedSceneObjects != pathTracingObjects ||
+                        cachedSceneObjectStateHashes != sceneObjectStateHashes;
+    if (!needsRebuild && accelerationBuildFailed) {
+        return false;
+    }
+    if (needsRebuild) {
+        accelerationBuildFailed = false;
+    }
     std::vector<CoreObject *> traceableObjects;
-    traceableObjects.reserve(pathTracingObjects.size());
-    for (auto *object : pathTracingObjects) {
-        if (object == nullptr) {
-            continue;
+    if (needsRebuild) {
+        traceableObjects.reserve(pathTracingObjects.size());
+        for (auto *object : pathTracingObjects) {
+            if (object == nullptr || !object->canUseDeferredRendering() ||
+                object->vertices.size() < 3 || object->indices.size() < 3) {
+                continue;
+            }
+            if (object->indices.size() % 3 != 0 ||
+                std::ranges::any_of(object->indices, [&](uint32_t index) {
+                    return index >= object->vertices.size();
+                })) {
+                continue;
+            }
+            traceableObjects.push_back(object);
         }
-        if (!object->canUseDeferredRendering()) {
-            continue;
+        cachedSceneObjects = pathTracingObjects;
+        cachedSceneObjectStateHashes = sceneObjectStateHashes;
+        cachedObjects = traceableObjects;
+        cachedObjectStateHashes.clear();
+        cachedObjectStateHashes.reserve(traceableObjects.size());
+        for (const auto *object : traceableObjects) {
+            cachedObjectStateHashes.push_back(
+                pathTracingObjectStateHash(object));
         }
-        if (object->vertices.size() < 3 || object->indices.size() < 3) {
-            continue;
-        }
-        if (object->indices.size() % 3 != 0 ||
-            std::ranges::any_of(object->indices, [&](uint32_t index) {
-                return index >= object->vertices.size();
-            })) {
-            continue;
-        }
-        traceableObjects.push_back(object);
+    } else {
+        traceableObjects = cachedObjects;
+    }
+    if (traceableObjects.empty()) {
+        lastError = pathTracingObjects.empty()
+                        ? "No renderable scene geometry was found"
+                        : "Scene geometry is not valid for path tracing";
+        sceneTLAS.reset();
+        accelerationBuildFailed = true;
+        return false;
     }
     std::vector<MaterialData> materialData;
 
@@ -347,32 +375,12 @@ void photon::PathTracing::buildAccelerationStructure(
     std::vector<uint32_t> allIndices;
     std::vector<MeshData> meshData;
 
-    bool needsRebuild =
-        objectBLAS.empty() || cachedObjects.size() != traceableObjects.size();
-    std::vector<uint64_t> objectStateHashes;
-    objectStateHashes.reserve(traceableObjects.size());
-    for (const auto *object : traceableObjects) {
-        objectStateHashes.push_back(pathTracingObjectStateHash(object));
-    }
-    if (cachedObjectStateHashes != objectStateHashes) {
-        needsRebuild = true;
-    }
-    if (!needsRebuild) {
-        for (size_t i = 0; i < traceableObjects.size(); ++i) {
-            if (cachedObjects[i] != traceableObjects[i]) {
-                needsRebuild = true;
-                break;
-            }
-        }
-    }
-
     int objectID = 0;
     if (needsRebuild) {
         objectBLAS.clear();
         materialTextures.clear();
-        cachedObjects = traceableObjects;
-        cachedObjectStateHashes = objectStateHashes;
         std::unordered_map<uint64_t, int> textureSlots;
+        size_t failedBLASCount = 0;
 
         for (auto *object : traceableObjects) {
             const auto &objectVertices = object->vertices;
@@ -380,9 +388,6 @@ void photon::PathTracing::buildAccelerationStructure(
 
             std::vector<opal::PrimitiveVertex> vertices;
             vertices.reserve(objectVertices.size());
-            std::vector<uint32_t> indices;
-            indices.reserve(objectIndices.size());
-
             int vertexOffset = allVertices.size();
             int indexOffset = allIndices.size();
 
@@ -419,16 +424,17 @@ void photon::PathTracing::buildAccelerationStructure(
                 allVertices.push_back(vd);
             }
 
-            indices = objectIndices;
-            for (auto &index : indices) {
+            for (auto index : objectIndices) {
                 allIndices.push_back(vertexOffset + index);
             }
 
-            auto blas =
-                opal::PrimitiveAccelerationStructure::create(vertices, indices);
+            auto blas = opal::PrimitiveAccelerationStructure::create(
+                vertices, objectIndices);
             objectBLAS[objectID] = blas;
             if (blas != nullptr) {
                 commandBuffer->buildPrimitiveAccelerationStructure(blas);
+            } else {
+                failedBLASCount++;
             }
 
             MaterialData data;
@@ -502,6 +508,16 @@ void photon::PathTracing::buildAccelerationStructure(
             objectID++;
         }
 
+        if (failedBLASCount > 0) {
+            lastError = "Failed to allocate " +
+                        std::to_string(failedBLASCount) + " of " +
+                        std::to_string(traceableObjects.size()) +
+                        " mesh acceleration structures";
+            sceneTLAS.reset();
+            accelerationBuildFailed = true;
+            return false;
+        }
+
         materialBuffer = opal::Buffer::create(
             opal::BufferUsage::ShaderRead,
             materialData.size() * sizeof(MaterialData), materialData.data());
@@ -517,6 +533,13 @@ void photon::PathTracing::buildAccelerationStructure(
         meshInfo = opal::Buffer::create(opal::BufferUsage::ShaderRead,
                                         meshData.size() * sizeof(MeshData),
                                         meshData.data());
+        if (materialBuffer == nullptr || globalVertices == nullptr ||
+            globalIndices == nullptr || meshInfo == nullptr) {
+            lastError = "Failed to allocate path tracing scene buffers";
+            sceneTLAS.reset();
+            accelerationBuildFailed = true;
+            return false;
+        }
         frameIndex = 0;
     }
 
@@ -575,13 +598,13 @@ void photon::PathTracing::buildAccelerationStructure(
         instanceData[objectIndex] = d;
     }
 
-    bool transformsChanged = needsRebuild ||
-                             cachedInstanceTransforms.size() !=
-                                 traceableObjects.size();
+    bool transformsChanged = needsRebuild || cachedInstanceTransforms.size() !=
+                                                 traceableObjects.size();
     if (!transformsChanged) {
         for (size_t i = 0; i < traceableObjects.size(); ++i) {
             if (!mat4ApproximatelyEqual(cachedInstanceTransforms[i],
-                                        traceableObjects[i]->model, 0.000001f)) {
+                                        traceableObjects[i]->model,
+                                        0.000001f)) {
                 transformsChanged = true;
                 break;
             }
@@ -599,12 +622,26 @@ void photon::PathTracing::buildAccelerationStructure(
         if (instances.empty()) {
             sceneTLAS.reset();
             frameIndex = 0;
-            return;
+            lastError = "No acceleration structure instances could be created";
+            accelerationBuildFailed = true;
+            return false;
         }
         sceneTLAS = opal::InstanceAccelerationStructure::create(instances);
+        if (sceneTLAS == nullptr) {
+            lastError = "Failed to allocate the scene acceleration structure";
+            accelerationBuildFailed = true;
+            return false;
+        }
         commandBuffer->buildInstanceAccelerationStructure(sceneTLAS);
         frameIndex = 0;
     }
+    if (sceneTLAS == nullptr || !sceneTLAS->isBuilt) {
+        lastError = "The scene acceleration structure is unavailable";
+        accelerationBuildFailed = true;
+        return false;
+    }
+    accelerationBuildFailed = false;
+    return true;
 }
 
 bool photon::PathTracing::createLightBuffers() {
@@ -737,8 +774,10 @@ bool photon::PathTracing::createLightBuffers() {
     };
     hashBytes(pointLightData.data(),
               pointLightData.size() * sizeof(PointLightData));
-    hashBytes(spotLightData.data(), spotLightData.size() * sizeof(SpotLightData));
-    hashBytes(areaLightData.data(), areaLightData.size() * sizeof(AreaLightData));
+    hashBytes(spotLightData.data(),
+              spotLightData.size() * sizeof(SpotLightData));
+    hashBytes(areaLightData.data(),
+              areaLightData.size() * sizeof(AreaLightData));
     if (cachedLightHash == lightHash && pointLights != nullptr &&
         spotLights != nullptr && areaLights != nullptr) {
         return false;
@@ -756,10 +795,28 @@ bool photon::PathTracing::createLightBuffers() {
     return true;
 }
 
-void photon::PathTracing::render(
+bool photon::PathTracing::render(
     const std::shared_ptr<opal::CommandBuffer> &commandBuffer,
     const std::shared_ptr<opal::Texture> &output,
     const std::shared_ptr<opal::Texture> &brightOutput) {
+
+    auto fail = [&](const std::string &message) {
+        if (lastError != message) {
+            atlas_error("Path tracing: " + message);
+        }
+        lastError = message;
+        frameIndex = 0;
+        return false;
+    };
+
+    if (commandBuffer == nullptr || output == nullptr ||
+        brightOutput == nullptr) {
+        return fail("The render target or command buffer is unavailable");
+    }
+    if (Window::mainWindow == nullptr ||
+        Window::mainWindow->getCamera() == nullptr) {
+        return fail("The active window or camera is unavailable");
+    }
 
     auto view = Window::mainWindow->getCamera()->calculateViewMatrix();
     auto proj = Window::mainWindow->calculateProjectionMatrix();
@@ -767,14 +824,27 @@ void photon::PathTracing::render(
     auto invViewProj = glm::inverse(proj * view);
     auto viewProj = proj * view;
 
+    bool cameraChanged = false;
     if (frameIndex == 0) {
         cachedInvViewProj = invViewProj;
         previousViewProj = viewProj;
     } else if (!mat4ApproximatelyEqual(cachedInvViewProj, invViewProj,
                                        0.00001f)) {
+        cameraChanged = true;
         frameIndex = 0;
         cachedInvViewProj = invViewProj;
         previousViewProj = viewProj;
+    }
+
+    if (cameraChanged) {
+        interactiveFramesRemaining = 8;
+    } else if (interactiveFramesRemaining > 0) {
+        interactiveFramesRemaining--;
+    }
+    bool nextInteractive = cameraChanged || interactiveFramesRemaining > 0;
+    if (interactive != nextInteractive) {
+        interactive = nextInteractive;
+        frameIndex = 0;
     }
 
     pathTracingPipeline->setUniformMat4f("cam.invViewProj", invViewProj);
@@ -894,36 +964,60 @@ void photon::PathTracing::render(
     pathTracingPipeline->setUniform1i("sceneData.frameIndex", this->frameIndex);
     pathTracingPipeline->setUniform1i("sceneData.raysPerPixel",
                                       this->raysPerPixel);
-    pathTracingPipeline->setUniform1i("sceneData.maxBounces", this->maxBounces);
+    pathTracingPipeline->setUniform1i(
+        "sceneData.maxBounces",
+        interactive ? std::min(this->maxBounces, 2) : this->maxBounces);
     pathTracingPipeline->setUniform1f("sceneData.indirectStrength",
                                       this->indirectStrength);
+    pathTracingPipeline->setUniform1i("sceneData.pixelStride",
+                                      interactive ? 2 : 1);
 
-    this->buildAccelerationStructure(commandBuffer);
-    if (sceneTLAS == nullptr || !sceneTLAS->isBuilt ||
-        instanceDataBuffer == nullptr || materialBuffer == nullptr ||
+    const std::string previousError = lastError;
+    try {
+        if (!this->buildAccelerationStructure(commandBuffer)) {
+            if (previousError != lastError) {
+                atlas_error("Path tracing: " + lastError);
+            }
+            frameIndex = 0;
+            return false;
+        }
+    } catch (const std::exception &error) {
+        accelerationBuildFailed = true;
+        return fail(std::string("Acceleration structure build failed: ") +
+                    error.what());
+    }
+    if (instanceDataBuffer == nullptr || materialBuffer == nullptr ||
         meshInfo == nullptr || globalVertices == nullptr ||
         globalIndices == nullptr) {
-        frameIndex = 0;
-        return;
+        return fail("Required scene buffers are unavailable");
     }
-    if (this->createLightBuffers()) {
-        frameIndex = 0;
+    try {
+        if (this->createLightBuffers()) {
+            frameIndex = 0;
+        }
+    } catch (const std::exception &error) {
+        return fail(std::string("Light buffer creation failed: ") +
+                    error.what());
+    }
+    if (pointLights == nullptr || spotLights == nullptr ||
+        areaLights == nullptr) {
+        return fail("Required light buffers are unavailable");
     }
     commandBuffer->bindPipeline(this->pathTracingPipeline);
     pathTracingPipeline->bindTexture("outTex", output, 0);
     pathTracingPipeline->bindTexture("historyTex",
                                      pathTracingTexturePrev->texture, 1);
     pathTracingPipeline->bindTexture("brightTex", brightOutput, 2);
-    pathTracingPipeline->bindTexture(
-        "albedoRoughnessTex", pathTracingAovTextures[0]->texture, 3);
-    pathTracingPipeline->bindTexture(
-        "normalDepthTex", pathTracingAovTextures[1]->texture, 4);
-    pathTracingPipeline->bindTexture(
-        "motionObjectTex", pathTracingAovTextures[2]->texture, 5);
-    pathTracingPipeline->bindTexture(
-        "momentsHitTex", pathTracingAovTextures[3]->texture, 6);
-    pathTracingPipeline->bindTexture(
-        "historyGuideTex", pathTracingHistoryGuide->texture, 7);
+    pathTracingPipeline->bindTexture("albedoRoughnessTex",
+                                     pathTracingAovTextures[0]->texture, 3);
+    pathTracingPipeline->bindTexture("normalDepthTex",
+                                     pathTracingAovTextures[1]->texture, 4);
+    pathTracingPipeline->bindTexture("motionObjectTex",
+                                     pathTracingAovTextures[2]->texture, 5);
+    pathTracingPipeline->bindTexture("momentsHitTex",
+                                     pathTracingAovTextures[3]->texture, 6);
+    pathTracingPipeline->bindTexture("historyGuideTex",
+                                     pathTracingHistoryGuide->texture, 7);
 
     static std::shared_ptr<opal::Texture> fallbackSkyboxTexture = nullptr;
     if (fallbackSkyboxTexture == nullptr) {
@@ -974,25 +1068,26 @@ void photon::PathTracing::render(
 
     pathTracingPipeline->bindTextureArray(materialTextures, 12);
 
-    commandBuffer->dispatch(outputWidth, outputHeight, 1);
+    const int pixelStride = interactive ? 2 : 1;
+    commandBuffer->dispatch((outputWidth + pixelStride - 1) / pixelStride,
+                            (outputHeight + pixelStride - 1) / pixelStride, 1);
 
     commandBuffer->computeBarrier();
 
     const std::array<int, 3> denoiseSteps = {1, 2, 4};
-    for (size_t pass = 0; pass < denoiseSteps.size(); ++pass) {
-        const auto &input = pass == 0
-                                ? output
-                                : denoiseTextures[(pass - 1) % 2]->texture;
-        const auto &denoisedOutput =
-            pass + 1 == denoiseSteps.size()
-                ? output
-                : denoiseTextures[pass % 2]->texture;
+    const size_t denoisePassCount = interactive ? 2 : denoiseSteps.size();
+    for (size_t pass = 0; pass < denoisePassCount; ++pass) {
+        const auto &input =
+            pass == 0 ? output : denoiseTextures[(pass - 1) % 2]->texture;
+        const auto &denoisedOutput = pass + 1 == denoisePassCount
+                                         ? output
+                                         : denoiseTextures[pass % 2]->texture;
         commandBuffer->bindPipeline(pathDenoisePipeline);
         pathDenoisePipeline->bindTexture("inputTexture", input, 0);
         pathDenoisePipeline->bindTexture("outputTexture", denoisedOutput, 1);
         pathDenoisePipeline->bindTexture("brightTexture", brightOutput, 2);
-        pathDenoisePipeline->bindTexture(
-            "guideTexture", pathTracingAovTextures[1]->texture, 3);
+        pathDenoisePipeline->bindTexture("guideTexture",
+                                         pathTracingAovTextures[1]->texture, 3);
         pathDenoisePipeline->setUniform1i("parameters.stepWidth",
                                           denoiseSteps[pass]);
         commandBuffer->dispatch(outputWidth, outputHeight, 1);
@@ -1001,6 +1096,8 @@ void photon::PathTracing::render(
 
     previousViewProj = viewProj;
     frameIndex++;
+    lastError.clear();
+    return true;
 }
 
 #endif
