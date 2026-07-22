@@ -605,12 +605,27 @@ void ViewportPanel::startRuntime() {
     }
 
     try {
-        runtimeContext = runtime::makeContextForMetalViewNonBlocking(
-            runtimeProjectFile, metalView);
+        emit runtimeLoadingStarted();
+        emit runtimeLoadingStatusChanged("Loading assets...");
+        QCoreApplication::processEvents(QEventLoop::ExcludeUserInputEvents);
+        runtimeContext =
+            runtime::makeContextForMetalView(runtimeProjectFile, metalView);
+        runtimeContext->modelImportProgress =
+            [this](float value, const std::string &status) {
+                const int percentage = std::clamp(
+                    static_cast<int>(std::round(value * 100.0f)), 0, 100);
+                emit runtimeLoadingStatusChanged(
+                    QString::fromStdString(status) +
+                    QStringLiteral("... %1%").arg(percentage));
+                QCoreApplication::processEvents(
+                    QEventLoop::ExcludeUserInputEvents);
+            };
+        runtimeContext->loadProject();
         runtimeContext->setEditorControlsEnabled(true);
         runtimeContext->setEditorSimulationEnabled(false);
         runtimeContext->setEditorControlMode(0);
         runtimeContext->setEditorShadingMode(shadingMode);
+        runtimeContext->setEditorPathTracingPreview(pathTracingPreview);
         resizeRuntime();
         refreshSceneSnapshot();
         if (!selectionToRestore.isEmpty()) {
@@ -631,8 +646,17 @@ void ViewportPanel::startRuntime() {
         emit cameraFocusChanged(false);
         playbackState = 0;
         emit playbackStateChanged(playbackState);
-        frameTimer->start(16);
         emit sceneOpened(currentRuntimeScene());
+        emit runtimeLoadingStatusChanged("Preparing viewport...");
+        QCoreApplication::processEvents(QEventLoop::ExcludeUserInputEvents);
+        if (!stepRuntime()) {
+            emit runtimeLoadingFinished();
+            emit runtimeStartupFinished(false,
+                                        "The first viewport frame failed");
+            return;
+        }
+        frameTimer->start(16);
+        emit runtimeLoadingFinished();
         emit runtimeStartupFinished(true, {});
         if (playAfterRuntimeStart) {
             playAfterRuntimeStart = false;
@@ -646,12 +670,14 @@ void ViewportPanel::startRuntime() {
                    .arg(QString::fromUtf8(error.what()));
         runtimeContext.reset();
         playAfterRuntimeStart = false;
+        emit runtimeLoadingFinished();
         emit runtimeStartupFinished(false,
                                     QString::fromUtf8(error.what()));
     } catch (...) {
         qWarning() << "Failed to start Atlas viewport runtime";
         runtimeContext.reset();
         playAfterRuntimeStart = false;
+        emit runtimeLoadingFinished();
         emit runtimeStartupFinished(false, "Runtime initialization failed");
     }
 #else
@@ -690,25 +716,28 @@ void ViewportPanel::stopRuntime() {
     runtimeScale = 0.0f;
 }
 
-void ViewportPanel::stepRuntime() {
+bool ViewportPanel::stepRuntime() {
     if (runtimeContext == nullptr) {
-        return;
+        return false;
     }
     try {
         if (!runtimeContext->stepFrame()) {
             stopRuntime();
-            return;
+            return false;
         }
         refreshSceneSnapshot();
         emit frameRateChanged(runtimeContext->frameRate());
+        return true;
     } catch (const std::exception &error) {
         qWarning().noquote()
             << QStringLiteral("Atlas viewport runtime frame failed: %1")
                    .arg(QString::fromUtf8(error.what()));
         stopRuntime();
+        return false;
     } catch (...) {
         qWarning() << "Atlas viewport runtime frame failed";
         stopRuntime();
+        return false;
     }
 }
 
@@ -1353,6 +1382,21 @@ void ViewportPanel::setRuntimeShadingMode(int mode) {
     if (runtimeContext != nullptr) {
         runtimeContext->setEditorShadingMode(mode);
     }
+}
+
+void ViewportPanel::setPathTracingPreview(bool enabled) {
+    pathTracingPreview = enabled;
+    if (runtimeContext == nullptr) {
+        return;
+    }
+    emit runtimeLoadingStarted();
+    emit runtimeLoadingStatusChanged(
+        enabled ? "Preparing PBR preview..."
+                : "Preparing path-traced viewport...");
+    QCoreApplication::processEvents(QEventLoop::ExcludeUserInputEvents);
+    runtimeContext->setEditorPathTracingPreview(enabled);
+    stepRuntime();
+    emit runtimeLoadingFinished();
 }
 
 void ViewportPanel::setRuntimeControlMode(int mode) {

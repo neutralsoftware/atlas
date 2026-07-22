@@ -4781,6 +4781,18 @@ bool Context::setEditorShadingMode(int mode) {
     return true;
 }
 
+bool Context::setEditorPathTracingPreview(bool enabled) {
+    if (window == nullptr || !editorRuntime) {
+        return false;
+    }
+#ifdef METAL
+    return window->setEditorPathTracingPreview(enabled);
+#else
+    (void)enabled;
+    return false;
+#endif
+}
+
 float Context::frameRate() const {
     return window != nullptr ? window->getFramesPerSecond() : 0.0f;
 }

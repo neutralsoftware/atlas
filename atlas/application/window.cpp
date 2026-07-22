@@ -5544,4 +5544,22 @@ void Window::enablePathTracing() {
     this->pathTracer = std::make_shared<photon::PathTracing>();
     pathTracer->init();
 }
+
+bool Window::setEditorPathTracingPreview(bool enabled) {
+    if (pathTracer == nullptr) {
+        return false;
+    }
+    if (enabled) {
+        if (gBuffer == nullptr) {
+            useDeferredRendering();
+        } else {
+            usePathTracing = false;
+            usesDeferred = true;
+        }
+    } else {
+        usesDeferred = false;
+        usePathTracing = true;
+    }
+    return true;
+}
 #endif

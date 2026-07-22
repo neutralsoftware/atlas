@@ -126,6 +126,7 @@ class Context {
     bool isEditorCameraFocused() const { return editorCameraFocused; }
     bool setEditorControlMode(int mode);
     bool setEditorShadingMode(int mode);
+    bool setEditorPathTracingPreview(bool enabled);
     float frameRate() const;
     bool editorPointerEvent(int action, float x, float y, int button,
                             float scale);

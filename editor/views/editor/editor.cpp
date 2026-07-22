@@ -84,6 +84,7 @@
 #include "editor/views/postProcessing.h"
 #include "editor/views/viewport.h"
 #include "editor/views/viewportTools.h"
+#include "editor/views/splashScreen.h"
 
 namespace {
 constexpr int DockStateVersion = 9;
@@ -612,6 +613,30 @@ void EditorWindow::setupDocks() {
                 emit startupStatusChanged(success ? "Project ready"
                                                   : "Runtime unavailable");
                 emit startupReady(success, message);
+            });
+    connect(viewportPanel, &ViewportPanel::runtimeLoadingStarted, this,
+            [this] {
+                if (!startupComplete || assetLoadingSplash != nullptr) {
+                    return;
+                }
+                assetLoadingSplash = new SplashScreen(this);
+                assetLoadingSplash->start("Loading assets...");
+            });
+    connect(viewportPanel, &ViewportPanel::runtimeLoadingStatusChanged, this,
+            [this](const QString &status) {
+                emit startupStatusChanged(status);
+                if (assetLoadingSplash != nullptr) {
+                    assetLoadingSplash->setStatus(status);
+                }
+            });
+    connect(viewportPanel, &ViewportPanel::runtimeLoadingFinished, this,
+            [this] {
+                if (assetLoadingSplash == nullptr) {
+                    return;
+                }
+                assetLoadingSplash->finish();
+                assetLoadingSplash->deleteLater();
+                assetLoadingSplash = nullptr;
             });
     viewportTools = new ViewportTools(viewportPanel, projectFile);
     materialEditorPanel = new MaterialEditorPanel(viewportPanel);

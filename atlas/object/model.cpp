@@ -20,6 +20,7 @@
 #include <assimp/ProgressHandler.hpp>
 #include <assimp/postprocess.h>
 #include <algorithm>
+#include <chrono>
 #include <cmath>
 #include <cstring>
 #include <future>
@@ -514,6 +515,16 @@ void Model::preloadMaterialTextures(
         }
         for (size_t index = batchStart; index < batchEnd; ++index) {
             try {
+                while (futures[index - batchStart].wait_for(
+                           std::chrono::milliseconds(16)) !=
+                       std::future_status::ready) {
+                    if (importProgress && !jobs.empty()) {
+                        const float completed =
+                            static_cast<float>(index) / jobs.size();
+                        importProgress(0.88f + completed * 0.08f,
+                                       "Loading model textures");
+                    }
+                }
                 DecodedModelTexture decoded =
                     futures[index - batchStart].get();
                 textureCache[jobs[index].cacheKey] =

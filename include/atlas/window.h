@@ -505,6 +505,7 @@ class Window {
 #ifdef METAL
     void enableGlobalIllumination();
     void enablePathTracing();
+    bool setEditorPathTracingPreview(bool enabled);
 #endif
 
     /**
