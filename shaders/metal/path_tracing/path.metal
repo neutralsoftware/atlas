@@ -40,13 +40,6 @@ static_assert(__builtin_offsetof(Material, albedoTextureIndex) == 48);
 static_assert(__builtin_offsetof(Material, transmittance) == 80);
 static_assert(__builtin_offsetof(Material, textureScale) == 96);
 
-struct MeshData {
-    uint vertexOffset;
-    uint indexOffset;
-    uint _pad0;
-    uint _pad1;
-};
-
 struct VertexData {
     packed_float3 normal;
     packed_float2 uv;
@@ -912,7 +905,8 @@ float3 evalDirectLightingPBR(intersector<triangle_data, instancing> isect,
 float3 sampleRadiance(uint2 gid, uint sampleIndex, uint w,
                       intersector<triangle_data, instancing> isect,
                       instance_acceleration_structure sceneAS, ray primaryRay,
-                      constant Material *materials, constant MeshData *meshData,
+                      constant Material *materials,
+                      constant uint *primitiveObjects,
                       constant VertexData *vertices, constant uint *indices,
                       constant InstanceData *instanceData,
                       constant DirectionalLightData &dirLight,
@@ -937,8 +931,8 @@ float3 sampleRadiance(uint2 gid, uint sampleIndex, uint w,
     for (uint depth = 0; depth <= bounceLimit; ++depth) {
         auto hit = isect.intersect(surfaceRay, sceneAS, 0xFF);
         Material mat{};
-        MeshData mesh{};
         InstanceData inst{};
+        uint surfaceObjectIndex = 0xFFFFFFFFu;
         float2 texUV = float2(0.0);
         float3 localN = float3(0.0, 1.0, 0.0);
         float3 localT = float3(1.0, 0.0, 0.0);
@@ -950,15 +944,14 @@ float3 sampleRadiance(uint2 gid, uint sampleIndex, uint w,
                 break;
             }
 
-            uint instanceIndex = hit.instance_id;
             uint primitiveIndex = hit.primitive_id;
-            mat = materials[instanceIndex];
-            mesh = meshData[instanceIndex];
-            inst = instanceData[instanceIndex];
+            surfaceObjectIndex = primitiveObjects[primitiveIndex];
+            mat = materials[surfaceObjectIndex];
+            inst = instanceData[surfaceObjectIndex];
 
-            uint i0 = indices[mesh.indexOffset + primitiveIndex * 3 + 0];
-            uint i1 = indices[mesh.indexOffset + primitiveIndex * 3 + 1];
-            uint i2 = indices[mesh.indexOffset + primitiveIndex * 3 + 2];
+            uint i0 = indices[primitiveIndex * 3 + 0];
+            uint i1 = indices[primitiveIndex * 3 + 1];
+            uint i2 = indices[primitiveIndex * 3 + 2];
             float2 bary = hit.triangle_barycentric_coord;
             float b0 = 1.0 - bary.x - bary.y;
             float b1 = bary.x;
@@ -1034,7 +1027,7 @@ float3 sampleRadiance(uint2 gid, uint sampleIndex, uint w,
             primaryDepth = length(P - primaryRay.origin);
             primaryRoughness = roughness;
             primaryHitDistance = hit.distance;
-            primaryObjectId = hit.instance_id;
+            primaryObjectId = surfaceObjectIndex;
         }
 
         float reflectivity = clamp(mat.reflectivity, 0.0, 1.0);
@@ -1174,7 +1167,7 @@ kernel void main0(texture2d<float, access::write> outTex [[texture(0)]],
                   instance_acceleration_structure sceneAS [[buffer(0)]],
                   constant CameraUniforms &cam [[buffer(1)]],
                   constant Material *materials [[buffer(2)]],
-                  constant MeshData *meshData [[buffer(3)]],
+                  constant uint *primitiveObjects [[buffer(3)]],
                   constant VertexData *vertices [[buffer(4)]],
                   constant uint *indices [[buffer(5)]],
                   constant InstanceData *instanceData [[buffer(6)]],
@@ -1237,7 +1230,7 @@ kernel void main0(texture2d<float, access::write> outTex [[texture(0)]],
         uint sampleObjectId = 0xFFFFFFFFu;
 
         float3 sample = sampleRadiance(
-            gid, s, w, isect, sceneAS, primaryRay, materials, meshData,
+            gid, s, w, isect, sceneAS, primaryRay, materials, primitiveObjects,
             vertices, indices, instanceData, dirLight, sceneData, pointLights,
             spotLights, areaLights, PT_MATERIAL_TEXTURE_ARGS, skybox,
             sampleAlbedo, sampleNormal, samplePosition, sampleDepth,

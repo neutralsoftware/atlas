@@ -65,7 +65,8 @@ bool mat4ApproximatelyEqual(const glm::mat4 &a, const glm::mat4 &b,
     return true;
 }
 
-uint64_t pathTracingObjectStateHash(const CoreObject *object) {
+uint64_t pathTracingObjectStateHash(const CoreObject *object,
+                                    const glm::mat4 &model) {
     uint64_t hash = 1469598103934665603ULL;
     auto append = [&hash](const void *data, size_t size) {
         const auto *bytes = static_cast<const unsigned char *>(data);
@@ -88,6 +89,7 @@ uint64_t pathTracingObjectStateHash(const CoreObject *object) {
     append(&material.textureOffset, sizeof(material.textureOffset));
     append(&material.transmittance, sizeof(material.transmittance));
     append(&material.ior, sizeof(material.ior));
+    append(&model, sizeof(model));
     const size_t vertexCount = object->vertices.size();
     const size_t indexCount = object->indices.size();
     append(&vertexCount, sizeof(vertexCount));
@@ -301,13 +303,6 @@ bool photon::PathTracing::buildAccelerationStructure(
         float textureOffset[2];
     };
 
-    struct MeshData {
-        uint vertexOffset;
-        uint indexOffset;
-        uint _pad0;
-        uint _pad1;
-    };
-
     struct VertexData {
         float normal[3];
         float uv[2];
@@ -316,7 +311,6 @@ bool photon::PathTracing::buildAccelerationStructure(
     };
 
     static_assert(sizeof(MaterialData) == 112);
-    static_assert(sizeof(MeshData) == 16);
     static_assert(sizeof(VertexData) == 44);
 
     std::vector<CoreObject *> pathTracingObjects;
@@ -330,7 +324,8 @@ bool photon::PathTracing::buildAccelerationStructure(
     std::vector<uint64_t> sceneObjectStateHashes;
     sceneObjectStateHashes.reserve(pathTracingObjects.size());
     for (const auto *object : pathTracingObjects) {
-        sceneObjectStateHashes.push_back(pathTracingObjectStateHash(object));
+        sceneObjectStateHashes.push_back(
+            pathTracingObjectStateHash(object, object->model));
     }
 
     bool needsRebuild = cachedSceneObjects != pathTracingObjects ||
@@ -364,7 +359,7 @@ bool photon::PathTracing::buildAccelerationStructure(
         cachedObjectStateHashes.reserve(traceableObjects.size());
         for (const auto *object : traceableObjects) {
             cachedObjectStateHashes.push_back(
-                pathTracingObjectStateHash(object));
+                pathTracingObjectStateHash(object, object->model));
         }
     } else {
         traceableObjects = cachedObjects;
@@ -379,9 +374,10 @@ bool photon::PathTracing::buildAccelerationStructure(
     }
     std::vector<MaterialData> materialData;
 
+    std::vector<float> accelerationPositions;
     std::vector<VertexData> allVertices;
     std::vector<uint32_t> allIndices;
-    std::vector<MeshData> meshData;
+    std::vector<uint32_t> primitiveObjects;
     std::vector<std::shared_ptr<opal::PrimitiveAccelerationStructure>>
         pendingBLASBuilds;
 
@@ -390,34 +386,30 @@ bool photon::PathTracing::buildAccelerationStructure(
         objectBLAS.clear();
         materialTextures.clear();
         std::unordered_map<uint64_t, int> textureSlots;
-        size_t failedBLASCount = 0;
+        size_t totalVertexCount = 0;
+        size_t totalIndexCount = 0;
+        for (const auto *object : traceableObjects) {
+            totalVertexCount += object->vertices.size();
+            totalIndexCount += object->indices.size();
+        }
+        accelerationPositions.reserve(totalVertexCount * 3);
+        allVertices.reserve(totalVertexCount);
+        allIndices.reserve(totalIndexCount);
+        primitiveObjects.reserve(totalIndexCount / 3);
+        materialData.reserve(traceableObjects.size());
 
         for (auto *object : traceableObjects) {
             const auto &objectVertices = object->vertices;
             const auto &objectIndices = object->indices;
 
-            std::vector<opal::PrimitiveVertex> vertices;
-            vertices.reserve(objectVertices.size());
             int vertexOffset = allVertices.size();
-            int indexOffset = allIndices.size();
 
             for (const auto &v : objectVertices) {
-                opal::PrimitiveVertex pv{};
-                pv.position[0] = v.position.x;
-                pv.position[1] = v.position.y;
-                pv.position[2] = v.position.z;
-                pv.normal[0] = v.normal.x;
-                pv.normal[1] = v.normal.y;
-                pv.normal[2] = v.normal.z;
-                pv.uv[0] = v.textureCoordinate[0];
-                pv.uv[1] = v.textureCoordinate[1];
-                pv.tangent[0] = v.tangent.x;
-                pv.tangent[1] = v.tangent.y;
-                pv.tangent[2] = v.tangent.z;
-                pv.bitangent[0] = v.bitangent.x;
-                pv.bitangent[1] = v.bitangent.y;
-                pv.bitangent[2] = v.bitangent.z;
-                vertices.push_back(pv);
+                glm::vec4 worldPosition =
+                    object->model * glm::vec4(v.position.toGlm(), 1.0f);
+                accelerationPositions.push_back(worldPosition.x);
+                accelerationPositions.push_back(worldPosition.y);
+                accelerationPositions.push_back(worldPosition.z);
 
                 VertexData vd{};
                 vd.normal[0] = v.normal.x;
@@ -435,16 +427,12 @@ bool photon::PathTracing::buildAccelerationStructure(
             }
 
             for (auto index : objectIndices) {
-                allIndices.push_back(vertexOffset + index);
+                const uint32_t globalIndex = vertexOffset + index;
+                allIndices.push_back(globalIndex);
             }
-
-            auto blas = opal::PrimitiveAccelerationStructure::create(
-                vertices, objectIndices);
-            objectBLAS[objectID] = blas;
-            if (blas != nullptr) {
-                pendingBLASBuilds.push_back(blas);
-            } else {
-                failedBLASCount++;
+            for (size_t primitive = 0; primitive < objectIndices.size() / 3;
+                 ++primitive) {
+                primitiveObjects.push_back(static_cast<uint32_t>(objectID));
             }
 
             MaterialData data{};
@@ -514,23 +502,26 @@ bool photon::PathTracing::buildAccelerationStructure(
             data._pad1[1] = 0;
             materialData.push_back(data);
 
-            MeshData mdata{};
-            mdata.vertexOffset = vertexOffset;
-            mdata.indexOffset = indexOffset;
-            meshData.push_back(mdata);
-
             objectID++;
         }
 
-        if (failedBLASCount > 0) {
-            lastError = "Failed to allocate " +
-                        std::to_string(failedBLASCount) + " of " +
-                        std::to_string(traceableObjects.size()) +
-                        " mesh acceleration structures";
+        if (primitiveObjects.empty() ||
+            primitiveObjects.size() != allIndices.size() / 3) {
+            lastError = "Path tracing triangle metadata is inconsistent";
             sceneTLAS.reset();
             accelerationBuildFailed = true;
             return false;
         }
+        auto sceneBLAS = opal::PrimitiveAccelerationStructure::create(
+            accelerationPositions, allIndices);
+        if (sceneBLAS == nullptr) {
+            lastError = "Failed to allocate the scene acceleration structure";
+            sceneTLAS.reset();
+            accelerationBuildFailed = true;
+            return false;
+        }
+        objectBLAS[0] = sceneBLAS;
+        pendingBLASBuilds.push_back(sceneBLAS);
 
         materialBuffer = opal::Buffer::create(
             opal::BufferUsage::ShaderRead,
@@ -545,8 +536,9 @@ bool photon::PathTracing::buildAccelerationStructure(
             allIndices.data());
 
         meshInfo = opal::Buffer::create(opal::BufferUsage::ShaderRead,
-                                        meshData.size() * sizeof(MeshData),
-                                        meshData.data());
+                                        primitiveObjects.size() *
+                                            sizeof(uint32_t),
+                                        primitiveObjects.data());
         if (materialBuffer == nullptr || globalVertices == nullptr ||
             globalIndices == nullptr || meshInfo == nullptr) {
             lastError = "Failed to allocate path tracing scene buffers";
@@ -593,23 +585,6 @@ bool photon::PathTracing::buildAccelerationStructure(
     for (size_t objectIndex = 0; objectIndex < traceableObjects.size();
          ++objectIndex) {
         auto *object = traceableObjects[objectIndex];
-        auto it = objectBLAS.find(static_cast<int>(objectIndex));
-        if (it == objectBLAS.end()) {
-            continue;
-        }
-        auto blas = it->second;
-        if (blas == nullptr || (!needsRebuild && !blas->isBuilt)) {
-            continue;
-        }
-
-        opal::AccelerationStructureInstance instance{};
-        instance.blas = blas;
-        instance.transform = object->model;
-        instance.instanceId = static_cast<uint>(objectIndex);
-        instance.mask = 0xFF;
-        instance.cullDisable = true;
-        instances.push_back(instance);
-
         InstanceData d{};
         const glm::mat4 &m = object->model;
         memcpy(d.model, &m[0][0], sizeof(float) * 16);
@@ -632,6 +607,18 @@ bool photon::PathTracing::buildAccelerationStructure(
         d.normalCol2[2] = normalMatrix[2][2];
         d.normalCol2[3] = 0.0f;
         instanceData[objectIndex] = d;
+    }
+
+    auto sceneBLAS = objectBLAS.find(0);
+    if (sceneBLAS != objectBLAS.end() && sceneBLAS->second != nullptr &&
+        (needsRebuild || sceneBLAS->second->isBuilt)) {
+        opal::AccelerationStructureInstance instance{};
+        instance.blas = sceneBLAS->second;
+        instance.transform = glm::mat4(1.0f);
+        instance.instanceId = 0;
+        instance.mask = 0xFF;
+        instance.cullDisable = true;
+        instances.push_back(instance);
     }
 
     if (transformsChanged) {
@@ -1104,7 +1091,7 @@ bool photon::PathTracing::render(
     commandBuffer->bindInstanceAccelerationStructure(this->sceneTLAS, 0);
 
     pathTracingPipeline->bindBuffer("materials", materialBuffer, 2);
-    pathTracingPipeline->bindBuffer("meshData", meshInfo, 3);
+    pathTracingPipeline->bindBuffer("primitiveObjects", meshInfo, 3);
     pathTracingPipeline->bindBuffer("vertices", globalVertices, 4);
     pathTracingPipeline->bindBuffer("indices", globalIndices, 5);
     pathTracingPipeline->bindBuffer("instanceData", instanceDataBuffer, 6);

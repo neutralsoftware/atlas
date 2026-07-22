@@ -1137,6 +1137,9 @@ class PrimitiveAccelerationStructure {
     static std::shared_ptr<PrimitiveAccelerationStructure>
     create(const std::vector<PrimitiveVertex> &vertices,
            const std::vector<uint32_t> &indices);
+    static std::shared_ptr<PrimitiveAccelerationStructure>
+    create(const std::vector<float> &positions,
+           const std::vector<uint32_t> &indices);
 
     bool isBuilt = false;
 

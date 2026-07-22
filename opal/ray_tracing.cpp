@@ -30,13 +30,6 @@ std::shared_ptr<opal::PrimitiveAccelerationStructure>
 opal::PrimitiveAccelerationStructure::create(
     const std::vector<PrimitiveVertex> &vertices,
     const std::vector<uint32_t> &indices) {
-    if (vertices.empty() || indices.size() < 3) {
-        return nullptr;
-    }
-    auto blas = std::make_shared<PrimitiveAccelerationStructure>();
-
-    auto &deviceState = metal::deviceState(Device::globalInstance);
-
     std::vector<float> positions;
     positions.reserve(vertices.size() * 3);
     for (const auto &vertex : vertices) {
@@ -44,6 +37,20 @@ opal::PrimitiveAccelerationStructure::create(
         positions.push_back(vertex.position[1]);
         positions.push_back(vertex.position[2]);
     }
+    return create(positions, indices);
+}
+
+std::shared_ptr<opal::PrimitiveAccelerationStructure>
+opal::PrimitiveAccelerationStructure::create(
+    const std::vector<float> &positions,
+    const std::vector<uint32_t> &indices) {
+    if (positions.size() < 9 || positions.size() % 3 != 0 ||
+        indices.size() < 3) {
+        return nullptr;
+    }
+    auto blas = std::make_shared<PrimitiveAccelerationStructure>();
+
+    auto &deviceState = metal::deviceState(Device::globalInstance);
 
     blas->vertexBuffer = std::shared_ptr<MTL::Buffer>(
         deviceState.device->newBuffer(positions.data(),
