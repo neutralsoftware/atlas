@@ -30,6 +30,8 @@ struct Material {
     float ior;
     float reflectivity;
     float _pad2;
+    packed_float2 textureScale;
+    packed_float2 textureOffset;
 };
 
 struct MeshData {
@@ -168,6 +170,16 @@ float3 skyColor(float3 dir, float intensity, texturecube<float> skybox,
         sampleDir = float3(0.0, 1.0, 0.0);
     }
     float3 sky = skybox.sample(skyboxSampler, sampleDir).xyz;
+    if (sceneData.atmosphereEnabled != 0) {
+        float horizon = pow(clamp(1.0 - abs(sampleDir.y), 0.0, 1.0), 4.0);
+        float daylight = smoothstep(-0.2, 0.15,
+                                    sceneData.atmosphereSunDirection.y);
+        float3 zenith = float3(0.08, 0.28, 0.65);
+        float3 horizonColor = float3(0.58, 0.72, 0.92);
+        float3 proceduralSky = mix(zenith, horizonColor, horizon) *
+                               max(daylight, 0.08);
+        sky = max(sky, proceduralSky);
+    }
     if (sceneData.atmosphereEnabled != 0 &&
         sceneData.atmosphereSunDirection.y > -0.15) {
         float3 sunDirection = sceneData.atmosphereSunDirection;
@@ -918,7 +930,7 @@ float3 sampleRadiance(uint2 gid, uint sampleIndex, uint w,
         float3 localB = float3(0.0, 0.0, 1.0);
         bool foundSurface = false;
 
-        for (uint alphaStep = 0; alphaStep < 16; ++alphaStep) {
+        for (uint alphaStep = 0; alphaStep < 4; ++alphaStep) {
             if (hit.type == intersection_type::none) {
                 break;
             }
@@ -940,6 +952,8 @@ float3 sampleRadiance(uint2 gid, uint sampleIndex, uint w,
             texUV = float2(vertices[i0].uv) * b0 +
                     float2(vertices[i1].uv) * b1 +
                     float2(vertices[i2].uv) * b2;
+            texUV = texUV * float2(mat.textureScale) +
+                    float2(mat.textureOffset);
             localN = normalizeOr(float3(vertices[i0].normal) * b0 +
                                      float3(vertices[i1].normal) * b1 +
                                      float3(vertices[i2].normal) * b2,

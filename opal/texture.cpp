@@ -331,6 +331,9 @@ std::shared_ptr<Texture> Texture::create(TextureType type, TextureFormat format,
     texture->format = format;
     texture->width = width;
     texture->height = height;
+    texture->mipLevels = type == TextureType::Texture2DMultisample
+                             ? 1
+                             : std::max<uint>(1, mipLevels);
 
     const GLenum textureType = getGLTextureType(type);
     const GLenum glFormat = getGLInternalFormat(format);
@@ -393,6 +396,9 @@ std::shared_ptr<Texture> Texture::create(TextureType type, TextureFormat format,
     texture->format = format;
     texture->width = width;
     texture->height = height;
+    texture->mipLevels = type == TextureType::Texture2DMultisample
+                             ? 1
+                             : std::max<uint>(1, mipLevels);
     texture->samples = (type == TextureType::Texture2DMultisample)
                            ? static_cast<int>(mipLevels)
                            : 1;
@@ -414,7 +420,7 @@ std::shared_ptr<Texture> Texture::create(TextureType type, TextureFormat format,
     descriptor->setHeight(static_cast<NS::UInteger>(std::max(height, 1)));
     descriptor->setDepth(1);
     descriptor->setMipmapLevelCount(
-        static_cast<NS::UInteger>(std::max<uint>(1, mipLevels)));
+        static_cast<NS::UInteger>(texture->mipLevels));
     descriptor->setUsage(metal::textureUsageFor(type, format));
     descriptor->setStorageMode(MTL::StorageModeShared);
 
@@ -783,7 +789,8 @@ void Texture::generateMipmaps([[maybe_unused]] uint levels) {
     }
     auto &deviceState = metal::deviceState(Device::globalInstance);
     auto &state = metal::textureState(this);
-    if (deviceState.queue == nullptr || state.texture == nullptr) {
+    if (deviceState.queue == nullptr || state.texture == nullptr ||
+        state.texture->mipmapLevelCount() <= 1) {
         return;
     }
     MTL::CommandBuffer *commandBuffer = deviceState.queue->commandBuffer();
@@ -791,7 +798,6 @@ void Texture::generateMipmaps([[maybe_unused]] uint levels) {
     blit->generateMipmaps(state.texture);
     blit->endEncoding();
     commandBuffer->commit();
-    commandBuffer->waitUntilCompleted();
 #endif
 }
 

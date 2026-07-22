@@ -246,9 +246,11 @@ Texture Texture::fromResource(const Resource& resource, TextureType type,
             dataFormat = opal::TextureDataFormat::Rgba;
         }
 
+        const uint mipLevels = 1u + static_cast<uint>(std::floor(std::log2(
+                                           std::max(width, height))));
         opalTexture =
             opal::Texture::create(opal::TextureType::Texture2D, internalFormat,
-                                  width, height, dataFormat, data, 1);
+                                  width, height, dataFormat, data, mipLevels);
         stbi_image_free(data);
     }
     else {
@@ -286,9 +288,11 @@ Texture Texture::fromResource(const Resource& resource, TextureType type,
             dataFormat = opal::TextureDataFormat::Red;
         }
 
+        const uint mipLevels = 1u + static_cast<uint>(std::floor(std::log2(
+                                           std::max(width, height))));
         opalTexture =
             opal::Texture::create(opal::TextureType::Texture2D, internalFormat,
-                                  width, height, dataFormat, data, 1);
+                                  width, height, dataFormat, data, mipLevels);
         stbi_image_free(data);
     }
 
@@ -313,9 +317,12 @@ Texture Texture::fromResource(const Resource& resource, TextureType type,
                    ? opal::TextureFilterMode::Nearest
                    : opal::TextureFilterMode::Linear;
     };
+    const opal::TextureFilterMode minFilter =
+        params.minifyingFilter == TextureFilteringMode::Nearest
+            ? opal::TextureFilterMode::NearestMipmapNearest
+            : opal::TextureFilterMode::LinearMipmapLinear;
     opalTexture->setParameters(toOpalWrap(params.wrappingModeS),
-                               toOpalWrap(params.wrappingModeT),
-                               toOpalFilter(params.minifyingFilter),
+                               toOpalWrap(params.wrappingModeT), minFilter,
                                toOpalFilter(params.magnifyingFilter));
 
     if (params.wrappingModeS == TextureWrappingMode::ClampToBorder ||

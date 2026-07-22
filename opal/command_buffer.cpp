@@ -1180,6 +1180,20 @@ void CommandBuffer::start() {
                            if (buffer->status() < MTL::CommandBufferStatusCompleted) {
                                return false;
                            }
+                           if (buffer->status() ==
+                               MTL::CommandBufferStatusError) {
+                               auto *error = buffer->error();
+                               const char *description =
+                                   error != nullptr &&
+                                           error->localizedDescription() !=
+                                               nullptr
+                                       ? error->localizedDescription()
+                                             ->utf8String()
+                                       : "Unknown Metal command buffer error";
+                               atlas_error(
+                                   std::string("Metal GPU command failed: ") +
+                                   description);
+                           }
                            buffer->release();
                            return true;
                        }),
@@ -1187,6 +1201,15 @@ void CommandBuffer::start() {
     if (state.inFlightCommandBuffers.size() >= 3) {
         auto *oldest = state.inFlightCommandBuffers.front();
         oldest->waitUntilCompleted();
+        if (oldest->status() == MTL::CommandBufferStatusError) {
+            auto *error = oldest->error();
+            const char *description =
+                error != nullptr && error->localizedDescription() != nullptr
+                    ? error->localizedDescription()->utf8String()
+                    : "Unknown Metal command buffer error";
+            atlas_error(std::string("Metal GPU command failed: ") +
+                        description);
+        }
         oldest->release();
         state.inFlightCommandBuffers.erase(
             state.inFlightCommandBuffers.begin());
@@ -2171,7 +2194,8 @@ void CommandBuffer::generateMipmaps(const std::shared_ptr<Texture> &texture) {
 #elif defined(METAL)
     auto &state = metal::commandBufferState(this);
     auto &textureState = metal::textureState(texture.get());
-    if (state.commandBuffer == nullptr || textureState.texture == nullptr) {
+    if (state.commandBuffer == nullptr || textureState.texture == nullptr ||
+        textureState.texture->mipmapLevelCount() <= 1) {
         return;
     }
     if (state.encoder != nullptr) {

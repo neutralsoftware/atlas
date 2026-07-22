@@ -386,6 +386,7 @@ class Texture {
     TextureFormat format = TextureFormat::Rgba8;
     int width = 0;
     int height = 0;
+    uint mipLevels = 1;
     int samples = 1; // For multisampled textures
 
 #ifdef VULKAN

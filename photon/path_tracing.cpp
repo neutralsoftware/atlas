@@ -240,6 +240,8 @@ void photon::PathTracing::init() {
     pathTracingHistoryGuide = std::make_shared<Texture>(
         Texture::create(outputWidth, outputHeight, opal::TextureFormat::Rgba16F,
                         opal::TextureDataFormat::Rgba, TextureType::Color));
+    interactiveFramesRemaining = 4;
+    interactive = true;
 }
 
 void photon::PathTracing::resizeOutput(int width, int height) {
@@ -269,6 +271,8 @@ void photon::PathTracing::resizeOutput(int width, int height) {
         Texture::create(outputWidth, outputHeight, opal::TextureFormat::Rgba16F,
                         opal::TextureDataFormat::Rgba, TextureType::Color));
     frameIndex = 0;
+    interactiveFramesRemaining = 4;
+    interactive = true;
 }
 
 bool photon::PathTracing::buildAccelerationStructure(
@@ -293,6 +297,8 @@ bool photon::PathTracing::buildAccelerationStructure(
         float ior;
         float reflectivity;
         float _pad2;
+        float textureScale[2];
+        float textureOffset[2];
     };
 
     struct MeshData {
@@ -309,6 +315,8 @@ bool photon::PathTracing::buildAccelerationStructure(
         float bitangent[3];
     };
 
+    static_assert(sizeof(MaterialData) == 112);
+    static_assert(sizeof(MeshData) == 16);
     static_assert(sizeof(VertexData) == 44);
 
     std::vector<CoreObject *> pathTracingObjects;
@@ -453,6 +461,10 @@ bool photon::PathTracing::buildAccelerationStructure(
             data.transmittance = object->material.transmittance;
             data.reflectivity = object->material.reflectivity;
             data._pad2 = 0.0f;
+            data.textureScale[0] = object->material.textureScale[0];
+            data.textureScale[1] = object->material.textureScale[1];
+            data.textureOffset[0] = object->material.textureOffset[0];
+            data.textureOffset[1] = object->material.textureOffset[1];
             const bool useNormalMap =
                 object->material.useNormalMap && sampleNormalMaps;
             const float normalStrength = std::max(
@@ -543,6 +555,28 @@ bool photon::PathTracing::buildAccelerationStructure(
         frameIndex = 0;
     }
 
+    bool transformsChanged = needsRebuild || cachedInstanceTransforms.size() !=
+                                                 traceableObjects.size();
+    if (!transformsChanged) {
+        for (size_t i = 0; i < traceableObjects.size(); ++i) {
+            if (!mat4ApproximatelyEqual(cachedInstanceTransforms[i],
+                                        traceableObjects[i]->model,
+                                        0.000001f)) {
+                transformsChanged = true;
+                break;
+            }
+        }
+    }
+    if (!transformsChanged) {
+        if (sceneTLAS != nullptr && sceneTLAS->isBuilt) {
+            accelerationBuildFailed = false;
+            return true;
+        }
+        lastError = "The scene acceleration structure is unavailable";
+        accelerationBuildFailed = true;
+        return false;
+    }
+
     std::vector<opal::AccelerationStructureInstance> instances;
 
     struct InstanceData {
@@ -598,18 +632,6 @@ bool photon::PathTracing::buildAccelerationStructure(
         instanceData[objectIndex] = d;
     }
 
-    bool transformsChanged = needsRebuild || cachedInstanceTransforms.size() !=
-                                                 traceableObjects.size();
-    if (!transformsChanged) {
-        for (size_t i = 0; i < traceableObjects.size(); ++i) {
-            if (!mat4ApproximatelyEqual(cachedInstanceTransforms[i],
-                                        traceableObjects[i]->model,
-                                        0.000001f)) {
-                transformsChanged = true;
-                break;
-            }
-        }
-    }
     if (transformsChanged) {
         cachedInstanceTransforms.clear();
         cachedInstanceTransforms.reserve(traceableObjects.size());
@@ -837,7 +859,7 @@ bool photon::PathTracing::render(
     }
 
     if (cameraChanged) {
-        interactiveFramesRemaining = 8;
+        interactiveFramesRemaining = 4;
     } else if (interactiveFramesRemaining > 0) {
         interactiveFramesRemaining--;
     }
@@ -966,11 +988,11 @@ bool photon::PathTracing::render(
                                       this->raysPerPixel);
     pathTracingPipeline->setUniform1i(
         "sceneData.maxBounces",
-        interactive ? std::min(this->maxBounces, 2) : this->maxBounces);
+        interactive ? std::min(this->maxBounces, 1) : this->maxBounces);
     pathTracingPipeline->setUniform1f("sceneData.indirectStrength",
                                       this->indirectStrength);
     pathTracingPipeline->setUniform1i("sceneData.pixelStride",
-                                      interactive ? 2 : 1);
+                                      interactive ? 4 : 1);
 
     const std::string previousError = lastError;
     try {
@@ -1068,14 +1090,14 @@ bool photon::PathTracing::render(
 
     pathTracingPipeline->bindTextureArray(materialTextures, 12);
 
-    const int pixelStride = interactive ? 2 : 1;
+    const int pixelStride = interactive ? 4 : 1;
     commandBuffer->dispatch((outputWidth + pixelStride - 1) / pixelStride,
                             (outputHeight + pixelStride - 1) / pixelStride, 1);
 
     commandBuffer->computeBarrier();
 
     const std::array<int, 3> denoiseSteps = {1, 2, 4};
-    const size_t denoisePassCount = interactive ? 2 : denoiseSteps.size();
+    const size_t denoisePassCount = interactive ? 1 : denoiseSteps.size();
     for (size_t pass = 0; pass < denoisePassCount; ++pass) {
         const auto &input =
             pass == 0 ? output : denoiseTextures[(pass - 1) % 2]->texture;

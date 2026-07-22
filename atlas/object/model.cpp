@@ -349,12 +349,17 @@ Texture uploadModelTexture(const ModelTextureJob &job,
     const opal::TextureFormat format = job.textureType == TextureType::Color
                                            ? opal::TextureFormat::sRgba8
                                            : opal::TextureFormat::Rgba8;
+    const uint mipLevels =
+        1u + static_cast<uint>(std::floor(std::log2(
+                 std::max(decoded.width, decoded.height))));
     auto opalTexture = opal::Texture::create(
         opal::TextureType::Texture2D, format, decoded.width, decoded.height,
-        opal::TextureDataFormat::Rgba, decoded.pixels.data(), 1);
+        opal::TextureDataFormat::Rgba, decoded.pixels.data(), mipLevels);
     opalTexture->setParameters(
         opal::TextureWrapMode::Repeat, opal::TextureWrapMode::Repeat,
-        opal::TextureFilterMode::Linear, opal::TextureFilterMode::Linear);
+        opal::TextureFilterMode::LinearMipmapLinear,
+        opal::TextureFilterMode::Linear);
+    opalTexture->automaticallyGenerateMipmaps();
     return Texture{.resource = resource,
                    .creationData = {decoded.width, decoded.height, 4},
                    .id = opalTexture->textureID,
@@ -1028,13 +1033,16 @@ std::vector<Texture> Model::loadMaterialTextures(
                     }
                 }
 
+                const uint mipLevels =
+                    1u + static_cast<uint>(std::floor(std::log2(
+                             std::max(width, height))));
                 auto opalTexture = opal::Texture::create(
                     opal::TextureType::Texture2D, opal::TextureFormat::Rgba8,
                     width, height, opal::TextureDataFormat::Rgba, data.get(),
-                    1);
+                    mipLevels);
                 opalTexture->setParameters(opal::TextureWrapMode::Repeat,
                                            opal::TextureWrapMode::Repeat,
-                                           opal::TextureFilterMode::Linear,
+                                           opal::TextureFilterMode::LinearMipmapLinear,
                                            opal::TextureFilterMode::Linear);
                 opalTexture->automaticallyGenerateMipmaps();
                 loadedTexture = Texture{.resource = resource,

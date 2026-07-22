@@ -216,6 +216,8 @@ opal::InstanceAccelerationStructure::create(
 
     tlas->tlasDescriptor =
         MTL::InstanceAccelerationStructureDescriptor::descriptor()->retain();
+    tlas->tlasDescriptor->setInstanceDescriptorType(
+        MTL::AccelerationStructureInstanceDescriptorTypeUserID);
     auto &ib = metal::bufferState(tlas->instanceBuffer.get());
 
     tlas->tlasDescriptor->setInstanceDescriptorBuffer(ib.buffer);

@@ -94,7 +94,7 @@ vertex main0_out main0(main0_in in [[stage_in]], constant UBO& uniforms [[buffer
     float4 _57 = mvp * _56;
     out.gl_Position = _57;
     out.FragPos = float3((modelMatrix * float4(in.aPos, 1.0)).xyz);
-    out.TexCoord = float2(in.aTexCoord.x, 1.0 - in.aTexCoord.y);
+    out.TexCoord = in.aTexCoord;
     out.outColor = in.aColor;
     float3x3 normalMatrix = transpose(spvInverse3x3(float3x3(modelMatrix[0].xyz, modelMatrix[1].xyz, modelMatrix[2].xyz)));
     out.Normal = fast::normalize(normalMatrix * in.aNormal);

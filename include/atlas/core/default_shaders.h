@@ -6493,7 +6493,7 @@ vertex main0_out main0(main0_in in [[stage_in]], constant UBO& uniforms [[buffer
     float4 _57 = mvp * _56;
     out.gl_Position = _57;
     out.FragPos = float3((modelMatrix * float4(in.aPos, 1.0)).xyz);
-    out.TexCoord = float2(in.aTexCoord.x, 1.0 - in.aTexCoord.y);
+    out.TexCoord = in.aTexCoord;
     out.outColor = in.aColor;
     float3x3 normalMatrix = transpose(spvInverse3x3(float3x3(modelMatrix[0].xyz, modelMatrix[1].xyz, modelMatrix[2].xyz)));
     out.Normal = fast::normalize(normalMatrix * in.aNormal);
@@ -6650,6 +6650,8 @@ struct Material {
     float ior;
     float reflectivity;
     float _pad2;
+    packed_float2 textureScale;
+    packed_float2 textureOffset;
 };
 
 struct MeshData {
@@ -6788,6 +6790,16 @@ float3 skyColor(float3 dir, float intensity, texturecube<float> skybox,
         sampleDir = float3(0.0, 1.0, 0.0);
     }
     float3 sky = skybox.sample(skyboxSampler, sampleDir).xyz;
+    if (sceneData.atmosphereEnabled != 0) {
+        float horizon = pow(clamp(1.0 - abs(sampleDir.y), 0.0, 1.0), 4.0);
+        float daylight = smoothstep(-0.2, 0.15,
+                                    sceneData.atmosphereSunDirection.y);
+        float3 zenith = float3(0.08, 0.28, 0.65);
+        float3 horizonColor = float3(0.58, 0.72, 0.92);
+        float3 proceduralSky = mix(zenith, horizonColor, horizon) *
+                               max(daylight, 0.08);
+        sky = max(sky, proceduralSky);
+    }
     if (sceneData.atmosphereEnabled != 0 &&
         sceneData.atmosphereSunDirection.y > -0.15) {
         float3 sunDirection = sceneData.atmosphereSunDirection;
@@ -6868,15 +6880,15 @@ constexpr sampler materialTexSampler(coord::normalized, address::repeat,
         texture2d<float> materialTexture21,                                    \
         texture2d<float> materialTexture22,                                    \
         texture2d<float> materialTexture23,                                    \
-        texture2d<float> materialTexture24,                                    \
+        texture2d<float> materialTexture24,                          )",
+R"(          \
         texture2d<float> materialTexture25,                                    \
         texture2d<float> materialTexture26,                                    \
         texture2d<float> materialTexture27,                                    \
         texture2d<float> materialTexture28,                                    \
         texture2d<float> materialTexture29,                                    \
         texture2d<float> materialTexture30,                                    \
-        texture2d<float> materialTexture31,                                   )",
-R"( \
+        texture2d<float> materialTexture31,                                    \
         texture2d<float> materialTexture32,                                    \
         texture2d<float> materialTexture33,                                    \
         texture2d<float> materialTexture34,                                    \
@@ -6989,7 +7001,8 @@ float4 sampleMaterialTexture(int textureIndex, float2 uv,
     case 11:
         return materialTexture11.sample(materialTexSampler, uv);
     case 12:
-        return materialTexture12.sample(materialTexSampler, uv);
+        return materialTexture12.sa)",
+R"(mple(materialTexSampler, uv);
     case 13:
         return materialTexture13.sample(materialTexSampler, uv);
     case 14:
@@ -7004,8 +7017,7 @@ float4 sampleMaterialTexture(int textureIndex, float2 uv,
         return materialTexture18.sample(materialTexSampler, uv);
     case 19:
         return materialTexture19.sample(materialTexSampler, uv);
-)",
-R"(    case 20:
+    case 20:
         return materialTexture20.sample(materialTexSampler, uv);
     case 21:
         return materialTexture21.sample(materialTexSampler, uv);
@@ -7189,7 +7201,8 @@ bool isOccluded(intersector<triangle_data, instancing> isect,
                 instance_acceleration_structure sceneAS, float3 P, float3 N,
                 float3 L, float maxDistance) {
     float ndlAbs = abs(dot(N, L));
-    float shadowBias = mix(0.003, 0.0008, ndlAbs);
+    float shadowBias = mix(0.003, 0.0008, n)",
+R"(dlAbs);
     ray shadowRay;
     shadowRay.origin = P + N * shadowBias;
     shadowRay.direction = L;
@@ -7203,8 +7216,7 @@ bool isOccluded(intersector<triangle_data, instancing> isect,
 bool isOccludedDirectionalLight(DirectionalLightData light, float3 P, float3 N,
                                 thread uint &rng,
                                 intersector<triangle_data, instancing> isect,
-                           )",
-R"(     instance_acceleration_structure sceneAS) {
+                                instance_acceleration_structure sceneAS) {
     float3 baseL = normalize(-light.direction);
     float3x3 basis = buildOrthonormalBasis(baseL);
     float sunRadius = 0.0025;
@@ -7379,7 +7391,8 @@ float3 evalDirectLightingPBR(intersector<triangle_data, instancing> isect,
                              float3 N, float3 V, float3 albedo, float metallic,
                              float roughness, float ior, float transmittance,
                              float sssStrength, float sssThickness,
-                             thread uint &rng,
+                          )",
+R"(   thread uint &rng,
                              constant DirectionalLightData &dirLight,
                              constant SceneData &sceneData,
                              constant PointLight *pointLights,
@@ -7391,8 +7404,7 @@ float3 evalDirectLightingPBR(intersector<triangle_data, instancing> isect,
 
     // Directional
     if (sceneData.numDirectionalLights > 0) {
-        float3 L = normalize(-dirLight.direct)",
-R"(ion);
+        float3 L = normalize(-dirLight.direction);
         float3 c = evalPBR(albedo, metallic, roughness, N, V, L, dirLight.color,
                            max(dirLight.intensity, 0.0));
         float3 s = evalSubsurface(albedo, N, V, L, dirLight.color,
@@ -7542,13 +7554,14 @@ float3 sampleRadiance(uint2 gid, uint sampleIndex, uint w,
         float3 localB = float3(0.0, 0.0, 1.0);
         bool foundSurface = false;
 
-        for (uint alphaStep = 0; alphaStep < 16; ++alphaStep) {
+        for (uint alphaStep = 0; alphaStep < 4; ++alphaStep) {
             if (hit.type == intersection_type::none) {
                 break;
             }
 
             uint instanceIndex = hit.instance_id;
-            uint primitiveIndex = hit.primitive_id;
+ )",
+R"(           uint primitiveIndex = hit.primitive_id;
             mat = materials[instanceIndex];
             mesh = meshData[instanceIndex];
             inst = instanceData[instanceIndex];
@@ -7559,12 +7572,13 @@ float3 sampleRadiance(uint2 gid, uint sampleIndex, uint w,
             float2 bary = hit.triangle_barycentric_coord;
             float b0 = 1.0 - bary.x - bary.y;
             float b1 = bary.x;
-            float b2 = bary.y;)",
-R"(
+            float b2 = bary.y;
 
             texUV = float2(vertices[i0].uv) * b0 +
                     float2(vertices[i1].uv) * b1 +
                     float2(vertices[i2].uv) * b2;
+            texUV = texUV * float2(mat.textureScale) +
+                    float2(mat.textureOffset);
             localN = normalizeOr(float3(vertices[i0].normal) * b0 +
                                      float3(vertices[i1].normal) * b1 +
                                      float3(vertices[i2].normal) * b2,
@@ -7733,7 +7747,8 @@ R"(
 
         if (depth >= 2) {
             float survival = clamp(max(throughput.x,
-                                       max(throughput.y, throughput.z)),
+                                )",
+R"(       max(throughput.y, throughput.z)),
                                    0.05, 0.95);
             if (rand(rng) > survival) {
                 break;
@@ -7753,8 +7768,7 @@ R"(
 
 kernel void main0(texture2d<float, access::write> outTex [[texture(0)]],
                   texture2d<float, access::read_write> historyTex [[texture(1)]],
-                  texture2d<float, access::write> br)",
-R"(ightTex [[texture(2)]],
+                  texture2d<float, access::write> brightTex [[texture(2)]],
                   texture2d<float, access::write> albedoRoughnessTex [[texture(3)]],
                   texture2d<float, access::write> normalDepthTex [[texture(4)]],
                   texture2d<float, access::write> motionObjectTex [[texture(5)]],
