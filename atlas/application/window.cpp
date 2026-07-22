@@ -2002,6 +2002,31 @@ void Window::resize(int width, int height, float scale) {
 
     device->getDefaultFramebuffer()->setViewport(0, 0, pixelWidth, pixelHeight);
     setViewportState(0, 0, pixelWidth, pixelHeight);
+    const int targetWidth = std::max(
+        1, static_cast<int>(pixelWidth * this->getRenderScale()));
+    const int targetHeight = std::max(
+        1, static_cast<int>(pixelHeight * this->getRenderScale()));
+    for (RenderTarget *target : renderTargets) {
+        if (target != nullptr &&
+            (target->type == RenderTargetType::Scene ||
+             target->type == RenderTargetType::Multisampled) &&
+            (target->getWidth() != targetWidth ||
+             target->getHeight() != targetHeight)) {
+            target->resize(*this);
+        }
+    }
+    const std::array<std::shared_ptr<RenderTarget> *, 7> internalTargets = {
+        &gBuffer,          &ssaoBuffer,    &ssaoBlurBuffer,
+        &volumetricBuffer, &lightBuffer,   &ssrFramebuffer,
+        &ssrHistoryFramebuffer};
+    for (auto *target : internalTargets) {
+        if (target != nullptr && *target != nullptr) {
+            (*target)->resize(*this);
+        }
+    }
+    if (bloomBuffer != nullptr) {
+        bloomBuffer->destroy();
+    }
     this->editorGridInitialized = false;
     this->shadowMapsDirty = true;
     this->ssaoMapsDirty = true;

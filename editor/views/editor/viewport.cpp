@@ -716,7 +716,6 @@ bool ViewportPanel::stepRuntime() {
             stopRuntime();
             return false;
         }
-        refreshSceneSnapshot();
         emit frameRateChanged(runtimeContext->frameRate());
         return true;
     } catch (const std::exception &error) {

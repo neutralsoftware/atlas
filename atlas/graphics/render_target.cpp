@@ -26,6 +26,7 @@
 
 RenderTarget::RenderTarget(Window &window, RenderTargetType type,
                            int resolution) {
+    creationResolution = resolution;
     atlas_log("Creating render target (type: " +
               std::to_string(static_cast<int>(type)) + ")");
     Size2d drawableSize = window.getSize();
@@ -472,6 +473,24 @@ RenderTarget::RenderTarget(Window &window, RenderTargetType type,
     packet.send();
 }
 
+void RenderTarget::resize(Window &window) {
+    if (type == RenderTargetType::Shadow ||
+        type == RenderTargetType::CubeShadow) {
+        return;
+    }
+    auto displayedObject = object;
+    auto savedEffects = std::move(effects);
+    const RenderTargetType savedType = type;
+    RenderTarget replacement(window, savedType, creationResolution);
+    replacement.object = std::move(displayedObject);
+    replacement.effects = std::move(savedEffects);
+    *this = std::move(replacement);
+    if (object != nullptr) {
+        object->textures.clear();
+        object->attachTexture(texture);
+    }
+}
+
 void RenderTarget::display(Window &window, float zindex) {
     if (object == nullptr) {
         CoreObject obj;
@@ -762,8 +781,10 @@ void RenderTarget::render(float dt,
         renderTargetPipeline->setUniform1i("hasBrightTexture",
                                            blurredTexture.id != 0 ? 1 : 0);
 
-        uint depthTextureId = depthTexture.id;
-        bool hasDepth = depthTexture.id != 0;
+        const bool hasDepth = depthTexture.id != 0 &&
+                              (Window::mainWindow == nullptr ||
+                               !Window::mainWindow->usePathTracing);
+        uint depthTextureId = hasDepth ? depthTexture.id : 0;
         renderTargetPipeline->bindTexture2D("DepthTexture", depthTextureId, 2,
                                             obj->id);
         renderTargetPipeline->setUniform1i("hasDepthTexture", hasDepth ? 1 : 0);

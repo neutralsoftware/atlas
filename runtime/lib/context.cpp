@@ -4954,6 +4954,23 @@ std::string editorObjectType(const Context &context, GameObject &object) {
 
 bool editorObjectWorldBounds(GameObject &object, glm::vec3 &minimum,
                              glm::vec3 &maximum) {
+    if (auto *model = dynamic_cast<Model *>(&object)) {
+        bool found = false;
+        for (const auto &child : model->getObjects()) {
+            if (child == nullptr) {
+                continue;
+            }
+            glm::vec3 childMinimum;
+            glm::vec3 childMaximum;
+            if (!editorObjectWorldBounds(*child, childMinimum, childMaximum)) {
+                continue;
+            }
+            minimum = found ? glm::min(minimum, childMinimum) : childMinimum;
+            maximum = found ? glm::max(maximum, childMaximum) : childMaximum;
+            found = true;
+        }
+        return found;
+    }
     if (auto *compound = dynamic_cast<CompoundObject *>(&object)) {
         bool found = false;
         for (auto *child : compound->objects) {
@@ -4972,7 +4989,11 @@ bool editorObjectWorldBounds(GameObject &object, glm::vec3 &minimum,
         return found;
     }
 
-    const std::vector<CoreVertex> vertices = object.getVertices();
+    const auto *coreObject = dynamic_cast<const CoreObject *>(&object);
+    const std::vector<CoreVertex> copiedVertices =
+        coreObject == nullptr ? object.getVertices() : std::vector<CoreVertex>();
+    const std::vector<CoreVertex> &vertices =
+        coreObject != nullptr ? coreObject->vertices : copiedVertices;
     if (vertices.empty()) {
         return false;
     }
