@@ -145,6 +145,8 @@ class PathTracing {
     glm::vec3 cachedDirectionalLightDirection = glm::vec3(0.0f, -1.0f, 0.0f);
     glm::vec3 cachedDirectionalLightColor = glm::vec3(1.0f, 1.0f, 1.0f);
     float cachedDirectionalLightIntensity = -1.0f;
+    glm::vec3 cachedAmbientColor = glm::vec3(-1.0f);
+    float cachedAmbientIntensity = -1.0f;
     int cachedDirectionalLightCount = -1;
     uint64_t cachedSkyboxTextureId = 0;
 

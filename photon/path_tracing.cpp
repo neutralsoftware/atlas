@@ -445,7 +445,7 @@ bool photon::PathTracing::buildAccelerationStructure(
                 failedBLASCount++;
             }
 
-            MaterialData data;
+            MaterialData data{};
             data.albedo[0] = object->material.albedo.r;
             data.albedo[1] = object->material.albedo.g;
             data.albedo[2] = object->material.albedo.b;
@@ -512,7 +512,7 @@ bool photon::PathTracing::buildAccelerationStructure(
             data._pad1[1] = 0;
             materialData.push_back(data);
 
-            MeshData mdata;
+            MeshData mdata{};
             mdata.vertexOffset = vertexOffset;
             mdata.indexOffset = indexOffset;
             meshData.push_back(mdata);
@@ -884,6 +884,7 @@ bool photon::PathTracing::render(
     glm::vec3 directionalLightColor(1.0f, 1.0f, 1.0f);
     float directionalLightIntensity = 0.0f;
     float ambientIntensity = 0.0f;
+    glm::vec3 ambientColor(1.0f);
     glm::vec3 atmosphereSunDirection(0.0f, 1.0f, 0.0f);
     glm::vec3 atmosphereSunColor(1.0f, 0.95f, 0.8f);
     float atmosphereSunIntensity = 0.0f;
@@ -906,6 +907,11 @@ bool photon::PathTracing::render(
         ambientIntensity = scene->isAutomaticAmbientEnabled()
                                ? scene->getAutomaticAmbientIntensity()
                                : scene->getAmbientIntensity();
+        Color sceneAmbientColor = scene->isAutomaticAmbientEnabled()
+                                      ? scene->getAutomaticAmbientColor()
+                                      : scene->getAmbientColor();
+        ambientColor = glm::vec3(sceneAmbientColor.r, sceneAmbientColor.g,
+                                 sceneAmbientColor.b);
         const auto &directionalLights = scene->getDirectionalLights();
         for (auto *light : directionalLights) {
             if (light == nullptr) {
@@ -965,6 +971,8 @@ bool photon::PathTracing::render(
                                       directionalLightIntensity);
     pathTracingPipeline->setUniform1f("sceneData.ambientIntensity",
                                       ambientIntensity);
+    pathTracingPipeline->setUniform3f("sceneData.ambientColor", ambientColor.x,
+                                      ambientColor.y, ambientColor.z);
     pathTracingPipeline->setUniform1i("sceneData.atmosphereEnabled",
                                       atmosphereEnabled);
     pathTracingPipeline->setUniform1f("sceneData.atmosphereSunSize",
@@ -1062,7 +1070,9 @@ bool photon::PathTracing::render(
         glm::length(cachedDirectionalLightColor - directionalLightColor) >
             0.0001f ||
         std::fabs(cachedDirectionalLightIntensity - directionalLightIntensity) >
-            0.0001f;
+            0.0001f ||
+        glm::length(cachedAmbientColor - ambientColor) > 0.0001f ||
+        std::fabs(cachedAmbientIntensity - ambientIntensity) > 0.0001f;
     bool skyChanged = cachedSkyboxTextureId != skyboxTextureId;
     if (lightChanged || skyChanged) {
         frameIndex = 0;
@@ -1071,6 +1081,8 @@ bool photon::PathTracing::render(
     cachedDirectionalLightDirection = directionalLightDirection;
     cachedDirectionalLightColor = directionalLightColor;
     cachedDirectionalLightIntensity = directionalLightIntensity;
+    cachedAmbientColor = ambientColor;
+    cachedAmbientIntensity = ambientIntensity;
     cachedSkyboxTextureId = skyboxTextureId;
 
     commandBuffer->bindInstanceAccelerationStructure(this->sceneTLAS, 0);
@@ -1097,7 +1109,7 @@ bool photon::PathTracing::render(
     commandBuffer->computeBarrier();
 
     const std::array<int, 3> denoiseSteps = {1, 2, 4};
-    const size_t denoisePassCount = interactive ? 1 : denoiseSteps.size();
+    const size_t denoisePassCount = interactive ? 0 : denoiseSteps.size();
     for (size_t pass = 0; pass < denoisePassCount; ++pass) {
         const auto &input =
             pass == 0 ? output : denoiseTextures[(pass - 1) % 2]->texture;

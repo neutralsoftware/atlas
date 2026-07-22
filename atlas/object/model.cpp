@@ -336,11 +336,12 @@ Texture uploadModelTexture(const ModelTextureJob &job,
     if (decoded.pixels.empty() || decoded.width <= 0 || decoded.height <= 0) {
         throw std::runtime_error("Failed to decode model texture");
     }
-    if (job.textureType == TextureType::PBRPack && !decoded.ao.empty()) {
+    if (job.textureType == TextureType::PBRPack) {
         const size_t pixelCount =
             static_cast<size_t>(decoded.width) * decoded.height;
         for (size_t pixel = 0; pixel < pixelCount; ++pixel) {
-            decoded.pixels[pixel * 4] = decoded.ao[pixel];
+            decoded.pixels[pixel * 4] =
+                decoded.ao.empty() ? 255 : decoded.ao[pixel];
         }
     }
 

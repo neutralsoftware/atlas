@@ -6654,6 +6654,12 @@ struct Material {
     packed_float2 textureOffset;
 };
 
+static_assert(sizeof(Material) == 112);
+static_assert(__builtin_offsetof(Material, emissiveColor) == 32);
+static_assert(__builtin_offsetof(Material, albedoTextureIndex) == 48);
+static_assert(__builtin_offsetof(Material, transmittance) == 80);
+static_assert(__builtin_offsetof(Material, textureScale) == 96);
+
 struct MeshData {
     uint vertexOffset;
     uint indexOffset;
@@ -6734,7 +6740,16 @@ struct SceneData {
     float atmosphereSunIntensity;
     float3 atmosphereSunColor;
     uint pixelStride;
+    float3 ambientColor;
+    float _pad0;
 };
+
+static_assert(sizeof(SceneData) == 144);
+static_assert(__builtin_offsetof(SceneData, atmosphereSunDirection) == 48);
+static_assert(__builtin_offsetof(SceneData, atmosphereSunIntensity) == 64);
+static_assert(__builtin_offsetof(SceneData, atmosphereSunColor) == 80);
+static_assert(__builtin_offsetof(SceneData, pixelStride) == 96);
+static_assert(__builtin_offsetof(SceneData, ambientColor) == 112);
 
 float pow5(float x) {
     float x2 = x * x;
@@ -6871,7 +6886,8 @@ constexpr sampler materialTexSampler(coord::normalized, address::repeat,
         texture2d<float> materialTexture12,                                    \
         texture2d<float> materialTexture13,                                    \
         texture2d<float> materialTexture14,                                    \
-        texture2d<float> materialTexture15,                                    \
+        texture2d<float> materialTexture15,      )",
+R"(                              \
         texture2d<float> materialTexture16,                                    \
         texture2d<float> materialTexture17,                                    \
         texture2d<float> materialTexture18,                                    \
@@ -6880,8 +6896,7 @@ constexpr sampler materialTexSampler(coord::normalized, address::repeat,
         texture2d<float> materialTexture21,                                    \
         texture2d<float> materialTexture22,                                    \
         texture2d<float> materialTexture23,                                    \
-        texture2d<float> materialTexture24,                          )",
-R"(          \
+        texture2d<float> materialTexture24,                                    \
         texture2d<float> materialTexture25,                                    \
         texture2d<float> materialTexture26,                                    \
         texture2d<float> materialTexture27,                                    \
@@ -6981,7 +6996,8 @@ float4 sampleMaterialTexture(int textureIndex, float2 uv,
     case 1:
         return materialTexture1.sample(materialTexSampler, uv);
     case 2:
-        return materialTexture2.sample(materialTexSampler, uv);
+        return materialTexture2.sample(materialTexS)",
+R"(ampler, uv);
     case 3:
         return materialTexture3.sample(materialTexSampler, uv);
     case 4:
@@ -7001,8 +7017,7 @@ float4 sampleMaterialTexture(int textureIndex, float2 uv,
     case 11:
         return materialTexture11.sample(materialTexSampler, uv);
     case 12:
-        return materialTexture12.sa)",
-R"(mple(materialTexSampler, uv);
+        return materialTexture12.sample(materialTexSampler, uv);
     case 13:
         return materialTexture13.sample(materialTexSampler, uv);
     case 14:
@@ -7181,7 +7196,8 @@ float3 resolveShadingNormal(Material mat, float2 uv, float3 localN,
         uint(mat.normalTextureIndex) < textureCount) {
         float3 tangentNormal = sampleMaterialTexture(mat.normalTextureIndex, uv,
                                                      PT_MATERIAL_TEXTURE_ARGS)
-                                   .xyz;
+      )",
+R"(                             .xyz;
         tangentNormal = tangentNormal * 2.0 - 1.0;
         tangentNormal.xy *= normalStrength;
         tangentNormal = normalizeOr(tangentNormal, float3(0.0, 0.0, 1.0));
@@ -7201,8 +7217,7 @@ bool isOccluded(intersector<triangle_data, instancing> isect,
                 instance_acceleration_structure sceneAS, float3 P, float3 N,
                 float3 L, float maxDistance) {
     float ndlAbs = abs(dot(N, L));
-    float shadowBias = mix(0.003, 0.0008, n)",
-R"(dlAbs);
+    float shadowBias = mix(0.003, 0.0008, ndlAbs);
     ray shadowRay;
     shadowRay.origin = P + N * shadowBias;
     shadowRay.direction = L;
@@ -7378,7 +7393,8 @@ float3 evalTransmission(float3 albedo, float3 N, float3 V, float3 L,
     float3 F = F_Schlick(VdotH, F0);
     float3 transmitTint = mix(float3(1.0), albedo, 0.1);
     float3 transmitFactor = (1.0 - F) * transmitTint;
-    float D = D_GGX(max(dot(N, H), 0.0), roughness);
+    float D = D_GGX)",
+R"((max(dot(N, H), 0.0), roughness);
     return transmitFactor * lightColor * intensity * D * NdotL * 2.2 / M_PI_F;
 }
 
@@ -7391,8 +7407,7 @@ float3 evalDirectLightingPBR(intersector<triangle_data, instancing> isect,
                              float3 N, float3 V, float3 albedo, float metallic,
                              float roughness, float ior, float transmittance,
                              float sssStrength, float sssThickness,
-                          )",
-R"(   thread uint &rng,
+                             thread uint &rng,
                              constant DirectionalLightData &dirLight,
                              constant SceneData &sceneData,
                              constant PointLight *pointLights,
@@ -7538,7 +7553,8 @@ float3 sampleRadiance(uint2 gid, uint sampleIndex, uint w,
                       thread float &primaryHitDistance,
                       thread uint &primaryObjectId) {
     uint rng = seedBase(gid, w, sceneData.frameIndex, sampleIndex);
-    uint bounceLimit = min(sceneData.maxBounces, 16u);
+    uint bounceLimit = min(scen)",
+R"(eData.maxBounces, 16u);
     ray surfaceRay = primaryRay;
     float3 radiance = float3(0.0);
     float3 throughput = float3(1.0);
@@ -7560,8 +7576,7 @@ float3 sampleRadiance(uint2 gid, uint sampleIndex, uint w,
             }
 
             uint instanceIndex = hit.instance_id;
- )",
-R"(           uint primitiveIndex = hit.primitive_id;
+            uint primitiveIndex = hit.primitive_id;
             mat = materials[instanceIndex];
             mesh = meshData[instanceIndex];
             inst = instanceData[instanceIndex];
@@ -7658,8 +7673,16 @@ R"(           uint primitiveIndex = hit.primitive_id;
         radiance += throughput * (direct + emissive);
 
         if (depth == 0 && sceneData.ambientIntensity > 0.0) {
-            float3 ambient = albedo * sceneData.ambientIntensity *
-                             (1.0 - metallic) * ao * (1.0 - transmittance);
+            float aoVisibility = mix(0.2, 1.0, ao);
+            float3 ambientF0 = mix(float3(0.04), albedo, metallic);
+            float3 ambientF = F_Schlick(max(dot(N, V), 0.0), ambientF0);
+            float3 ambientDiffuse = (1.0 - ambientF) * (1.0 - metallic) *
+                                    albedo * (1.0 - transmittance);
+            float3 ambientSpecular =
+                ambientF * mix(1.0, 0.35, roughness);
+            float3 ambient = (ambientDiffuse + ambientSpecular) *
+                             sceneData.ambientColor *
+                             sceneData.ambientIntensity * aoVisibility;
             radiance += throughput * ambient;
         }
 
@@ -7718,7 +7741,8 @@ R"(           uint primitiveIndex = hit.primitive_id;
             nextDirection = refract(-V, N, eta);
             if (dot(nextDirection, nextDirection) < 1e-8) {
                 transmissionEvent = false;
-                nextDirection = reflect(-V, N);
+     )",
+R"(           nextDirection = reflect(-V, N);
                 bounceWeight = float3(1.0) / max(transmitProb, 1e-4);
             } else {
                 float3 F =
@@ -7747,8 +7771,7 @@ R"(           uint primitiveIndex = hit.primitive_id;
 
         if (depth >= 2) {
             float survival = clamp(max(throughput.x,
-                                )",
-R"(       max(throughput.y, throughput.z)),
+                                       max(throughput.y, throughput.z)),
                                    0.05, 0.95);
             if (rand(rng) > survival) {
                 break;
@@ -7858,6 +7881,9 @@ kernel void main0(texture2d<float, access::write> outTex [[texture(0)]],
     }
 
     color /= float(spp);
+    if (!all(isfinite(color))) {
+        color = float3(0.0);
+    }
 
     int frameIndex = int(sceneData.frameIndex);
 
@@ -7915,7 +7941,8 @@ kernel void main0(texture2d<float, access::write> outTex [[texture(0)]],
             if (pixel.x >= w || pixel.y >= h) {
                 continue;
             }
-            historyTex.write(float4(accum, 1.0), pixel);
+            historyTex.write(float4(a)",
+R"(ccum, 1.0), pixel);
             historyGuideTex.write(currentGuide, pixel);
             albedoRoughnessTex.write(float4(primaryAlbedo, primaryRoughness),
                                      pixel);
@@ -7931,7 +7958,7 @@ kernel void main0(texture2d<float, access::write> outTex [[texture(0)]],
 }
 )",
 };
-static const AtlasPackedShaderSource PATH = {PATH_PARTS, 7};
+static const AtlasPackedShaderSource PATH = {PATH_PARTS, 8};
 
 static const char* const PATH_DENOISE_PARTS[] = {
 R"(#include <metal_stdlib>

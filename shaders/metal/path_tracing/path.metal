@@ -34,6 +34,12 @@ struct Material {
     packed_float2 textureOffset;
 };
 
+static_assert(sizeof(Material) == 112);
+static_assert(__builtin_offsetof(Material, emissiveColor) == 32);
+static_assert(__builtin_offsetof(Material, albedoTextureIndex) == 48);
+static_assert(__builtin_offsetof(Material, transmittance) == 80);
+static_assert(__builtin_offsetof(Material, textureScale) == 96);
+
 struct MeshData {
     uint vertexOffset;
     uint indexOffset;
@@ -114,7 +120,16 @@ struct SceneData {
     float atmosphereSunIntensity;
     float3 atmosphereSunColor;
     uint pixelStride;
+    float3 ambientColor;
+    float _pad0;
 };
+
+static_assert(sizeof(SceneData) == 144);
+static_assert(__builtin_offsetof(SceneData, atmosphereSunDirection) == 48);
+static_assert(__builtin_offsetof(SceneData, atmosphereSunIntensity) == 64);
+static_assert(__builtin_offsetof(SceneData, atmosphereSunColor) == 80);
+static_assert(__builtin_offsetof(SceneData, pixelStride) == 96);
+static_assert(__builtin_offsetof(SceneData, ambientColor) == 112);
 
 float pow5(float x) {
     float x2 = x * x;
@@ -1033,8 +1048,16 @@ float3 sampleRadiance(uint2 gid, uint sampleIndex, uint w,
         radiance += throughput * (direct + emissive);
 
         if (depth == 0 && sceneData.ambientIntensity > 0.0) {
-            float3 ambient = albedo * sceneData.ambientIntensity *
-                             (1.0 - metallic) * ao * (1.0 - transmittance);
+            float aoVisibility = mix(0.2, 1.0, ao);
+            float3 ambientF0 = mix(float3(0.04), albedo, metallic);
+            float3 ambientF = F_Schlick(max(dot(N, V), 0.0), ambientF0);
+            float3 ambientDiffuse = (1.0 - ambientF) * (1.0 - metallic) *
+                                    albedo * (1.0 - transmittance);
+            float3 ambientSpecular =
+                ambientF * mix(1.0, 0.35, roughness);
+            float3 ambient = (ambientDiffuse + ambientSpecular) *
+                             sceneData.ambientColor *
+                             sceneData.ambientIntensity * aoVisibility;
             radiance += throughput * ambient;
         }
 
@@ -1232,6 +1255,9 @@ kernel void main0(texture2d<float, access::write> outTex [[texture(0)]],
     }
 
     color /= float(spp);
+    if (!all(isfinite(color))) {
+        color = float3(0.0);
+    }
 
     int frameIndex = int(sceneData.frameIndex);
 
