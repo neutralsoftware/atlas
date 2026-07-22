@@ -907,6 +907,7 @@ float3 sampleRadiance(uint2 gid, uint sampleIndex, uint w,
                       instance_acceleration_structure sceneAS, ray primaryRay,
                       constant Material *materials,
                       constant uint *primitiveObjects,
+                      constant uint *blasPrimitiveOffsets,
                       constant VertexData *vertices, constant uint *indices,
                       constant InstanceData *instanceData,
                       constant DirectionalLightData &dirLight,
@@ -944,7 +945,8 @@ float3 sampleRadiance(uint2 gid, uint sampleIndex, uint w,
                 break;
             }
 
-            uint primitiveIndex = hit.primitive_id;
+            uint primitiveIndex =
+                blasPrimitiveOffsets[hit.instance_id] + hit.primitive_id;
             surfaceObjectIndex = primitiveObjects[primitiveIndex];
             mat = materials[surfaceObjectIndex];
             inst = instanceData[surfaceObjectIndex];
@@ -1177,6 +1179,7 @@ kernel void main0(texture2d<float, access::write> outTex [[texture(0)]],
                   constant SpotLight *spotLights [[buffer(10)]],
                   constant AreaLight *areaLights [[buffer(11)]],
                   PT_MATERIAL_TEXTURE_BINDINGS,
+                  constant uint *blasPrimitiveOffsets [[buffer(13)]],
                   texturecube<float> skybox [[texture(60)]],
                   uint2 gid [[thread_position_in_grid]]) {
     uint w = outTex.get_width();
@@ -1231,10 +1234,11 @@ kernel void main0(texture2d<float, access::write> outTex [[texture(0)]],
 
         float3 sample = sampleRadiance(
             gid, s, w, isect, sceneAS, primaryRay, materials, primitiveObjects,
-            vertices, indices, instanceData, dirLight, sceneData, pointLights,
-            spotLights, areaLights, PT_MATERIAL_TEXTURE_ARGS, skybox,
-            sampleAlbedo, sampleNormal, samplePosition, sampleDepth,
-            sampleRoughness, sampleHitDistance, sampleObjectId);
+            blasPrimitiveOffsets, vertices, indices, instanceData, dirLight,
+            sceneData, pointLights, spotLights, areaLights,
+            PT_MATERIAL_TEXTURE_ARGS, skybox, sampleAlbedo, sampleNormal,
+            samplePosition, sampleDepth, sampleRoughness, sampleHitDistance,
+            sampleObjectId);
         color += sample;
         if (s == 0) {
             primaryAlbedo = sampleAlbedo;

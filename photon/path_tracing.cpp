@@ -28,6 +28,7 @@
 namespace {
 constexpr int kPathTracerMaxMaterialTextures = 256;
 constexpr int kPathTracerSkyboxTextureUnit = 60;
+constexpr size_t kPathTracerMaxPrimitivesPerBLAS = 250000;
 
 std::shared_ptr<opal::Texture> createFallbackSkyboxTexture() {
     constexpr unsigned char horizon[4] = {0, 0, 0, 255};
@@ -207,6 +208,8 @@ void photon::PathTracing::init() {
     materialTextures.clear();
     materialTextureBindings.clear();
     objectBLAS.clear();
+    blasPrimitiveOffsets.reset();
+    cachedBLASPrimitiveOffsets.clear();
     cachedObjects.clear();
     cachedSceneObjects.clear();
     cachedObjectStateHashes.clear();
@@ -368,7 +371,6 @@ bool photon::PathTracing::buildAccelerationStructure(
     }
     std::vector<MaterialData> materialData;
 
-    std::vector<float> accelerationPositions;
     std::vector<VertexData> allVertices;
     std::vector<uint32_t> allIndices;
     std::vector<uint32_t> primitiveObjects;
@@ -378,6 +380,7 @@ bool photon::PathTracing::buildAccelerationStructure(
     int objectID = 0;
     if (needsRebuild) {
         objectBLAS.clear();
+        cachedBLASPrimitiveOffsets.clear();
         materialTextures.clear();
         std::unordered_map<uint64_t, int> textureSlots;
         size_t totalVertexCount = 0;
@@ -386,17 +389,56 @@ bool photon::PathTracing::buildAccelerationStructure(
             totalVertexCount += object->vertices.size();
             totalIndexCount += object->indices.size();
         }
-        accelerationPositions.reserve(totalVertexCount * 3);
         allVertices.reserve(totalVertexCount);
         allIndices.reserve(totalIndexCount);
         primitiveObjects.reserve(totalIndexCount / 3);
         materialData.reserve(traceableObjects.size());
 
+        std::vector<float> accelerationPositions;
+        std::vector<uint32_t> accelerationIndices;
+        accelerationIndices.reserve(std::min(
+            totalIndexCount, kPathTracerMaxPrimitivesPerBLAS * size_t{3}));
+        uint32_t chunkPrimitiveOffset = 0;
+        auto flushAccelerationChunk = [&]() {
+            if (accelerationIndices.empty()) {
+                return true;
+            }
+            auto blas = opal::PrimitiveAccelerationStructure::create(
+                accelerationPositions, accelerationIndices);
+            if (blas == nullptr) {
+                return false;
+            }
+            const int chunkIndex = static_cast<int>(objectBLAS.size());
+            objectBLAS[chunkIndex] = blas;
+            cachedBLASPrimitiveOffsets.push_back(chunkPrimitiveOffset);
+            pendingBLASBuilds.push_back(blas);
+            accelerationPositions.clear();
+            accelerationIndices.clear();
+            chunkPrimitiveOffset =
+                static_cast<uint32_t>(primitiveObjects.size());
+            return true;
+        };
+
         for (auto *object : traceableObjects) {
             const auto &objectVertices = object->vertices;
             const auto &objectIndices = object->indices;
+            const size_t objectPrimitiveCount = objectIndices.size() / 3;
 
-            int vertexOffset = allVertices.size();
+            if (!accelerationIndices.empty() &&
+                accelerationIndices.size() / 3 + objectPrimitiveCount >
+                    kPathTracerMaxPrimitivesPerBLAS &&
+                !flushAccelerationChunk()) {
+                lastError =
+                    "Failed to allocate a scene acceleration structure chunk";
+                sceneTLAS.reset();
+                accelerationBuildFailed = true;
+                return false;
+            }
+
+            const uint32_t vertexOffset =
+                static_cast<uint32_t>(allVertices.size());
+            const uint32_t accelerationVertexOffset =
+                static_cast<uint32_t>(accelerationPositions.size() / 3);
 
             for (const auto &v : objectVertices) {
                 glm::vec4 worldPosition =
@@ -423,6 +465,7 @@ bool photon::PathTracing::buildAccelerationStructure(
             for (auto index : objectIndices) {
                 const uint32_t globalIndex = vertexOffset + index;
                 allIndices.push_back(globalIndex);
+                accelerationIndices.push_back(accelerationVertexOffset + index);
             }
             for (size_t primitive = 0; primitive < objectIndices.size() / 3;
                  ++primitive) {
@@ -499,6 +542,14 @@ bool photon::PathTracing::buildAccelerationStructure(
             objectID++;
         }
 
+        if (!flushAccelerationChunk()) {
+            lastError =
+                "Failed to allocate a scene acceleration structure chunk";
+            sceneTLAS.reset();
+            accelerationBuildFailed = true;
+            return false;
+        }
+
         if (primitiveObjects.empty() ||
             primitiveObjects.size() != allIndices.size() / 3) {
             lastError = "Path tracing triangle metadata is inconsistent";
@@ -506,16 +557,13 @@ bool photon::PathTracing::buildAccelerationStructure(
             accelerationBuildFailed = true;
             return false;
         }
-        auto sceneBLAS = opal::PrimitiveAccelerationStructure::create(
-            accelerationPositions, allIndices);
-        if (sceneBLAS == nullptr) {
-            lastError = "Failed to allocate the scene acceleration structure";
+        if (objectBLAS.empty() ||
+            cachedBLASPrimitiveOffsets.size() != objectBLAS.size()) {
+            lastError = "Path tracing acceleration chunks are inconsistent";
             sceneTLAS.reset();
             accelerationBuildFailed = true;
             return false;
         }
-        objectBLAS[0] = sceneBLAS;
-        pendingBLASBuilds.push_back(sceneBLAS);
 
         materialBuffer = opal::Buffer::create(
             opal::BufferUsage::ShaderRead,
@@ -533,8 +581,13 @@ bool photon::PathTracing::buildAccelerationStructure(
                                         primitiveObjects.size() *
                                             sizeof(uint32_t),
                                         primitiveObjects.data());
+        blasPrimitiveOffsets = opal::Buffer::create(
+            opal::BufferUsage::ShaderRead,
+            cachedBLASPrimitiveOffsets.size() * sizeof(uint32_t),
+            cachedBLASPrimitiveOffsets.data());
         if (materialBuffer == nullptr || globalVertices == nullptr ||
-            globalIndices == nullptr || meshInfo == nullptr) {
+            globalIndices == nullptr || meshInfo == nullptr ||
+            blasPrimitiveOffsets == nullptr) {
             lastError = "Failed to allocate path tracing scene buffers";
             sceneTLAS.reset();
             accelerationBuildFailed = true;
@@ -608,13 +661,17 @@ bool photon::PathTracing::buildAccelerationStructure(
         instanceData[objectIndex] = d;
     }
 
-    auto sceneBLAS = objectBLAS.find(0);
-    if (sceneBLAS != objectBLAS.end() && sceneBLAS->second != nullptr &&
-        (needsRebuild || sceneBLAS->second->isBuilt)) {
+    for (size_t chunkIndex = 0; chunkIndex < cachedBLASPrimitiveOffsets.size();
+         ++chunkIndex) {
+        auto chunkBLAS = objectBLAS.find(static_cast<int>(chunkIndex));
+        if (chunkBLAS == objectBLAS.end() || chunkBLAS->second == nullptr ||
+            (!needsRebuild && !chunkBLAS->second->isBuilt)) {
+            continue;
+        }
         opal::AccelerationStructureInstance instance{};
-        instance.blas = sceneBLAS->second;
+        instance.blas = chunkBLAS->second;
         instance.transform = glm::mat4(1.0f);
-        instance.instanceId = 0;
+        instance.instanceId = static_cast<uint32_t>(chunkIndex);
         instance.mask = 0xFF;
         instance.cullDisable = true;
         instances.push_back(instance);
@@ -1097,6 +1154,8 @@ bool photon::PathTracing::render(
     pathTracingPipeline->bindBuffer("pointLights", pointLights, 9);
     pathTracingPipeline->bindBuffer("spotLights", spotLights, 10);
     pathTracingPipeline->bindBuffer("areaLights", areaLights, 11);
+    pathTracingPipeline->bindBuffer("blasPrimitiveOffsets",
+                                    blasPrimitiveOffsets, 13);
     pathTracingPipeline->setUniform1i(
         "sceneData.materialTextureCount",
         std::min<int>(static_cast<int>(materialTextures.size()),

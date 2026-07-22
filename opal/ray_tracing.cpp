@@ -85,6 +85,7 @@ opal::PrimitiveAccelerationStructure::create(
     triDesc->setIndexBuffer(blas->indexBuffer.get());
     triDesc->setIndexType(MTL::IndexType::IndexTypeUInt32);
     triDesc->setTriangleCount(indices.size() / 3);
+    triDesc->setOpaque(true);
 
     auto *blasDesc =
         MTL::PrimitiveAccelerationStructureDescriptor::descriptor()->retain();
@@ -256,7 +257,7 @@ opal::InstanceAccelerationStructure::create(
     tlas->blasRefs.reserve(instances.size());
     tlas->blasPtrs.reserve(instances.size());
 
-    std::vector<MTL::AccelerationStructureUserIDInstanceDescriptor> descs;
+    std::vector<MTL::AccelerationStructureInstanceDescriptor> descs;
     descs.resize(instances.size());
 
     for (size_t i = 0; i < instances.size(); ++i) {
@@ -278,11 +279,11 @@ opal::InstanceAccelerationStructure::create(
 
         d.accelerationStructureIndex = (uint32_t)i;
         d.mask = inst.mask ? inst.mask : 0xFF;
-        d.userID = inst.instanceId;
-        d.options =
-            inst.cullDisable
-                ? MTL::AccelerationStructureInstanceOptionDisableTriangleCulling
-                : 0;
+        d.options = MTL::AccelerationStructureInstanceOptionOpaque;
+        if (inst.cullDisable) {
+            d.options |=
+                MTL::AccelerationStructureInstanceOptionDisableTriangleCulling;
+        }
         d.intersectionFunctionTableOffset = 0;
     }
 
@@ -298,12 +299,12 @@ opal::InstanceAccelerationStructure::create(
     tlas->tlasDescriptor->setUsage(
         MTL::AccelerationStructureUsagePreferFastIntersection);
     tlas->tlasDescriptor->setInstanceDescriptorType(
-        MTL::AccelerationStructureInstanceDescriptorTypeUserID);
+        MTL::AccelerationStructureInstanceDescriptorTypeDefault);
     auto &ib = metal::bufferState(tlas->instanceBuffer.get());
 
     tlas->tlasDescriptor->setInstanceDescriptorBuffer(ib.buffer);
     tlas->tlasDescriptor->setInstanceDescriptorStride(
-        sizeof(MTL::AccelerationStructureUserIDInstanceDescriptor));
+        sizeof(MTL::AccelerationStructureInstanceDescriptor));
     tlas->tlasDescriptor->setInstanceCount((NS::UInteger)descs.size());
 
     NS::Array *instancedAS =

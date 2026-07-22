@@ -7531,6 +7531,7 @@ float3 sampleRadiance(uint2 gid, uint sampleIndex, uint w,
                       instance_acceleration_structure sceneAS, ray primaryRay,
                       constant Material *materials,
                       constant uint *primitiveObjects,
+                      constant uint *blasPrimitiveOffsets,
                       constant VertexData *vertices, constant uint *indices,
                       constant InstanceData *instanceData,
                       constant DirectionalLightData &dirLight,
@@ -7547,10 +7548,10 @@ float3 sampleRadiance(uint2 gid, uint sampleIndex, uint w,
                       thread float &primaryHitDistance,
                       thread uint &primaryObjectId) {
     uint rng = seedBase(gid, w, sceneData.frameIndex, sampleIndex);
-    uint bounceLimit = min(sceneData.maxBounces, 16u);
+    uint bounceLimit = min(sceneData.maxBounc)",
+R"(es, 16u);
     ray surfaceRay = primaryRay;
-    float3 radia)",
-R"(nce = float3(0.0);
+    float3 radiance = float3(0.0);
     float3 throughput = float3(1.0);
 
     for (uint depth = 0; depth <= bounceLimit; ++depth) {
@@ -7569,7 +7570,8 @@ R"(nce = float3(0.0);
                 break;
             }
 
-            uint primitiveIndex = hit.primitive_id;
+            uint primitiveIndex =
+                blasPrimitiveOffsets[hit.instance_id] + hit.primitive_id;
             surfaceObjectIndex = primitiveObjects[primitiveIndex];
             mat = materials[surfaceObjectIndex];
             inst = instanceData[surfaceObjectIndex];
@@ -7734,10 +7736,10 @@ R"(nce = float3(0.0);
             nextDirection = refract(-V, N, eta);
             if (dot(nextDirection, nextDirection) < 1e-8) {
                 transmissionEvent = false;
-                nextDirection = reflect(-V, N);
+            )",
+R"(    nextDirection = reflect(-V, N);
                 bounceWeight = float3(1.0) / max(transmitProb, 1e-4);
-         )",
-R"(   } else {
+            } else {
                 float3 F =
                     F_Schlick(NdotV, float3(dielectricF0));
                 float3 tint = mix(float3(1.0), albedo, 0.15);
@@ -7803,6 +7805,7 @@ kernel void main0(texture2d<float, access::write> outTex [[texture(0)]],
                   constant SpotLight *spotLights [[buffer(10)]],
                   constant AreaLight *areaLights [[buffer(11)]],
                   PT_MATERIAL_TEXTURE_BINDINGS,
+                  constant uint *blasPrimitiveOffsets [[buffer(13)]],
                   texturecube<float> skybox [[texture(60)]],
                   uint2 gid [[thread_position_in_grid]]) {
     uint w = outTex.get_width();
@@ -7857,10 +7860,11 @@ kernel void main0(texture2d<float, access::write> outTex [[texture(0)]],
 
         float3 sample = sampleRadiance(
             gid, s, w, isect, sceneAS, primaryRay, materials, primitiveObjects,
-            vertices, indices, instanceData, dirLight, sceneData, pointLights,
-            spotLights, areaLights, PT_MATERIAL_TEXTURE_ARGS, skybox,
-            sampleAlbedo, sampleNormal, samplePosition, sampleDepth,
-            sampleRoughness, sampleHitDistance, sampleObjectId);
+            blasPrimitiveOffsets, vertices, indices, instanceData, dirLight,
+            sceneData, pointLights, spotLights, areaLights,
+            PT_MATERIAL_TEXTURE_ARGS, skybox, sampleAlbedo, sampleNormal,
+            samplePosition, sampleDepth, sampleRoughness, sampleHitDistance,
+            sampleObjectId);
         color += sample;
         if (s == 0) {
             primaryAlbedo = sampleAlbedo;
@@ -7931,13 +7935,13 @@ kernel void main0(texture2d<float, access::write> outTex [[texture(0)]],
     for (uint y = 0; y < pixelStride; ++y) {
         for (uint x = 0; x < pixelStride; ++x) {
             uint2 pixel = gid + uint2(x, y);
-            if (pixel.x >= w || pixel.y >= h) {
+            if ()",
+R"(pixel.x >= w || pixel.y >= h) {
                 continue;
             }
             historyTex.write(float4(accum, 1.0), pixel);
             historyGuideTex.write(currentGuide, pixel);
-            albedoRoughnessTex.wri)",
-R"(te(float4(primaryAlbedo, primaryRoughness),
+            albedoRoughnessTex.write(float4(primaryAlbedo, primaryRoughness),
                                      pixel);
             normalDepthTex.write(float4(primaryNormal, primaryDepth), pixel);
             motionObjectTex.write(float4(motion, objectIdValue, 1.0), pixel);
