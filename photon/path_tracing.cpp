@@ -53,6 +53,20 @@ std::shared_ptr<opal::Texture> createFallbackSkyboxTexture() {
     return texture;
 }
 
+std::shared_ptr<opal::Texture> createFallbackMaterialTexture() {
+    constexpr unsigned char white[4] = {255, 255, 255, 255};
+    auto texture = opal::Texture::create(
+        opal::TextureType::Texture2D, opal::TextureFormat::Rgba8, 1, 1,
+        opal::TextureDataFormat::Rgba, white, 1);
+    texture->setFilterMode(opal::TextureFilterMode::Linear,
+                           opal::TextureFilterMode::Linear);
+    texture->setWrapMode(opal::TextureAxis::S,
+                         opal::TextureWrapMode::Repeat);
+    texture->setWrapMode(opal::TextureAxis::T,
+                         opal::TextureWrapMode::Repeat);
+    return texture;
+}
+
 bool mat4ApproximatelyEqual(const glm::mat4 &a, const glm::mat4 &b,
                             float epsilon) {
     for (int c = 0; c < 4; ++c) {
@@ -191,6 +205,7 @@ void collectPathTracingObjectsFromQueue(
 
 void photon::PathTracing::init() {
     materialTextures.clear();
+    materialTextureBindings.clear();
     objectBLAS.clear();
     cachedObjects.clear();
     cachedSceneObjects.clear();
@@ -212,28 +227,12 @@ void photon::PathTracing::init() {
     pathTracingPipeline->setComputeThreadgroupSize(8, 8, 1);
     pathTracingPipeline->build();
 
-    ComputeShader pathDenoiserShader =
-        ComputeShader::fromDefaultShader(AtlasComputeShader::PathDenoiser);
-    pathDenoiserShader.compile();
-    computePathDenoiser = std::make_shared<ShaderProgram>();
-    computePathDenoiser->computeShader = pathDenoiserShader;
-    computePathDenoiser->compile();
-    pathDenoisePipeline = opal::Pipeline::create();
-    pathDenoisePipeline->setShaderProgram(computePathDenoiser->shader);
-    pathDenoisePipeline->setComputeThreadgroupSize(8, 8, 1);
-    pathDenoisePipeline->build();
-
     outputWidth = std::max(1, Window::mainWindow->viewportWidth);
     outputHeight = std::max(1, Window::mainWindow->viewportHeight);
 
     pathTracingTexturePrev = std::make_shared<Texture>(
         Texture::create(outputWidth, outputHeight, opal::TextureFormat::Rgba16F,
                         opal::TextureDataFormat::Rgba, TextureType::Color));
-    for (auto &texture : denoiseTextures) {
-        texture = std::make_shared<Texture>(Texture::create(
-            outputWidth, outputHeight, opal::TextureFormat::Rgba16F,
-            opal::TextureDataFormat::Rgba, TextureType::Color));
-    }
     for (auto &texture : pathTracingAovTextures) {
         texture = std::make_shared<Texture>(Texture::create(
             outputWidth, outputHeight, opal::TextureFormat::Rgba16F,
@@ -259,11 +258,6 @@ void photon::PathTracing::resizeOutput(int width, int height) {
     pathTracingTexturePrev = std::make_shared<Texture>(
         Texture::create(outputWidth, outputHeight, opal::TextureFormat::Rgba16F,
                         opal::TextureDataFormat::Rgba, TextureType::Color));
-    for (auto &texture : denoiseTextures) {
-        texture = std::make_shared<Texture>(Texture::create(
-            outputWidth, outputHeight, opal::TextureFormat::Rgba16F,
-            opal::TextureDataFormat::Rgba, TextureType::Color));
-    }
     for (auto &texture : pathTracingAovTextures) {
         texture = std::make_shared<Texture>(Texture::create(
             outputWidth, outputHeight, opal::TextureFormat::Rgba16F,
@@ -546,6 +540,11 @@ bool photon::PathTracing::buildAccelerationStructure(
             accelerationBuildFailed = true;
             return false;
         }
+        static std::shared_ptr<opal::Texture> fallbackMaterialTexture =
+            createFallbackMaterialTexture();
+        materialTextureBindings = materialTextures;
+        materialTextureBindings.resize(kPathTracerMaxMaterialTextures,
+                                       fallbackMaterialTexture);
         frameIndex = 0;
     }
 
@@ -830,7 +829,6 @@ bool photon::PathTracing::render(
         brightOutput == nullptr) {
         return fail("The render target or command buffer is unavailable");
     }
-    commandBuffer->waitForSubmittedWork();
     if (Window::mainWindow == nullptr ||
         Window::mainWindow->getCamera() == nullptr) {
         return fail("The active window or camera is unavailable");
@@ -1104,33 +1102,19 @@ bool photon::PathTracing::render(
         std::min<int>(static_cast<int>(materialTextures.size()),
                       kPathTracerMaxMaterialTextures));
 
-    pathTracingPipeline->bindTextureArray(materialTextures, 12);
+    if (materialTextureBindings.size() != kPathTracerMaxMaterialTextures) {
+        static std::shared_ptr<opal::Texture> fallbackMaterialTexture =
+            createFallbackMaterialTexture();
+        materialTextureBindings = materialTextures;
+        materialTextureBindings.resize(kPathTracerMaxMaterialTextures,
+                                       fallbackMaterialTexture);
+    }
+    pathTracingPipeline->bindTextureArray(materialTextureBindings, 12);
 
     commandBuffer->dispatch((outputWidth + pixelStride - 1) / pixelStride,
                             (outputHeight + pixelStride - 1) / pixelStride, 1);
 
     commandBuffer->computeBarrier();
-
-    const std::array<int, 3> denoiseSteps = {1, 2, 4};
-    const size_t denoisePassCount =
-        interactive ? 0 : (refinementFrame < 48 ? 2 : denoiseSteps.size());
-    for (size_t pass = 0; pass < denoisePassCount; ++pass) {
-        const auto &input =
-            pass == 0 ? output : denoiseTextures[(pass - 1) % 2]->texture;
-        const auto &denoisedOutput = pass + 1 == denoisePassCount
-                                         ? output
-                                         : denoiseTextures[pass % 2]->texture;
-        commandBuffer->bindPipeline(pathDenoisePipeline);
-        pathDenoisePipeline->bindTexture("inputTexture", input, 0);
-        pathDenoisePipeline->bindTexture("outputTexture", denoisedOutput, 1);
-        pathDenoisePipeline->bindTexture("brightTexture", brightOutput, 2);
-        pathDenoisePipeline->bindTexture("guideTexture",
-                                         pathTracingAovTextures[1]->texture, 3);
-        pathDenoisePipeline->setUniform1i("parameters.stepWidth",
-                                          denoiseSteps[pass]);
-        commandBuffer->dispatch(outputWidth, outputHeight, 1);
-        commandBuffer->computeBarrier();
-    }
 
     previousViewProj = viewProj;
     frameIndex++;

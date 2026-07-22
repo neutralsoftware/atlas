@@ -115,12 +115,10 @@ class PathTracing {
     std::shared_ptr<opal::Buffer> materialBuffer;
     std::shared_ptr<opal::Buffer> instanceDataBuffer;
     std::vector<std::shared_ptr<opal::Texture>> materialTextures;
+    std::vector<std::shared_ptr<opal::Texture>> materialTextureBindings;
     std::shared_ptr<opal::InstanceAccelerationStructure> sceneTLAS;
     std::shared_ptr<opal::Pipeline> pathTracingPipeline;
-    std::shared_ptr<opal::Pipeline> pathDenoisePipeline;
     std::shared_ptr<ShaderProgram> computePathTracer;
-    std::shared_ptr<ShaderProgram> computePathDenoiser;
-    std::array<std::shared_ptr<Texture>, 2> denoiseTextures;
     std::array<std::shared_ptr<Texture>, 4> pathTracingAovTextures;
     std::shared_ptr<Texture> pathTracingHistoryGuide;
     std::unordered_map<int,

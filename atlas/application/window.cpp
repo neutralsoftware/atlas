@@ -1572,7 +1572,9 @@ bool Window::stepFrame() {
 
     DebugTimer gpuTimer("Gpu Data");
 
-    renderLightsToShadowMaps(commandBuffer);
+    if (!this->usePathTracing) {
+        renderLightsToShadowMaps(commandBuffer);
+    }
 
     std::vector<RenderTarget *> activeRenderTargets = this->renderTargets;
     bool usesModeScreenTarget = false;
@@ -4734,7 +4736,9 @@ void Window::renderPingpong(RenderTarget *target) {
     blurPipeline->setUniform1i("image", 0);
 
     target->object->vao->bind();
-    target->object->ebo->bind();
+    if (target->object->ebo != nullptr) {
+        target->object->ebo->bind();
+    }
 
     for (unsigned int i = 0; i < blurIterations; ++i) {
         this->pingpongFramebuffers.at(horizontal)->bind();

@@ -477,24 +477,31 @@ void RenderTarget::display(Window &window, float zindex) {
         CoreObject obj;
         std::vector<CoreVertex> vertices = {
 #ifdef METAL
-            {{1.0f, 1.0f, zindex}, Color::white(), {1.0f, 0.0f}}, // top right
+            {{1.0f, 1.0f, zindex}, Color::white(), {1.0f, 0.0f}},
+            {{-1.0f, 1.0f, zindex}, Color::white(), {0.0f, 0.0f}},
             {{1.0f, -1.0f, zindex},
              Color::white(),
-             {1.0f, 1.0f}}, // bottom right
+             {1.0f, 1.0f}},
+            {{1.0f, -1.0f, zindex},
+             Color::white(),
+             {1.0f, 1.0f}},
+            {{-1.0f, 1.0f, zindex}, Color::white(), {0.0f, 0.0f}},
             {{-1.0f, -1.0f, zindex},
              Color::white(),
-             {0.0f, 1.0f}},                                       // bottom left
-            {{-1.0f, 1.0f, zindex}, Color::white(), {0.0f, 0.0f}} // top left
+             {0.0f, 1.0f}}
 #else
-            // positions        // texture coords
-            {{1.0f, 1.0f, zindex}, Color::white(), {1.0f, 1.0f}}, // top right
+            {{1.0f, 1.0f, zindex}, Color::white(), {1.0f, 1.0f}},
             {{1.0f, -1.0f, zindex},
              Color::white(),
-             {1.0f, 0.0f}}, // bottom right
+             {1.0f, 0.0f}},
+            {{-1.0f, 1.0f, zindex}, Color::white(), {0.0f, 1.0f}},
+            {{1.0f, -1.0f, zindex},
+             Color::white(),
+             {1.0f, 0.0f}},
             {{-1.0f, -1.0f, zindex},
              Color::white(),
-             {0.0f, 0.0f}},                                       // bottom left
-            {{-1.0f, 1.0f, zindex}, Color::white(), {0.0f, 1.0f}} // top left
+             {0.0f, 0.0f}},
+            {{-1.0f, 1.0f, zindex}, Color::white(), {0.0f, 1.0f}}
 #endif
         };
         VertexShader vertexShader =
@@ -506,15 +513,8 @@ void RenderTarget::display(Window &window, float zindex) {
 
         obj.createAndAttachProgram(vertexShader, fragmentShader);
 
-#ifdef METAL
-        std::vector<Index> indices = {0, 3, 1, 1, 3, 2};
-#else
-        std::vector<Index> indices = {0, 1, 3, 1, 2, 3};
-#endif
-
         obj.attachTexture(this->texture);
         obj.attachVertices(vertices);
-        obj.attachIndices(indices);
         obj.renderOnlyTexture();
         obj.show();
         obj.initialize();
@@ -917,14 +917,8 @@ void RenderTarget::render(float dt,
 
     commandBuffer->bindDrawingState(obj->vao);
     commandBuffer->bindPipeline(renderTargetPipeline);
-    if (!obj->indices.empty()) {
-        commandBuffer->drawIndexed(
-            static_cast<unsigned int>(obj->indices.size()), 1, 0, 0, 0,
-            obj->id);
-    } else {
-        commandBuffer->draw(static_cast<unsigned int>(obj->vertices.size()), 1,
-                            0, 0, obj->id);
-    }
+    commandBuffer->draw(static_cast<unsigned int>(obj->vertices.size()), 1, 0,
+                        0, obj->id);
     commandBuffer->unbindDrawingState();
 
     renderTargetPipeline->enableDepthTest(true);
@@ -940,9 +934,8 @@ void RenderTarget::render(float dt,
                 : 0;
         debugPacket.triangleCount = 2;
         debugPacket.vertexBufferSizeMb =
-            static_cast<float>(sizeof(CoreVertex) * 4) / (1024.0f * 1024.0f);
-        debugPacket.indexBufferSizeMb =
-            static_cast<float>(sizeof(Index) * 6) / (1024.0f * 1024.0f);
+            static_cast<float>(sizeof(CoreVertex) * 6) / (1024.0f * 1024.0f);
+        debugPacket.indexBufferSizeMb = 0.0f;
         debugPacket.textureCount =
             1 + (brightTexture.id != 0 ? 1 : 0) +
             (depthTexture.id != 0 ? 1 : 0) + (gPosition.id != 0 ? 1 : 0) +
