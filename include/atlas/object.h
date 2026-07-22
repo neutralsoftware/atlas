@@ -1057,6 +1057,9 @@ class Model : public GameObject {
     void processNode(aiNode *node, const aiScene *scene,
                      glm::mat4 parentTransform,
                      std::unordered_map<std::string, Texture> &textureCache);
+    void preloadMaterialTextures(
+        const aiScene *scene,
+        std::unordered_map<std::string, Texture> &textureCache);
     CoreObject
     processMesh(aiMesh *mesh, const aiScene *scene, const glm::mat4 &transform,
                 std::unordered_map<std::string, Texture> &textureCache);

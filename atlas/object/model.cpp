@@ -21,11 +21,15 @@
 #include <assimp/postprocess.h>
 #include <algorithm>
 #include <cmath>
+#include <cstring>
+#include <future>
 #include <iostream>
 #include <memory>
 #include <stdexcept>
 #include <string>
+#include <thread>
 #include <unordered_map>
+#include <unordered_set>
 #include <utility>
 #include <vector>
 #include "stb/stb_image.h"
@@ -73,6 +77,160 @@ float roughnessFromShininess(float shininess, float strength) {
     const float effectiveShininess =
         std::max(0.0f, shininess) * std::max(0.0f, strength);
     return saturate(std::sqrt(2.0f / (effectiveShininess + 2.0f)));
+}
+
+struct ModelTextureJob {
+    std::string cacheKey;
+    std::string fullPath;
+    std::string filename;
+    std::string aoPath;
+    TextureType textureType = TextureType::Color;
+    ResourceType resourceType = ResourceType::Image;
+    int maximumDimension = 0;
+};
+
+struct DecodedModelTexture {
+    std::vector<unsigned char> pixels;
+    std::vector<unsigned char> ao;
+    int width = 0;
+    int height = 0;
+};
+
+std::vector<unsigned char> resizeModelTexture(const unsigned char *source,
+                                              int sourceWidth,
+                                              int sourceHeight,
+                                              int channels, int targetWidth,
+                                              int targetHeight) {
+    std::vector<unsigned char> resized(
+        static_cast<size_t>(targetWidth) * targetHeight * channels);
+    const bool halfResolution = sourceWidth == targetWidth * 2 &&
+                                sourceHeight == targetHeight * 2;
+    for (int y = 0; y < targetHeight; ++y) {
+        const int sourceY = std::min(
+            sourceHeight - 1,
+            static_cast<int>((static_cast<int64_t>(y) * sourceHeight) /
+                             targetHeight));
+        for (int x = 0; x < targetWidth; ++x) {
+            const int sourceX = std::min(
+                sourceWidth - 1,
+                static_cast<int>((static_cast<int64_t>(x) * sourceWidth) /
+                                 targetWidth));
+            const size_t sourceOffset =
+                (static_cast<size_t>(sourceY) * sourceWidth + sourceX) *
+                channels;
+            const size_t targetOffset =
+                (static_cast<size_t>(y) * targetWidth + x) * channels;
+            if (halfResolution) {
+                const size_t rightOffset = sourceOffset + channels;
+                const size_t lowerOffset =
+                    sourceOffset + static_cast<size_t>(sourceWidth) * channels;
+                const size_t lowerRightOffset = lowerOffset + channels;
+                for (int channel = 0; channel < channels; ++channel) {
+                    const unsigned int total =
+                        source[sourceOffset + channel] +
+                        source[rightOffset + channel] +
+                        source[lowerOffset + channel] +
+                        source[lowerRightOffset + channel];
+                    resized[targetOffset + channel] =
+                        static_cast<unsigned char>((total + 2) / 4);
+                }
+            } else {
+                std::memcpy(resized.data() + targetOffset,
+                            source + sourceOffset,
+                            static_cast<size_t>(channels));
+            }
+        }
+    }
+    return resized;
+}
+
+DecodedModelTexture decodeModelTexture(const ModelTextureJob &job) {
+    stbi_set_flip_vertically_on_load_thread(false);
+    int width = 0;
+    int height = 0;
+    int channels = 0;
+    std::unique_ptr<unsigned char, decltype(&stbi_image_free)> source(
+        stbi_load(job.fullPath.c_str(), &width, &height, &channels,
+                  STBI_rgb_alpha),
+        stbi_image_free);
+    if (source == nullptr || width <= 0 || height <= 0) {
+        return {};
+    }
+
+    const float scale =
+        job.maximumDimension > 0
+            ? std::min(1.0f, static_cast<float>(job.maximumDimension) /
+                                 static_cast<float>(std::max(width, height)))
+            : 1.0f;
+    const int targetWidth = std::max(1, static_cast<int>(width * scale));
+    const int targetHeight = std::max(1, static_cast<int>(height * scale));
+
+    DecodedModelTexture decoded;
+    decoded.width = targetWidth;
+    decoded.height = targetHeight;
+    if (targetWidth == width && targetHeight == height) {
+        const size_t byteCount = static_cast<size_t>(width) * height * 4;
+        decoded.pixels.assign(source.get(), source.get() + byteCount);
+    } else {
+        decoded.pixels = resizeModelTexture(source.get(), width, height, 4,
+                                            targetWidth, targetHeight);
+    }
+
+    if (!job.aoPath.empty()) {
+        int aoWidth = 0;
+        int aoHeight = 0;
+        int aoChannels = 0;
+        std::unique_ptr<unsigned char, decltype(&stbi_image_free)> aoSource(
+            stbi_load(job.aoPath.c_str(), &aoWidth, &aoHeight, &aoChannels,
+                      STBI_grey),
+            stbi_image_free);
+        if (aoSource != nullptr && aoWidth > 0 && aoHeight > 0) {
+            if (aoWidth == targetWidth && aoHeight == targetHeight) {
+                const size_t byteCount =
+                    static_cast<size_t>(aoWidth) * aoHeight;
+                decoded.ao.assign(aoSource.get(),
+                                  aoSource.get() + byteCount);
+            } else {
+                decoded.ao = resizeModelTexture(
+                    aoSource.get(), aoWidth, aoHeight, 1, targetWidth,
+                    targetHeight);
+            }
+        }
+    }
+    return decoded;
+}
+
+Texture uploadModelTexture(const ModelTextureJob &job,
+                           DecodedModelTexture decoded) {
+    if (decoded.pixels.empty() || decoded.width <= 0 || decoded.height <= 0) {
+        throw std::runtime_error("Failed to decode model texture");
+    }
+    if (job.textureType == TextureType::PBRPack && !decoded.ao.empty()) {
+        const size_t pixelCount =
+            static_cast<size_t>(decoded.width) * decoded.height;
+        for (size_t pixel = 0; pixel < pixelCount; ++pixel) {
+            decoded.pixels[pixel * 4] = decoded.ao[pixel];
+        }
+    }
+
+    Resource resource = Workspace::get().createResource(
+        job.fullPath, job.filename, job.resourceType);
+    const opal::TextureFormat format =
+        job.textureType == TextureType::Color
+            ? opal::TextureFormat::sRgba8
+            : opal::TextureFormat::Rgba8;
+    auto opalTexture = opal::Texture::create(
+        opal::TextureType::Texture2D, format, decoded.width, decoded.height,
+        opal::TextureDataFormat::Rgba, decoded.pixels.data(), 1);
+    opalTexture->setParameters(opal::TextureWrapMode::Repeat,
+                               opal::TextureWrapMode::Repeat,
+                               opal::TextureFilterMode::Linear,
+                               opal::TextureFilterMode::Linear);
+    return Texture{.resource = resource,
+                   .creationData = {decoded.width, decoded.height, 4},
+                   .id = opalTexture->textureID,
+                   .texture = opalTexture,
+                   .type = job.textureType};
 }
 
 void importMaterialProperties(aiMaterial *material, CoreObject &object) {
@@ -205,6 +363,8 @@ void Model::loadModel(
     // Texture cache to avoid loading the same texture multiple times
     std::unordered_map<std::string, Texture> textureCache;
 
+    preloadMaterialTextures(scene, textureCache);
+
     processNode(scene->mRootNode, scene, glm::mat4(1.0f), textureCache);
 
     if (progress)
@@ -241,6 +401,137 @@ void Model::loadModel(
     // std::cout << "Total Triangles: " << totalTriangles << std::endl;
 }
 
+void Model::preloadMaterialTextures(
+    const aiScene *scene,
+    std::unordered_map<std::string, Texture> &textureCache) {
+    std::vector<ModelTextureJob> jobs;
+    std::unordered_set<std::string> scheduled;
+
+    auto queueTextures = [&](aiMaterial *material, aiTextureType sourceType,
+                             const std::string &typeName,
+                             TextureType textureType) {
+        for (unsigned int index = 0;
+             index < material->GetTextureCount(sourceType); ++index) {
+            aiString path;
+            if (material->GetTexture(sourceType, index, &path) != AI_SUCCESS) {
+                continue;
+            }
+            const std::string filename = path.C_Str();
+            const std::string fullPath = directory + "/" + filename;
+            std::string aoPath;
+            std::string cacheKey = fullPath + "|" + typeName;
+            if (textureType == TextureType::PBRPack) {
+                aiString aoTexturePath;
+                if (material->GetTexture(aiTextureType_AMBIENT_OCCLUSION, 0,
+                                         &aoTexturePath) == AI_SUCCESS) {
+                    aoPath = directory + "/" +
+                             std::string(aoTexturePath.C_Str());
+                    cacheKey += "|" + std::string(aoTexturePath.C_Str());
+                }
+            }
+            if (!scheduled.insert(cacheKey).second) {
+                continue;
+            }
+            jobs.push_back(ModelTextureJob{
+                .cacheKey = std::move(cacheKey),
+                .fullPath = fullPath,
+                .filename = filename,
+                .aoPath = std::move(aoPath),
+                .textureType = textureType,
+                .resourceType = typeName == "texture_specular"
+                                    ? ResourceType::SpecularMap
+                                    : ResourceType::Image});
+        }
+    };
+
+    for (unsigned int materialIndex = 0;
+         materialIndex < scene->mNumMaterials; ++materialIndex) {
+        aiMaterial *material = scene->mMaterials[materialIndex];
+        if (material->GetTextureCount(aiTextureType_DIFFUSE) > 0) {
+            queueTextures(material, aiTextureType_DIFFUSE, "texture_diffuse",
+                          TextureType::Color);
+        } else if (material->GetTextureCount(aiTextureType_BASE_COLOR) > 0) {
+            queueTextures(material, aiTextureType_BASE_COLOR,
+                          "texture_diffuse", TextureType::Color);
+        } else {
+            queueTextures(material, aiTextureType_AMBIENT, "texture_diffuse",
+                          TextureType::Color);
+        }
+
+        queueTextures(material, aiTextureType_SPECULAR, "texture_specular",
+                      TextureType::Specular);
+        if (material->GetTextureCount(aiTextureType_NORMALS) > 0) {
+            queueTextures(material, aiTextureType_NORMALS, "texture_normal",
+                          TextureType::Normal);
+        } else if (material->GetTextureCount(aiTextureType_HEIGHT) > 0) {
+            queueTextures(material, aiTextureType_HEIGHT, "texture_normal",
+                          TextureType::Normal);
+        } else {
+            queueTextures(material, aiTextureType_DISPLACEMENT,
+                          "texture_normal", TextureType::Normal);
+        }
+
+        if (material->GetTextureCount(aiTextureType_GLTF_METALLIC_ROUGHNESS) >
+            0) {
+            queueTextures(material, aiTextureType_GLTF_METALLIC_ROUGHNESS,
+                          "texture_pbr_pack", TextureType::PBRPack);
+        } else {
+            queueTextures(material, aiTextureType_METALNESS,
+                          "texture_metallic", TextureType::Metallic);
+            queueTextures(material, aiTextureType_DIFFUSE_ROUGHNESS,
+                          "texture_roughness", TextureType::Roughness);
+            if (material->GetTextureCount(aiTextureType_AMBIENT_OCCLUSION) >
+                0) {
+                queueTextures(material, aiTextureType_AMBIENT_OCCLUSION,
+                              "texture_ao", TextureType::AO);
+            } else {
+                queueTextures(material, aiTextureType_LIGHTMAP, "texture_ao",
+                              TextureType::AO);
+            }
+        }
+        queueTextures(material, aiTextureType_OPACITY, "texture_opacity",
+                      TextureType::Opacity);
+    }
+
+    const size_t workerCount = std::clamp<size_t>(
+        std::thread::hardware_concurrency(), 2, 4);
+    if (jobs.size() >= 48) {
+        for (auto &job : jobs) {
+            job.maximumDimension = 2048;
+        }
+    }
+    for (size_t batchStart = 0; batchStart < jobs.size();
+         batchStart += workerCount) {
+        const size_t batchEnd =
+            std::min(jobs.size(), batchStart + workerCount);
+        std::vector<std::future<DecodedModelTexture>> futures;
+        futures.reserve(batchEnd - batchStart);
+        for (size_t index = batchStart; index < batchEnd; ++index) {
+            futures.push_back(std::async(std::launch::async,
+                                         [job = jobs[index]] {
+                                             return decodeModelTexture(job);
+                                         }));
+        }
+        for (size_t index = batchStart; index < batchEnd; ++index) {
+            try {
+                DecodedModelTexture decoded =
+                    futures[index - batchStart].get();
+                textureCache[jobs[index].cacheKey] =
+                    uploadModelTexture(jobs[index], std::move(decoded));
+            } catch (const std::exception &error) {
+                atlas_warning("Failed to preload texture '" +
+                              jobs[index].filename + "': " + error.what());
+            }
+            if (importProgress && !jobs.empty()) {
+                const float completed =
+                    static_cast<float>(index + 1) / jobs.size();
+                importProgress(0.88f + completed * 0.08f,
+                               "Loading model textures");
+            }
+        }
+    }
+}
+
 void Model::processNode(
     aiNode *node, const aiScene *scene, glm::mat4 parentTransform,
     std::unordered_map<std::string, Texture> &textureCache) {
@@ -256,7 +547,7 @@ void Model::processNode(
         if (importProgress && totalMeshCount > 0) {
             const float completed = static_cast<float>(importedMeshCount) /
                                     static_cast<float>(totalMeshCount);
-            importProgress(0.88f + completed * 0.11f,
+            importProgress(0.96f + completed * 0.03f,
                            "Loading meshes and materials");
         }
     }
