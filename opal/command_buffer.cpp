@@ -2134,6 +2134,29 @@ void CommandBuffer::dispatch(uint threadCountX, uint threadCountY,
                                 deviceState.device);
     bindComputeTextures(boundPipeline, state.computeEncoder,
                         deviceState.device);
+    auto &pipelineState = metal::pipelineState(boundPipeline.get());
+    for (const auto &[binding, accelerationStructure] :
+         pipelineState.primitiveAccelerationStructures) {
+        if (accelerationStructure == nullptr ||
+            accelerationStructure->blas == nullptr ||
+            !accelerationStructure->isBuilt) {
+            throw std::runtime_error(
+                "Metal primitive acceleration structure is unavailable");
+        }
+        state.computeEncoder->setAccelerationStructure(
+            accelerationStructure->blas, binding);
+    }
+    for (const auto &[binding, accelerationStructure] :
+         pipelineState.instanceAccelerationStructures) {
+        if (accelerationStructure == nullptr ||
+            accelerationStructure->tlas == nullptr ||
+            !accelerationStructure->isBuilt) {
+            throw std::runtime_error(
+                "Metal instance acceleration structure is unavailable");
+        }
+        state.computeEncoder->setAccelerationStructure(
+            accelerationStructure->tlas, binding);
+    }
 
     NS::UInteger tgX =
         static_cast<NS::UInteger>(boundPipeline->getComputeThreadgroupSizeX());
@@ -2340,21 +2363,25 @@ void CommandBuffer::clear(float r, float g, float b, float a, float depth) {
 void CommandBuffer::bindPrimitiveAccelerationStructure(
     const std::shared_ptr<PrimitiveAccelerationStructure> &as,
     uint32_t binding) {
-    auto &state = metal::commandBufferState(this);
-    if (state.computeEncoder == nullptr) {
-        state.computeEncoder = state.commandBuffer->computeCommandEncoder();
+    if (boundPipeline == nullptr) {
+        throw std::runtime_error(
+            "Cannot bind an acceleration structure without a pipeline");
     }
-    state.computeEncoder->setAccelerationStructure(as->blas, binding);
+    auto &pipelineState = metal::pipelineState(boundPipeline.get());
+    pipelineState.instanceAccelerationStructures.erase(binding);
+    pipelineState.primitiveAccelerationStructures[binding] = as;
 }
 
 void CommandBuffer::bindInstanceAccelerationStructure(
     const std::shared_ptr<InstanceAccelerationStructure> &as,
     uint32_t binding) {
-    auto &state = metal::commandBufferState(this);
-    if (state.computeEncoder == nullptr) {
-        state.computeEncoder = state.commandBuffer->computeCommandEncoder();
+    if (boundPipeline == nullptr) {
+        throw std::runtime_error(
+            "Cannot bind an acceleration structure without a pipeline");
     }
-    state.computeEncoder->setAccelerationStructure(as->tlas, binding);
+    auto &pipelineState = metal::pipelineState(boundPipeline.get());
+    pipelineState.primitiveAccelerationStructures.erase(binding);
+    pipelineState.instanceAccelerationStructures[binding] = as;
 }
 #endif
 
