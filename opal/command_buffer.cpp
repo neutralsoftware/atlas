@@ -638,6 +638,17 @@ void uploadUniformBuffers(const std::shared_ptr<Pipeline> &pipeline,
                 return;
             }
 
+            if (bytes.size() <= 4096) {
+                if (stage == metal::MetalProgramStage::Fragment) {
+                    encoder->setFragmentBytes(bytes.data(), bytes.size(),
+                                              binding.index);
+                } else {
+                    encoder->setVertexBytes(bytes.data(), bytes.size(),
+                                            binding.index);
+                }
+                return;
+            }
+
             MTL::Buffer *inlineBuffer =
                 device->newBuffer(bytes.data(),
                                   static_cast<NS::UInteger>(alignUp(
@@ -840,6 +851,11 @@ void uploadComputeUniformBuffers(const std::shared_ptr<Pipeline> &pipeline,
             bytes.resize(requiredSize, 0);
         }
         if (bytes.empty()) {
+            continue;
+        }
+
+        if (bytes.size() <= 4096) {
+            encoder->setBytes(bytes.data(), bytes.size(), binding.index);
             continue;
         }
 

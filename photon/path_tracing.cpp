@@ -991,16 +991,10 @@ bool photon::PathTracing::render(
                                       spotLightCount);
     pathTracingPipeline->setUniform1i("sceneData.numAreaLights",
                                       areaLightCount);
-    pathTracingPipeline->setUniform1i("sceneData.frameIndex", this->frameIndex);
     pathTracingPipeline->setUniform1i("sceneData.raysPerPixel",
                                       this->raysPerPixel);
-    pathTracingPipeline->setUniform1i(
-        "sceneData.maxBounces",
-        interactive ? std::min(this->maxBounces, 1) : this->maxBounces);
     pathTracingPipeline->setUniform1f("sceneData.indirectStrength",
                                       this->indirectStrength);
-    pathTracingPipeline->setUniform1i("sceneData.pixelStride",
-                                      interactive ? 4 : 1);
 
     const std::string previousError = lastError;
     try {
@@ -1085,6 +1079,15 @@ bool photon::PathTracing::render(
     cachedAmbientIntensity = ambientIntensity;
     cachedSkyboxTextureId = skyboxTextureId;
 
+    const int refinementFrame = std::max(frameIndex, 0);
+    const int pixelStride = interactive ? 4 : (refinementFrame < 24 ? 2 : 1);
+    const int effectiveBounces =
+        interactive ? std::min(this->maxBounces, 1)
+                    : std::min(this->maxBounces, 2 + refinementFrame / 12);
+    pathTracingPipeline->setUniform1i("sceneData.frameIndex", frameIndex);
+    pathTracingPipeline->setUniform1i("sceneData.maxBounces", effectiveBounces);
+    pathTracingPipeline->setUniform1i("sceneData.pixelStride", pixelStride);
+
     commandBuffer->bindInstanceAccelerationStructure(this->sceneTLAS, 0);
 
     pathTracingPipeline->bindBuffer("materials", materialBuffer, 2);
@@ -1102,14 +1105,14 @@ bool photon::PathTracing::render(
 
     pathTracingPipeline->bindTextureArray(materialTextures, 12);
 
-    const int pixelStride = interactive ? 4 : 1;
     commandBuffer->dispatch((outputWidth + pixelStride - 1) / pixelStride,
                             (outputHeight + pixelStride - 1) / pixelStride, 1);
 
     commandBuffer->computeBarrier();
 
     const std::array<int, 3> denoiseSteps = {1, 2, 4};
-    const size_t denoisePassCount = interactive ? 0 : denoiseSteps.size();
+    const size_t denoisePassCount =
+        interactive ? 0 : (refinementFrame < 48 ? 2 : denoiseSteps.size());
     for (size_t pass = 0; pass < denoisePassCount; ++pass) {
         const auto &input =
             pass == 0 ? output : denoiseTextures[(pass - 1) % 2]->texture;
