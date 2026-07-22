@@ -382,6 +382,8 @@ bool photon::PathTracing::buildAccelerationStructure(
     std::vector<VertexData> allVertices;
     std::vector<uint32_t> allIndices;
     std::vector<MeshData> meshData;
+    std::vector<std::shared_ptr<opal::PrimitiveAccelerationStructure>>
+        pendingBLASBuilds;
 
     int objectID = 0;
     if (needsRebuild) {
@@ -440,7 +442,7 @@ bool photon::PathTracing::buildAccelerationStructure(
                 vertices, objectIndices);
             objectBLAS[objectID] = blas;
             if (blas != nullptr) {
-                commandBuffer->buildPrimitiveAccelerationStructure(blas);
+                pendingBLASBuilds.push_back(blas);
             } else {
                 failedBLASCount++;
             }
@@ -596,7 +598,7 @@ bool photon::PathTracing::buildAccelerationStructure(
             continue;
         }
         auto blas = it->second;
-        if (blas == nullptr || !blas->isBuilt) {
+        if (blas == nullptr || (!needsRebuild && !blas->isBuilt)) {
             continue;
         }
 
@@ -605,7 +607,7 @@ bool photon::PathTracing::buildAccelerationStructure(
         instance.transform = object->model;
         instance.instanceId = static_cast<uint>(objectIndex);
         instance.mask = 0xFF;
-        instance.cullDisable = false;
+        instance.cullDisable = true;
         instances.push_back(instance);
 
         InstanceData d{};
@@ -648,13 +650,19 @@ bool photon::PathTracing::buildAccelerationStructure(
             accelerationBuildFailed = true;
             return false;
         }
-        sceneTLAS = opal::InstanceAccelerationStructure::create(instances);
+        sceneTLAS = needsRebuild
+                        ? commandBuffer->buildAccelerationStructures(
+                              pendingBLASBuilds, instances)
+                        : opal::InstanceAccelerationStructure::create(
+                              instances);
         if (sceneTLAS == nullptr) {
             lastError = "Failed to allocate the scene acceleration structure";
             accelerationBuildFailed = true;
             return false;
         }
-        commandBuffer->buildInstanceAccelerationStructure(sceneTLAS);
+        if (!needsRebuild) {
+            commandBuffer->buildInstanceAccelerationStructure(sceneTLAS);
+        }
         frameIndex = 0;
     }
     if (sceneTLAS == nullptr || !sceneTLAS->isBuilt) {
@@ -1080,7 +1088,12 @@ bool photon::PathTracing::render(
     cachedSkyboxTextureId = skyboxTextureId;
 
     const int refinementFrame = std::max(frameIndex, 0);
-    const int pixelStride = interactive ? 4 : (refinementFrame < 24 ? 2 : 1);
+    const int minimumPixelStride =
+        outputWidth * outputHeight > 1920 * 1080 ? 2 : 1;
+    const int pixelStride =
+        interactive ? std::max(4, minimumPixelStride)
+                    : std::max(refinementFrame < 24 ? 2 : 1,
+                               minimumPixelStride);
     const int effectiveBounces =
         interactive ? std::min(this->maxBounces, 1)
                     : std::min(this->maxBounces, 2 + refinementFrame / 12);

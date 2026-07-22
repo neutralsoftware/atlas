@@ -1229,6 +1229,12 @@ class CommandBuffer {
     void buildPrimitiveAccelerationStructure(
         const std::shared_ptr<PrimitiveAccelerationStructure> &blas);
 
+    std::shared_ptr<InstanceAccelerationStructure>
+    buildAccelerationStructures(
+        const std::vector<std::shared_ptr<PrimitiveAccelerationStructure>>
+            &blases,
+        const std::vector<AccelerationStructureInstance> &instances);
+
     void bindPrimitiveAccelerationStructure(
         const std::shared_ptr<PrimitiveAccelerationStructure> &blas,
         uint32_t binding);

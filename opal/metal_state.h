@@ -163,6 +163,8 @@ struct CommandBufferState {
     NS::AutoreleasePool *autoreleasePool = nullptr;
     MTL::CommandBuffer *commandBuffer = nullptr;
     std::vector<MTL::CommandBuffer *> inFlightCommandBuffers;
+    std::vector<std::vector<std::shared_ptr<void>>> inFlightResources;
+    std::vector<std::shared_ptr<void>> pendingResources;
     MTL::RenderCommandEncoder *encoder = nullptr;
     MTL::ComputeCommandEncoder *computeEncoder = nullptr;
     MTL::RenderPassDescriptor *passDescriptor = nullptr;

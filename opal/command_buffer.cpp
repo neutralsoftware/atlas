@@ -1189,31 +1189,26 @@ void CommandBuffer::start() {
     vkResetFences(device->logicalDevice, 1, &inFlightFences[currentFrame]);
 #elif defined(METAL)
     auto &state = metal::commandBufferState(this);
-    state.inFlightCommandBuffers.erase(
-        std::remove_if(state.inFlightCommandBuffers.begin(),
-                       state.inFlightCommandBuffers.end(),
-                       [](MTL::CommandBuffer *buffer) {
-                           if (buffer->status() < MTL::CommandBufferStatusCompleted) {
-                               return false;
-                           }
-                           if (buffer->status() ==
-                               MTL::CommandBufferStatusError) {
-                               auto *error = buffer->error();
-                               const char *description =
-                                   error != nullptr &&
-                                           error->localizedDescription() !=
-                                               nullptr
-                                       ? error->localizedDescription()
-                                             ->utf8String()
-                                       : "Unknown Metal command buffer error";
-                               atlas_error(
-                                   std::string("Metal GPU command failed: ") +
-                                   description);
-                           }
-                           buffer->release();
-                           return true;
-                       }),
-        state.inFlightCommandBuffers.end());
+    for (size_t i = 0; i < state.inFlightCommandBuffers.size();) {
+        auto *buffer = state.inFlightCommandBuffers[i];
+        if (buffer->status() < MTL::CommandBufferStatusCompleted) {
+            ++i;
+            continue;
+        }
+        if (buffer->status() == MTL::CommandBufferStatusError) {
+            auto *error = buffer->error();
+            const char *description =
+                error != nullptr && error->localizedDescription() != nullptr
+                    ? error->localizedDescription()->utf8String()
+                    : "Unknown Metal command buffer error";
+            atlas_error(std::string("Metal GPU command failed: ") +
+                        description);
+        }
+        buffer->release();
+        state.inFlightCommandBuffers.erase(
+            state.inFlightCommandBuffers.begin() + i);
+        state.inFlightResources.erase(state.inFlightResources.begin() + i);
+    }
     if (state.inFlightCommandBuffers.size() >= 3) {
         auto *oldest = state.inFlightCommandBuffers.front();
         oldest->waitUntilCompleted();
@@ -1229,6 +1224,7 @@ void CommandBuffer::start() {
         oldest->release();
         state.inFlightCommandBuffers.erase(
             state.inFlightCommandBuffers.begin());
+        state.inFlightResources.erase(state.inFlightResources.begin());
     }
     if (state.autoreleasePool != nullptr) {
         state.autoreleasePool->release();
@@ -1566,6 +1562,8 @@ void CommandBuffer::commit() {
 
     state.commandBuffer->retain();
     state.inFlightCommandBuffers.push_back(state.commandBuffer);
+    state.inFlightResources.push_back(std::move(state.pendingResources));
+    state.pendingResources.clear();
     state.commandBuffer->commit();
     state.commandBuffer = nullptr;
     state.passDescriptor = nullptr;

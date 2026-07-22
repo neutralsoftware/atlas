@@ -801,6 +801,8 @@ void releaseCommandBufferState(CommandBuffer *commandBuffer) {
         submitted->release();
     }
     state.inFlightCommandBuffers.clear();
+    state.inFlightResources.clear();
+    state.pendingResources.clear();
     state.commandBuffer = nullptr;
     state.drawable = nullptr;
     state.boundVertexTextures.fill(nullptr);

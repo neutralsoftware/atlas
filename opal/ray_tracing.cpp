@@ -83,6 +83,8 @@ opal::PrimitiveAccelerationStructure::create(
         MTL::PrimitiveAccelerationStructureDescriptor::descriptor()->retain();
     NS::Array *geoms = NS::Array::array((NS::Object **)&triDesc, 1);
     blasDesc->setGeometryDescriptors(geoms);
+    blasDesc->setUsage(
+        MTL::AccelerationStructureUsagePreferFastIntersection);
 
     MTL::AccelerationStructureSizes sizes =
         deviceState.device->accelerationStructureSizes(blasDesc);
@@ -135,9 +137,79 @@ void opal::CommandBuffer::buildPrimitiveAccelerationStructure(
     asEnc->endEncoding();
 
     blas->isBuilt = true;
+    state.pendingResources.emplace_back(blas->scratch);
+    state.pendingResources.emplace_back(blas->vertexBuffer);
+    state.pendingResources.emplace_back(blas->indexBuffer);
     blas->scratch.reset();
     blas->vertexBuffer.reset();
     blas->indexBuffer.reset();
+}
+
+std::shared_ptr<opal::InstanceAccelerationStructure>
+opal::CommandBuffer::buildAccelerationStructures(
+    const std::vector<std::shared_ptr<PrimitiveAccelerationStructure>> &blases,
+    const std::vector<AccelerationStructureInstance> &instances) {
+    if (blases.empty() || instances.empty()) {
+        return nullptr;
+    }
+
+    auto &deviceState = metal::deviceState(Device::globalInstance);
+    auto &state = metal::commandBufferState(this);
+    if (state.encoder != nullptr) {
+        state.encoder->endEncoding();
+        state.encoder = nullptr;
+        state.textureBindingsInitialized = false;
+    }
+    if (state.commandBuffer == nullptr) {
+        state.commandBuffer = deviceState.queue->commandBuffer();
+    }
+    if (state.computeEncoder != nullptr) {
+        state.computeEncoder->endEncoding();
+        state.computeEncoder = nullptr;
+    }
+
+    auto *asEnc = state.commandBuffer->accelerationStructureCommandEncoder();
+    for (const auto &blas : blases) {
+        if (blas == nullptr || blas->scratch == nullptr ||
+            blas->vertexBuffer == nullptr || blas->indexBuffer == nullptr) {
+            asEnc->endEncoding();
+            return nullptr;
+        }
+        auto &scratchBuffer = metal::bufferState(blas->scratch.get());
+        asEnc->buildAccelerationStructure(blas->blas, blas->blasDescriptor,
+                                          scratchBuffer.buffer, 0);
+        blas->isBuilt = true;
+        state.pendingResources.emplace_back(blas->scratch);
+        state.pendingResources.emplace_back(blas->vertexBuffer);
+        state.pendingResources.emplace_back(blas->indexBuffer);
+        blas->scratch.reset();
+        blas->vertexBuffer.reset();
+        blas->indexBuffer.reset();
+    }
+
+    std::shared_ptr<InstanceAccelerationStructure> tlas;
+    try {
+        tlas = InstanceAccelerationStructure::create(instances);
+    } catch (...) {
+        asEnc->endEncoding();
+        throw;
+    }
+    if (tlas == nullptr) {
+        asEnc->endEncoding();
+        return nullptr;
+    }
+
+    auto &scratchState = metal::bufferState(tlas->scratch.get());
+    asEnc->buildAccelerationStructure(tlas->tlas, tlas->tlasDescriptor,
+                                      scratchState.buffer, 0);
+    asEnc->endEncoding();
+
+    tlas->isBuilt = true;
+    state.pendingResources.emplace_back(tlas->scratch);
+    state.pendingResources.emplace_back(tlas->instanceBuffer);
+    tlas->scratch.reset();
+    tlas->instanceBuffer.reset();
+    return tlas;
 }
 
 static inline void opal::writeMetalTransform3x4(const glm::mat4 &M,
@@ -216,6 +288,8 @@ opal::InstanceAccelerationStructure::create(
 
     tlas->tlasDescriptor =
         MTL::InstanceAccelerationStructureDescriptor::descriptor()->retain();
+    tlas->tlasDescriptor->setUsage(
+        MTL::AccelerationStructureUsagePreferFastIntersection);
     tlas->tlasDescriptor->setInstanceDescriptorType(
         MTL::AccelerationStructureInstanceDescriptorTypeUserID);
     auto &ib = metal::bufferState(tlas->instanceBuffer.get());
@@ -279,6 +353,10 @@ void opal::CommandBuffer::buildInstanceAccelerationStructure(
     asEnc->endEncoding();
 
     tlas->isBuilt = true;
+    state.pendingResources.emplace_back(tlas->scratch);
+    state.pendingResources.emplace_back(tlas->instanceBuffer);
+    tlas->scratch.reset();
+    tlas->instanceBuffer.reset();
 }
 
 #endif
