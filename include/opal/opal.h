@@ -1140,6 +1140,9 @@ class PrimitiveAccelerationStructure {
     static std::shared_ptr<PrimitiveAccelerationStructure>
     create(const std::vector<float> &positions,
            const std::vector<uint32_t> &indices);
+    static std::shared_ptr<PrimitiveAccelerationStructure>
+    create(const std::vector<std::vector<float>> &positions,
+           const std::vector<std::vector<uint32_t>> &indices);
 
     bool isBuilt = false;
 
@@ -1150,8 +1153,8 @@ class PrimitiveAccelerationStructure {
 
     MTL::AccelerationStructureDescriptor *blasDescriptor = nullptr;
     MTL::AccelerationStructure *blas = nullptr;
-    std::shared_ptr<MTL::Buffer> vertexBuffer;
-    std::shared_ptr<MTL::Buffer> indexBuffer;
+    std::vector<std::shared_ptr<MTL::Buffer>> vertexBuffers;
+    std::vector<std::shared_ptr<MTL::Buffer>> indexBuffers;
 };
 
 static inline void writeMetalTransform3x4(const glm::mat4 &M, float out3x4[12]);

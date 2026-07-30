@@ -117,14 +117,11 @@ class PathTracing {
     std::shared_ptr<opal::Buffer> blasPrimitiveOffsets;
     std::vector<std::shared_ptr<opal::Texture>> materialTextures;
     std::vector<std::shared_ptr<opal::Texture>> materialTextureBindings;
-    std::shared_ptr<opal::InstanceAccelerationStructure> sceneTLAS;
+    std::shared_ptr<opal::PrimitiveAccelerationStructure> sceneBLAS;
     std::shared_ptr<opal::Pipeline> pathTracingPipeline;
     std::shared_ptr<ShaderProgram> computePathTracer;
     std::array<std::shared_ptr<Texture>, 4> pathTracingAovTextures;
     std::shared_ptr<Texture> pathTracingHistoryGuide;
-    std::unordered_map<int,
-                       std::shared_ptr<opal::PrimitiveAccelerationStructure>>
-        objectBLAS;
     std::vector<uint32_t> cachedBLASPrimitiveOffsets;
     std::vector<CoreObject *> cachedObjects;
     std::vector<CoreObject *> cachedSceneObjects;

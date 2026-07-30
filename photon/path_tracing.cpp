@@ -28,7 +28,7 @@
 namespace {
 constexpr int kPathTracerMaxMaterialTextures = 256;
 constexpr int kPathTracerSkyboxTextureUnit = 60;
-constexpr size_t kPathTracerMaxPrimitivesPerBLAS = 250000;
+constexpr size_t kPathTracerMaxPrimitivesPerGeometry = 250000;
 
 std::shared_ptr<opal::Texture> createFallbackSkyboxTexture() {
     constexpr unsigned char horizon[4] = {0, 0, 0, 255};
@@ -207,7 +207,7 @@ void collectPathTracingObjectsFromQueue(
 void photon::PathTracing::init() {
     materialTextures.clear();
     materialTextureBindings.clear();
-    objectBLAS.clear();
+    sceneBLAS.reset();
     blasPrimitiveOffsets.reset();
     cachedBLASPrimitiveOffsets.clear();
     cachedObjects.clear();
@@ -365,7 +365,7 @@ bool photon::PathTracing::buildAccelerationStructure(
         lastError = pathTracingObjects.empty()
                         ? "No renderable scene geometry was found"
                         : "Scene geometry is not valid for path tracing";
-        sceneTLAS.reset();
+        sceneBLAS.reset();
         accelerationBuildFailed = true;
         return false;
     }
@@ -374,12 +374,10 @@ bool photon::PathTracing::buildAccelerationStructure(
     std::vector<VertexData> allVertices;
     std::vector<uint32_t> allIndices;
     std::vector<uint32_t> primitiveObjects;
-    std::vector<std::shared_ptr<opal::PrimitiveAccelerationStructure>>
-        pendingBLASBuilds;
 
     int objectID = 0;
     if (needsRebuild) {
-        objectBLAS.clear();
+        sceneBLAS.reset();
         cachedBLASPrimitiveOffsets.clear();
         materialTextures.clear();
         std::unordered_map<uint64_t, int> textureSlots;
@@ -396,24 +394,24 @@ bool photon::PathTracing::buildAccelerationStructure(
 
         std::vector<float> accelerationPositions;
         std::vector<uint32_t> accelerationIndices;
+        std::vector<std::vector<float>> accelerationPositionChunks;
+        std::vector<std::vector<uint32_t>> accelerationIndexChunks;
         accelerationIndices.reserve(std::min(
-            totalIndexCount, kPathTracerMaxPrimitivesPerBLAS * size_t{3}));
+            totalIndexCount, kPathTracerMaxPrimitivesPerGeometry * size_t{3}));
         uint32_t chunkPrimitiveOffset = 0;
         auto flushAccelerationChunk = [&]() {
             if (accelerationIndices.empty()) {
                 return true;
             }
-            auto blas = opal::PrimitiveAccelerationStructure::create(
-                accelerationPositions, accelerationIndices);
-            if (blas == nullptr) {
-                return false;
-            }
-            const int chunkIndex = static_cast<int>(objectBLAS.size());
-            objectBLAS[chunkIndex] = blas;
             cachedBLASPrimitiveOffsets.push_back(chunkPrimitiveOffset);
-            pendingBLASBuilds.push_back(blas);
-            accelerationPositions.clear();
-            accelerationIndices.clear();
+            accelerationPositionChunks.push_back(
+                std::move(accelerationPositions));
+            accelerationIndexChunks.push_back(std::move(accelerationIndices));
+            accelerationPositions = {};
+            accelerationIndices = {};
+            accelerationIndices.reserve(
+                std::min(totalIndexCount,
+                         kPathTracerMaxPrimitivesPerGeometry * size_t{3}));
             chunkPrimitiveOffset =
                 static_cast<uint32_t>(primitiveObjects.size());
             return true;
@@ -426,11 +424,11 @@ bool photon::PathTracing::buildAccelerationStructure(
 
             if (!accelerationIndices.empty() &&
                 accelerationIndices.size() / 3 + objectPrimitiveCount >
-                    kPathTracerMaxPrimitivesPerBLAS &&
+                    kPathTracerMaxPrimitivesPerGeometry &&
                 !flushAccelerationChunk()) {
                 lastError =
                     "Failed to allocate a scene acceleration structure chunk";
-                sceneTLAS.reset();
+                sceneBLAS.reset();
                 accelerationBuildFailed = true;
                 return false;
             }
@@ -545,7 +543,7 @@ bool photon::PathTracing::buildAccelerationStructure(
         if (!flushAccelerationChunk()) {
             lastError =
                 "Failed to allocate a scene acceleration structure chunk";
-            sceneTLAS.reset();
+            sceneBLAS.reset();
             accelerationBuildFailed = true;
             return false;
         }
@@ -553,14 +551,22 @@ bool photon::PathTracing::buildAccelerationStructure(
         if (primitiveObjects.empty() ||
             primitiveObjects.size() != allIndices.size() / 3) {
             lastError = "Path tracing triangle metadata is inconsistent";
-            sceneTLAS.reset();
+            sceneBLAS.reset();
             accelerationBuildFailed = true;
             return false;
         }
-        if (objectBLAS.empty() ||
-            cachedBLASPrimitiveOffsets.size() != objectBLAS.size()) {
+        if (accelerationPositionChunks.empty() ||
+            cachedBLASPrimitiveOffsets.size() !=
+                accelerationPositionChunks.size()) {
             lastError = "Path tracing acceleration chunks are inconsistent";
-            sceneTLAS.reset();
+            sceneBLAS.reset();
+            accelerationBuildFailed = true;
+            return false;
+        }
+        sceneBLAS = opal::PrimitiveAccelerationStructure::create(
+            accelerationPositionChunks, accelerationIndexChunks);
+        if (sceneBLAS == nullptr) {
+            lastError = "Failed to allocate the scene acceleration structure";
             accelerationBuildFailed = true;
             return false;
         }
@@ -577,10 +583,10 @@ bool photon::PathTracing::buildAccelerationStructure(
             opal::BufferUsage::ShaderRead, allIndices.size() * sizeof(uint32_t),
             allIndices.data());
 
-        meshInfo = opal::Buffer::create(opal::BufferUsage::ShaderRead,
-                                        primitiveObjects.size() *
-                                            sizeof(uint32_t),
-                                        primitiveObjects.data());
+        meshInfo =
+            opal::Buffer::create(opal::BufferUsage::ShaderRead,
+                                 primitiveObjects.size() * sizeof(uint32_t),
+                                 primitiveObjects.data());
         blasPrimitiveOffsets = opal::Buffer::create(
             opal::BufferUsage::ShaderRead,
             cachedBLASPrimitiveOffsets.size() * sizeof(uint32_t),
@@ -589,7 +595,7 @@ bool photon::PathTracing::buildAccelerationStructure(
             globalIndices == nullptr || meshInfo == nullptr ||
             blasPrimitiveOffsets == nullptr) {
             lastError = "Failed to allocate path tracing scene buffers";
-            sceneTLAS.reset();
+            sceneBLAS.reset();
             accelerationBuildFailed = true;
             return false;
         }
@@ -601,20 +607,8 @@ bool photon::PathTracing::buildAccelerationStructure(
         frameIndex = 0;
     }
 
-    bool transformsChanged = needsRebuild || cachedInstanceTransforms.size() !=
-                                                 traceableObjects.size();
-    if (!transformsChanged) {
-        for (size_t i = 0; i < traceableObjects.size(); ++i) {
-            if (!mat4ApproximatelyEqual(cachedInstanceTransforms[i],
-                                        traceableObjects[i]->model,
-                                        0.000001f)) {
-                transformsChanged = true;
-                break;
-            }
-        }
-    }
-    if (!transformsChanged) {
-        if (sceneTLAS != nullptr && sceneTLAS->isBuilt) {
+    if (!needsRebuild) {
+        if (sceneBLAS != nullptr && sceneBLAS->isBuilt) {
             accelerationBuildFailed = false;
             return true;
         }
@@ -622,8 +616,6 @@ bool photon::PathTracing::buildAccelerationStructure(
         accelerationBuildFailed = true;
         return false;
     }
-
-    std::vector<opal::AccelerationStructureInstance> instances;
 
     struct InstanceData {
         float model[16];
@@ -661,54 +653,23 @@ bool photon::PathTracing::buildAccelerationStructure(
         instanceData[objectIndex] = d;
     }
 
-    for (size_t chunkIndex = 0; chunkIndex < cachedBLASPrimitiveOffsets.size();
-         ++chunkIndex) {
-        auto chunkBLAS = objectBLAS.find(static_cast<int>(chunkIndex));
-        if (chunkBLAS == objectBLAS.end() || chunkBLAS->second == nullptr ||
-            (!needsRebuild && !chunkBLAS->second->isBuilt)) {
-            continue;
-        }
-        opal::AccelerationStructureInstance instance{};
-        instance.blas = chunkBLAS->second;
-        instance.transform = glm::mat4(1.0f);
-        instance.instanceId = static_cast<uint32_t>(chunkIndex);
-        instance.mask = 0xFF;
-        instance.cullDisable = true;
-        instances.push_back(instance);
+    cachedInstanceTransforms.clear();
+    cachedInstanceTransforms.reserve(traceableObjects.size());
+    for (auto *object : traceableObjects) {
+        cachedInstanceTransforms.push_back(object->model);
     }
-
-    if (transformsChanged) {
-        cachedInstanceTransforms.clear();
-        cachedInstanceTransforms.reserve(traceableObjects.size());
-        for (auto *object : traceableObjects) {
-            cachedInstanceTransforms.push_back(object->model);
-        }
-        instanceDataBuffer = opal::Buffer::create(
-            opal::BufferUsage::ShaderRead,
-            instanceData.size() * sizeof(InstanceData), instanceData.data());
-        if (instances.empty()) {
-            sceneTLAS.reset();
-            frameIndex = 0;
-            lastError = "No acceleration structure instances could be created";
-            accelerationBuildFailed = true;
-            return false;
-        }
-        sceneTLAS = needsRebuild
-                        ? commandBuffer->buildAccelerationStructures(
-                              pendingBLASBuilds, instances)
-                        : opal::InstanceAccelerationStructure::create(
-                              instances);
-        if (sceneTLAS == nullptr) {
-            lastError = "Failed to allocate the scene acceleration structure";
-            accelerationBuildFailed = true;
-            return false;
-        }
-        if (!needsRebuild) {
-            commandBuffer->buildInstanceAccelerationStructure(sceneTLAS);
-        }
-        frameIndex = 0;
+    instanceDataBuffer = opal::Buffer::create(
+        opal::BufferUsage::ShaderRead,
+        instanceData.size() * sizeof(InstanceData), instanceData.data());
+    if (instanceDataBuffer == nullptr || sceneBLAS == nullptr) {
+        sceneBLAS.reset();
+        lastError = "Failed to allocate the scene acceleration structure";
+        accelerationBuildFailed = true;
+        return false;
     }
-    if (sceneTLAS == nullptr || !sceneTLAS->isBuilt) {
+    commandBuffer->buildPrimitiveAccelerationStructure(sceneBLAS);
+    frameIndex = 0;
+    if (!sceneBLAS->isBuilt) {
         lastError = "The scene acceleration structure is unavailable";
         accelerationBuildFailed = true;
         return false;
@@ -1144,7 +1105,7 @@ bool photon::PathTracing::render(
     pathTracingPipeline->setUniform1i("sceneData.maxBounces", effectiveBounces);
     pathTracingPipeline->setUniform1i("sceneData.pixelStride", pixelStride);
 
-    commandBuffer->bindInstanceAccelerationStructure(this->sceneTLAS, 0);
+    commandBuffer->bindPrimitiveAccelerationStructure(this->sceneBLAS, 0);
 
     pathTracingPipeline->bindBuffer("materials", materialBuffer, 2);
     pathTracingPipeline->bindBuffer("primitiveObjects", meshInfo, 3);

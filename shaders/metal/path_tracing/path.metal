@@ -583,8 +583,8 @@ float3 lambert(float3 albedo, float3 N, float3 L, float3 lightColor,
     return albedo * lightColor * intensity * ndl;
 }
 
-bool isOccluded(intersector<triangle_data, instancing> isect,
-                instance_acceleration_structure sceneAS, float3 P, float3 N,
+bool isOccluded(intersector<triangle_data> isect,
+                primitive_acceleration_structure sceneAS, float3 P, float3 N,
                 float3 L, float maxDistance) {
     float ndlAbs = abs(dot(N, L));
     float shadowBias = mix(0.003, 0.0008, ndlAbs);
@@ -594,14 +594,14 @@ bool isOccluded(intersector<triangle_data, instancing> isect,
     shadowRay.min_distance = shadowBias;
     shadowRay.max_distance = max(maxDistance - shadowBias, shadowBias + 1e-4);
 
-    auto shadowHit = isect.intersect(shadowRay, sceneAS, 0xFF);
+    auto shadowHit = isect.intersect(shadowRay, sceneAS);
     return shadowHit.type != intersection_type::none;
 }
 
 bool isOccludedDirectionalLight(DirectionalLightData light, float3 P, float3 N,
                                 thread uint &rng,
-                                intersector<triangle_data, instancing> isect,
-                                instance_acceleration_structure sceneAS) {
+                                intersector<triangle_data> isect,
+                                primitive_acceleration_structure sceneAS) {
     float3 baseL = normalize(-light.direction);
     float3x3 basis = buildOrthonormalBasis(baseL);
     float sunRadius = 0.0025;
@@ -616,8 +616,8 @@ bool isOccludedDirectionalLight(DirectionalLightData light, float3 P, float3 N,
 
 bool isOccludedPointLight(PointLight light, float3 P, float3 N,
                           thread uint &rng,
-                          intersector<triangle_data, instancing> isect,
-                          instance_acceleration_structure sceneAS) {
+                          intersector<triangle_data> isect,
+                          primitive_acceleration_structure sceneAS) {
     float lightRadius = clamp(light.range * 0.006, 0.005, 0.04);
     float2 u = float2(rand(rng), rand(rng));
     float z = u.x * 2.0 - 1.0;
@@ -636,8 +636,8 @@ bool isOccludedPointLight(PointLight light, float3 P, float3 N,
 
 bool isOccludedSpotLight(SpotLight light, float3 P, float3 N,
                          thread uint &rng,
-                         intersector<triangle_data, instancing> isect,
-                         instance_acceleration_structure sceneAS) {
+                         intersector<triangle_data> isect,
+                         primitive_acceleration_structure sceneAS) {
     float lightRadius = clamp(light.range * 0.004, 0.004, 0.03);
     float2 u = float2(rand(rng), rand(rng));
     float z = u.x * 2.0 - 1.0;
@@ -656,8 +656,8 @@ bool isOccludedSpotLight(SpotLight light, float3 P, float3 N,
 
 bool isOccludedAreaLight(AreaLight light, float3 P, float3 N,
                          thread uint &rng,
-                         intersector<triangle_data, instancing> isect,
-                         instance_acceleration_structure sceneAS) {
+                         intersector<triangle_data> isect,
+                         primitive_acceleration_structure sceneAS) {
     float2 u = float2(rand(rng), rand(rng));
     float2 rect = (u * 2.0 - 1.0) * 0.25;
     float3 sampledLightPos = light.position + light.right * rect.x +
@@ -771,8 +771,8 @@ float3 evalTransmission(float3 albedo, float3 N, float3 V, float3 L,
 // Direct lighting with full PBR (replaces old evalDirectLighting)
 // ---------------------------------------------------------------------------
 
-float3 evalDirectLightingPBR(intersector<triangle_data, instancing> isect,
-                             instance_acceleration_structure sceneAS, float3 P,
+float3 evalDirectLightingPBR(intersector<triangle_data> isect,
+                             primitive_acceleration_structure sceneAS, float3 P,
                              float3 N, float3 V, float3 albedo, float metallic,
                              float roughness, float ior, float transmittance,
                              float sssStrength, float sssThickness,
@@ -903,8 +903,8 @@ float3 evalDirectLightingPBR(intersector<triangle_data, instancing> isect,
 // ---------------------------------------------------------------------------
 
 float3 sampleRadiance(uint2 gid, uint sampleIndex, uint w,
-                      intersector<triangle_data, instancing> isect,
-                      instance_acceleration_structure sceneAS, ray primaryRay,
+                      intersector<triangle_data> isect,
+                      primitive_acceleration_structure sceneAS, ray primaryRay,
                       constant Material *materials,
                       constant uint *primitiveObjects,
                       constant uint *blasPrimitiveOffsets,
@@ -930,7 +930,7 @@ float3 sampleRadiance(uint2 gid, uint sampleIndex, uint w,
     float3 throughput = float3(1.0);
 
     for (uint depth = 0; depth <= bounceLimit; ++depth) {
-        auto hit = isect.intersect(surfaceRay, sceneAS, 0xFF);
+        auto hit = isect.intersect(surfaceRay, sceneAS);
         Material mat{};
         InstanceData inst{};
         uint surfaceObjectIndex = 0xFFFFFFFFu;
@@ -946,7 +946,7 @@ float3 sampleRadiance(uint2 gid, uint sampleIndex, uint w,
             }
 
             uint primitiveIndex =
-                blasPrimitiveOffsets[hit.instance_id] + hit.primitive_id;
+                blasPrimitiveOffsets[hit.geometry_id] + hit.primitive_id;
             surfaceObjectIndex = primitiveObjects[primitiveIndex];
             mat = materials[surfaceObjectIndex];
             inst = instanceData[surfaceObjectIndex];
@@ -994,7 +994,7 @@ float3 sampleRadiance(uint2 gid, uint sampleIndex, uint w,
             surfaceRay.origin +=
                 surfaceRay.direction * (hit.distance + 0.001);
             surfaceRay.min_distance = 0.0;
-            hit = isect.intersect(surfaceRay, sceneAS, 0xFF);
+            hit = isect.intersect(surfaceRay, sceneAS);
         }
 
         if (!foundSurface) {
@@ -1166,7 +1166,7 @@ kernel void main0(texture2d<float, access::write> outTex [[texture(0)]],
                   texture2d<float, access::write> motionObjectTex [[texture(5)]],
                   texture2d<float, access::write> momentsHitTex [[texture(6)]],
                   texture2d<float, access::read_write> historyGuideTex [[texture(7)]],
-                  instance_acceleration_structure sceneAS [[buffer(0)]],
+                  primitive_acceleration_structure sceneAS [[buffer(0)]],
                   constant CameraUniforms &cam [[buffer(1)]],
                   constant Material *materials [[buffer(2)]],
                   constant uint *primitiveObjects [[buffer(3)]],
@@ -1192,7 +1192,7 @@ kernel void main0(texture2d<float, access::write> outTex [[texture(0)]],
     float2 uv = (float2(gid) + 0.5) / float2(w, h);
     float3 ro = cam.camPos;
 
-    intersector<triangle_data, instancing> isect;
+    intersector<triangle_data> isect;
     isect.assume_geometry_type(geometry_type::triangle);
     isect.set_triangle_cull_mode(triangle_cull_mode::none);
 
