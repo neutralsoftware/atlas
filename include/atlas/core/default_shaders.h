@@ -7107,6 +7107,20 @@ float4 sampleMaterialTexture(
 #define PT_MATERIAL_TEXTURE_BINDINGS                                          \
     constant MaterialTextureArguments &materialTextureArguments [[buffer(12)]]
 
+float resolveMaterialOpacity(Material mat, float2 uv, uint textureCount,
+                             PT_MATERIAL_TEXTURE_PARAMS) {
+    float opacity = clamp(mat.albedo.w, 0.0, 1.0);
+    if (mat.opacityTextureIndex >= 0 &&
+        uint(mat.opacityTextureIndex) < textureCount) {
+        float4 opacitySample = sampleMaterialTexture(
+            mat.opacityTextureIndex, uv, PT_MATERIAL_TEXTURE_ARGS);
+        opacity *= mat.opacityTextureIndex == mat.albedoTextureIndex
+                       ? opacitySample.w
+                       : opacitySample.x;
+    }
+    return clamp(opacity, 0.0, 1.0);
+}
+
 void resolveMaterialParameters(Material mat, float2 uv, uint textureCount,
                                PT_MATERIAL_TEXTURE_PARAMS,
                                thread float3 &albedo, thread float &metallic,
@@ -7177,7 +7191,8 @@ float3 resolveShadingNormal(Material mat, float2 uv, float3 localN,
                            float3(0.0, 0.0, 1.0));
     T = normalizeOr(T - N * dot(N, T), float3(1.0, 0.0, 0.0));
     B = normalizeOr(B - N * dot(N, B), cross(N, T));
-    if (dot(cross(T, B), cross(T, B)) <= 1e-10) {
+    if (dot(cross(T, B), cross(T, B)) <= 1e-)",
+R"(10) {
         float3x3 basis = buildOrthonormalBasis(N);
         T = basis[0];
         B = basis[1];
@@ -7191,8 +7206,7 @@ float3 resolveShadingNormal(Material mat, float2 uv, float3 localN,
                                                      PT_MATERIAL_TEXTURE_ARGS)
                                    .xyz;
         tangentNormal = tangentNormal * 2.0 - 1.0;
-        tange)",
-R"(ntNormal.xy *= normalStrength;
+        tangentNormal.xy *= normalStrength;
         tangentNormal = normalizeOr(tangentNormal, float3(0.0, 0.0, 1.0));
         N = normalizeOr(float3x3(T, B, N) * tangentNormal, N);
     }
@@ -7377,7 +7391,8 @@ float3 evalSubsurface(float3 albedo, float3 N, float3 V, float3 L,
 }
 
 float3 evalTransmission(float3 albedo, float3 N, float3 V, float3 L,
-                        float3 lightColor, float intensity, float roughness,
+               )",
+R"(         float3 lightColor, float intensity, float roughness,
                         float ior) {
     float3 H = normalize(V + L);
     float NdotL = max(dot(N, -L), 0.0);
@@ -7390,8 +7405,7 @@ float3 evalTransmission(float3 albedo, float3 N, float3 V, float3 L,
     return transmitFactor * lightColor * intensity * D * NdotL * 2.2 / M_PI_F;
 }
 
-// -----------------------------------------)",
-R"(----------------------------------
+// ---------------------------------------------------------------------------
 // Direct lighting with full PBR (replaces old evalDirectLighting)
 // ---------------------------------------------------------------------------
 
@@ -7539,7 +7553,8 @@ float3 sampleRadiance(uint2 gid, uint sampleIndex, uint w,
                       constant PointLight *pointLights,
                       constant SpotLight *spotLights,
                       constant AreaLight *areaLights,
-                      PT_MATERIAL_TEXTURE_PARAMS, texturecube<float> skybox,
+                      PT_MATERIAL_TEXTURE_PARA)",
+R"(MS, texturecube<float> skybox,
                       thread float3 &primaryAlbedo,
                       thread float3 &primaryNormal,
                       thread float3 &primaryPosition,
@@ -7551,8 +7566,7 @@ float3 sampleRadiance(uint2 gid, uint sampleIndex, uint w,
     uint bounceLimit = min(sceneData.maxBounces, 16u);
     ray surfaceRay = primaryRay;
     float3 radiance = float3(0.0);
-    f)",
-R"(loat3 throughput = float3(1.0);
+    float3 throughput = float3(1.0);
 
     for (uint depth = 0; depth <= bounceLimit; ++depth) {
         auto hit = isect.intersect(surfaceRay, sceneAS);
@@ -7565,7 +7579,7 @@ R"(loat3 throughput = float3(1.0);
         float3 localB = float3(0.0, 0.0, 1.0);
         bool foundSurface = false;
 
-        for (uint alphaStep = 0; alphaStep < 4; ++alphaStep) {
+        for (uint alphaStep = 0; alphaStep < 16; ++alphaStep) {
             if (hit.type == intersection_type::none) {
                 break;
             }
@@ -7602,16 +7616,10 @@ R"(loat3 throughput = float3(1.0);
                                      float3(vertices[i2].bitangent) * b2,
                                  float3(0.0, 0.0, 1.0));
 
-            float alpha = 1.0;
-            if (mat.opacityTextureIndex >= 0 &&
-                uint(mat.opacityTextureIndex) < sceneData.materialTextureCount) {
-                alpha = clamp(sampleMaterialTexture(
-                                  mat.opacityTextureIndex, texUV,
-                                  PT_MATERIAL_TEXTURE_ARGS)
-                                  .x,
-                              0.0, 1.0);
-            }
-            if (alpha >= 0.1) {
+            float alpha = resolveMaterialOpacity(
+                mat, texUV, sceneData.materialTextureCount,
+                PT_MATERIAL_TEXTURE_ARGS);
+            if (alpha >= 0.999 || rand(rng) < alpha) {
                 foundSurface = true;
                 break;
             }
@@ -7658,8 +7666,7 @@ R"(loat3 throughput = float3(1.0);
         }
 
         float reflectivity = clamp(mat.reflectivity, 0.0, 1.0);
-        float sssStrength =
-            clamp(1.0 - mat.albedo.w, 0.0, 1.0) * (1.0 - metallic);
+        float sssStrength = 0.0;
         float sssThickness = mix(0.25, 1.75, ao);
         float3 direct = evalDirectLightingPBR(
             isect, sceneAS, P, N, V, albedo, metallic, roughness, ior,
@@ -7732,13 +7739,13 @@ R"(loat3 throughput = float3(1.0);
         } else if (choice < specProb + transmitProb &&
                    transmitProb > 1e-4) {
             transmissionEvent = true;
-            float eta = frontFace ? 1.0 / ior : ior;
+            float eta = frontFac)",
+R"(e ? 1.0 / ior : ior;
             nextDirection = refract(-V, N, eta);
             if (dot(nextDirection, nextDirection) < 1e-8) {
                 transmissionEvent = false;
                 nextDirection = reflect(-V, N);
-                bounceWeight = float3(1.0) / max(transmitPr)",
-R"(ob, 1e-4);
+                bounceWeight = float3(1.0) / max(transmitProb, 1e-4);
             } else {
                 float3 F =
                     F_Schlick(NdotV, float3(dielectricF0));
@@ -7909,27 +7916,21 @@ kernel void main0(texture2d<float, access::write> outTex [[texture(0)]],
                        historyLength / (historyLength + 1.0));
     accum = clampLuminance(accum, 256.0);
 
-    constexpr float bloomThreshold = 1.0;
-	constexpr float bloomKnee = 0.5;
+    constexpr float bloomThreshold = 0.8;
+    constexpr float bloomKnee = 0.35;
 
-	float brightness = luminance(accum);
-	float soft = clamp(
-    	brightness - bloomThreshold + bloomKnee,
-    	0.0,
-    	bloomKnee * 2.0
-	);
-
-	soft = soft * soft / max(bloomKnee * 4.0, 0.00001);
-
-	float contribution =
-    	max(brightness - bloomThreshold, soft) /
-    	max(brightness, 0.00001);
-
-	float3 brightColor = accum * contribution;
+    float brightness = luminance(accum);
+    float soft = clamp(brightness - bloomThreshold + bloomKnee, 0.0,
+                       bloomKnee * 2.0);
+    soft = soft * soft / max(bloomKnee * 4.0, 0.00001);
+    float contribution = max(brightness - bloomThreshold, soft) /
+                         max(brightness, 0.00001);
+    float3 brightColor = accum * contribution;
 	float4 previousClip = cam.prevViewProj * float4(primaryPosition, 1.0);
 	float2 previousUv = previousClip.xy / max(abs(previousClip.w), 0.0001);
 	previousUv = previousUv * 0.5 + 0.5;
-	float2 motion = uv - previousUv;
+	float2 motion)",
+R"( = uv - previousUv;
 	float moment = luminance(color);
 
     for (uint y = 0; y < pixelStride; ++y) {
@@ -7938,8 +7939,7 @@ kernel void main0(texture2d<float, access::write> outTex [[texture(0)]],
             if (pixel.x >= w || pixel.y >= h) {
                 continue;
             }
-            historyTex.write(float)",
-R"(4(accum, 1.0), pixel);
+            historyTex.write(float4(accum, 1.0), pixel);
             historyGuideTex.write(currentGuide, pixel);
             albedoRoughnessTex.write(float4(primaryAlbedo, primaryRoughness),
                                      pixel);

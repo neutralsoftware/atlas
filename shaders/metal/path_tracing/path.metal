@@ -485,6 +485,20 @@ float4 sampleMaterialTexture(
 #define PT_MATERIAL_TEXTURE_BINDINGS                                          \
     constant MaterialTextureArguments &materialTextureArguments [[buffer(12)]]
 
+float resolveMaterialOpacity(Material mat, float2 uv, uint textureCount,
+                             PT_MATERIAL_TEXTURE_PARAMS) {
+    float opacity = clamp(mat.albedo.w, 0.0, 1.0);
+    if (mat.opacityTextureIndex >= 0 &&
+        uint(mat.opacityTextureIndex) < textureCount) {
+        float4 opacitySample = sampleMaterialTexture(
+            mat.opacityTextureIndex, uv, PT_MATERIAL_TEXTURE_ARGS);
+        opacity *= mat.opacityTextureIndex == mat.albedoTextureIndex
+                       ? opacitySample.w
+                       : opacitySample.x;
+    }
+    return clamp(opacity, 0.0, 1.0);
+}
+
 void resolveMaterialParameters(Material mat, float2 uv, uint textureCount,
                                PT_MATERIAL_TEXTURE_PARAMS,
                                thread float3 &albedo, thread float &metallic,
@@ -940,7 +954,7 @@ float3 sampleRadiance(uint2 gid, uint sampleIndex, uint w,
         float3 localB = float3(0.0, 0.0, 1.0);
         bool foundSurface = false;
 
-        for (uint alphaStep = 0; alphaStep < 4; ++alphaStep) {
+        for (uint alphaStep = 0; alphaStep < 16; ++alphaStep) {
             if (hit.type == intersection_type::none) {
                 break;
             }
@@ -977,16 +991,10 @@ float3 sampleRadiance(uint2 gid, uint sampleIndex, uint w,
                                      float3(vertices[i2].bitangent) * b2,
                                  float3(0.0, 0.0, 1.0));
 
-            float alpha = 1.0;
-            if (mat.opacityTextureIndex >= 0 &&
-                uint(mat.opacityTextureIndex) < sceneData.materialTextureCount) {
-                alpha = clamp(sampleMaterialTexture(
-                                  mat.opacityTextureIndex, texUV,
-                                  PT_MATERIAL_TEXTURE_ARGS)
-                                  .x,
-                              0.0, 1.0);
-            }
-            if (alpha >= 0.1) {
+            float alpha = resolveMaterialOpacity(
+                mat, texUV, sceneData.materialTextureCount,
+                PT_MATERIAL_TEXTURE_ARGS);
+            if (alpha >= 0.999 || rand(rng) < alpha) {
                 foundSurface = true;
                 break;
             }
@@ -1033,8 +1041,7 @@ float3 sampleRadiance(uint2 gid, uint sampleIndex, uint w,
         }
 
         float reflectivity = clamp(mat.reflectivity, 0.0, 1.0);
-        float sssStrength =
-            clamp(1.0 - mat.albedo.w, 0.0, 1.0) * (1.0 - metallic);
+        float sssStrength = 0.0;
         float sssThickness = mix(0.25, 1.75, ao);
         float3 direct = evalDirectLightingPBR(
             isect, sceneAS, P, N, V, albedo, metallic, roughness, ior,
@@ -1283,23 +1290,16 @@ kernel void main0(texture2d<float, access::write> outTex [[texture(0)]],
                        historyLength / (historyLength + 1.0));
     accum = clampLuminance(accum, 256.0);
 
-    constexpr float bloomThreshold = 1.0;
-	constexpr float bloomKnee = 0.5;
+    constexpr float bloomThreshold = 0.8;
+    constexpr float bloomKnee = 0.35;
 
-	float brightness = luminance(accum);
-	float soft = clamp(
-    	brightness - bloomThreshold + bloomKnee,
-    	0.0,
-    	bloomKnee * 2.0
-	);
-
-	soft = soft * soft / max(bloomKnee * 4.0, 0.00001);
-
-	float contribution =
-    	max(brightness - bloomThreshold, soft) /
-    	max(brightness, 0.00001);
-
-	float3 brightColor = accum * contribution;
+    float brightness = luminance(accum);
+    float soft = clamp(brightness - bloomThreshold + bloomKnee, 0.0,
+                       bloomKnee * 2.0);
+    soft = soft * soft / max(bloomKnee * 4.0, 0.00001);
+    float contribution = max(brightness - bloomThreshold, soft) /
+                         max(brightness, 0.00001);
+    float3 brightColor = accum * contribution;
 	float4 previousClip = cam.prevViewProj * float4(primaryPosition, 1.0);
 	float2 previousUv = previousClip.xy / max(abs(previousClip.w), 0.0001);
 	previousUv = previousUv * 0.5 + 0.5;

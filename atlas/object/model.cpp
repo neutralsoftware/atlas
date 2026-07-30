@@ -17,6 +17,7 @@
 #include "atlas/window.h"
 #include "atlas/workspace.h"
 #include <assimp/Importer.hpp>
+#include <assimp/GltfMaterial.h>
 #include <assimp/ProgressHandler.hpp>
 #include <assimp/postprocess.h>
 #include <algorithm>
@@ -384,12 +385,17 @@ void importMaterialProperties(aiMaterial *material, CoreObject &object) {
     }
     float opacity = 1.0f;
     if (material->Get(AI_MATKEY_OPACITY, opacity) == AI_SUCCESS) {
-        object.material.albedo.a = saturate(opacity);
+        opacity = saturate(opacity);
+        if (std::abs(object.material.albedo.a - opacity) > 1e-5f) {
+            object.material.albedo.a =
+                saturate(object.material.albedo.a * opacity);
+        }
     } else {
         float transparency = 0.0f;
         if (material->Get(AI_MATKEY_TRANSPARENCYFACTOR, transparency) ==
             AI_SUCCESS) {
-            object.material.albedo.a = saturate(1.0f - transparency);
+            object.material.albedo.a = saturate(
+                object.material.albedo.a * (1.0f - transparency));
         }
     }
 
@@ -589,11 +595,11 @@ void Model::preloadMaterialTextures(
     for (unsigned int materialIndex = 0; materialIndex < scene->mNumMaterials;
          ++materialIndex) {
         aiMaterial *material = scene->mMaterials[materialIndex];
-        if (material->GetTextureCount(aiTextureType_DIFFUSE) > 0) {
-            queueTextures(material, aiTextureType_DIFFUSE, "texture_diffuse",
-                          TextureType::Color);
-        } else if (material->GetTextureCount(aiTextureType_BASE_COLOR) > 0) {
+        if (material->GetTextureCount(aiTextureType_BASE_COLOR) > 0) {
             queueTextures(material, aiTextureType_BASE_COLOR, "texture_diffuse",
+                          TextureType::Color);
+        } else if (material->GetTextureCount(aiTextureType_DIFFUSE) > 0) {
+            queueTextures(material, aiTextureType_DIFFUSE, "texture_diffuse",
                           TextureType::Color);
         } else {
             queueTextures(material, aiTextureType_AMBIENT, "texture_diffuse",
@@ -826,15 +832,15 @@ Model::processMesh(aiMesh *mesh, const aiScene *scene,
         aiMaterial *material = scene->mMaterials[mesh->mMaterialIndex];
         importMaterialProperties(material, object);
 
-        auto diffuseMaps =
-            loadMaterialTextures(material, std::any(aiTextureType_DIFFUSE),
-                                 "texture_diffuse", textureCache);
+        auto diffuseMaps = loadMaterialTextures(
+            material, std::any(aiTextureType_BASE_COLOR), "texture_diffuse",
+            textureCache);
         if (diffuseMaps.empty()) {
-            auto baseColorMaps = loadMaterialTextures(
-                material, std::any(aiTextureType_BASE_COLOR), "texture_diffuse",
+            auto legacyDiffuseMaps = loadMaterialTextures(
+                material, std::any(aiTextureType_DIFFUSE), "texture_diffuse",
                 textureCache);
-            diffuseMaps.insert(diffuseMaps.end(), baseColorMaps.begin(),
-                               baseColorMaps.end());
+            diffuseMaps.insert(diffuseMaps.end(), legacyDiffuseMaps.begin(),
+                               legacyDiffuseMaps.end());
         }
         if (diffuseMaps.empty()) {
             auto ambientMaps =
@@ -907,6 +913,14 @@ Model::processMesh(aiMesh *mesh, const aiScene *scene,
         auto opacityMaps =
             loadMaterialTextures(material, std::any(aiTextureType_OPACITY),
                                  "texture_opacity", textureCache);
+        aiString alphaMode;
+        if (opacityMaps.empty() && !diffuseMaps.empty() &&
+            material->Get(AI_MATKEY_GLTF_ALPHAMODE, alphaMode) == AI_SUCCESS &&
+            std::string(alphaMode.C_Str()) != "OPAQUE") {
+            Texture opacityMap = diffuseMaps.front();
+            opacityMap.type = TextureType::Opacity;
+            opacityMaps.push_back(std::move(opacityMap));
+        }
         textures.insert(textures.end(), opacityMaps.begin(), opacityMaps.end());
     }
 
