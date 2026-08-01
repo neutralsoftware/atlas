@@ -2785,15 +2785,16 @@ void Window::updateEditorDrag(float x, float y, float scale) {
         if (editorTransformSnapping)
             angle = std::round(angle / editorTransformSnapIncrement) *
                     editorTransformSnapIncrement;
-        Rotation3d rotation = editorDragStartRotation;
-        if (editorActiveGizmoAxis == 1) {
-            rotation.pitch = editorDragStartRotation.pitch + angle;
-        } else if (editorActiveGizmoAxis == 2) {
-            rotation.yaw = editorDragStartRotation.yaw + angle;
-        } else if (editorActiveGizmoAxis == 3) {
-            rotation.roll = editorDragStartRotation.roll + angle;
-        }
-        selectedEditorObject->setRotation(rotation);
+        const glm::quat start =
+            glm::normalize(editorDragStartRotation.toGlmQuat());
+        const glm::vec3 rotationAxis =
+            editorAxisVector(editorActiveGizmoAxis);
+        const glm::quat delta =
+            glm::angleAxis(glm::radians(angle), rotationAxis);
+        const glm::quat next = editorLocalTransformSpace ? start * delta
+                                                        : delta * start;
+        selectedEditorObject->setRotation(
+            Rotation3d::fromGlmQuat(glm::normalize(next)));
     } else if (editorControlMode == EditorControlMode::Scale) {
         float viewWidth = std::max(1.0f, static_cast<float>(width));
         float viewHeight = std::max(1.0f, static_cast<float>(height));
@@ -2971,14 +2972,21 @@ void Window::updateEditorKeyboardTransform(float x, float y, float scale) {
         if (editorTransformSnapping)
             angle = std::round(angle / editorTransformSnapIncrement) *
                     editorTransformSnapIncrement;
-        Rotation3d next = editorDragStartRotation;
-        if ((axes & 1) != 0)
-            next.pitch += angle;
-        if ((axes & 2) != 0)
-            next.yaw += angle;
-        if ((axes & 4) != 0)
-            next.roll += angle;
-        selectedEditorObject->setRotation(next);
+        const glm::quat start =
+            glm::normalize(editorDragStartRotation.toGlmQuat());
+        glm::quat delta(1.0f, 0.0f, 0.0f, 0.0f);
+        for (int axisIndex = 0; axisIndex < 3; ++axisIndex) {
+            if ((axes & (1 << axisIndex)) == 0)
+                continue;
+            const glm::quat axisDelta = glm::angleAxis(
+                glm::radians(angle), editorAxisVector(axisIndex + 1));
+            delta = editorLocalTransformSpace ? delta * axisDelta
+                                              : axisDelta * delta;
+        }
+        const glm::quat next = editorLocalTransformSpace ? start * delta
+                                                        : delta * start;
+        selectedEditorObject->setRotation(
+            Rotation3d::fromGlmQuat(glm::normalize(next)));
     }
     shadowMapsDirty = true;
     ssaoMapsDirty = true;
