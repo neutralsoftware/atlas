@@ -6406,30 +6406,19 @@ int Context::pasteObjectDefinition(const std::string &definition) {
                 return -1;
             return static_cast<int>(object->getId());
         }
-        json sceneData = loadJsonFile(currentSceneFile);
-        if (!sceneData.is_object())
+        const std::string creationType = type == "point" ? "pointLight" : type;
+        const int pastedId = createObject(creationType, name);
+        GameObject *pasted = findContextObject(*this, pastedId);
+        if (pasted == nullptr)
             return -1;
-        const char *collection = isLight ? "lights" : "objects";
-        if (!sceneData.contains(collection) ||
-            !sceneData[collection].is_array()) {
-            sceneData[collection] = json::array();
-        }
-        sceneData[collection].push_back(objectData);
-        std::ofstream output(currentSceneFile, std::ios::trunc);
-        if (!output.is_open())
+        editorLightSourceData[pastedId] = objectData;
+        editorObjectSourceData[pastedId] = objectData;
+        applyTransform(*pasted, objectData);
+        syncEditorLightObject(*this, *pasted);
+        window->selectEditorObject(pasted, false);
+        if (!saveCurrentScene())
             return -1;
-        output << sceneData.dump(4) << '\n';
-        if (!output.good())
-            return -1;
-        output.close();
-        loadScene(*window, sceneData);
-        auto pasted = objectReferences.find(name);
-        if (pasted == objectReferences.end())
-            pasted = objectReferences.find(normalizeToken(name));
-        if (pasted == objectReferences.end() || pasted->second == nullptr)
-            return -1;
-        window->selectEditorObject(pasted->second, false);
-        return static_cast<int>(pasted->second->getId());
+        return pastedId;
     } catch (const std::exception &error) {
         RUNTIME_LOG("Could not paste object: " + std::string(error.what()));
         return -1;
