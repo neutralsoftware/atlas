@@ -1348,6 +1348,11 @@ InspectorPanel::InspectorPanel(ViewportPanel *viewport,
     if (viewport != nullptr) {
         connect(viewport, &ViewportPanel::sceneSnapshotChanged, this,
                 &InspectorPanel::applySceneSnapshot);
+        QTimer::singleShot(0, this, [this] {
+            const QString snapshot = this->viewport->currentSceneSnapshot();
+            if (!snapshot.isEmpty())
+                applySceneSnapshot(snapshot);
+        });
     }
     connect(qApp, &QApplication::focusChanged, this,
             [this](QWidget *previous, QWidget *current) {
@@ -1368,10 +1373,69 @@ void InspectorPanel::applySceneSnapshot(const QString &snapshot) {
     if (error.error != QJsonParseError::NoError || !document.isObject())
         return;
     scene = document.object();
-    if (environmentTarget)
+    if (environmentTarget) {
+        QJsonObject values = mergeObjects(
+            environmentSchema(), scene.value("environment").toObject());
+        QJsonObject atmosphere = values.take("atmosphere").toObject();
+        QJsonObject globalLight = atmosphere.take("globalLight").toObject();
+        QJsonObject clouds = atmosphere.take("clouds").toObject();
+        QJsonObject weather = atmosphere.take("weather").toObject();
+        const QList<QFrame *> cards = content->findChildren<QFrame *>();
+        for (QFrame *card : cards) {
+            if (card->objectName() != "inspectorComponent")
+                continue;
+            const QString scope = card->property("inspectorScope").toString();
+            if (scope == "environment")
+                refreshTaggedEditors(card, values);
+            else if (scope == "environment:atmosphere")
+                refreshTaggedEditors(card, atmosphere);
+            else if (scope == "environment:globalLight")
+                refreshTaggedEditors(card, globalLight);
+            else if (scope == "environment:clouds")
+                refreshTaggedEditors(card, clouds);
+            else if (scope == "environment:weather")
+                refreshTaggedEditors(card, weather);
+        }
         return;
+    }
     if (cameraTarget) {
         inspectedCamera = scene.value("camera").toObject();
+        const QJsonObject transform{
+            {"position", inspectedCamera.value("position")},
+            {"target", inspectedCamera.value("target")}};
+        const QJsonObject projection{
+            {"orthographic", inspectedCamera.value("orthographic")},
+            {"fov", inspectedCamera.value("fov")},
+            {"orthoSize", inspectedCamera.value("orthoSize")},
+            {"nearClip", inspectedCamera.value("nearClip")},
+            {"farClip", inspectedCamera.value("farClip")}};
+        const QJsonObject focus{
+            {"focusDepth", inspectedCamera.value("focusDepth")},
+            {"focusRange", inspectedCamera.value("focusRange")}};
+        const QJsonObject controls{
+            {"movementSpeed", inspectedCamera.value("movementSpeed")},
+            {"mouseSensitivity", inspectedCamera.value("mouseSensitivity")},
+            {"controllerLookSensitivity",
+             inspectedCamera.value("controllerLookSensitivity")},
+            {"lookSmoothness", inspectedCamera.value("lookSmoothness")},
+            {"automaticMoving", inspectedCamera.value("automaticMoving")},
+            {"actions", inspectedCamera.value("actions").isArray()
+                            ? inspectedCamera.value("actions")
+                            : QJsonValue(QJsonArray{})}};
+        const QList<QFrame *> cards = content->findChildren<QFrame *>();
+        for (QFrame *card : cards) {
+            if (card->objectName() != "inspectorComponent")
+                continue;
+            const QString scope = card->property("inspectorScope").toString();
+            if (scope == "camera:transform")
+                refreshTaggedEditors(card, transform);
+            else if (scope == "camera:projection")
+                refreshTaggedEditors(card, projection);
+            else if (scope == "camera:focus")
+                refreshTaggedEditors(card, focus);
+            else if (scope == "camera:controls")
+                refreshTaggedEditors(card, controls);
+        }
         return;
     }
     const int selected = scene.value("selectedId").toInt(-1);
@@ -1912,19 +1976,23 @@ void InspectorPanel::showCamera() {
     contentLayout->addWidget(
         componentCard("Transform", transform, QString(), update, content,
                       bindSyncProvider(syncProvider, viewport, &scene,
-                                       QJsonObject{{"section", "camera"}})));
+                                       QJsonObject{{"section", "camera"}}),
+                      {}, "camera:transform"));
     contentLayout->addWidget(
         componentCard("Projection", projection, QString(), update, content,
                       bindSyncProvider(syncProvider, viewport, &scene,
-                                       QJsonObject{{"section", "camera"}})));
+                                       QJsonObject{{"section", "camera"}}),
+                      {}, "camera:projection"));
     contentLayout->addWidget(
         componentCard("Depth of Field", focus, QString(), update, content,
                       bindSyncProvider(syncProvider, viewport, &scene,
-                                       QJsonObject{{"section", "camera"}})));
+                                       QJsonObject{{"section", "camera"}}),
+                      {}, "camera:focus"));
     contentLayout->addWidget(
         componentCard("Camera Controls", controls, QString(), update, content,
                       bindSyncProvider(syncProvider, viewport, &scene,
-                                       QJsonObject{{"section", "camera"}})));
+                                       QJsonObject{{"section", "camera"}}),
+                      {}, "camera:controls"));
     contentLayout->addStretch();
 }
 
@@ -1978,7 +2046,8 @@ void InspectorPanel::showEnvironment() {
         },
         content,
         bindSyncProvider(syncProvider, viewport, &scene,
-                         QJsonObject{{"section", "environment"}})));
+                         QJsonObject{{"section", "environment"}}),
+        {}, "environment"));
     contentLayout->addWidget(componentCard(
         "Atmosphere", atmosphere, QString(),
         [update](const QString &path, const QJsonValue &value) {
@@ -1987,7 +2056,8 @@ void InspectorPanel::showEnvironment() {
         content,
         bindSyncProvider(
             syncProvider, viewport, &scene,
-            QJsonObject{{"section", "environment"}, {"path", "/atmosphere"}})));
+            QJsonObject{{"section", "environment"}, {"path", "/atmosphere"}}),
+        {}, "environment:atmosphere"));
     contentLayout->addWidget(componentCard(
         "Global Light", globalLight, QString(),
         [update](const QString &path, const QJsonValue &value) {
@@ -1996,7 +2066,8 @@ void InspectorPanel::showEnvironment() {
         content,
         bindSyncProvider(syncProvider, viewport, &scene,
                          QJsonObject{{"section", "environment"},
-                                     {"path", "/atmosphere/globalLight"}})));
+                                     {"path", "/atmosphere/globalLight"}}),
+        {}, "environment:globalLight"));
     contentLayout->addWidget(componentCard(
         "Clouds", clouds, QString(),
         [update](const QString &path, const QJsonValue &value) {
@@ -2005,7 +2076,8 @@ void InspectorPanel::showEnvironment() {
         content,
         bindSyncProvider(syncProvider, viewport, &scene,
                          QJsonObject{{"section", "environment"},
-                                     {"path", "/atmosphere/clouds"}})));
+                                     {"path", "/atmosphere/clouds"}}),
+        {}, "environment:clouds"));
     contentLayout->addWidget(componentCard(
         "Weather", weather, QString(),
         [update](const QString &path, const QJsonValue &value) {
@@ -2014,7 +2086,8 @@ void InspectorPanel::showEnvironment() {
         content,
         bindSyncProvider(syncProvider, viewport, &scene,
                          QJsonObject{{"section", "environment"},
-                                     {"path", "/atmosphere/weather"}})));
+                                     {"path", "/atmosphere/weather"}}),
+        {}, "environment:weather"));
     contentLayout->addStretch();
 }
 
