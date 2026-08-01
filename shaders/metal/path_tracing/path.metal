@@ -621,6 +621,7 @@ float3 traceShadowVisibility(intersector<triangle_data> isect,
                              constant uint *blasPrimitiveOffsets,
                              constant VertexData *vertices,
                              constant uint *indices,
+                             constant InstanceData *instanceData,
                              constant SceneData &sceneData,
                              PT_MATERIAL_TEXTURE_PARAMS) {
     float shadowBias = rayOffsetDistance(P);
@@ -637,7 +638,7 @@ float3 traceShadowVisibility(intersector<triangle_data> isect,
     for (uint alphaStep = 0; alphaStep < 32; ++alphaStep) {
         auto shadowHit = isect.intersect(shadowRay, sceneAS);
         if (shadowHit.type == intersection_type::none) {
-            return visibility;
+            return clampLuminance(visibility * causticGain, 2.5);
         }
 
         uint primitiveIndex =
@@ -667,7 +668,11 @@ float3 traceShadowVisibility(intersector<triangle_data> isect,
             float3 p0 = float3(vertices[i0].position);
             float3 p1 = float3(vertices[i1].position);
             float3 p2 = float3(vertices[i2].position);
-            float3 hitNormal = normalizeOr(cross(p1 - p0, p2 - p0), -L);
+            InstanceData inst = instanceData[objectIndex];
+            float3x3 normalMatrix = float3x3(
+                inst.normalCol0.xyz, inst.normalCol1.xyz, inst.normalCol2.xyz);
+            float3 hitNormal = normalizeOr(
+                normalMatrix * cross(p1 - p0, p2 - p0), -L);
             hitNormal = dot(hitNormal, L) < 0.0 ? hitNormal : -hitNormal;
             float ior = max(material.ior, 1.0);
             float dielectricF0 = pow((ior - 1.0) / (ior + 1.0), 2.0);
@@ -887,6 +892,7 @@ float3 evalDirectLightingPBR(intersector<triangle_data> isect,
                              constant uint *blasPrimitiveOffsets,
                              constant VertexData *vertices,
                              constant uint *indices,
+                             constant InstanceData *instanceData,
                              PT_MATERIAL_TEXTURE_PARAMS) {
     float3 lighting = float3(0.0);
     // Directional
@@ -900,7 +906,7 @@ float3 evalDirectLightingPBR(intersector<triangle_data> isect,
                                   sssStrength, sssThickness);
         float3 visibility = traceShadowVisibility(
             isect, sceneAS, P, Ng, L, 1e30, rng, materials, primitiveObjects,
-            blasPrimitiveOffsets, vertices, indices, sceneData,
+            blasPrimitiveOffsets, vertices, indices, instanceData, sceneData,
             PT_MATERIAL_TEXTURE_ARGS);
         lighting += (c + s * (1.0 - transmittance)) * visibility;
     }
@@ -925,7 +931,7 @@ float3 evalDirectLightingPBR(intersector<triangle_data> isect,
                            roughness, sssStrength, sssThickness);
         float3 visibility = traceShadowVisibility(
             isect, sceneAS, P, Ng, L, dist, rng, materials, primitiveObjects,
-            blasPrimitiveOffsets, vertices, indices, sceneData,
+            blasPrimitiveOffsets, vertices, indices, instanceData, sceneData,
             PT_MATERIAL_TEXTURE_ARGS);
         lighting += (c + s * (1.0 - transmittance)) * visibility;
     }
@@ -954,7 +960,7 @@ float3 evalDirectLightingPBR(intersector<triangle_data> isect,
                            roughness, sssStrength, sssThickness);
         float3 visibility = traceShadowVisibility(
             isect, sceneAS, P, Ng, L, dist, rng, materials, primitiveObjects,
-            blasPrimitiveOffsets, vertices, indices, sceneData,
+            blasPrimitiveOffsets, vertices, indices, instanceData, sceneData,
             PT_MATERIAL_TEXTURE_ARGS);
         lighting += (c + s * (1.0 - transmittance)) * visibility;
     }
@@ -987,7 +993,7 @@ float3 evalDirectLightingPBR(intersector<triangle_data> isect,
                            roughness, sssStrength, sssThickness);
         float3 visibility = traceShadowVisibility(
             isect, sceneAS, P, Ng, L, dist, rng, materials, primitiveObjects,
-            blasPrimitiveOffsets, vertices, indices, sceneData,
+            blasPrimitiveOffsets, vertices, indices, instanceData, sceneData,
             PT_MATERIAL_TEXTURE_ARGS);
         lighting += (c + s * (1.0 - transmittance)) * visibility;
     }
@@ -1083,7 +1089,7 @@ float3 sampleRadiance(uint2 gid, uint sampleIndex, uint w,
             float3x3 normalMatrix = float3x3(
                 inst.normalCol0.xyz, inst.normalCol1.xyz, inst.normalCol2.xyz);
             geometricNormal = normalizeOr(
-                cross(p1 - p0, p2 - p0),
+                normalMatrix * cross(p1 - p0, p2 - p0),
                 normalizeOr(normalMatrix * localN, float3(0.0, 1.0, 0.0)));
 
             float alpha = resolveMaterialOpacity(
@@ -1156,7 +1162,7 @@ float3 sampleRadiance(uint2 gid, uint sampleIndex, uint w,
             reflectivity, ior, transmittance, sssStrength, sssThickness, rng,
             dirLight, sceneData, pointLights, spotLights, areaLights, materials,
             primitiveObjects, blasPrimitiveOffsets, vertices, indices,
-            PT_MATERIAL_TEXTURE_ARGS);
+            instanceData, PT_MATERIAL_TEXTURE_ARGS);
         radiance += throughput * (direct + emissive);
 
         if (depth == 0 && sceneData.ambientIntensity > 0.0) {
@@ -1216,7 +1222,8 @@ float3 sampleRadiance(uint2 gid, uint sampleIndex, uint w,
                 float3 visibility = traceShadowVisibility(
                     isect, sceneAS, P, Ng, environmentDirection, 1e30, rng,
                     materials, primitiveObjects, blasPrimitiveOffsets,
-                    vertices, indices, sceneData, PT_MATERIAL_TEXTURE_ARGS);
+                    vertices, indices, instanceData, sceneData,
+                    PT_MATERIAL_TEXTURE_ARGS);
                 if (luminance(visibility) <= 0.001) {
                     visibility = float3(0.0);
                 }

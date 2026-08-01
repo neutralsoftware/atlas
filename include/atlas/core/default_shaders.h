@@ -7244,6 +7244,7 @@ float3 traceShadowVisibility(intersector<triangle_data> isect,
                              constant uint *blasPrimitiveOffsets,
                              constant VertexData *vertices,
                              constant uint *indices,
+                             constant InstanceData *instanceData,
                              constant SceneData &sceneData,
                              PT_MATERIAL_TEXTURE_PARAMS) {
     float shadowBias = rayOffsetDistance(P);
@@ -7260,7 +7261,7 @@ float3 traceShadowVisibility(intersector<triangle_data> isect,
     for (uint alphaStep = 0; alphaStep < 32; ++alphaStep) {
         auto shadowHit = isect.intersect(shadowRay, sceneAS);
         if (shadowHit.type == intersection_type::none) {
-            return visibility;
+            return clampLuminance(visibility * causticGain, 2.5);
         }
 
         uint primitiveIndex =
@@ -7290,7 +7291,11 @@ float3 traceShadowVisibility(intersector<triangle_data> isect,
             float3 p0 = float3(vertices[i0].position);
             float3 p1 = float3(vertices[i1].position);
             float3 p2 = float3(vertices[i2].position);
-            float3 hitNormal = normalizeOr(cross(p1 - p0, p2 - p0), -L);
+            InstanceData inst = instanceData[objectIndex];
+            float3x3 normalMatrix = float3x3(
+                inst.normalCol0.xyz, inst.normalCol1.xyz, inst.normalCol2.xyz);
+            float3 hitNormal = normalizeOr(
+                normalMatrix * cross(p1 - p0, p2 - p0), -L);
             hitNormal = dot(hitNormal, L) < 0.0 ? hitNormal : -hitNormal;
             float ior = max(material.ior, 1.0);
             float dielectricF0 = pow((ior - 1.0) / (ior + 1.0), 2.0);
@@ -7384,7 +7389,8 @@ float disneyDiffuseFactor(float NdotV, float NdotL, float LdotH,
     float fd90 = 0.5 + 2.0 * LdotH * LdotH * roughness;
     float lightScatter = 1.0 + (fd90 - 1.0) * pow5(1.0 - NdotL);
     float viewScatter = 1.0 + (fd90 - 1.0) * pow5(1.0 - NdotV);
-    return lightScatter * viewScatter;
+    return lightSc)",
+R"(atter * viewScatter;
 }
 
 // GGX importance-sampled microfacet half-vector (in local TBN space, Z=up)
@@ -7392,8 +7398,7 @@ float3 sampleGGX(float2 u, float roughness) {
     float a = roughness * roughness;
     float phi = 2.0 * M_PI_F * u.x;
     float cosTheta = sqrt((1.0 - u.y) / max(1.0 + (a * a - 1.0) * u.y, 1e-7));
-    float sinTheta =)",
-R"( sqrt(max(0.0, 1.0 - cosTheta * cosTheta));
+    float sinTheta = sqrt(max(0.0, 1.0 - cosTheta * cosTheta));
     return float3(sinTheta * cos(phi), sinTheta * sin(phi), cosTheta);
 }
 
@@ -7511,6 +7516,7 @@ float3 evalDirectLightingPBR(intersector<triangle_data> isect,
                              constant uint *blasPrimitiveOffsets,
                              constant VertexData *vertices,
                              constant uint *indices,
+                             constant InstanceData *instanceData,
                              PT_MATERIAL_TEXTURE_PARAMS) {
     float3 lighting = float3(0.0);
     // Directional
@@ -7524,7 +7530,7 @@ float3 evalDirectLightingPBR(intersector<triangle_data> isect,
                                   sssStrength, sssThickness);
         float3 visibility = traceShadowVisibility(
             isect, sceneAS, P, Ng, L, 1e30, rng, materials, primitiveObjects,
-            blasPrimitiveOffsets, vertices, indices, sceneData,
+            blasPrimitiveOffsets, vertices, indices, instanceData, sceneData,
             PT_MATERIAL_TEXTURE_ARGS);
         lighting += (c + s * (1.0 - transmittance)) * visibility;
     }
@@ -7545,14 +7551,14 @@ float3 evalDirectLightingPBR(intersector<triangle_data> isect,
                            transmittance, N, V, L, pointLights[i].color,
                            intensity);
         float3 s =
-            evalSubsurface(albedo, N, V, L, pointLights[i].color, intensity,
+            evalSubsurface(albedo, N)",
+R"(, V, L, pointLights[i].color, intensity,
                            roughness, sssStrength, sssThickness);
         float3 visibility = traceShadowVisibility(
             isect, sceneAS, P, Ng, L, dist, rng, materials, primitiveObjects,
-            blasPrimitiveOffsets, vertices, indices, sceneData,
+            blasPrimitiveOffsets, vertices, indices, instanceData, sceneData,
             PT_MATERIAL_TEXTURE_ARGS);
-        lighting += (c + s * (1.0 - transmittance)) * visib)",
-R"(ility;
+        lighting += (c + s * (1.0 - transmittance)) * visibility;
     }
 
     // Spot lights
@@ -7579,7 +7585,7 @@ R"(ility;
                            roughness, sssStrength, sssThickness);
         float3 visibility = traceShadowVisibility(
             isect, sceneAS, P, Ng, L, dist, rng, materials, primitiveObjects,
-            blasPrimitiveOffsets, vertices, indices, sceneData,
+            blasPrimitiveOffsets, vertices, indices, instanceData, sceneData,
             PT_MATERIAL_TEXTURE_ARGS);
         lighting += (c + s * (1.0 - transmittance)) * visibility;
     }
@@ -7612,7 +7618,7 @@ R"(ility;
                            roughness, sssStrength, sssThickness);
         float3 visibility = traceShadowVisibility(
             isect, sceneAS, P, Ng, L, dist, rng, materials, primitiveObjects,
-            blasPrimitiveOffsets, vertices, indices, sceneData,
+            blasPrimitiveOffsets, vertices, indices, instanceData, sceneData,
             PT_MATERIAL_TEXTURE_ARGS);
         lighting += (c + s * (1.0 - transmittance)) * visibility;
     }
@@ -7708,7 +7714,8 @@ float3 sampleRadiance(uint2 gid, uint sampleIndex, uint w,
             float3x3 normalMatrix = float3x3(
                 inst.normalCol0.xyz, inst.normalCol1.xyz, inst.normalCol2.xyz);
             geometricNormal = normalizeOr(
-                cross(p1 - p0, p2 - p0),
+                normalMatrix *)",
+R"( cross(p1 - p0, p2 - p0),
                 normalizeOr(normalMatrix * localN, float3(0.0, 1.0, 0.0)));
 
             float alpha = resolveMaterialOpacity(
@@ -7720,8 +7727,7 @@ float3 sampleRadiance(uint2 gid, uint sampleIndex, uint w,
             }
 
             float3 rejectedPosition =
-                surfaceRay.orig)",
-R"(in + surfaceRay.direction * hit.distance;
+                surfaceRay.origin + surfaceRay.direction * hit.distance;
             surfaceRay.origin =
                 rejectedPosition + surfaceRay.direction *
                                        rayOffsetDistance(rejectedPosition);
@@ -7782,7 +7788,7 @@ R"(in + surfaceRay.direction * hit.distance;
             reflectivity, ior, transmittance, sssStrength, sssThickness, rng,
             dirLight, sceneData, pointLights, spotLights, areaLights, materials,
             primitiveObjects, blasPrimitiveOffsets, vertices, indices,
-            PT_MATERIAL_TEXTURE_ARGS);
+            instanceData, PT_MATERIAL_TEXTURE_ARGS);
         radiance += throughput * (direct + emissive);
 
         if (depth == 0 && sceneData.ambientIntensity > 0.0) {
@@ -7842,7 +7848,8 @@ R"(in + surfaceRay.direction * hit.distance;
                 float3 visibility = traceShadowVisibility(
                     isect, sceneAS, P, Ng, environmentDirection, 1e30, rng,
                     materials, primitiveObjects, blasPrimitiveOffsets,
-                    vertices, indices, sceneData, PT_MATERIAL_TEXTURE_ARGS);
+                    vertices, indices, instanceData, sceneData,
+                    PT_MATERIAL_TEXTURE_ARGS);
                 if (luminance(visibility) <= 0.001) {
                     visibility = float3(0.0);
                 }
@@ -7876,7 +7883,8 @@ R"(in + surfaceRay.direction * hit.distance;
                 float3 environmentRadiance = skyColor(
                     environmentDirection, 0.0, skybox, sceneData);
                 radiance += throughput * reflectionBsdf *
-                            environmentRadiance * visibility * NdotEnvironment *
+              )",
+R"(              environmentRadiance * visibility * NdotEnvironment *
                             misWeight / max(environmentPdf, 1e-6);
             }
         }
@@ -7892,8 +7900,7 @@ R"(in + surfaceRay.direction * hit.distance;
         float sampledEnvironmentPdf = 0.0;
         bool sampledEventWasDelta = true;
 
-        if (choice < specProb && specProb > 1)",
-R"(e-4) {
+        if (choice < specProb && specProb > 1e-4) {
             if (roughness <= 0.025 || totalInternalReflection) {
                 nextDirection = reflect(-V, N);
                 float3 F = totalInternalReflection
@@ -8055,7 +8062,8 @@ kernel void main0(texture2d<float, access::write> outTex [[texture(0)]],
     uint spp = max(sceneData.raysPerPixel, 1u);
     for (uint s = 0; s < spp; ++s) {
         uint cameraRng = seedBase(gid, w, sceneData.frameIndex,
-                                  s + 0x9E3779B9u);
+                                  s + 0x9E3779B9u);)",
+R"(
         float2 pixelJitter =
             float2(rand(cameraRng), rand(cameraRng)) - 0.5;
         float2 sampleUv = (float2(gid) + 0.5 + pixelJitter) / float2(w, h);
@@ -8067,8 +8075,7 @@ kernel void main0(texture2d<float, access::write> outTex [[texture(0)]],
 
         ray primaryRay;
         primaryRay.origin = ro;
-        prima)",
-R"(ryRay.direction = normalize(sampleWorldP - ro);
+        primaryRay.direction = normalize(sampleWorldP - ro);
         primaryRay.min_distance = 0.001;
         primaryRay.max_distance = 1.0e30;
 
