@@ -6343,8 +6343,7 @@ std::string Context::objectDefinitionJson(int id) {
 }
 
 int Context::pasteObjectDefinition(const std::string &definition) {
-    if (window == nullptr || currentSceneFile.empty() || definition.empty() ||
-        !saveCurrentScene()) {
+    if (window == nullptr || currentSceneFile.empty() || definition.empty()) {
         return -1;
     }
     try {
