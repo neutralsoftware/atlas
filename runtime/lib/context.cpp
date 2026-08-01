@@ -4519,7 +4519,7 @@ makeContextWithWindowOptions(std::string projectFile, void *metalView,
     bool mouseCaptured = false;
     bool multisampling = false;
     float ssaoScale = 0.4f;
-    float renderScale = 0.5f;
+    float renderScale = 0.67f;
     bool useUpscaling = false;
     bool editorControls = false;
 
@@ -4538,7 +4538,7 @@ makeContextWithWindowOptions(std::string projectFile, void *metalView,
     if (auto *rendererTable = configTable["renderer"].as_table()) {
         useUpscaling = (*rendererTable)["use_upscaling"].value_or(false);
         renderScale = std::clamp(
-            (*rendererTable)["upscaling_ratio"].value_or(0.5f), 0.5f, 1.0f);
+            (*rendererTable)["upscaling_ratio"].value_or(0.67f), 0.25f, 1.0f);
     }
     if (auto *editorTable = configTable["editor"].as_table()) {
         editorControls = (*editorTable)["controls"].value_or(false);
@@ -4829,6 +4829,30 @@ bool Context::setEditorPathTracingPreview(bool enabled) {
     return window->setEditorPathTracingPreview(enabled);
 #else
     (void)enabled;
+    return false;
+#endif
+}
+
+bool Context::configurePathTracing(int samplesPerPixel, int bounceLimit,
+                                   bool denoising, int accumulationFrames,
+                                   bool useUpscaling, float upscalingRatio) {
+    if (window == nullptr) {
+        return false;
+    }
+    config.pathTracingSamples = std::clamp(samplesPerPixel, 1, 64);
+    config.pathTracingBounces = std::clamp(bounceLimit, 1, 16);
+    config.pathTracingDenoising = denoising;
+    config.pathTracingAccumulationFrames =
+        std::clamp(accumulationFrames, 1, 2048);
+    config.useUpscaling = useUpscaling;
+    config.upscalingRatio = std::clamp(upscalingRatio, 0.25f, 1.0f);
+#ifdef METAL
+    window->useMetalUpscaling(useUpscaling ? config.upscalingRatio : 1.0f);
+    window->configurePathTracing(
+        config.pathTracingSamples, config.pathTracingBounces,
+        config.pathTracingDenoising, config.pathTracingAccumulationFrames);
+    return true;
+#else
     return false;
 #endif
 }
@@ -6581,7 +6605,11 @@ void Context::loadProject() {
     std::string mainScene = "main.ascene";
     std::vector<std::string> assetDirectories;
     bool useUpscaling = false;
-    float upscalingRatio = 0.5f;
+    float upscalingRatio = 0.67f;
+    int pathTracingSamples = 4;
+    int pathTracingBounces = 8;
+    bool pathTracingDenoising = true;
+    int pathTracingAccumulationFrames = 512;
     bool screenSpaceReflections = false;
     int screenSpaceReflectionQuality = 1;
     bool screenSpaceReflectionDebug = false;
@@ -6590,7 +6618,15 @@ void Context::loadProject() {
         defaultRenderer = (*renderer)["default"].value_or("normal");
         globalIllumination = (*renderer)["global_illumination"].value_or(false);
         useUpscaling = (*renderer)["use_upscaling"].value_or(false);
-        upscalingRatio = (*renderer)["upscaling_ratio"].value_or(0.5f);
+        upscalingRatio = (*renderer)["upscaling_ratio"].value_or(0.67f);
+        pathTracingSamples =
+            std::clamp((*renderer)["samples_per_pixel"].value_or(4), 1, 64);
+        pathTracingBounces =
+            std::clamp((*renderer)["max_bounces"].value_or(8), 1, 16);
+        pathTracingDenoising =
+            (*renderer)["denoising"].value_or(true);
+        pathTracingAccumulationFrames = std::clamp(
+            (*renderer)["accumulation_frames"].value_or(512), 1, 2048);
         screenSpaceReflections = (*renderer)["ssr"].value_or(false);
         screenSpaceReflectionQuality =
             std::clamp((*renderer)["ssr_quality"].value_or(1), 0, 2);
@@ -6628,7 +6664,11 @@ void Context::loadProject() {
     config.mainScene = mainScene;
     config.assetDirectories = assetDirectories;
     config.useUpscaling = useUpscaling;
-    config.upscalingRatio = std::clamp(upscalingRatio, 0.5f, 1.0f);
+    config.upscalingRatio = std::clamp(upscalingRatio, 0.25f, 1.0f);
+    config.pathTracingSamples = pathTracingSamples;
+    config.pathTracingBounces = pathTracingBounces;
+    config.pathTracingDenoising = pathTracingDenoising;
+    config.pathTracingAccumulationFrames = pathTracingAccumulationFrames;
     config.screenSpaceReflections = screenSpaceReflections;
     config.screenSpaceReflectionQuality = screenSpaceReflectionQuality;
     config.screenSpaceReflectionDebug = screenSpaceReflectionDebug;

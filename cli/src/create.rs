@@ -34,7 +34,11 @@ ssr = false
 ssr_quality = 1
 ssr_debug = false
 use_upscaling = true
-upscaling_ratio = 0.5
+upscaling_ratio = 0.67
+samples_per_pixel = 4
+max_bounces = 8
+denoising = true
+accumulation_frames = 512
 
 [window]
 dimensions = [1280, 720]

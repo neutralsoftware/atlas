@@ -1075,7 +1075,7 @@ Window::Window(const WindowConfiguration &config)
         SDL_SetWindowAspectRatio(window, aspectRatio, aspectRatio);
     }
 
-    this->renderScale = std::clamp(config.renderScale, 0.5f, 1.0f);
+    this->renderScale = std::clamp(config.renderScale, 0.25f, 1.0f);
     this->ssaoRenderScale = std::clamp(config.ssaoScale, 0.25f, 1.0f);
     this->useMultisampling = config.multisampling;
     this->setEditorControlsEnabled(config.editorControls);
@@ -4056,7 +4056,7 @@ void Window::setWindowed(const WindowConfiguration &config) {
     SDL_Window *window = this->windowRef;
     int windowWidth = config.width;
     int windowHeight = config.height;
-    this->renderScale = std::clamp(config.renderScale, 0.5f, 1.0f);
+    this->renderScale = std::clamp(config.renderScale, 0.25f, 1.0f);
     this->ssaoRenderScale = std::clamp(config.ssaoScale, 0.25f, 1.0f);
     this->useMultisampling = config.multisampling;
     this->setEditorControlsEnabled(config.editorControls);
@@ -5677,6 +5677,15 @@ void Window::enablePathTracing() {
     this->usePathTracing = true;
     this->pathTracer = std::make_shared<photon::PathTracing>();
     pathTracer->init();
+}
+
+void Window::configurePathTracing(int samplesPerPixel, int bounceLimit,
+                                  bool denoising, int accumulationFrames) {
+    if (pathTracer == nullptr) {
+        return;
+    }
+    pathTracer->configure(samplesPerPixel, bounceLimit, denoising,
+                          accumulationFrames);
 }
 
 bool Window::setEditorPathTracingPreview(bool enabled) {

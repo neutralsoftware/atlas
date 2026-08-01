@@ -46,7 +46,11 @@ class ProjectConfig {
     std::string mainScene;
     std::string inputActions;
     bool useUpscaling = false;
-    float upscalingRatio = 0.5f;
+    float upscalingRatio = 0.67f;
+    int pathTracingSamples = 4;
+    int pathTracingBounces = 8;
+    bool pathTracingDenoising = true;
+    int pathTracingAccumulationFrames = 512;
     bool screenSpaceReflections = false;
     int screenSpaceReflectionQuality = 1;
     bool screenSpaceReflectionDebug = false;
@@ -128,6 +132,9 @@ class Context {
     bool setEditorControlMode(int mode);
     bool setEditorShadingMode(int mode);
     bool setEditorPathTracingPreview(bool enabled);
+    bool configurePathTracing(int samplesPerPixel, int bounceLimit,
+                              bool denoising, int accumulationFrames,
+                              bool useUpscaling, float upscalingRatio);
     std::string getPathTracingError() const;
     float frameRate() const;
     bool editorPointerEvent(int action, float x, float y, int button,

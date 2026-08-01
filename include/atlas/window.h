@@ -506,6 +506,8 @@ class Window {
 #ifdef METAL
     void enableGlobalIllumination();
     void enablePathTracing();
+    void configurePathTracing(int samplesPerPixel, int bounceLimit,
+                              bool denoising, int accumulationFrames);
     bool setEditorPathTracingPreview(bool enabled);
     const std::string &getPathTracingError() const;
 #endif

@@ -189,6 +189,37 @@ QString tomlQuoted(QString value) {
     return QStringLiteral("\"%1\"").arg(value);
 }
 
+QString tomlValue(const QStringList &lines, const QString &section,
+                  const QString &key) {
+    int start = 0;
+    int end = lines.size();
+    if (!section.isEmpty()) {
+        start = lines.indexOf(QStringLiteral("[%1]").arg(section));
+        if (start < 0)
+            return {};
+        ++start;
+    }
+    for (int index = start; index < lines.size(); ++index) {
+        if (lines.at(index).trimmed().startsWith('[')) {
+            end = index;
+            break;
+        }
+    }
+    const QRegularExpression expression(
+        QStringLiteral("^\\s*%1\\s*=\\s*(.+?)\\s*$")
+            .arg(QRegularExpression::escape(key)));
+    for (int index = start; index < end; ++index) {
+        const auto match = expression.match(lines.at(index));
+        if (!match.hasMatch())
+            continue;
+        QString value = match.captured(1).trimmed();
+        if (value.size() >= 2 && value.startsWith('"') && value.endsWith('"'))
+            value = value.mid(1, value.size() - 2);
+        return value;
+    }
+    return {};
+}
+
 void setTomlValue(QStringList *lines, const QString &section,
                   const QString &key, const QString &value) {
     int start = 0;
@@ -1114,6 +1145,63 @@ void EditorWindow::showProjectSettings() {
     QDir().mkpath(settingsDirectory);
     QSettings settings(QDir(settingsDirectory).filePath("project-settings.ini"),
                        QSettings::IniFormat);
+    QStringList projectLines;
+    QFile projectManifest(projectFile);
+    if (projectManifest.open(QIODevice::ReadOnly | QIODevice::Text)) {
+        projectLines =
+            QString::fromUtf8(projectManifest.readAll()).split('\n');
+    }
+    const QString configuredRenderer =
+        tomlValue(projectLines, "renderer", "default");
+    const bool configuredGlobalIllumination =
+        tomlValue(projectLines, "renderer", "global_illumination") == "true";
+    const QString rendererDisplay =
+        configuredRenderer == "pathtracing"
+            ? QStringLiteral("Path Tracing")
+            : configuredGlobalIllumination ? QStringLiteral("PBR + DDGI")
+                                           : QStringLiteral("PBR");
+    const QString dimensionsValue =
+        tomlValue(projectLines, "window", "dimensions");
+    const auto dimensionsMatch =
+        QRegularExpression(QStringLiteral(
+                               "^\\[\\s*(\\d+)\\s*,\\s*(\\d+)\\s*\\]$"))
+            .match(dimensionsValue);
+    const int configuredWidth =
+        dimensionsMatch.hasMatch()
+            ? dimensionsMatch.captured(1).toInt()
+            : settings.value("project/windowWidth", 1280).toInt();
+    const int configuredHeight =
+        dimensionsMatch.hasMatch()
+            ? dimensionsMatch.captured(2).toInt()
+            : settings.value("project/windowHeight", 720).toInt();
+    const QString upscalingValue =
+        tomlValue(projectLines, "renderer", "use_upscaling");
+    const bool configuredUpscaling =
+        upscalingValue.isEmpty()
+            ? settings.value("project/useUpscaling", true).toBool()
+            : upscalingValue == "true";
+    bool scaleValid = false;
+    const double configuredScaleValue =
+        tomlValue(projectLines, "renderer", "upscaling_ratio")
+            .toDouble(&scaleValid);
+    const int configuredScale =
+        scaleValid
+            ? std::clamp(qRound(configuredScaleValue * 100.0), 25, 100)
+            : settings.value("project/internalScale", 67).toInt();
+    bool samplesValid = false;
+    const int configuredSamples =
+        tomlValue(projectLines, "renderer", "samples_per_pixel")
+            .toInt(&samplesValid);
+    bool bouncesValid = false;
+    const int configuredBounces =
+        tomlValue(projectLines, "renderer", "max_bounces")
+            .toInt(&bouncesValid);
+    bool accumulationValid = false;
+    const int configuredAccumulation =
+        tomlValue(projectLines, "renderer", "accumulation_frames")
+            .toInt(&accumulationValid);
+    const QString denoisingValue =
+        tomlValue(projectLines, "renderer", "denoising");
     auto addPage = [tabs](const QString &name, styling::Icon icon,
                           const QColor &color) {
         auto *page = new QWidget(tabs);
@@ -1146,24 +1234,64 @@ void EditorWindow::showProjectSettings() {
         settings.value("project/version", "1.0.0").toString(), &dialog);
     auto *windowWidth = new QSpinBox(&dialog);
     windowWidth->setRange(320, 16384);
-    windowWidth->setValue(settings.value("project/windowWidth", 1280).toInt());
+    windowWidth->setValue(configuredWidth);
     auto *windowHeight = new QSpinBox(&dialog);
     windowHeight->setRange(240, 16384);
-    windowHeight->setValue(settings.value("project/windowHeight", 720).toInt());
+    windowHeight->setValue(configuredHeight);
+    auto *resolutionPreset = new QComboBox(&dialog);
+    resolutionPreset->addItem("HD · 1280 × 720", QSize(1280, 720));
+    resolutionPreset->addItem("Full HD · 1920 × 1080", QSize(1920, 1080));
+    resolutionPreset->addItem("QHD · 2560 × 1440", QSize(2560, 1440));
+    resolutionPreset->addItem("4K UHD · 3840 × 2160", QSize(3840, 2160));
+    resolutionPreset->addItem("Custom", QSize());
+    int matchingResolution = resolutionPreset->count() - 1;
+    for (int index = 0; index < resolutionPreset->count() - 1; ++index) {
+        if (resolutionPreset->itemData(index).toSize() ==
+            QSize(configuredWidth, configuredHeight)) {
+            matchingResolution = index;
+            break;
+        }
+    }
+    resolutionPreset->setCurrentIndex(matchingResolution);
+    connect(resolutionPreset, &QComboBox::currentIndexChanged, &dialog,
+            [resolutionPreset, windowWidth, windowHeight](int index) {
+                const QSize resolution = resolutionPreset->itemData(index).toSize();
+                if (!resolution.isValid())
+                    return;
+                windowWidth->setValue(resolution.width());
+                windowHeight->setValue(resolution.height());
+            });
+    auto syncResolutionPreset = [=] {
+        int index = resolutionPreset->count() - 1;
+        const QSize resolution(windowWidth->value(), windowHeight->value());
+        for (int candidate = 0; candidate < resolutionPreset->count() - 1;
+             ++candidate) {
+            if (resolutionPreset->itemData(candidate).toSize() == resolution) {
+                index = candidate;
+                break;
+            }
+        }
+        QSignalBlocker blocker(resolutionPreset);
+        resolutionPreset->setCurrentIndex(index);
+    };
+    connect(windowWidth, &QSpinBox::valueChanged, &dialog,
+            syncResolutionPreset);
+    connect(windowHeight, &QSpinBox::valueChanged, &dialog,
+            syncResolutionPreset);
     auto *fullscreen = new QCheckBox("Start in fullscreen", &dialog);
     fullscreen->setChecked(
         settings.value("project/fullscreen", false).toBool());
     general->addRow("Default scene", defaultScene);
     general->addRow("Company", companyName);
     general->addRow("Version", gameVersion);
+    general->addRow("Output resolution", resolutionPreset);
     general->addRow("Window width", windowWidth);
     general->addRow("Window height", windowHeight);
     general->addRow(QString(), fullscreen);
     auto *rendering = addPage("Rendering", styling::Icon::Aperture, "#9E897D");
     auto *renderer = new QComboBox(&dialog);
     renderer->addItems({"PBR", "PBR + DDGI", "Path Tracing"});
-    renderer->setCurrentText(
-        settings.value("project/renderer", "PBR").toString());
+    renderer->setCurrentText(rendererDisplay);
     auto *frameLimit = new QSpinBox(&dialog);
     frameLimit->setRange(0, 1000);
     frameLimit->setValue(settings.value("project/frameLimit", 0).toInt());
@@ -1176,20 +1304,97 @@ void EditorWindow::showProjectSettings() {
     auto *ssrDebug = new QCheckBox("Show SSR hit confidence", &dialog);
     ssrDebug->setChecked(settings.value("project/ssrDebug", false).toBool());
     auto *upscaling = new QCheckBox("Enable Metal upscaling", &dialog);
-    upscaling->setChecked(
-        settings.value("project/useUpscaling", true).toBool());
+    upscaling->setChecked(configuredUpscaling);
+    auto *upscalingQuality = new QComboBox(&dialog);
+    upscalingQuality->addItem("Quality", 75);
+    upscalingQuality->addItem("Balanced", 67);
+    upscalingQuality->addItem("Performance", 50);
+    upscalingQuality->addItem("Ultra Performance", 33);
+    upscalingQuality->addItem("Custom", -1);
     auto *internalScale = new QSpinBox(&dialog);
-    internalScale->setRange(50, 100);
+    internalScale->setRange(25, 100);
     internalScale->setSuffix("%");
-    internalScale->setValue(
-        settings.value("project/internalScale", 50).toInt());
+    internalScale->setValue(configuredScale);
+    int matchingScale = upscalingQuality->count() - 1;
+    for (int index = 0; index < upscalingQuality->count() - 1; ++index) {
+        if (upscalingQuality->itemData(index).toInt() == configuredScale) {
+            matchingScale = index;
+            break;
+        }
+    }
+    upscalingQuality->setCurrentIndex(matchingScale);
+    auto *samplesPerPixel = new QSpinBox(&dialog);
+    samplesPerPixel->setRange(1, 64);
+    samplesPerPixel->setValue(samplesValid ? configuredSamples : 4);
+    auto *maxBounces = new QSpinBox(&dialog);
+    maxBounces->setRange(1, 16);
+    maxBounces->setValue(bouncesValid ? configuredBounces : 8);
+    auto *denoising = new QCheckBox("Variance-guided denoising", &dialog);
+    denoising->setChecked(denoisingValue.isEmpty() || denoisingValue == "true");
+    auto *accumulationFrames = new QSpinBox(&dialog);
+    accumulationFrames->setRange(1, 2048);
+    accumulationFrames->setValue(accumulationValid ? configuredAccumulation
+                                                   : 512);
+    auto *internalResolution = new QLabel(&dialog);
+    auto updateInternalResolution = [=] {
+        const int scale = upscaling->isChecked() ? internalScale->value() : 100;
+        internalResolution->setText(
+            QStringLiteral("%1 × %2 internal → %3 × %4 output")
+                .arg(std::max(1, windowWidth->value() * scale / 100))
+                .arg(std::max(1, windowHeight->value() * scale / 100))
+                .arg(windowWidth->value())
+                .arg(windowHeight->value()));
+    };
+    connect(upscalingQuality, &QComboBox::currentIndexChanged, &dialog,
+            [upscalingQuality, internalScale](int index) {
+                const int scale = upscalingQuality->itemData(index).toInt();
+                if (scale > 0)
+                    internalScale->setValue(scale);
+            });
+    connect(internalScale, &QSpinBox::valueChanged, &dialog,
+            [upscalingQuality](int value) {
+                const int index = upscalingQuality->findData(value);
+                QSignalBlocker blocker(upscalingQuality);
+                upscalingQuality->setCurrentIndex(
+                    index >= 0 ? index : upscalingQuality->count() - 1);
+            });
+    connect(upscaling, &QCheckBox::toggled, &dialog,
+            [internalScale, upscalingQuality](bool enabled) {
+                internalScale->setEnabled(enabled);
+                upscalingQuality->setEnabled(enabled);
+            });
+    for (auto *spinBox : {windowWidth, windowHeight, internalScale}) {
+        connect(spinBox, &QSpinBox::valueChanged, &dialog,
+                updateInternalResolution);
+    }
+    connect(upscaling, &QCheckBox::toggled, &dialog,
+            updateInternalResolution);
+    internalScale->setEnabled(upscaling->isChecked());
+    upscalingQuality->setEnabled(upscaling->isChecked());
+    updateInternalResolution();
     rendering->addRow("Renderer", renderer);
     rendering->addRow(QString(), ssr);
     rendering->addRow("SSR quality", ssrQuality);
     rendering->addRow(QString(), ssrDebug);
     rendering->addRow(QString(), upscaling);
+    rendering->addRow("Upscaling quality", upscalingQuality);
     rendering->addRow("Internal render scale", internalScale);
+    rendering->addRow("Effective resolution", internalResolution);
+    rendering->addRow("Samples per pixel", samplesPerPixel);
+    rendering->addRow("Maximum light bounces", maxBounces);
+    rendering->addRow(QString(), denoising);
+    rendering->addRow("Temporal accumulation", accumulationFrames);
     rendering->addRow("Frame limit (0 = unlimited)", frameLimit);
+    auto updatePathTracingControls = [=] {
+        const bool enabled = renderer->currentText() == "Path Tracing";
+        samplesPerPixel->setEnabled(enabled);
+        maxBounces->setEnabled(enabled);
+        denoising->setEnabled(enabled);
+        accumulationFrames->setEnabled(enabled);
+    };
+    connect(renderer, &QComboBox::currentTextChanged, &dialog,
+            updatePathTracingControls);
+    updatePathTracingControls();
     auto *physics = addPage("Physics", styling::Icon::Wrench, "#A1957D");
     auto *gravity = new QLineEdit(
         settings.value("project/gravity", "0, -9.81, 0").toString(), &dialog);
@@ -1264,6 +1469,11 @@ void EditorWindow::showProjectSettings() {
     settings.setValue("project/ssrDebug", ssrDebug->isChecked());
     settings.setValue("project/useUpscaling", upscaling->isChecked());
     settings.setValue("project/internalScale", internalScale->value());
+    settings.setValue("project/pathTracingSamples", samplesPerPixel->value());
+    settings.setValue("project/pathTracingBounces", maxBounces->value());
+    settings.setValue("project/pathTracingDenoising", denoising->isChecked());
+    settings.setValue("project/pathTracingAccumulation",
+                      accumulationFrames->value());
     settings.setValue("project/gravity", gravity->text());
     settings.setValue("project/fixedStep", fixedStep->text());
     settings.setValue("project/inputMap", inputMap->text());
@@ -1276,6 +1486,7 @@ void EditorWindow::showProjectSettings() {
     settings.setValue("project/icon", iconPath->text());
     settings.setValue("project/exportBackend", backend->currentText());
     settings.sync();
+    bool manifestUpdated = false;
     QFile manifest(projectFile);
     if (manifest.open(QIODevice::ReadOnly | QIODevice::Text)) {
         QStringList lines = QString::fromUtf8(manifest.readAll()).split('\n');
@@ -1312,6 +1523,14 @@ void EditorWindow::showProjectSettings() {
                      upscaling->isChecked() ? "true" : "false");
         setTomlValue(&lines, "renderer", "upscaling_ratio",
                      QString::number(internalScale->value() / 100.0, 'f', 2));
+        setTomlValue(&lines, "renderer", "samples_per_pixel",
+                     QString::number(samplesPerPixel->value()));
+        setTomlValue(&lines, "renderer", "max_bounces",
+                     QString::number(maxBounces->value()));
+        setTomlValue(&lines, "renderer", "denoising",
+                     denoising->isChecked() ? "true" : "false");
+        setTomlValue(&lines, "renderer", "accumulation_frames",
+                     QString::number(accumulationFrames->value()));
         QSaveFile outputFile(projectFile);
         const QByteArray contents = lines.join('\n').toUtf8();
         if (!outputFile.open(QIODevice::WriteOnly) ||
@@ -1319,7 +1538,15 @@ void EditorWindow::showProjectSettings() {
             !outputFile.commit()) {
             QMessageBox::warning(this, "Project Settings",
                                  "The project manifest could not be updated.");
+        } else {
+            manifestUpdated = true;
         }
+    }
+    if (manifestUpdated && viewportPanel != nullptr) {
+        viewportPanel->applyPathTracingSettings(
+            samplesPerPixel->value(), maxBounces->value(),
+            denoising->isChecked(), accumulationFrames->value(),
+            upscaling->isChecked(), internalScale->value() / 100.0f);
     }
 }
 

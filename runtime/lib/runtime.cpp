@@ -35,6 +35,11 @@ void RuntimeScene::initialize(Window &window) {
             runtimeContext->config.screenSpaceReflectionDebug);
     } else if (runtimeContext->config.renderer == "pathtracing") {
         window.enablePathTracing();
+        window.configurePathTracing(
+            runtimeContext->config.pathTracingSamples,
+            runtimeContext->config.pathTracingBounces,
+            runtimeContext->config.pathTracingDenoising,
+            runtimeContext->config.pathTracingAccumulationFrames);
     }
 
     if (runtimeContext->config.useUpscaling) {
