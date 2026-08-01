@@ -8,12 +8,12 @@
         ],
         "ao": 1,
         "emissiveColor": [
-            1,
-            1,
-            1,
+            0,
+            0,
+            0,
             1
         ],
-        "emissiveIntensity": 10,
+        "emissiveIntensity": 0,
         "ior": 1.45,
         "metallic": 0,
         "normalMapStrength": 1,
@@ -27,7 +27,7 @@
             1,
             1
         ],
-        "transmittance": 0,
+        "transmittance": 1,
         "useNormalMap": true
     }
 }
