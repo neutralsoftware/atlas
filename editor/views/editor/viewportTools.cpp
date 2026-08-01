@@ -51,8 +51,7 @@ ViewportTools::ViewportTools(ViewportPanel *viewport,
     pauseButton->setToolTip("Pause");
     stepButton = new QToolButton(toolbar);
     stepButton->setObjectName("viewportPlaybackButton");
-    stepButton->setIcon(
-        styling::icon(styling::Icon::SkipForward, "#7E929C"));
+    stepButton->setIcon(styling::icon(styling::Icon::SkipForward, "#7E929C"));
     stepButton->setToolTip("Step one frame");
     stopButton = new QToolButton(toolbar);
     stopButton->setObjectName("viewportPlaybackButton");
@@ -73,9 +72,8 @@ ViewportTools::ViewportTools(ViewportPanel *viewport,
     const QList<styling::Icon> transformIcons{
         styling::Icon::CursorClick, styling::Icon::ArrowsOutCardinal,
         styling::Icon::ArrowClockwise, styling::Icon::BoundingBox};
-    const QList<QColor> transformColors{
-        QColor("#7E929C"), QColor("#849589"), QColor("#A1957D"),
-        QColor("#71889A")};
+    const QList<QColor> transformColors{QColor("#7E929C"), QColor("#849589"),
+                                        QColor("#A1957D"), QColor("#71889A")};
     for (int index = 0; index < transformNames.size(); ++index) {
         auto *button = new QToolButton(toolbar);
         button->setObjectName("viewportModeButton");
@@ -127,17 +125,15 @@ ViewportTools::ViewportTools(ViewportPanel *viewport,
     if (manifest.open(QIODevice::ReadOnly | QIODevice::Text)) {
         const QString contents = QString::fromUtf8(manifest.readAll());
         pathTracingProject = contents.contains(QRegularExpression(
-            QStringLiteral(
-                R"(default\s*=\s*["']path[\s_-]*tracing["'])"),
+            QStringLiteral(R"(default\s*=\s*["']path[\s_-]*tracing["'])"),
             QRegularExpression::CaseInsensitiveOption));
     }
 
     auto *shadingGroup = new QActionGroup(toolbar);
     shadingGroup->setExclusive(true);
     const QStringList shadingNames =
-        pathTracingProject
-            ? QStringList{"PBR Preview", "Path Traced"}
-            : QStringList{"Lit", "Wireframe", "Points"};
+        pathTracingProject ? QStringList{"PBR Preview", "Path Traced"}
+                           : QStringList{"Lit", "Wireframe", "Points"};
     const QList<styling::Icon> shadingIcons =
         pathTracingProject
             ? QList<styling::Icon>{styling::Icon::Sphere,
@@ -169,8 +165,7 @@ ViewportTools::ViewportTools(ViewportPanel *viewport,
 
     auto *fpsButton = new QToolButton(toolbar);
     fpsButton->setObjectName("viewportOptionButton");
-    fpsButton->setIcon(
-        styling::icon(styling::Icon::Monitor, "#849589"));
+    fpsButton->setIcon(styling::icon(styling::Icon::Monitor, "#849589"));
     fpsButton->setCheckable(true);
     fpsButton->setChecked(true);
     fpsButton->setToolTip("Toggle frame rate");
@@ -183,8 +178,9 @@ ViewportTools::ViewportTools(ViewportPanel *viewport,
     layout->addWidget(toolbar);
     layout->addWidget(viewport, 1);
     shortcutHint =
-        new QLabel("Tab Frame · Num 0 Camera · Right-Drag Pan · Middle-Drag "
-                   "Orbit · G Move · R Rotate · S Scale · X Delete",
+        new QLabel("Tab Frame · Num 0 Camera · Shift+Middle/Right Pan · "
+                   "Middle/Right Orbit · G Move · R Rotate · S Scale · X "
+                   "Delete",
                    this);
     shortcutHint->setObjectName("viewportShortcutHint");
     shortcutHint->setTextInteractionFlags(Qt::NoTextInteraction);
@@ -258,9 +254,8 @@ ViewportTools::ViewportTools(ViewportPanel *viewport,
             this->viewport != nullptr)
             this->viewport->openRuntimeScene(scenePaths.at(index));
     });
-    connect(sceneTabs, &QTabBar::tabCloseRequested, this, [this](int index) {
-        closeSceneTab(index);
-    });
+    connect(sceneTabs, &QTabBar::tabCloseRequested, this,
+            [this](int index) { closeSceneTab(index); });
     connect(viewport, &ViewportPanel::sceneOpened, this,
             &ViewportTools::openSceneTab);
     refreshSceneTabs();
@@ -268,8 +263,8 @@ ViewportTools::ViewportTools(ViewportPanel *viewport,
 }
 
 void ViewportTools::refreshSceneTabs() {
-    const QString current = viewport != nullptr ? viewport->currentRuntimeScene()
-                                                : QString();
+    const QString current =
+        viewport != nullptr ? viewport->currentRuntimeScene() : QString();
     if (!current.trimmed().isEmpty())
         openSceneTab(current);
     updateSceneTabs();

@@ -59,8 +59,7 @@ class HierarchyPanel : public QWidget {
     void showAddObjectMenu(const QPoint &position);
     void showContextMenu(const QPoint &position);
     int selectedObjectId() const;
-    QString sceneSignature(const QString &sceneName,
-                           const QJsonArray &objects,
+    QString sceneSignature(const QString &sceneName, const QJsonArray &objects,
                            const QJsonArray &interfaces) const;
 
     ViewportPanel *viewport = nullptr;
@@ -73,6 +72,7 @@ class HierarchyPanel : public QWidget {
     QHash<QString, QStandardItem *> specialItems;
     QString lastStructureSignature;
     QString selectedSpecialType;
+    int draggedObjectId = -1;
     bool applyingSnapshot = false;
 };
 

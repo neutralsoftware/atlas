@@ -13,6 +13,7 @@
 #include <QAction>
 #include <QCheckBox>
 #include <QAbstractSpinBox>
+#include <QApplication>
 #include <QColorDialog>
 #include <QComboBox>
 #include <QDateTime>
@@ -100,8 +101,7 @@ class PickerSearchField : public QLineEdit {
             event->accept();
             return;
         }
-        if (event->key() == Qt::Key_Return ||
-            event->key() == Qt::Key_Enter) {
+        if (event->key() == Qt::Key_Return || event->key() == Qt::Key_Enter) {
             const QList<QAction *> actions = selectableActions();
             QAction *action = menu->activeAction();
             if ((action == nullptr || !actions.contains(action)) &&
@@ -178,8 +178,7 @@ QIcon inspectorIcon(QWidget *, const QString &type) {
         return styling::icon(styling::Icon::Folder, "#7E929C");
     if (normalized.contains("camera"))
         return styling::icon(styling::Icon::Camera, "#9E897D");
-    if (normalized.contains("environment") ||
-        normalized.contains("atmosphere"))
+    if (normalized.contains("environment") || normalized.contains("atmosphere"))
         return styling::icon(styling::Icon::Globe, "#7E929C");
     if (normalized.contains("light") || normalized == "sun")
         return styling::icon(styling::Icon::Lightbulb, "#A1957D");
@@ -188,16 +187,14 @@ QIcon inspectorIcon(QWidget *, const QString &type) {
     if (normalized.contains("particle"))
         return styling::icon(styling::Icon::Sparkle, "#8498A8");
     if (normalized.contains("audio") || normalized == "wav" ||
-        normalized == "mp3" || normalized == "ogg" ||
-        normalized == "flac")
+        normalized == "mp3" || normalized == "ogg" || normalized == "flac")
         return styling::icon(styling::Icon::MusicNote, "#849589");
     if (normalized.contains("material"))
         return styling::icon(styling::Icon::Material, "#9E897D");
-    if (normalized == "png" || normalized == "jpg" ||
-        normalized == "jpeg" || normalized == "bmp" ||
-        normalized == "gif" || normalized == "webp" ||
-        normalized == "tif" || normalized == "tiff" ||
-        normalized == "tga" || normalized == "hdr" || normalized == "exr")
+    if (normalized == "png" || normalized == "jpg" || normalized == "jpeg" ||
+        normalized == "bmp" || normalized == "gif" || normalized == "webp" ||
+        normalized == "tif" || normalized == "tiff" || normalized == "tga" ||
+        normalized == "hdr" || normalized == "exr")
         return styling::icon(styling::Icon::Image, "#A1957D");
     if (normalized.contains("script") || normalized == "ts" ||
         normalized == "js")
@@ -253,12 +250,11 @@ QJsonObject environmentSchema() {
         {"lookupTexture", ""},
         {"fog", QJsonObject{{"color", QJsonArray{0.7, 0.78, 1.0}},
                             {"intensity", 0.0}}},
-        {"volumetricLighting",
-         QJsonObject{{"enabled", false},
-                     {"density", 0.35},
-                     {"weight", 0.02},
-                     {"decay", 0.95},
-                     {"exposure", 0.7}}},
+        {"volumetricLighting", QJsonObject{{"enabled", false},
+                                           {"density", 0.35},
+                                           {"weight", 0.02},
+                                           {"decay", 0.95},
+                                           {"exposure", 0.7}}},
         {"lightBloom", QJsonObject{{"radius", 0.01}, {"maxSamples", 6}}},
         {"rimLight", QJsonObject{{"intensity", 0.0},
                                  {"color", QJsonArray{1.0, 0.96, 0.86}}}},
@@ -276,34 +272,31 @@ QJsonObject environmentSchema() {
              {"sunTintStrength", 0.35},
              {"moonTintStrength", 0.8},
              {"starIntensity", 2.5},
-             {"globalLight",
-              QJsonObject{{"enabled", true},
-                          {"castsShadows", true},
-                          {"shadowResolution", 2048}}},
-             {"clouds",
-              QJsonObject{{"enabled", false},
-                          {"frequency", 4},
-                          {"divisions", 6},
-                          {"position", QJsonArray{0.0, 100.0, 0.0}},
-                          {"size", QJsonArray{500.0, 80.0, 500.0}},
-                          {"scale", 1.5},
-                          {"offset", QJsonArray{0.0, 0.0, 0.0}},
-                          {"density", 0.45},
-                          {"densityMultiplier", 1.5},
-                          {"absorption", 1.1},
-                          {"scattering", 0.85},
-                          {"phase", 0.55},
-                          {"clusterStrength", 0.5},
-                          {"primaryStepCount", 12},
-                          {"lightStepCount", 6},
-                          {"lightStepMultiplier", 1.6},
-                          {"minStepLength", 0.05},
-                          {"wind", QJsonArray{0.03, 0.0, 0.02}}}},
-             {"weather",
-              QJsonObject{{"enabled", false},
-                          {"condition", "clear"},
-                          {"intensity", 0.0},
-                          {"wind", QJsonArray{0.0, -0.4, 0.0}}}}}}};
+             {"globalLight", QJsonObject{{"enabled", true},
+                                         {"castsShadows", true},
+                                         {"shadowResolution", 2048}}},
+             {"clouds", QJsonObject{{"enabled", false},
+                                    {"frequency", 4},
+                                    {"divisions", 6},
+                                    {"position", QJsonArray{0.0, 100.0, 0.0}},
+                                    {"size", QJsonArray{500.0, 80.0, 500.0}},
+                                    {"scale", 1.5},
+                                    {"offset", QJsonArray{0.0, 0.0, 0.0}},
+                                    {"density", 0.45},
+                                    {"densityMultiplier", 1.5},
+                                    {"absorption", 1.1},
+                                    {"scattering", 0.85},
+                                    {"phase", 0.55},
+                                    {"clusterStrength", 0.5},
+                                    {"primaryStepCount", 12},
+                                    {"lightStepCount", 6},
+                                    {"lightStepMultiplier", 1.6},
+                                    {"minStepLength", 0.05},
+                                    {"wind", QJsonArray{0.03, 0.0, 0.02}}}},
+             {"weather", QJsonObject{{"enabled", false},
+                                     {"condition", "clear"},
+                                     {"intensity", 0.0},
+                                     {"wind", QJsonArray{0.0, -0.4, 0.0}}}}}}};
 }
 
 QJsonObject vehicleWheelSchema() {
@@ -525,6 +518,129 @@ QString componentShape(const QJsonArray &components) {
     return result;
 }
 
+QJsonValue valueAtPath(QJsonValue value, const QString &path) {
+    const QStringList segments = path.split('/', Qt::SkipEmptyParts);
+    for (QString segment : segments) {
+        segment.replace("~1", "/").replace("~0", "~");
+        if (value.isObject()) {
+            value = value.toObject().value(segment);
+        } else if (value.isArray()) {
+            bool validIndex = false;
+            const int index = segment.toInt(&validIndex);
+            const QJsonArray array = value.toArray();
+            if (!validIndex || index < 0 || index >= array.size())
+                return {};
+            value = array.at(index);
+        } else {
+            return {};
+        }
+    }
+    return value;
+}
+
+void tagEditor(QWidget *editor, const QString &path, const QString &kind,
+               int index = -1) {
+    editor->setProperty("inspectorPath", path);
+    editor->setProperty("inspectorValueKind", kind);
+    if (index >= 0)
+        editor->setProperty("inspectorValueIndex", index);
+}
+
+bool isEditing(QWidget *editor) {
+    QWidget *focused = QApplication::focusWidget();
+    return focused != nullptr &&
+           (focused == editor || editor->isAncestorOf(focused));
+}
+
+void refreshTaggedEditors(QFrame *card, const QJsonObject &properties) {
+    const QList<QWidget *> editors = card->findChildren<QWidget *>();
+    for (QWidget *editor : editors) {
+        const QString path = editor->property("inspectorPath").toString();
+        const QString kind = editor->property("inspectorValueKind").toString();
+        if (kind.isEmpty() || isEditing(editor))
+            continue;
+        const QJsonValue value = valueAtPath(properties, path);
+        if (value.isUndefined())
+            continue;
+        if (kind == "number") {
+            auto *field = qobject_cast<QDoubleSpinBox *>(editor);
+            if (field != nullptr && value.isDouble()) {
+                const QSignalBlocker blocker(field);
+                field->setValue(value.toDouble());
+            }
+        } else if (kind == "vector") {
+            auto *field = qobject_cast<QDoubleSpinBox *>(editor);
+            const int index = editor->property("inspectorValueIndex").toInt();
+            const QJsonArray array = value.toArray();
+            if (field != nullptr && index >= 0 && index < array.size()) {
+                const QSignalBlocker blocker(field);
+                field->setValue(array.at(index).toDouble());
+            }
+        } else if (kind == "bool") {
+            auto *field = qobject_cast<QCheckBox *>(editor);
+            if (field != nullptr && value.isBool()) {
+                const QSignalBlocker blocker(field);
+                field->setChecked(value.toBool());
+            }
+        } else if (kind == "choice") {
+            auto *field = qobject_cast<QComboBox *>(editor);
+            if (field != nullptr && value.isString()) {
+                const QSignalBlocker blocker(field);
+                field->setCurrentText(value.toString());
+            }
+        } else if (kind == "text") {
+            auto *field = qobject_cast<QLineEdit *>(editor);
+            if (field != nullptr && value.isString()) {
+                const QSignalBlocker blocker(field);
+                field->setText(value.toString());
+            }
+        } else if (kind == "array") {
+            auto *field = qobject_cast<QLineEdit *>(editor);
+            if (field == nullptr || !value.isArray())
+                continue;
+            QStringList entries;
+            for (const QJsonValue &entry : value.toArray()) {
+                entries.append(entry.isString()
+                                   ? entry.toString()
+                                   : QString::number(entry.toDouble()));
+            }
+            const QSignalBlocker blocker(field);
+            field->setText(entries.join(", "));
+        } else if (kind == "color") {
+            const QJsonArray array = value.toArray();
+            if (array.size() < 3)
+                continue;
+            const bool normalized =
+                std::all_of(array.begin(), array.end(), [](QJsonValue entry) {
+                    return entry.toDouble() <= 1.0;
+                });
+            const double factor = normalized ? 255.0 : 1.0;
+            const QColor color(
+                std::clamp(static_cast<int>(array.at(0).toDouble() * factor), 0,
+                           255),
+                std::clamp(static_cast<int>(array.at(1).toDouble() * factor), 0,
+                           255),
+                std::clamp(static_cast<int>(array.at(2).toDouble() * factor), 0,
+                           255),
+                array.size() > 3
+                    ? std::clamp(
+                          static_cast<int>(array.at(3).toDouble() * factor), 0,
+                          255)
+                    : 255);
+            auto *swatch = editor->findChild<QPushButton *>();
+            auto *text = editor->findChild<QLineEdit *>();
+            if (swatch != nullptr) {
+                swatch->setIcon(styling::colorSwatch(color, QSize(22, 14)));
+                swatch->setIconSize(QSize(22, 14));
+            }
+            if (text != nullptr) {
+                const QSignalBlocker blocker(text);
+                text->setText(color.name(QColor::HexArgb).toUpper());
+            }
+        }
+    }
+}
+
 QStringList choicesFor(const QString &path) {
     const QString key = path.section('/', -1).toLower();
     if (key == "motiontype")
@@ -556,8 +672,7 @@ QDoubleSpinBox *numberField(double value, QWidget *parent) {
     return field;
 }
 
-QJsonValue adaptedSyncValue(const QJsonValue &source,
-                            const QJsonValue &target,
+QJsonValue adaptedSyncValue(const QJsonValue &source, const QJsonValue &target,
                             const QString &path) {
     if (target.isDouble()) {
         if (source.isDouble())
@@ -589,9 +704,8 @@ QJsonValue adaptedSyncValue(const QJsonValue &source,
     const QJsonArray values = source.toArray();
     for (int index = 0; index < dimensions; ++index) {
         result.append(index < values.size() ? values.at(index)
-                                            : values.isEmpty()
-                                                  ? QJsonValue(0.0)
-                                                  : values.last());
+                      : values.isEmpty()    ? QJsonValue(0.0)
+                                            : values.last());
     }
     return result;
 }
@@ -603,11 +717,10 @@ void setNumericEditorValue(QWidget *editor, const QJsonValue &value) {
     const QJsonArray values = value.toArray();
     for (int index = 0; index < fields.size(); ++index) {
         QSignalBlocker blocker(fields.at(index));
-        fields.at(index)->setValue(value.isDouble()
-                                       ? value.toDouble()
-                                       : index < values.size()
-                                             ? values.at(index).toDouble()
-                                             : 0.0);
+        fields.at(index)->setValue(value.isDouble() ? value.toDouble()
+                                   : index < values.size()
+                                       ? values.at(index).toDouble()
+                                       : 0.0);
     }
 }
 
@@ -632,10 +745,9 @@ void addSyncPicker(QHBoxLayout *layout, const QString &path,
                                       : QSizePolicy::Fixed,
                               QSizePolicy::Preferred);
         button->setMinimumWidth(matched ? 180 : 22);
-        button->setToolTip(matched
-                               ? QStringLiteral("Matched to %1. Click to change")
-                                     .arg(name)
-                               : "Match this value with another property");
+        button->setToolTip(
+            matched ? QStringLiteral("Matched to %1. Click to change").arg(name)
+                    : "Match this value with another property");
         button->style()->unpolish(button);
         button->style()->polish(button);
     };
@@ -652,17 +764,16 @@ void addSyncPicker(QHBoxLayout *layout, const QString &path,
     menu->addSeparator();
     auto searchable = std::make_shared<QList<QAction *>>();
     auto generated = std::make_shared<QList<QAction *>>();
-    QObject::connect(search, &QLineEdit::textChanged, menu,
-                     [searchable](const QString &text) {
-                         const QString query = text.trimmed().toLower();
-                         for (QAction *action : *searchable) {
-                             action->setVisible(
-                                 query.isEmpty() ||
-                                 action->property("searchText")
-                                     .toString()
-                                     .contains(query));
-                         }
-                     });
+    QObject::connect(
+        search, &QLineEdit::textChanged, menu,
+        [searchable](const QString &text) {
+            const QString query = text.trimmed().toLower();
+            for (QAction *action : *searchable) {
+                action->setVisible(
+                    query.isEmpty() ||
+                    action->property("searchText").toString().contains(query));
+            }
+        });
     QObject::connect(
         menu, &QMenu::aboutToShow, search,
         [menu, search, searchable, generated, provider, current, path, changed,
@@ -673,13 +784,12 @@ void addSyncPicker(QHBoxLayout *layout, const QString &path,
             }
             generated->clear();
             searchable->clear();
-            QAction *manual = menu->addAction(
-                "Enter value manually", menu,
-                [provider, path, showMatch] {
-                    if (provider.clearMatch)
-                        provider.clearMatch(path);
-                    showMatch(QString());
-                });
+            QAction *manual = menu->addAction("Enter value manually", menu,
+                                              [provider, path, showMatch] {
+                                                  if (provider.clearMatch)
+                                                      provider.clearMatch(path);
+                                                  showMatch(QString());
+                                              });
             manual->setProperty("searchText", "enter value manually unlink");
             searchable->append(manual);
             generated->append(manual);
@@ -705,8 +815,7 @@ void addSyncPicker(QHBoxLayout *layout, const QString &path,
                 generated->append(action);
             }
             if (options.isEmpty()) {
-                QAction *empty =
-                    menu->addAction("No compatible properties");
+                QAction *empty = menu->addAction("No compatible properties");
                 empty->setEnabled(false);
                 generated->append(empty);
             }
@@ -752,10 +861,11 @@ QWidget *vectorField(const QJsonArray &value, const PropertyChanged &changed,
     QList<QDoubleSpinBox *> boxes;
     for (int index = 0; index < dimensions; ++index) {
         auto *axis = new QLabel(axes.at(index), valueEditor);
-        axis->setObjectName("inspectorAxisLabel");
+        axis->setObjectName("inspectorAxis" + axes.at(index));
         auto *box = numberField(values.at(index).toDouble(), valueEditor);
         box->setButtonSymbols(QAbstractSpinBox::NoButtons);
-        box->setMinimumWidth(38);
+        box->setMinimumWidth(52);
+        tagEditor(box, path, "vector", index);
         boxes.append(box);
         valueLayout->addWidget(axis);
         valueLayout->addWidget(box, 1);
@@ -779,6 +889,7 @@ QWidget *colorField(const QJsonArray &value, const PropertyChanged &changed,
                     const QString &path, QWidget *parent) {
     auto *field = new QFrame(parent);
     field->setObjectName("inspectorColorField");
+    tagEditor(field, path, "color");
     auto *layout = new QHBoxLayout(field);
     layout->setContentsMargins(3, 2, 3, 2);
     layout->setSpacing(5);
@@ -851,6 +962,7 @@ QWidget *primitiveField(const QString &name, const QString &path,
                         const SyncProvider &syncProvider, QWidget *parent) {
     if (value.isBool()) {
         auto *field = new QCheckBox(parent);
+        tagEditor(field, path, "bool");
         field->setChecked(value.toBool());
         QObject::connect(
             field, &QCheckBox::toggled, parent,
@@ -864,13 +976,13 @@ QWidget *primitiveField(const QString &name, const QString &path,
         layout->setContentsMargins(0, 0, 0, 0);
         layout->setSpacing(2);
         auto *field = numberField(value.toDouble(), container);
+        tagEditor(field, path, "number");
         layout->addWidget(field, 1);
         addSyncPicker(layout, path, value, changed, syncProvider, field,
                       container);
-        QObject::connect(field, &QDoubleSpinBox::valueChanged, container,
-                         [field, changed, path](double) {
-                             changed(path, field->value());
-                         });
+        QObject::connect(
+            field, &QDoubleSpinBox::valueChanged, container,
+            [field, changed, path](double) { changed(path, field->value()); });
         return container;
     }
     if (value.isArray()) {
@@ -878,11 +990,11 @@ QWidget *primitiveField(const QString &name, const QString &path,
         if (isColorProperty(name, array)) {
             return colorField(array, changed, path, parent);
         }
-        if ((array.size() == 2 || array.size() == 3) &&
-            isNumericArray(array)) {
+        if ((array.size() == 2 || array.size() == 3) && isNumericArray(array)) {
             return vectorField(array, changed, path, syncProvider, parent);
         }
         auto *field = new QLineEdit(parent);
+        tagEditor(field, path, "array");
         QStringList entries;
         for (const QJsonValue &entry : array) {
             entries.append(entry.isString()
@@ -910,6 +1022,7 @@ QWidget *primitiveField(const QString &name, const QString &path,
     const QStringList choices = choicesFor(path);
     if (!choices.isEmpty()) {
         auto *field = new QComboBox(parent);
+        tagEditor(field, path, "choice");
         field->addItems(choices);
         field->setCurrentText(value.toString());
         QObject::connect(
@@ -918,6 +1031,7 @@ QWidget *primitiveField(const QString &name, const QString &path,
         return field;
     }
     auto *field = new QLineEdit(value.toString(), parent);
+    tagEditor(field, path, "text");
     connectLiveText(field,
                     [field, changed, path] { changed(path, field->text()); });
     return field;
@@ -931,8 +1045,8 @@ QFrame *propertyRow(const QString &label, QWidget *editor, QWidget *parent) {
     layout->setSpacing(8);
     auto *name = new QLabel(label, row);
     name->setObjectName("inspectorPropertyLabel");
-    name->setMinimumWidth(104);
-    name->setMaximumWidth(128);
+    name->setMinimumWidth(82);
+    name->setMaximumWidth(108);
     layout->addWidget(name);
     layout->addWidget(editor, 1);
     return row;
@@ -979,8 +1093,7 @@ void addPropertyRows(QVBoxLayout *layout, const QJsonObject &properties,
                 title->setObjectName("inspectorNestedTitle");
                 auto *add = new QToolButton(heading);
                 add->setObjectName("inspectorArrayButton");
-                add->setIcon(
-                    styling::icon(styling::Icon::Plus, "#8498A8"));
+                add->setIcon(styling::icon(styling::Icon::Plus, "#8498A8"));
                 add->setToolTip("Add item");
                 add->setToolTip(QStringLiteral("Add %1").arg(humanize(key)));
                 headingLayout->addWidget(title, 1);
@@ -1032,9 +1145,8 @@ void addPropertyRows(QVBoxLayout *layout, const QJsonObject &properties,
                 continue;
             }
         }
-        QWidget *editor =
-            primitiveField(key, nextPath, iterator.value(), changed,
-                           syncProvider, parent);
+        QWidget *editor = primitiveField(key, nextPath, iterator.value(),
+                                         changed, syncProvider, parent);
         layout->addWidget(propertyRow(humanize(key), editor, parent));
     }
 }
@@ -1127,7 +1239,7 @@ SyncProvider bindSyncProvider(const SyncProvider &provider,
         return QString();
     };
     bound.setMatch = [viewport, target](const QString &path,
-                                       const QJsonObject &source) {
+                                        const QJsonObject &source) {
         if (viewport != nullptr)
             viewport->setRuntimePropertySync(syncTargetAtPath(target, path),
                                              source);
@@ -1151,9 +1263,11 @@ QJsonValue objectSyncReference(const QJsonObject &object) {
 QFrame *componentCard(const QString &title, const QJsonObject &properties,
                       const QString &path, const PropertyChanged &changed,
                       QWidget *parent, const SyncProvider &syncProvider = {},
-                      const std::function<void()> &remove = {}) {
+                      const std::function<void()> &remove = {},
+                      const QString &scope = {}) {
     auto *card = new QFrame(parent);
     card->setObjectName("inspectorComponent");
+    card->setProperty("inspectorScope", scope);
     auto *layout = new QVBoxLayout(card);
     layout->setContentsMargins(0, 0, 0, 7);
     layout->setSpacing(2);
@@ -1173,8 +1287,7 @@ QFrame *componentCard(const QString &title, const QJsonObject &properties,
     if (remove) {
         auto *removeButton = new QToolButton(headerRow);
         removeButton->setObjectName("inspectorComponentRemoveButton");
-        removeButton->setIcon(
-            styling::icon(styling::Icon::Trash, "#A17F7F"));
+        removeButton->setIcon(styling::icon(styling::Icon::Trash, "#A17F7F"));
         removeButton->setToolTip(QStringLiteral("Remove %1").arg(title));
         headerLayout->addWidget(removeButton);
         QObject::connect(removeButton, &QToolButton::clicked, card, remove);
@@ -1190,9 +1303,9 @@ QFrame *componentCard(const QString &title, const QJsonObject &properties,
     QObject::connect(
         header, &QToolButton::toggled, card, [header, body](bool expanded) {
             body->setVisible(expanded);
-            header->setIcon(styling::icon(
-                expanded ? styling::Icon::CaretDown : styling::Icon::CaretRight,
-                "#8490A4"));
+            header->setIcon(styling::icon(expanded ? styling::Icon::CaretDown
+                                                   : styling::Icon::CaretRight,
+                                          "#8490A4"));
         });
     return card;
 }
@@ -1215,7 +1328,7 @@ InspectorPanel::InspectorPanel(ViewportPanel *viewport,
                                const QString &projectFile, QWidget *parent)
     : QWidget(parent), viewport(viewport) {
     setObjectName("inspectorPanel");
-    setMinimumWidth(360);
+    setMinimumWidth(400);
     setAcceptDrops(true);
     const QFileInfo projectInfo(projectFile);
     projectRoot = projectInfo.absoluteDir().absolutePath();
@@ -1235,7 +1348,21 @@ InspectorPanel::InspectorPanel(ViewportPanel *viewport,
     if (viewport != nullptr) {
         connect(viewport, &ViewportPanel::sceneSnapshotChanged, this,
                 &InspectorPanel::applySceneSnapshot);
+        QTimer::singleShot(0, this, [this] {
+            const QString snapshot = this->viewport->currentSceneSnapshot();
+            if (!snapshot.isEmpty())
+                applySceneSnapshot(snapshot);
+        });
     }
+    connect(qApp, &QApplication::focusChanged, this,
+            [this](QWidget *previous, QWidget *current) {
+                if (previous == nullptr || !isAncestorOf(previous) ||
+                    previous == current || fileTarget || cameraTarget ||
+                    environmentTarget || inspectedObjectId < 0) {
+                    return;
+                }
+                refreshObjectEditors(inspectedObject);
+            });
     showEmptyState();
 }
 
@@ -1246,29 +1373,96 @@ void InspectorPanel::applySceneSnapshot(const QString &snapshot) {
     if (error.error != QJsonParseError::NoError || !document.isObject())
         return;
     scene = document.object();
-    if (environmentTarget)
+    if (environmentTarget) {
+        QJsonObject values = mergeObjects(
+            environmentSchema(), scene.value("environment").toObject());
+        QJsonObject atmosphere = values.take("atmosphere").toObject();
+        QJsonObject globalLight = atmosphere.take("globalLight").toObject();
+        QJsonObject clouds = atmosphere.take("clouds").toObject();
+        QJsonObject weather = atmosphere.take("weather").toObject();
+        const QList<QFrame *> cards = content->findChildren<QFrame *>();
+        for (QFrame *card : cards) {
+            if (card->objectName() != "inspectorComponent")
+                continue;
+            const QString scope = card->property("inspectorScope").toString();
+            if (scope == "environment")
+                refreshTaggedEditors(card, values);
+            else if (scope == "environment:atmosphere")
+                refreshTaggedEditors(card, atmosphere);
+            else if (scope == "environment:globalLight")
+                refreshTaggedEditors(card, globalLight);
+            else if (scope == "environment:clouds")
+                refreshTaggedEditors(card, clouds);
+            else if (scope == "environment:weather")
+                refreshTaggedEditors(card, weather);
+        }
         return;
+    }
     if (cameraTarget) {
         inspectedCamera = scene.value("camera").toObject();
+        const QJsonObject transform{
+            {"position", inspectedCamera.value("position")},
+            {"target", inspectedCamera.value("target")}};
+        const QJsonObject projection{
+            {"orthographic", inspectedCamera.value("orthographic")},
+            {"fov", inspectedCamera.value("fov")},
+            {"orthoSize", inspectedCamera.value("orthoSize")},
+            {"nearClip", inspectedCamera.value("nearClip")},
+            {"farClip", inspectedCamera.value("farClip")}};
+        const QJsonObject focus{
+            {"focusDepth", inspectedCamera.value("focusDepth")},
+            {"focusRange", inspectedCamera.value("focusRange")}};
+        const QJsonObject controls{
+            {"movementSpeed", inspectedCamera.value("movementSpeed")},
+            {"mouseSensitivity", inspectedCamera.value("mouseSensitivity")},
+            {"controllerLookSensitivity",
+             inspectedCamera.value("controllerLookSensitivity")},
+            {"lookSmoothness", inspectedCamera.value("lookSmoothness")},
+            {"automaticMoving", inspectedCamera.value("automaticMoving")},
+            {"actions", inspectedCamera.value("actions").isArray()
+                            ? inspectedCamera.value("actions")
+                            : QJsonValue(QJsonArray{})}};
+        const QList<QFrame *> cards = content->findChildren<QFrame *>();
+        for (QFrame *card : cards) {
+            if (card->objectName() != "inspectorComponent")
+                continue;
+            const QString scope = card->property("inspectorScope").toString();
+            if (scope == "camera:transform")
+                refreshTaggedEditors(card, transform);
+            else if (scope == "camera:projection")
+                refreshTaggedEditors(card, projection);
+            else if (scope == "camera:focus")
+                refreshTaggedEditors(card, focus);
+            else if (scope == "camera:controls")
+                refreshTaggedEditors(card, controls);
+        }
         return;
     }
     const int selected = scene.value("selectedId").toInt(-1);
     const bool selectionChanged = selected != lastRuntimeSelection;
     lastRuntimeSelection = selected;
-    if (selectionChanged) {
+    if (selectionChanged ||
+        (!fileTarget && selected >= 0 && inspectedObjectId != selected)) {
         inspectRuntimeObject(selected);
     } else if (!fileTarget && inspectedObjectId >= 0) {
         const QJsonObject updated = findObject(inspectedObjectId);
-        const bool contentChanged =
-            updated.value("name") != inspectedObject.value("name") ||
-            updated.value("properties").toObject().value("material") !=
-                inspectedObject.value("properties").toObject().value(
-                    "material") ||
+        if (updated.isEmpty()) {
+            inspectedObject = {};
+            inspectedObjectId = -1;
+            showEmptyState();
+            return;
+        }
+        const bool structureChanged =
+            updated.value("type") != inspectedObject.value("type") ||
+            jsonShape(updated.value("properties")) !=
+                jsonShape(inspectedObject.value("properties")) ||
             componentShape(updated.value("components").toArray()) !=
                 componentShape(inspectedObject.value("components").toArray());
         inspectedObject = updated;
-        if (contentChanged) {
+        if (structureChanged) {
             showObject(inspectedObject);
+        } else {
+            refreshObjectEditors(inspectedObject);
         }
     }
 }
@@ -1280,11 +1474,59 @@ void InspectorPanel::inspectRuntimeObject(int id) {
     inspectedFile.clear();
     inspectedCamera = {};
     inspectedObjectId = id;
+    lastRuntimeSelection = id;
     inspectedObject = findObject(id);
     if (inspectedObject.isEmpty()) {
         showEmptyState();
     } else {
         showObject(inspectedObject);
+    }
+}
+
+void InspectorPanel::refreshObjectEditors(const QJsonObject &object) {
+    if (nameField != nullptr && !isEditing(nameField)) {
+        const QSignalBlocker blocker(nameField);
+        nameField->setText(object.value("name").toString("Object"));
+    }
+    const QString type = object.value("type").toString("Object");
+    QJsonObject objectProperties = object.value("properties").toObject();
+    if (type.contains("light", Qt::CaseInsensitive) ||
+        type.compare("sun", Qt::CaseInsensitive) == 0) {
+        objectProperties = mergeObjects(lightSchema(type), objectProperties);
+    }
+    const QString materialPath = objectProperties.value("material").toString();
+    objectProperties.remove("material");
+    const QStringList hidden{"id",       "name",       "type",
+                             "position", "rotation",   "scale",
+                             "parent",   "components", "objects"};
+    for (const QString &key : hidden)
+        objectProperties.remove(key);
+    const QJsonObject transform{{"position", object.value("position")},
+                                {"rotation", object.value("rotation")},
+                                {"scale", object.value("scale")}};
+    const QJsonArray components = object.value("components").toArray();
+    const QList<QFrame *> cards = content->findChildren<QFrame *>();
+    for (QFrame *card : cards) {
+        if (card->objectName() != "inspectorComponent")
+            continue;
+        const QString scope = card->property("inspectorScope").toString();
+        if (scope == "transform") {
+            refreshTaggedEditors(card, transform);
+        } else if (scope == "object") {
+            refreshTaggedEditors(card, objectProperties);
+        } else if (scope == "material") {
+            refreshTaggedEditors(card,
+                                 QJsonObject{{"source", materialPath}});
+        } else if (scope.startsWith("component:")) {
+            bool validIndex = false;
+            const int index = scope.section(':', 1, 1).toInt(&validIndex);
+            if (!validIndex || index < 0 || index >= components.size())
+                continue;
+            const QJsonObject component = components.at(index).toObject();
+            refreshTaggedEditors(
+                card, componentValues(component.value("type").toString(),
+                                      component));
+        }
     }
 }
 
@@ -1393,37 +1635,34 @@ void InspectorPanel::showObject(const QJsonObject &object) {
     const QJsonValue objectReference = objectSyncReference(object);
     const QJsonArray components = object.value("components").toArray();
     SyncOptions syncOptions;
-    syncOptions.append(
-        {"Object Size", object.value("boundsSize"),
-         QJsonObject{{"section", "object"},
-                     {"object", objectReference},
-                     {"component", "bounds"},
-                     {"componentIndex", -1},
-                     {"path", QString()}}});
-    collectSyncOptions(
-        "Transform", transform,
-        QJsonObject{{"section", "object"},
-                    {"object", objectReference},
-                    {"component", "transform"},
-                    {"componentIndex", -1}},
-        QString(), syncOptions);
-    collectSyncOptions(
-        "Object", object.value("properties"),
-        QJsonObject{{"section", "object"},
-                    {"object", objectReference},
-                    {"component", "object"},
-                    {"componentIndex", -1}},
-        QString(), syncOptions);
+    syncOptions.append({"Object Size", object.value("boundsSize"),
+                        QJsonObject{{"section", "object"},
+                                    {"object", objectReference},
+                                    {"component", "bounds"},
+                                    {"componentIndex", -1},
+                                    {"path", QString()}}});
+    collectSyncOptions("Transform", transform,
+                       QJsonObject{{"section", "object"},
+                                   {"object", objectReference},
+                                   {"component", "transform"},
+                                   {"componentIndex", -1}},
+                       QString(), syncOptions);
+    collectSyncOptions("Object", object.value("properties"),
+                       QJsonObject{{"section", "object"},
+                                   {"object", objectReference},
+                                   {"component", "object"},
+                                   {"componentIndex", -1}},
+                       QString(), syncOptions);
     for (int index = 0; index < components.size(); ++index) {
         const QJsonObject raw = components.at(index).toObject();
         const QString componentType = raw.value("type").toString("component");
-        collectSyncOptions(
-            componentTitle(componentType), componentValues(componentType, raw),
-            QJsonObject{{"section", "object"},
-                        {"object", objectReference},
-                        {"component", componentType},
-                        {"componentIndex", index}},
-            QString(), syncOptions);
+        collectSyncOptions(componentTitle(componentType),
+                           componentValues(componentType, raw),
+                           QJsonObject{{"section", "object"},
+                                       {"object", objectReference},
+                                       {"component", componentType},
+                                       {"componentIndex", index}},
+                           QString(), syncOptions);
     }
     const SyncProvider syncProvider = makeSyncProvider(syncOptions);
     const QJsonObject transformTarget{{"section", "object"},
@@ -1435,8 +1674,9 @@ void InspectorPanel::showObject(const QJsonObject &object) {
         [update](const QString &path, const QJsonValue &value) {
             update("transform", -1, path, value);
         },
-        content, bindSyncProvider(syncProvider, viewport, &scene,
-                                  transformTarget)));
+        content,
+        bindSyncProvider(syncProvider, viewport, &scene, transformTarget), {},
+        "transform"));
 
     QJsonObject objectProperties = object.value("properties").toObject();
     if (type.contains("light", Qt::CaseInsensitive) ||
@@ -1457,12 +1697,12 @@ void InspectorPanel::showObject(const QJsonObject &object) {
                 update("object", -1, path, value);
             },
             content,
-            bindSyncProvider(
-                syncProvider, viewport, &scene,
-                QJsonObject{{"section", "object"},
-                            {"object", objectReference},
-                            {"component", "object"},
-                            {"componentIndex", -1}})));
+            bindSyncProvider(syncProvider, viewport, &scene,
+                             QJsonObject{{"section", "object"},
+                                         {"object", objectReference},
+                                         {"component", "object"},
+                                         {"componentIndex", -1}}),
+            {}, "object"));
     }
 
     if (!materialPath.isEmpty()) {
@@ -1474,7 +1714,7 @@ void InspectorPanel::showObject(const QJsonObject &object) {
                     viewport->applyRuntimeMaterial(objectId, value.toString());
                 }
             },
-            content));
+            content, {}, {}, "material"));
     }
 
     for (int index = 0; index < components.size(); ++index) {
@@ -1488,12 +1728,11 @@ void InspectorPanel::showObject(const QJsonObject &object) {
                 update(componentType, index, path, value);
             },
             content,
-            bindSyncProvider(
-                syncProvider, viewport, &scene,
-                QJsonObject{{"section", "object"},
-                            {"object", objectReference},
-                            {"component", componentType},
-                            {"componentIndex", index}}),
+            bindSyncProvider(syncProvider, viewport, &scene,
+                             QJsonObject{{"section", "object"},
+                                         {"object", objectReference},
+                                         {"component", componentType},
+                                         {"componentIndex", index}}),
             [this, objectId, index, componentType] {
                 if (QMessageBox::question(
                         this, "Remove Component",
@@ -1503,12 +1742,12 @@ void InspectorPanel::showObject(const QJsonObject &object) {
                     return;
                 }
                 if (viewport == nullptr ||
-                    !viewport->removeRuntimeObjectComponent(objectId,
-                                                            index)) {
+                    !viewport->removeRuntimeObjectComponent(objectId, index)) {
                     QMessageBox::warning(this, "Remove Component",
                                          "The component could not be removed.");
                 }
-            }));
+            },
+            QStringLiteral("component:%1").arg(index)));
         if (componentType.toLower().remove('_').remove('-') == "audioplayer") {
             auto *controls = new QFrame(content);
             controls->setObjectName("inspectorAudioControls");
@@ -1517,23 +1756,22 @@ void InspectorPanel::showObject(const QJsonObject &object) {
             controlsLayout->setSpacing(5);
             const QStringList audioActions{"Play", "Pause", "Stop"};
             const QList<styling::Icon> audioIcons{
-                styling::Icon::Play, styling::Icon::Pause,
-                styling::Icon::Stop};
+                styling::Icon::Play, styling::Icon::Pause, styling::Icon::Stop};
             const QList<QColor> audioColors{
                 QColor("#849589"), QColor("#A1957D"), QColor("#A17F7F")};
             for (int actionIndex = 0; actionIndex < audioActions.size();
                  ++actionIndex) {
                 const QString &action = audioActions.at(actionIndex);
                 auto *button = new QToolButton(controls);
-                button->setIcon(styling::icon(
-                    audioIcons.at(actionIndex), audioColors.at(actionIndex)));
+                button->setIcon(styling::icon(audioIcons.at(actionIndex),
+                                              audioColors.at(actionIndex)));
                 button->setToolTip(action);
                 controlsLayout->addWidget(button);
                 connect(button, &QToolButton::clicked, this,
                         [this, objectId, index, action] {
                             if (viewport != nullptr) {
-                                viewport->controlRuntimeAudio(
-                                    objectId, index, action.toLower());
+                                viewport->controlRuntimeAudio(objectId, index,
+                                                              action.toLower());
                             }
                         });
             }
@@ -1543,15 +1781,15 @@ void InspectorPanel::showObject(const QJsonObject &object) {
     }
     auto *addComponent = new QToolButton(content);
     addComponent->setObjectName("inspectorAddComponentButton");
-    addComponent->setIcon(
-        styling::icon(styling::Icon::Plus, "#8498A8"));
+    addComponent->setIcon(styling::icon(styling::Icon::Plus, "#8498A8"));
     addComponent->setText("Add Component");
     addComponent->setToolButtonStyle(Qt::ToolButtonTextBesideIcon);
     addComponent->setPopupMode(QToolButton::InstantPopup);
     auto *componentMenu = new QMenu(addComponent);
     auto *searchAction = new QWidgetAction(componentMenu);
     auto *componentSearch = new PickerSearchField(componentMenu);
-    componentSearch->setPlaceholderText("Search components, scripts, materials");
+    componentSearch->setPlaceholderText(
+        "Search components, scripts, materials");
     componentSearch->setClearButtonEnabled(true);
     componentSearch->setMinimumWidth(280);
     searchAction->setDefaultWidget(componentSearch);
@@ -1592,16 +1830,15 @@ void InspectorPanel::showObject(const QJsonObject &object) {
         searchableActions.append(action);
     }
     QDirIterator assets(projectRoot,
-                        {"*.ts",   "*.amat", "*.material", "*.wav",
-                         "*.mp3",  "*.ogg",  "*.flac",     "*.m4a",
-                         "*.aac"},
+                        {"*.ts", "*.amat", "*.material", "*.wav", "*.mp3",
+                         "*.ogg", "*.flac", "*.m4a", "*.aac"},
                         QDir::Files, QDirIterator::Subdirectories);
     while (assets.hasNext()) {
         const QFileInfo info(assets.next());
         const QString suffix = info.suffix().toLower();
         if (suffix == "ts") {
-            QString relativePath = QDir(projectRoot).relativeFilePath(
-                info.absoluteFilePath());
+            QString relativePath =
+                QDir(projectRoot).relativeFilePath(info.absoluteFilePath());
             const QStringList pathParts =
                 QDir::fromNativeSeparators(relativePath)
                     .split('/', Qt::SkipEmptyParts);
@@ -1622,28 +1859,31 @@ void InspectorPanel::showObject(const QJsonObject &object) {
                            suffix == "ogg" || suffix == "flac" ||
                            suffix == "m4a" || suffix == "aac";
         const QString label =
-            QStringLiteral("%1 · %2")
-                .arg(material ? "Material" : audio ? "Audio" : "Script",
-                     info.completeBaseName());
+            QStringLiteral("%1 · %2").arg(material ? "Material"
+                                          : audio  ? "Audio"
+                                                   : "Script",
+                                          info.completeBaseName());
         QAction *action = componentMenu->addAction(
             label, this, [this, objectId, path = info.absoluteFilePath()] {
                 attachAsset(path, objectId);
             });
-        action->setIcon(inspectorIcon(
-            this, material ? "material" : audio ? "audio" : "script"));
+        action->setIcon(inspectorIcon(this, material ? "material"
+                                            : audio  ? "audio"
+                                                     : "script"));
         action->setProperty("searchText",
                             (label + ' ' + info.absoluteFilePath()).toLower());
         searchableActions.append(action);
     }
-    connect(componentSearch, &QLineEdit::textChanged, componentMenu,
-            [searchableActions](const QString &text) {
-                const QString query = text.trimmed().toLower();
-                for (QAction *action : searchableActions) {
-                    action->setVisible(
-                        query.isEmpty() ||
-                        action->property("searchText").toString().contains(query));
-                }
-            });
+    connect(
+        componentSearch, &QLineEdit::textChanged, componentMenu,
+        [searchableActions](const QString &text) {
+            const QString query = text.trimmed().toLower();
+            for (QAction *action : searchableActions) {
+                action->setVisible(
+                    query.isEmpty() ||
+                    action->property("searchText").toString().contains(query));
+            }
+        });
     connect(componentMenu, &QMenu::aboutToShow, componentSearch,
             [componentSearch] {
                 componentSearch->clear();
@@ -1733,28 +1973,26 @@ void InspectorPanel::showCamera() {
                        QJsonObject{{"section", "camera"}}, QString(),
                        syncOptions);
     const SyncProvider syncProvider = makeSyncProvider(syncOptions);
-    contentLayout->addWidget(componentCard("Transform", transform, QString(),
-                                           update, content,
-                                           bindSyncProvider(
-                                               syncProvider, viewport, &scene,
-                                               QJsonObject{{"section",
-                                                            "camera"}})));
-    contentLayout->addWidget(componentCard(
-        "Projection", projection, QString(),
-        update,
-        content,
-        bindSyncProvider(syncProvider, viewport, &scene,
-                         QJsonObject{{"section", "camera"}})));
+    contentLayout->addWidget(
+        componentCard("Transform", transform, QString(), update, content,
+                      bindSyncProvider(syncProvider, viewport, &scene,
+                                       QJsonObject{{"section", "camera"}}),
+                      {}, "camera:transform"));
+    contentLayout->addWidget(
+        componentCard("Projection", projection, QString(), update, content,
+                      bindSyncProvider(syncProvider, viewport, &scene,
+                                       QJsonObject{{"section", "camera"}}),
+                      {}, "camera:projection"));
     contentLayout->addWidget(
         componentCard("Depth of Field", focus, QString(), update, content,
                       bindSyncProvider(syncProvider, viewport, &scene,
-                                       QJsonObject{{"section", "camera"}})));
-    contentLayout->addWidget(componentCard("Camera Controls", controls,
-                                           QString(), update, content,
-                                           bindSyncProvider(
-                                               syncProvider, viewport, &scene,
-                                               QJsonObject{{"section",
-                                                            "camera"}})));
+                                       QJsonObject{{"section", "camera"}}),
+                      {}, "camera:focus"));
+    contentLayout->addWidget(
+        componentCard("Camera Controls", controls, QString(), update, content,
+                      bindSyncProvider(syncProvider, viewport, &scene,
+                                       QJsonObject{{"section", "camera"}}),
+                      {}, "camera:controls"));
     contentLayout->addStretch();
 }
 
@@ -1784,8 +2022,8 @@ void InspectorPanel::showEnvironment() {
     headerLayout->addWidget(identity, 1);
     contentLayout->addWidget(header);
 
-    QJsonObject values = mergeObjects(
-        environmentSchema(), scene.value("environment").toObject());
+    QJsonObject values = mergeObjects(environmentSchema(),
+                                      scene.value("environment").toObject());
     SyncOptions syncOptions;
     collectSyncOptions("Environment", values,
                        QJsonObject{{"section", "environment"}}, QString(),
@@ -1798,8 +2036,8 @@ void InspectorPanel::showEnvironment() {
     auto update = [this](const QString &prefix, const QString &path,
                          const QJsonValue &value) {
         if (viewport != nullptr)
-            viewport->setRuntimeSceneProperty("environment", -1,
-                                              prefix + path, value);
+            viewport->setRuntimeSceneProperty("environment", -1, prefix + path,
+                                              value);
     };
     contentLayout->addWidget(componentCard(
         "Environment", values, QString(),
@@ -1808,16 +2046,18 @@ void InspectorPanel::showEnvironment() {
         },
         content,
         bindSyncProvider(syncProvider, viewport, &scene,
-                         QJsonObject{{"section", "environment"}})));
+                         QJsonObject{{"section", "environment"}}),
+        {}, "environment"));
     contentLayout->addWidget(componentCard(
         "Atmosphere", atmosphere, QString(),
         [update](const QString &path, const QJsonValue &value) {
             update("/atmosphere", path, value);
         },
         content,
-        bindSyncProvider(syncProvider, viewport, &scene,
-                         QJsonObject{{"section", "environment"},
-                                     {"path", "/atmosphere"}})));
+        bindSyncProvider(
+            syncProvider, viewport, &scene,
+            QJsonObject{{"section", "environment"}, {"path", "/atmosphere"}}),
+        {}, "environment:atmosphere"));
     contentLayout->addWidget(componentCard(
         "Global Light", globalLight, QString(),
         [update](const QString &path, const QJsonValue &value) {
@@ -1826,7 +2066,8 @@ void InspectorPanel::showEnvironment() {
         content,
         bindSyncProvider(syncProvider, viewport, &scene,
                          QJsonObject{{"section", "environment"},
-                                     {"path", "/atmosphere/globalLight"}})));
+                                     {"path", "/atmosphere/globalLight"}}),
+        {}, "environment:globalLight"));
     contentLayout->addWidget(componentCard(
         "Clouds", clouds, QString(),
         [update](const QString &path, const QJsonValue &value) {
@@ -1835,7 +2076,8 @@ void InspectorPanel::showEnvironment() {
         content,
         bindSyncProvider(syncProvider, viewport, &scene,
                          QJsonObject{{"section", "environment"},
-                                     {"path", "/atmosphere/clouds"}})));
+                                     {"path", "/atmosphere/clouds"}}),
+        {}, "environment:clouds"));
     contentLayout->addWidget(componentCard(
         "Weather", weather, QString(),
         [update](const QString &path, const QJsonValue &value) {
@@ -1844,7 +2086,8 @@ void InspectorPanel::showEnvironment() {
         content,
         bindSyncProvider(syncProvider, viewport, &scene,
                          QJsonObject{{"section", "environment"},
-                                     {"path", "/atmosphere/weather"}})));
+                                     {"path", "/atmosphere/weather"}}),
+        {}, "environment:weather"));
     contentLayout->addStretch();
 }
 
@@ -1942,8 +2185,7 @@ void InspectorPanel::showFile() {
                 imageLabel->setSizePolicy(QSizePolicy::Expanding,
                                           QSizePolicy::Preferred);
                 imageLabel->setPixmap(QPixmap::fromImage(image).scaled(
-                    360, 240, Qt::KeepAspectRatio,
-                    Qt::SmoothTransformation));
+                    360, 240, Qt::KeepAspectRatio, Qt::SmoothTransformation));
                 previewBodyLayout->addWidget(imageLabel);
                 previewLayout->addWidget(previewTitle);
                 previewLayout->addWidget(previewBody);

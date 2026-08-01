@@ -46,6 +46,7 @@ class InspectorPanel : public QWidget {
     void showCamera();
     void showEnvironment();
     void showFile();
+    void refreshObjectEditors(const QJsonObject &object);
     void rebuildBody();
     void commitHeaderName();
     QJsonObject findObject(int id) const;

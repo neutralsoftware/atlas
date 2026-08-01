@@ -40,6 +40,7 @@
 #include <QJsonDocument>
 #include <QJsonObject>
 #include <QMenuBar>
+#include <QMenu>
 #include <QMessageBox>
 #include <QPlainTextEdit>
 #include <QProcess>
@@ -47,6 +48,7 @@
 #include <QPushButton>
 #include <QRegularExpression>
 #include <QSaveFile>
+#include <QSignalBlocker>
 #include <QSpinBox>
 #include <QStackedWidget>
 #include <QStyle>
@@ -87,8 +89,8 @@
 #include "editor/views/splashScreen.h"
 
 namespace {
-constexpr int DockStateVersion = 9;
-constexpr auto DockStateKey = "docking/state/v9";
+constexpr int DockStateVersion = 10;
+constexpr auto DockStateKey = "docking/state/v10";
 
 QIcon commandIcon(const QString &name) {
     const QString command = name.toLower();
@@ -354,43 +356,15 @@ void EditorWindow::setupMenus() {
         styling::icon(styling::Icon::ArrowCounterClockwise, "#7E929C"));
     undoAction->setShortcut(QKeySequence::Undo);
     undoAction->setShortcutContext(Qt::ApplicationShortcut);
-    connect(undoAction, &QAction::triggered, this, [this] {
-        if (auto *field =
-                qobject_cast<QLineEdit *>(QApplication::focusWidget())) {
-            field->undo();
-        } else if (materialEditorPanel != nullptr &&
-                   materialEditorPanel->isAncestorOf(
-                       QApplication::focusWidget())) {
-            materialEditorPanel->undo();
-        } else if (graphiteEditorPanel != nullptr &&
-                   graphiteEditorPanel->isAncestorOf(
-                       QApplication::focusWidget())) {
-            graphiteEditorPanel->undo();
-        } else if (viewportPanel != nullptr) {
-            viewportPanel->undo();
-        }
-    });
+    connect(undoAction, &QAction::triggered, this,
+            &EditorWindow::undoActiveEditor);
     auto *redoAction = editMenu->addAction("Redo");
     redoAction->setIcon(
         styling::icon(styling::Icon::ArrowClockwise, "#7E929C"));
     redoAction->setShortcut(QKeySequence::Redo);
     redoAction->setShortcutContext(Qt::ApplicationShortcut);
-    connect(redoAction, &QAction::triggered, this, [this] {
-        if (auto *field =
-                qobject_cast<QLineEdit *>(QApplication::focusWidget())) {
-            field->redo();
-        } else if (materialEditorPanel != nullptr &&
-                   materialEditorPanel->isAncestorOf(
-                       QApplication::focusWidget())) {
-            materialEditorPanel->redo();
-        } else if (graphiteEditorPanel != nullptr &&
-                   graphiteEditorPanel->isAncestorOf(
-                       QApplication::focusWidget())) {
-            graphiteEditorPanel->redo();
-        } else if (viewportPanel != nullptr) {
-            viewportPanel->redo();
-        }
-    });
+    connect(redoAction, &QAction::triggered, this,
+            &EditorWindow::redoActiveEditor);
     editMenu->addSeparator();
     addCommand(editMenu, "Find…", "Meta+F", [this] { showGlobalSearch(); });
     editMenu->addSeparator();
@@ -614,14 +588,13 @@ void EditorWindow::setupDocks() {
                                                   : "Runtime unavailable");
                 emit startupReady(success, message);
             });
-    connect(viewportPanel, &ViewportPanel::runtimeLoadingStarted, this,
-            [this] {
-                if (!startupComplete || assetLoadingSplash != nullptr) {
-                    return;
-                }
-                assetLoadingSplash = new SplashScreen(this);
-                assetLoadingSplash->start("Loading assets...");
-            });
+    connect(viewportPanel, &ViewportPanel::runtimeLoadingStarted, this, [this] {
+        if (!startupComplete || assetLoadingSplash != nullptr) {
+            return;
+        }
+        assetLoadingSplash = new SplashScreen(this);
+        assetLoadingSplash->start("Loading assets...");
+    });
     connect(viewportPanel, &ViewportPanel::runtimeLoadingStatusChanged, this,
             [this](const QString &status) {
                 emit startupStatusChanged(status);
@@ -641,8 +614,7 @@ void EditorWindow::setupDocks() {
     viewportTools = new ViewportTools(viewportPanel, projectFile);
     materialEditorPanel = new MaterialEditorPanel(viewportPanel);
     postProcessingPanel = new PostProcessingPanel(viewportPanel);
-    graphiteEditorPanel =
-        new GraphiteEditorPanel(viewportPanel, projectFile);
+    graphiteEditorPanel = new GraphiteEditorPanel(viewportPanel, projectFile);
     workspaceStack = new QStackedWidget(this);
     workspaceStack->setObjectName("editorWorkspaceStack");
     workspaceStack->addWidget(viewportTools);
@@ -663,7 +635,7 @@ void EditorWindow::setupDocks() {
         {.id = "hierarchy",
          .title = "Scene",
          .widget = hierarchyPanel,
-         .area = EditorDockArea::Left,
+         .area = EditorDockArea::Right,
          .icon = styling::icon(styling::Icon::TreeStructure, "#8498A8")});
 
     inspectorPanel = new InspectorPanel(viewportPanel, projectFile);
@@ -673,6 +645,10 @@ void EditorWindow::setupDocks() {
          .widget = inspectorPanel,
          .area = EditorDockArea::Right,
          .icon = styling::icon(styling::Icon::SlidersHorizontal, "#A1957D")});
+    if (hierarchyDock->dockAreaWidget() != nullptr) {
+        coreManager->addDockWidget(ads::BottomDockWidgetArea, inspectorDock,
+                                   hierarchyDock->dockAreaWidget());
+    }
 
     contentBrowser = new ContentBrowserPanel(projectFile);
     auto *contentDock = dockManager->addPanel(
@@ -726,11 +702,10 @@ void EditorWindow::setupDocks() {
             action->setShortcutContext(Qt::ApplicationShortcut);
         }
         windowMenu->addSeparator();
-        const QList<QPair<QString, int>> workspaceModes{
-            {"Scene", 0},
-            {"Shading", 1},
-            {"Post-Processing", 2},
-            {"Graphite", 3}};
+        const QList<QPair<QString, int>> workspaceModes{{"Scene", 0},
+                                                        {"Shading", 1},
+                                                        {"Post-Processing", 2},
+                                                        {"Graphite", 3}};
         for (const auto &[name, index] : workspaceModes) {
             auto *action = windowMenu->addAction(
                 QStringLiteral("Open %1 Workspace").arg(name), this,
@@ -742,8 +717,7 @@ void EditorWindow::setupDocks() {
                 });
             action->setIcon(
                 index == 0 ? styling::icon(styling::Icon::CubeFocus, "#7E929C")
-                : index == 1
-                    ? styling::icon(styling::Icon::Material, "#A1957D")
+                : index == 1 ? styling::icon(styling::Icon::Material, "#A1957D")
                 : index == 2
                     ? styling::icon(styling::Icon::FilmStrip, "#849589")
                     : styling::icon(styling::Icon::Palette, "#849589"));
@@ -813,43 +787,96 @@ void EditorWindow::setupWorkspaceBar() {
     bar->setObjectName("workspaceBar");
     bar->setMovable(false);
     bar->setFloatable(false);
-    bar->setIconSize(QSize(17, 17));
+    bar->setIconSize(QSize(18, 18));
     bar->setToolButtonStyle(Qt::ToolButtonTextBesideIcon);
     addToolBar(Qt::TopToolBarArea, bar);
 
     auto *identity = new QWidget(bar);
     identity->setObjectName("workspaceIdentity");
     auto *identityLayout = new QHBoxLayout(identity);
-    identityLayout->setContentsMargins(10, 0, 14, 0);
-    identityLayout->setSpacing(8);
+    identityLayout->setContentsMargins(10, 2, 16, 2);
+    identityLayout->setSpacing(9);
     auto *mark = new QLabel(identity);
     mark->setObjectName("workspaceMark");
-    mark->setPixmap(windowIcon().pixmap(22, 22));
-    auto *brand = new QLabel("ATLAS", identity);
+    mark->setPixmap(windowIcon().pixmap(24, 24));
+    auto *identityText = new QWidget(identity);
+    identityText->setObjectName("workspaceIdentityText");
+    auto *identityTextLayout = new QVBoxLayout(identityText);
+    identityTextLayout->setContentsMargins(0, 0, 0, 0);
+    identityTextLayout->setSpacing(0);
+    auto *brand = new QLabel("ATLAS ENGINE", identityText);
     brand->setObjectName("workspaceBrand");
-    auto *project = new QLabel(projectName, identity);
+    auto *project = new QLabel(projectName, identityText);
     project->setObjectName("workspaceProject");
+    identityTextLayout->addWidget(brand);
+    identityTextLayout->addWidget(project);
     identityLayout->addWidget(mark);
-    identityLayout->addWidget(brand);
-    identityLayout->addWidget(project);
+    identityLayout->addWidget(identityText);
     bar->addWidget(identity);
 
-    workspaceModeGroup = new QButtonGroup(bar);
+    auto *switcher = new QFrame(bar);
+    switcher->setObjectName("workspaceSwitcher");
+    auto *switcherLayout = new QHBoxLayout(switcher);
+    switcherLayout->setContentsMargins(3, 3, 3, 3);
+    switcherLayout->setSpacing(1);
+    workspaceModeGroup = new QButtonGroup(switcher);
     workspaceModeGroup->setExclusive(true);
-    auto addMode = [this, bar](const QString &text, styling::Icon icon,
-                               const QColor &color, int index,
-                               bool selected = false) {
-        auto *button = new QToolButton(bar);
+    bar->addWidget(switcher);
+
+    addToolBarBreak(Qt::TopToolBarArea);
+    auto *contextBar = new QToolBar("Context", this);
+    contextBar->setObjectName("workspaceContextBar");
+    contextBar->setMovable(false);
+    contextBar->setFloatable(false);
+    contextBar->setIconSize(QSize(15, 15));
+    contextBar->setToolButtonStyle(Qt::ToolButtonTextBesideIcon);
+    addToolBar(Qt::TopToolBarArea, contextBar);
+
+    auto *breadcrumb = new QWidget(contextBar);
+    breadcrumb->setObjectName("workspaceBreadcrumb");
+    auto *breadcrumbLayout = new QHBoxLayout(breadcrumb);
+    breadcrumbLayout->setContentsMargins(8, 0, 12, 0);
+    breadcrumbLayout->setSpacing(7);
+    auto *workspaceContextIcon = new QLabel(breadcrumb);
+    workspaceContextIcon->setObjectName("workspaceContextIcon");
+    workspaceContextIcon->setPixmap(
+        styling::icon(styling::Icon::CubeFocus, "#7E929C").pixmap(15, 15));
+    auto *workspaceContextTitle = new QLabel("Scene", breadcrumb);
+    workspaceContextTitle->setObjectName("workspaceContextTitle");
+    auto *workspaceContextPath = new QLabel("· Layout", breadcrumb);
+    workspaceContextPath->setObjectName("workspaceContextPath");
+    breadcrumbLayout->addWidget(workspaceContextIcon);
+    breadcrumbLayout->addWidget(workspaceContextTitle);
+    breadcrumbLayout->addWidget(workspaceContextPath);
+    contextBar->addWidget(breadcrumb);
+
+    const QStringList workspacePaths{"· Layout", "· Materials", "· Effects",
+                                     "· Interface"};
+    auto addMode = [this, switcher, switcherLayout, workspaceContextIcon,
+                    workspaceContextTitle, workspaceContextPath,
+                    workspacePaths](const QString &text, styling::Icon icon,
+                                    const QColor &color, int index,
+                                    bool selected = false) {
+        auto *button = new QToolButton(switcher);
         button->setObjectName("workspaceModeButton");
         button->setText(text);
         button->setIcon(styling::icon(icon, color));
         button->setToolButtonStyle(Qt::ToolButtonTextBesideIcon);
         button->setCheckable(true);
         button->setChecked(selected);
+        button->setProperty("workspacePath", workspacePaths.at(index));
         workspaceModeGroup->addButton(button, index);
-        bar->addWidget(button);
+        switcherLayout->addWidget(button);
         connect(button, &QToolButton::clicked, this,
-                [this, index] { activateWorkspace(index); });
+                [this, workspaceContextIcon, workspaceContextTitle,
+                 workspaceContextPath, workspacePaths, text, icon, color,
+                 index] {
+                    activateWorkspace(index);
+                    workspaceContextIcon->setPixmap(
+                        styling::icon(icon, color).pixmap(15, 15));
+                    workspaceContextTitle->setText(text);
+                    workspaceContextPath->setText(workspacePaths.at(index));
+                });
     };
     addMode("Scene", styling::Icon::CubeFocus, "#7E929C", 0, true);
     addMode("Shading", styling::Icon::Material, "#A1957D", 1);
@@ -860,9 +887,19 @@ void EditorWindow::setupWorkspaceBar() {
     spacer->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Preferred);
     bar->addWidget(spacer);
 
+    auto *commands = new QToolButton(bar);
+    commands->setObjectName("workspaceCommandButton");
+    commands->setIcon(styling::icon(styling::Icon::MagnifyingGlass, "#7E929C"));
+    commands->setText("Commands");
+    commands->setToolTip("Command Palette · Command Shift P");
+    bar->addWidget(commands);
+    connect(commands, &QToolButton::clicked, this,
+            &EditorWindow::showCommandPalette);
+
     auto *save = new QToolButton(bar);
     save->setObjectName("workspaceUtilityButton");
     save->setIcon(styling::icon(styling::Icon::FloppyDisk, "#A1957D"));
+    save->setText("Save");
     save->setToolTip("Save Scene");
     bar->addWidget(save);
     connect(save, &QToolButton::clicked, this, [this] {
@@ -877,6 +914,7 @@ void EditorWindow::setupWorkspaceBar() {
     auto *build = new QToolButton(bar);
     build->setObjectName("workspaceBuildButton");
     build->setIcon(styling::icon(styling::Icon::Package, "#A1957D"));
+    build->setText("Build");
     build->setToolTip("Build Project");
     bar->addWidget(build);
     connect(build, &QToolButton::clicked, this,
@@ -885,17 +923,57 @@ void EditorWindow::setupWorkspaceBar() {
     auto *launch = new QToolButton(bar);
     launch->setObjectName("workspaceLaunchButton");
     launch->setIcon(styling::icon(styling::Icon::RocketLaunch, "#849589"));
+    launch->setText("Run");
     launch->setToolTip("Run Project");
     bar->addWidget(launch);
     connect(launch, &QToolButton::clicked, this,
             [this] { runProjectCommand(false); });
 
+    auto *contextSpacer = new QWidget(contextBar);
+    contextSpacer->setSizePolicy(QSizePolicy::Expanding,
+                                 QSizePolicy::Preferred);
+    contextBar->addWidget(contextSpacer);
+    auto addPanelToggle = [this, contextBar](const QString &id,
+                                             const QString &text,
+                                             styling::Icon icon) {
+        ads::CDockWidget *dock = dockManager->panel(id);
+        if (dock == nullptr)
+            return;
+        auto *button = new QToolButton(contextBar);
+        button->setObjectName("workspacePanelButton");
+        button->setText(text);
+        button->setIcon(styling::icon(icon, "#8490A4"));
+        button->setCheckable(true);
+        button->setChecked(dock->isVisible());
+        contextBar->addWidget(button);
+        connect(button, &QToolButton::toggled, dock,
+                [dock](bool visible) { dock->toggleView(visible); });
+        connect(dock, &ads::CDockWidget::viewToggled, button,
+                [button](bool visible) {
+                    const QSignalBlocker blocker(button);
+                    button->setChecked(visible);
+                });
+    };
+    addPanelToggle("hierarchy", "Scene", styling::Icon::TreeStructure);
+    addPanelToggle("fileExplorer", "Assets", styling::Icon::FolderOpen);
+    addPanelToggle("inspector", "Inspector",
+                   styling::Icon::SlidersHorizontal);
+
     statusBar()->setObjectName("atlasStatusBar");
     statusBar()->showMessage("Ready");
-    auto *runtimeIcon = new QLabel(statusBar());
+    auto *runtimeStatus = new QWidget(statusBar());
+    runtimeStatus->setObjectName("statusRuntime");
+    auto *runtimeLayout = new QHBoxLayout(runtimeStatus);
+    runtimeLayout->setContentsMargins(5, 0, 7, 0);
+    runtimeLayout->setSpacing(4);
+    auto *runtimeIcon = new QLabel(runtimeStatus);
     runtimeIcon->setObjectName("statusRuntimeIcon");
     runtimeIcon->setPixmap(
         styling::icon(styling::Icon::Check, "#849589").pixmap(14, 14));
+    auto *runtimeText = new QLabel("Runtime ready", runtimeStatus);
+    runtimeText->setObjectName("statusRuntimeText");
+    runtimeLayout->addWidget(runtimeIcon);
+    runtimeLayout->addWidget(runtimeText);
     auto *renderer = new QLabel(statusBar());
     renderer->setObjectName("statusRenderer");
     const auto projectInfo = ProjectStore::projectInfo(projectFile);
@@ -903,17 +981,19 @@ void EditorWindow::setupWorkspaceBar() {
                                               : QStringLiteral("ATLAS"));
     auto *version = new QLabel(QStringLiteral(ATLAS_VERSION), statusBar());
     version->setObjectName("statusVersion");
-    statusBar()->addPermanentWidget(runtimeIcon);
+    statusBar()->addPermanentWidget(runtimeStatus);
     statusBar()->addPermanentWidget(renderer);
     statusBar()->addPermanentWidget(version);
     connect(
         viewportPanel, &ViewportPanel::runtimeAvailabilityChanged, this,
-        [this, runtimeIcon](bool available) {
+        [this, runtimeIcon, runtimeText](bool available) {
             runtimeIcon->setPixmap(
                 styling::icon(available ? styling::Icon::Check
                                         : styling::Icon::Warning,
                               available ? QColor("#849589") : QColor("#A1957D"))
                     .pixmap(14, 14));
+            runtimeText->setText(available ? "Runtime ready"
+                                           : "Runtime unavailable");
             statusBar()->showMessage(
                 available ? "Runtime ready" : "Runtime unavailable", 3000);
         });
@@ -925,8 +1005,15 @@ void EditorWindow::activateWorkspace(int index) {
         return;
     workspaceStack->setCurrentIndex(index);
     if (workspaceModeGroup != nullptr) {
-        if (auto *button = workspaceModeGroup->button(index))
+        if (auto *button = workspaceModeGroup->button(index)) {
             button->setChecked(true);
+            if (auto *icon = findChild<QLabel *>("workspaceContextIcon"))
+                icon->setPixmap(button->icon().pixmap(15, 15));
+            if (auto *title = findChild<QLabel *>("workspaceContextTitle"))
+                title->setText(button->text());
+            if (auto *path = findChild<QLabel *>("workspaceContextPath"))
+                path->setText(button->property("workspacePath").toString());
+        }
     }
     scheduleLayoutSave();
 }
@@ -1782,9 +1869,54 @@ bool EditorWindow::contentBrowserHasFocus() const {
            (focused == contentBrowser || contentBrowser->isAncestorOf(focused));
 }
 
+void EditorWindow::undoActiveEditor() {
+    if (auto *field = qobject_cast<QLineEdit *>(QApplication::focusWidget())) {
+        field->undo();
+    } else if (materialEditorPanel != nullptr &&
+               materialEditorPanel->isAncestorOf(QApplication::focusWidget())) {
+        materialEditorPanel->undo();
+    } else if (graphiteEditorPanel != nullptr &&
+               graphiteEditorPanel->isAncestorOf(QApplication::focusWidget())) {
+        graphiteEditorPanel->undo();
+    } else if (viewportPanel != nullptr) {
+        viewportPanel->undo();
+    }
+}
+
+void EditorWindow::redoActiveEditor() {
+    if (auto *field = qobject_cast<QLineEdit *>(QApplication::focusWidget())) {
+        field->redo();
+    } else if (materialEditorPanel != nullptr &&
+               materialEditorPanel->isAncestorOf(QApplication::focusWidget())) {
+        materialEditorPanel->redo();
+    } else if (graphiteEditorPanel != nullptr &&
+               graphiteEditorPanel->isAncestorOf(QApplication::focusWidget())) {
+        graphiteEditorPanel->redo();
+    } else if (viewportPanel != nullptr) {
+        viewportPanel->redo();
+    }
+}
+
 bool EditorWindow::eventFilter(QObject *watched, QEvent *event) {
+    if (event->type() == QEvent::Polish) {
+        if (auto *menu = qobject_cast<QMenu *>(watched)) {
+            menu->setAttribute(Qt::WA_TranslucentBackground);
+        } else if (auto *dialog = qobject_cast<QDialog *>(watched);
+                   dialog != nullptr &&
+                   dialog->windowFlags().testFlag(Qt::FramelessWindowHint)) {
+            dialog->setAttribute(Qt::WA_TranslucentBackground);
+        }
+    }
     if (event->type() == QEvent::KeyPress) {
         auto *key = static_cast<QKeyEvent *>(event);
+        if (!key->isAutoRepeat() && key->matches(QKeySequence::Undo)) {
+            undoActiveEditor();
+            return true;
+        }
+        if (!key->isAutoRepeat() && key->matches(QKeySequence::Redo)) {
+            redoActiveEditor();
+            return true;
+        }
         QWidget *focused = QApplication::focusWidget();
         const bool typing = qobject_cast<QLineEdit *>(focused) != nullptr;
         if (!typing && key->key() == Qt::Key_Tab &&

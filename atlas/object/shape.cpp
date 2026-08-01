@@ -224,7 +224,6 @@ CoreObject createPlane(Size2d size, Color color) {
     CoreObject plane;
     plane.attachVertices(vertices);
     plane.attachIndices({0, 1, 2, 2, 3, 0});
-    plane.rotate({-90.0, 0.0, 0.0});
     plane.material.albedo = color;
     return plane;
 }

@@ -299,6 +299,31 @@ glm::vec3 editorScaleAxisVector(GameObject *object, int axis) {
     return glm::normalize(object->getRotation().toGlmQuat() * localAxis);
 }
 
+int editorScaleComponent(GameObject *object, int axis, bool localSpace) {
+    if (object == nullptr || localSpace)
+        return axis;
+    const glm::vec3 worldAxis = editorAxisVector(axis);
+    int component = axis;
+    float bestAlignment = -1.0f;
+    for (int localAxis = 1; localAxis <= 3; ++localAxis) {
+        const float alignment = std::abs(
+            glm::dot(editorScaleAxisVector(object, localAxis), worldAxis));
+        if (alignment > bestAlignment) {
+            bestAlignment = alignment;
+            component = localAxis;
+        }
+    }
+    return component;
+}
+
+float clampedEditorScale(float value) {
+    if (!std::isfinite(value))
+        return 1.0f;
+    if (std::abs(value) >= 0.001f)
+        return value;
+    return std::signbit(value) ? -0.001f : 0.001f;
+}
+
 void ensureEditorLineObject(std::unique_ptr<CoreObject> &object,
                             bool &initialized,
                             const std::vector<CoreVertex> &vertices) {
@@ -2033,10 +2058,10 @@ void Window::resize(int width, int height, float scale) {
 
     device->getDefaultFramebuffer()->setViewport(0, 0, pixelWidth, pixelHeight);
     setViewportState(0, 0, pixelWidth, pixelHeight);
-    const int targetWidth = std::max(
-        1, static_cast<int>(pixelWidth * this->getRenderScale()));
-    const int targetHeight = std::max(
-        1, static_cast<int>(pixelHeight * this->getRenderScale()));
+    const int targetWidth =
+        std::max(1, static_cast<int>(pixelWidth * this->getRenderScale()));
+    const int targetHeight =
+        std::max(1, static_cast<int>(pixelHeight * this->getRenderScale()));
     for (RenderTarget *target : renderTargets) {
         if (target != nullptr &&
             (target->type == RenderTargetType::Scene ||
@@ -2047,9 +2072,8 @@ void Window::resize(int width, int height, float scale) {
         }
     }
     const std::array<std::shared_ptr<RenderTarget> *, 7> internalTargets = {
-        &gBuffer,          &ssaoBuffer,    &ssaoBlurBuffer,
-        &volumetricBuffer, &lightBuffer,   &ssrFramebuffer,
-        &ssrHistoryFramebuffer};
+        &gBuffer,     &ssaoBuffer,     &ssaoBlurBuffer,       &volumetricBuffer,
+        &lightBuffer, &ssrFramebuffer, &ssrHistoryFramebuffer};
     for (auto *target : internalTargets) {
         if (target != nullptr && *target != nullptr) {
             (*target)->resize(*this);
@@ -2438,12 +2462,7 @@ void Window::editorScrollEvent(float delta, float scale) {
     }
 
     applyEditorZoomDelta(scrollAmount);
-    if (usePathTracing) {
-        editorZoomVelocity = 0.0f;
-    } else {
-        editorZoomVelocity += scrollAmount * 0.01f;
-        editorZoomVelocity = std::clamp(editorZoomVelocity, -80.0f, 80.0f);
-    }
+    editorZoomVelocity = 0.0f;
 }
 
 void Window::editorKeyEvent(int key, bool pressed) {
@@ -2532,11 +2551,11 @@ int Window::hitTestEditorGizmoAxis(float x, float y, float scale) {
     glm::mat4 viewProjection =
         calculateProjectionMatrix() * camera->calculateViewMatrix();
     glm::vec2 pointer(x, y);
-    glm::vec3 center = (boundsMin + boundsMax) * 0.5f;
+    glm::vec3 center = selectedEditorObject->getPosition().toGlm();
     float cameraDistance = glm::length(camera->position.toGlm() - center);
     float gizmoScale = std::max(1.2f, cameraDistance * 0.16f);
     float axisLength = gizmoScale * 1.35f;
-    float hitPadding = std::max(28.0f, 40.0f / effectiveScale);
+    float hitPadding = std::max(10.0f, 16.0f / effectiveScale);
     int bestAxis = 0;
     float bestDistance = hitPadding;
 
@@ -2557,8 +2576,17 @@ int Window::hitTestEditorGizmoAxis(float x, float y, float scale) {
                                       depth)) {
                 continue;
             }
+            const glm::vec2 segment = to - from;
+            const float lengthSquared = glm::dot(segment, segment);
+            if (lengthSquared < 0.000001f)
+                continue;
+            const float position = glm::clamp(
+                glm::dot(pointer - from, segment) / lengthSquared, 0.0f, 1.0f);
+            if (position < 0.14f)
+                continue;
             float distance = distanceToScreenSegment(pointer, from, to);
-            distance = std::min(distance, distanceToScreenPoint(pointer, to));
+            distance =
+                std::min(distance, distanceToScreenPoint(pointer, to) * 0.72f);
             if (distance < bestDistance) {
                 bestDistance = distance;
                 bestAxis = axis;
@@ -2757,15 +2785,16 @@ void Window::updateEditorDrag(float x, float y, float scale) {
         if (editorTransformSnapping)
             angle = std::round(angle / editorTransformSnapIncrement) *
                     editorTransformSnapIncrement;
-        Rotation3d rotation = editorDragStartRotation;
-        if (editorActiveGizmoAxis == 1) {
-            rotation.pitch = editorDragStartRotation.pitch + angle;
-        } else if (editorActiveGizmoAxis == 2) {
-            rotation.yaw = editorDragStartRotation.yaw + angle;
-        } else if (editorActiveGizmoAxis == 3) {
-            rotation.roll = editorDragStartRotation.roll + angle;
-        }
-        selectedEditorObject->setRotation(rotation);
+        const glm::quat start =
+            glm::normalize(editorDragStartRotation.toGlmQuat());
+        const glm::vec3 rotationAxis =
+            editorAxisVector(editorActiveGizmoAxis);
+        const glm::quat delta =
+            glm::angleAxis(glm::radians(angle), rotationAxis);
+        const glm::quat next = editorLocalTransformSpace ? start * delta
+                                                        : delta * start;
+        selectedEditorObject->setRotation(
+            Rotation3d::fromGlmQuat(glm::normalize(next)));
     } else if (editorControlMode == EditorControlMode::Scale) {
         float viewWidth = std::max(1.0f, static_cast<float>(width));
         float viewHeight = std::max(1.0f, static_cast<float>(height));
@@ -2792,16 +2821,18 @@ void Window::updateEditorDrag(float x, float y, float scale) {
             scaleDelta = (dx + dy) * 0.01f;
         }
         Scale3d nextScale = editorDragStartObjectScale;
-        if (editorActiveGizmoAxis == 1) {
+        const int component =
+            editorScaleComponent(selectedEditorObject, editorActiveGizmoAxis,
+                                 editorLocalTransformSpace);
+        if (component == 1)
             nextScale.x =
-                std::max(0.05f, editorDragStartObjectScale.x + scaleDelta);
-        } else if (editorActiveGizmoAxis == 2) {
+                clampedEditorScale(editorDragStartObjectScale.x + scaleDelta);
+        else if (component == 2)
             nextScale.y =
-                std::max(0.05f, editorDragStartObjectScale.y + scaleDelta);
-        } else if (editorActiveGizmoAxis == 3) {
+                clampedEditorScale(editorDragStartObjectScale.y + scaleDelta);
+        else if (component == 3)
             nextScale.z =
-                std::max(0.05f, editorDragStartObjectScale.z + scaleDelta);
-        }
+                clampedEditorScale(editorDragStartObjectScale.z + scaleDelta);
         if (editorTransformSnapping) {
             nextScale.x =
                 std::round(nextScale.x / editorTransformSnapIncrement) *
@@ -2812,9 +2843,9 @@ void Window::updateEditorDrag(float x, float y, float scale) {
             nextScale.z =
                 std::round(nextScale.z / editorTransformSnapIncrement) *
                 editorTransformSnapIncrement;
-            nextScale.x = std::max(0.001f, nextScale.x);
-            nextScale.y = std::max(0.001f, nextScale.y);
-            nextScale.z = std::max(0.001f, nextScale.z);
+            nextScale.x = clampedEditorScale(nextScale.x);
+            nextScale.y = clampedEditorScale(nextScale.y);
+            nextScale.z = clampedEditorScale(nextScale.z);
         }
         selectedEditorObject->setScale(nextScale);
     }
@@ -2910,12 +2941,20 @@ void Window::updateEditorKeyboardTransform(float x, float y, float scale) {
     } else if (editorControlMode == EditorControlMode::Scale) {
         const float amount = (dx - dy) * 0.01f;
         Scale3d next = editorDragStartObjectScale;
-        if ((axes & 1) != 0)
-            next.x = std::max(0.05f, next.x + amount);
-        if ((axes & 2) != 0)
-            next.y = std::max(0.05f, next.y + amount);
-        if ((axes & 4) != 0)
-            next.z = std::max(0.05f, next.z + amount);
+        std::array<bool, 3> components{};
+        for (int axisIndex = 0; axisIndex < 3; ++axisIndex) {
+            if ((axes & (1 << axisIndex)) == 0)
+                continue;
+            const int component = editorScaleComponent(
+                selectedEditorObject, axisIndex + 1, editorLocalTransformSpace);
+            components[static_cast<std::size_t>(component - 1)] = true;
+        }
+        if (components[0])
+            next.x = clampedEditorScale(next.x + amount);
+        if (components[1])
+            next.y = clampedEditorScale(next.y + amount);
+        if (components[2])
+            next.z = clampedEditorScale(next.z + amount);
         if (editorTransformSnapping) {
             next.x = std::round(next.x / editorTransformSnapIncrement) *
                      editorTransformSnapIncrement;
@@ -2923,9 +2962,9 @@ void Window::updateEditorKeyboardTransform(float x, float y, float scale) {
                      editorTransformSnapIncrement;
             next.z = std::round(next.z / editorTransformSnapIncrement) *
                      editorTransformSnapIncrement;
-            next.x = std::max(0.001f, next.x);
-            next.y = std::max(0.001f, next.y);
-            next.z = std::max(0.001f, next.z);
+            next.x = clampedEditorScale(next.x);
+            next.y = clampedEditorScale(next.y);
+            next.z = clampedEditorScale(next.z);
         }
         selectedEditorObject->setScale(next);
     } else if (editorControlMode == EditorControlMode::Rotate) {
@@ -2933,14 +2972,21 @@ void Window::updateEditorKeyboardTransform(float x, float y, float scale) {
         if (editorTransformSnapping)
             angle = std::round(angle / editorTransformSnapIncrement) *
                     editorTransformSnapIncrement;
-        Rotation3d next = editorDragStartRotation;
-        if ((axes & 1) != 0)
-            next.pitch += angle;
-        if ((axes & 2) != 0)
-            next.yaw += angle;
-        if ((axes & 4) != 0)
-            next.roll += angle;
-        selectedEditorObject->setRotation(next);
+        const glm::quat start =
+            glm::normalize(editorDragStartRotation.toGlmQuat());
+        glm::quat delta(1.0f, 0.0f, 0.0f, 0.0f);
+        for (int axisIndex = 0; axisIndex < 3; ++axisIndex) {
+            if ((axes & (1 << axisIndex)) == 0)
+                continue;
+            const glm::quat axisDelta = glm::angleAxis(
+                glm::radians(angle), editorAxisVector(axisIndex + 1));
+            delta = editorLocalTransformSpace ? delta * axisDelta
+                                              : axisDelta * delta;
+        }
+        const glm::quat next = editorLocalTransformSpace ? start * delta
+                                                        : delta * start;
+        selectedEditorObject->setRotation(
+            Rotation3d::fromGlmQuat(glm::normalize(next)));
     }
     shadowMapsDirty = true;
     ssaoMapsDirty = true;
@@ -3066,10 +3112,12 @@ void Window::applyEditorZoomDelta(float scrollAmount) {
         toPivot = glm::normalize(toPivot);
     }
 
+    const float fov = camera->fov;
     float zoomFactor = std::pow(0.9f, scrollAmount);
     float nextDistance = std::clamp(distance * zoomFactor, 0.2f, 1000.0f);
     camera->position = Position3d::fromGlm(pivot - toPivot * nextDistance);
     camera->lookAt(Position3d::fromGlm(pivot));
+    camera->fov = fov;
     editorOrbitPivot = Position3d::fromGlm(pivot);
     editorOrbitDistance = nextDistance;
     editorOrbitPivotInitialized = true;

@@ -42,13 +42,9 @@ int main(int argc, char **argv) {
         qWarning() << "Failed to load Manrope";
     }
 
-    const QStringList manropeFamilies =
-        QFontDatabase::applicationFontFamilies(manropeFont);
-    QFont applicationFont = manropeFamilies.isEmpty()
-                                ? QFontDatabase::systemFont(
-                                      QFontDatabase::GeneralFont)
-                                : QFont(manropeFamilies.first());
-    applicationFont.setPointSizeF(11.0);
+    QFont applicationFont =
+        QFontDatabase::systemFont(QFontDatabase::GeneralFont);
+    applicationFont.setPointSizeF(10.5);
     app.setFont(applicationFont);
     styling::loadIconFont();
 
@@ -85,19 +81,19 @@ int main(int argc, char **argv) {
                     0, splash, [projectBrowser, projectFile, splash] {
                         auto *editor = new EditorWindow(projectFile);
                         editor->setAttribute(Qt::WA_DeleteOnClose);
-                        QObject::connect(
-                            editor, &EditorWindow::startupStatusChanged,
-                            splash, &SplashScreen::setStatus);
-                        QObject::connect(
-                            editor, &EditorWindow::startupReady, splash,
-                            [projectBrowser, editor, splash](bool,
-                                                             const QString &) {
-                                splash->finish();
-                                splash->deleteLater();
-                                projectBrowser->deleteLater();
-                                editor->raise();
-                                editor->activateWindow();
-                            });
+                        QObject::connect(editor,
+                                         &EditorWindow::startupStatusChanged,
+                                         splash, &SplashScreen::setStatus);
+                        QObject::connect(editor, &EditorWindow::startupReady,
+                                         splash,
+                                         [projectBrowser, editor,
+                                          splash](bool, const QString &) {
+                                             splash->finish();
+                                             splash->deleteLater();
+                                             projectBrowser->deleteLater();
+                                             editor->raise();
+                                             editor->activateWindow();
+                                         });
                         editor->show();
                     });
             });
