@@ -7171,9 +7171,9 @@ void resolveMaterialParameters(Material mat, float2 uv, uint textureCount,
     metallic = mat.metallic;
     roughness = mat.roughness;
     ao = mat.ao;
-    emissive = clampLuminance(float3(mat.emissiveColor) *
-                                  min(max(mat.emissiveIntensity, 0.0), 8.0),
-                              8.0);
+    emissive = max(float3(mat.emissiveColor) *
+                       max(mat.emissiveIntensity, 0.0),
+                   float3(0.0));
 
     outIor = max(mat.ior, 1.0);
     outTransmittance = clamp(mat.transmittance, 0.0, 1.0);
@@ -7206,8 +7206,8 @@ void resolveMaterialParameters(Material mat, float2 uv, uint textureCount,
         roughness *= clamp(roughnessValue, 0.0, 1.0);
     }
     if (mat.aoTextureIndex >= 0 && uint(mat.aoTextureIndex) < textureCount) {
-        ao *= clamp(sampleM)",
-R"(aterialTexture(mat.aoTextureIndex, uv,
+        ao *= clamp(sampleMaterialTexture(mat.aoTextureIndex, )",
+R"(uv,
                                           PT_MATERIAL_TEXTURE_ARGS)
                         .x,
                     0.0, 1.0);
@@ -7395,8 +7395,8 @@ float G_Smith(float NdotV, float NdotL, float roughness) {
     float r = roughness + 1.0;
     float k = (r * r) / 8.0;
     float gV = NdotV / (NdotV * (1.0 - k) + k);
-    )",
-R"(float gL = NdotL / (NdotL * (1.0 - k) + k);
+    float gL = NdotL / (NdotL * (1.0 - )",
+R"(k) + k);
     return gV * gL;
 }
 
@@ -7578,9 +7578,9 @@ float3 evalEmissiveTriangleLighting(
 
 float3 evalDirectLightingPBR(intersector<triangle_data> isect,
                              primitive_acceleration_structure sceneAS, float3 P,
-                             float3 N, fl)",
-R"(oat3 Ng, float3 V, float3 albedo,
-                             float metallic, float roughness, float reflectivity,
+                             float3 N, float3 Ng, float3 V, float3 albedo,
+ )",
+R"(                            float metallic, float roughness, float reflectivity,
                              float ior, float transmittance, float sssStrength,
                              float sssThickness,
                              thread uint &rng,
@@ -7731,9 +7731,9 @@ float3 sampleRadiance(uint2 gid, uint sampleIndex, uint w,
                       PT_MATERIAL_TEXTURE_PARAMS, texturecube<float> skybox,
                       thread float3 &primaryAlbedo,
                       thread float3 &primaryNormal,
-                      thread f)",
-R"(loat3 &primaryPosition,
-                      thread float &primaryDepth,
+                      thread float3 &primaryPosition,
+           )",
+R"(           thread float &primaryDepth,
                       thread float &primaryRoughness,
                       thread float &primaryHitDistance,
                       thread uint &primaryObjectId) {
@@ -7906,9 +7906,9 @@ R"(loat3 &primaryPosition,
         float diffuseProb = (1.0 - metallic) * (1.0 - transmittance) *
                             (1.0 - fresnelProbability);
         float eta = frontFace ? 1.0 / ior : ior;
-        float3 idealRefractedDi)",
-R"(rection = refract(-V, N, eta);
-        bool totalInternalReflection =
+        float3 idealRefractedDirection = refract(-V, N, eta);
+    )",
+R"(    bool totalInternalReflection =
             dot(idealRefractedDirection, idealRefractedDirection) < 1e-8;
         if (totalInternalReflection) {
             specProb += transmitProb;
@@ -8077,9 +8077,9 @@ R"(rection = refract(-V, N, eta);
         if (depth >= 2) {
             float survival = clamp(max(throughput.x,
                                        max(throughput.y, throughput.z)),
-                  )",
-R"(                 0.05, 0.95);
-            if (rand(rng) > survival) {
+                                   0.05, 0.95);
+     )",
+R"(       if (rand(rng) > survival) {
                 break;
             }
             throughput /= survival;
@@ -8104,10 +8104,11 @@ kernel void main0(texture2d<float, access::write> outTex [[texture(0)]],
                   texture2d<float, access::write> albedoRoughnessTex [[texture(3)]],
                   texture2d<float, access::write> normalDepthTex [[texture(4)]],
                   texture2d<float, access::write> motionObjectTex [[texture(5)]],
-                  texture2d<float, access::read_write> momentsHitTex [[texture(6)]],
+                  texture2d<float, access::read> historyMomentsTex [[texture(6)]],
                   texture2d<float, access::read> historyGuideTex [[texture(7)]],
                   texture2d<float, access::write> historyOutTex [[texture(8)]],
                   texture2d<float, access::write> historyGuideOutTex [[texture(9)]],
+                  texture2d<float, access::write> historyMomentsOutTex [[texture(10)]],
                   primitive_acceleration_structure sceneAS [[buffer(0)]],
                   constant CameraUniforms &cam [[buffer(1)]],
                   constant Material *materials [[buffer(2)]],
@@ -8225,7 +8226,7 @@ kernel void main0(texture2d<float, access::write> outTex [[texture(0)]],
     }
     float4 prevColor = historyTex.read(previousPixel);
     float4 previousGuide = historyGuideTex.read(previousPixel);
-    float4 previousMoments = momentsHitTex.read(gid);
+    float4 previousMoments = historyMomentsTex.read(previousPixel);
     bool historyValid = sceneData.frameIndex > 0 && prevColor.w > 0.0 &&
                         abs(previousGuide.z - primaryDepth) <
                             max(0.02, primaryDepth * 0.01) &&
@@ -8255,10 +8256,10 @@ kernel void main0(texture2d<float, access::write> outTex [[texture(0)]],
     float accumulationDenominator = max(previousWeight + 1.0, 1.0);
     float3 accum =
         (prevColor.xyz * previousWeight + color) / accumulationDenominator;
-    float moment = luminance(color);
+  )",
+R"(  float moment = luminance(color);
     float accumulatedMoment =
-)",
-R"(        (previousMoments.x * previousWeight + moment) /
+        (previousMoments.x * previousWeight + moment) /
         accumulationDenominator;
     float accumulatedMomentSquared =
         (previousMoments.y * previousWeight + moment * moment) /
@@ -8291,10 +8292,10 @@ R"(        (previousMoments.x * previousWeight + moment) /
                                      pixel);
             normalDepthTex.write(float4(primaryNormal, primaryDepth), pixel);
             motionObjectTex.write(float4(motion, objectIdValue, 1.0), pixel);
-            momentsHitTex.write(float4(accumulatedMoment,
-                                       accumulatedMomentSquared, variance,
-                                       primaryHitDistance),
-                                pixel);
+            historyMomentsOutTex.write(
+                float4(accumulatedMoment, accumulatedMomentSquared, variance,
+                       primaryHitDistance),
+                pixel);
             outTex.write(float4(accum, 1.0), pixel);
             brightTex.write(float4(brightColor, 1.0), pixel);
         }

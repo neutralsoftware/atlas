@@ -4,23 +4,23 @@
         "automaticMoving": false,
         "controllerLookSensitivity": 180.0,
         "farClip": 1000.0,
-        "focusDepth": 20.0,
-        "focusRange": 10.0,
-        "fov": 60.0,
+        "focusDepth": 8.5,
+        "focusRange": 4.0,
+        "fov": 45.0,
         "lookSmoothness": 0.15000000596046448,
         "mouseSensitivity": 0.10000000149011612,
         "movementSpeed": 2.0,
-        "nearClip": 0.5,
+        "nearClip": 0.1,
         "orthoSize": 5.0,
         "orthographic": false,
         "position": [
-            0.4004000127315521,
-            1.9144999980926514,
-            -4.536300182342529
+            0.0,
+            2.5,
+            -7.5
         ],
         "target": [
             0.0,
-            0.5273000001907349,
+            2.25,
             1.0
         ]
     },
@@ -38,72 +38,82 @@
     },
     "id": "main_scene",
     "lights": [],
-    "name": "Main Scene",
+    "name": "Cornell Box",
     "objects": [
         {
             "components": [],
             "id": 157052340,
             "material": "assets/materials/BoxWhite.amat",
             "name": "Floor",
-            "position": [
-                -0.31472718715667725,
-                -0.15528558194637299,
-                0.15461790561676025
-            ],
-            "rotation": [
-                0.0,
-                0.0,
-                0.0
-            ],
-            "scale": [
-                4.174081802368164,
-                0.05000000074505806,
-                4.174081802368164
-            ],
+            "position": [0.0, -0.05, 1.0],
+            "rotation": [0.0, 0.0, 0.0],
+            "scale": [5.5, 0.1, 5.5],
             "solid_type": "cube",
             "type": "solid"
         },
         {
             "components": [],
-            "material": "assets/materials/BoxRed.amat",
-            "name": "Floor 2",
-            "position": [
-                -0.3160567581653595,
-                1.5384644269943237,
-                2.2118043899536133
-            ],
-            "rotation": [
-                -89.787841796875,
-                0.0,
-                0.0
-            ],
-            "scale": [
-                4.174081802368164,
-                0.05000000074505806,
-                7.269232749938965
-            ],
-            "solid_type": "cube",
-            "type": "solid"
-        },
-        {
-            "components": [],
+            "id": 157052341,
             "material": "assets/materials/BoxWhite.amat",
-            "name": "Floor 3",
-            "position": [
-                -0.2613140940666199,
-                5.090397834777832,
-                0.2858502268791199
-            ],
-            "rotation": [
-                0.0,
-                0.0,
-                0.0
-            ],
-            "scale": [
-                4.174081802368164,
-                0.05000000074505806,
-                4.174081802368164
-            ],
+            "name": "Ceiling",
+            "position": [0.0, 5.05, 1.0],
+            "rotation": [0.0, 0.0, 0.0],
+            "scale": [5.5, 0.1, 5.5],
+            "solid_type": "cube",
+            "type": "solid"
+        },
+        {
+            "components": [],
+            "id": 157052342,
+            "material": "assets/materials/BoxWhite.amat",
+            "name": "Back Wall",
+            "position": [0.0, 2.5, 3.75],
+            "rotation": [0.0, 0.0, 0.0],
+            "scale": [5.5, 5.0, 0.1],
+            "solid_type": "cube",
+            "type": "solid"
+        },
+        {
+            "components": [],
+            "id": 157052343,
+            "material": "assets/materials/BoxGreen.amat",
+            "name": "Left Wall",
+            "position": [-2.75, 2.5, 1.0],
+            "rotation": [0.0, 0.0, 0.0],
+            "scale": [0.1, 5.0, 5.5],
+            "solid_type": "cube",
+            "type": "solid"
+        },
+        {
+            "components": [],
+            "id": 157052344,
+            "material": "assets/materials/BoxRed.amat",
+            "name": "Right Wall",
+            "position": [2.75, 2.5, 1.0],
+            "rotation": [0.0, 0.0, 0.0],
+            "scale": [0.1, 5.0, 5.5],
+            "solid_type": "cube",
+            "type": "solid"
+        },
+        {
+            "components": [],
+            "id": 157052345,
+            "material": "assets/materials/BoxWhite.amat",
+            "name": "Short Box",
+            "position": [-1.15, 0.75, 2.0],
+            "rotation": [0.0, -18.0, 0.0],
+            "scale": [1.5, 1.5, 1.5],
+            "solid_type": "cube",
+            "type": "solid"
+        },
+        {
+            "components": [],
+            "id": 157052346,
+            "material": "assets/materials/BoxWhite.amat",
+            "name": "Tall Box",
+            "position": [1.0, 1.4, 1.65],
+            "rotation": [0.0, 15.0, 0.0],
+            "scale": [1.4, 2.8, 1.4],
             "solid_type": "cube",
             "type": "solid"
         },
@@ -111,22 +121,10 @@
             "components": [],
             "id": 6739391,
             "material": "assets/materials/Glass.amat",
-            "name": "Sphere",
-            "position": [
-                -0.22421985864639282,
-                1.5384645462036133,
-                0.5111536979675293
-            ],
-            "rotation": [
-                0.0,
-                0.0,
-                0.0
-            ],
-            "scale": [
-                1.0,
-                1.0,
-                1.0
-            ],
+            "name": "Glass Sphere",
+            "position": [-0.7, 1.0, 0.05],
+            "rotation": [0.0, 0.0, 0.0],
+            "scale": [1.1, 1.1, 1.1],
             "solid_type": "sphere",
             "type": "solid"
         },
@@ -134,22 +132,10 @@
             "components": [],
             "id": 2097299432,
             "material": "assets/materials/Emissive Ball.amat",
-            "name": "Plane",
-            "position": [
-                0.0,
-                2.497310161590576,
-                -5.3531646728515625
-            ],
-            "rotation": [
-                20.657730102539063,
-                0.0,
-                0.0
-            ],
-            "scale": [
-                3.9725027084350586,
-                2.9564456939697266,
-                3.064767360687256
-            ],
+            "name": "Ceiling Light",
+            "position": [0.0, 4.92, 1.0],
+            "rotation": [90.0, 0.0, 0.0],
+            "scale": [2.0, 1.5, 1.0],
             "solid_type": "plane",
             "type": "solid"
         }

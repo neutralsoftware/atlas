@@ -129,7 +129,8 @@ class PathTracing {
     std::array<std::shared_ptr<Texture>, 2> denoiseTextures;
     std::array<std::shared_ptr<Texture>, 2> pathTracingHistoryTextures;
     std::array<std::shared_ptr<Texture>, 2> pathTracingHistoryGuides;
-    std::array<std::shared_ptr<Texture>, 4> pathTracingAovTextures;
+    std::array<std::shared_ptr<Texture>, 2> pathTracingHistoryMoments;
+    std::array<std::shared_ptr<Texture>, 3> pathTracingAovTextures;
     std::vector<uint32_t> cachedBLASPrimitiveOffsets;
     std::vector<CoreObject *> cachedObjects;
     std::vector<CoreObject *> cachedSceneObjects;

@@ -1,9 +1,9 @@
 {
     "material": {
         "albedo": [
-            0.8,
-            0.8,
-            0.8,
+            1,
+            1,
+            1,
             1
         ],
         "ao": 1,
@@ -18,7 +18,7 @@
         "metallic": 0,
         "normalMapStrength": 1,
         "reflectivity": 0.5,
-        "roughness": 0.5,
+        "roughness": 0.02,
         "textureOffset": [
             0,
             0

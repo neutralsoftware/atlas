@@ -549,9 +549,9 @@ void resolveMaterialParameters(Material mat, float2 uv, uint textureCount,
     metallic = mat.metallic;
     roughness = mat.roughness;
     ao = mat.ao;
-    emissive = clampLuminance(float3(mat.emissiveColor) *
-                                  min(max(mat.emissiveIntensity, 0.0), 8.0),
-                              8.0);
+    emissive = max(float3(mat.emissiveColor) *
+                       max(mat.emissiveIntensity, 0.0),
+                   float3(0.0));
 
     outIor = max(mat.ior, 1.0);
     outTransmittance = clamp(mat.transmittance, 0.0, 1.0);
@@ -1476,10 +1476,11 @@ kernel void main0(texture2d<float, access::write> outTex [[texture(0)]],
                   texture2d<float, access::write> albedoRoughnessTex [[texture(3)]],
                   texture2d<float, access::write> normalDepthTex [[texture(4)]],
                   texture2d<float, access::write> motionObjectTex [[texture(5)]],
-                  texture2d<float, access::read_write> momentsHitTex [[texture(6)]],
+                  texture2d<float, access::read> historyMomentsTex [[texture(6)]],
                   texture2d<float, access::read> historyGuideTex [[texture(7)]],
                   texture2d<float, access::write> historyOutTex [[texture(8)]],
                   texture2d<float, access::write> historyGuideOutTex [[texture(9)]],
+                  texture2d<float, access::write> historyMomentsOutTex [[texture(10)]],
                   primitive_acceleration_structure sceneAS [[buffer(0)]],
                   constant CameraUniforms &cam [[buffer(1)]],
                   constant Material *materials [[buffer(2)]],
@@ -1597,7 +1598,7 @@ kernel void main0(texture2d<float, access::write> outTex [[texture(0)]],
     }
     float4 prevColor = historyTex.read(previousPixel);
     float4 previousGuide = historyGuideTex.read(previousPixel);
-    float4 previousMoments = momentsHitTex.read(gid);
+    float4 previousMoments = historyMomentsTex.read(previousPixel);
     bool historyValid = sceneData.frameIndex > 0 && prevColor.w > 0.0 &&
                         abs(previousGuide.z - primaryDepth) <
                             max(0.02, primaryDepth * 0.01) &&
@@ -1662,10 +1663,10 @@ kernel void main0(texture2d<float, access::write> outTex [[texture(0)]],
                                      pixel);
             normalDepthTex.write(float4(primaryNormal, primaryDepth), pixel);
             motionObjectTex.write(float4(motion, objectIdValue, 1.0), pixel);
-            momentsHitTex.write(float4(accumulatedMoment,
-                                       accumulatedMomentSquared, variance,
-                                       primaryHitDistance),
-                                pixel);
+            historyMomentsOutTex.write(
+                float4(accumulatedMoment, accumulatedMomentSquared, variance,
+                       primaryHitDistance),
+                pixel);
             outTex.write(float4(accum, 1.0), pixel);
             brightTex.write(float4(brightColor, 1.0), pixel);
         }

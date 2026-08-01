@@ -249,6 +249,11 @@ void photon::PathTracing::init() {
             outputWidth, outputHeight, opal::TextureFormat::Rgba16F,
             opal::TextureDataFormat::Rgba, TextureType::Color));
     }
+    for (auto &texture : pathTracingHistoryMoments) {
+        texture = std::make_shared<Texture>(Texture::create(
+            outputWidth, outputHeight, opal::TextureFormat::Rgba16F,
+            opal::TextureDataFormat::Rgba, TextureType::Color));
+    }
     for (auto &texture : denoiseTextures) {
         texture = std::make_shared<Texture>(Texture::create(
             outputWidth, outputHeight, opal::TextureFormat::Rgba16F,
@@ -282,6 +287,11 @@ void photon::PathTracing::resizeOutput(int width, int height) {
             opal::TextureDataFormat::Rgba, TextureType::Color));
     }
     for (auto &texture : pathTracingHistoryGuides) {
+        texture = std::make_shared<Texture>(Texture::create(
+            outputWidth, outputHeight, opal::TextureFormat::Rgba16F,
+            opal::TextureDataFormat::Rgba, TextureType::Color));
+    }
+    for (auto &texture : pathTracingHistoryMoments) {
         texture = std::make_shared<Texture>(Texture::create(
             outputWidth, outputHeight, opal::TextureFormat::Rgba16F,
             opal::TextureDataFormat::Rgba, TextureType::Color));
@@ -1191,8 +1201,9 @@ bool photon::PathTracing::render(
                                      pathTracingAovTextures[1]->texture, 4);
     pathTracingPipeline->bindTexture("motionObjectTex",
                                      pathTracingAovTextures[2]->texture, 5);
-    pathTracingPipeline->bindTexture("momentsHitTex",
-                                     pathTracingAovTextures[3]->texture, 6);
+    pathTracingPipeline->bindTexture(
+        "historyMomentsTex",
+        pathTracingHistoryMoments[historyReadIndex]->texture, 6);
     pathTracingPipeline->bindTexture("historyGuideTex",
                                      pathTracingHistoryGuides[historyReadIndex]
                                          ->texture,
@@ -1203,6 +1214,9 @@ bool photon::PathTracing::render(
     pathTracingPipeline->bindTexture(
         "historyGuideOutTex",
         pathTracingHistoryGuides[historyWriteIndex]->texture, 9);
+    pathTracingPipeline->bindTexture(
+        "historyMomentsOutTex",
+        pathTracingHistoryMoments[historyWriteIndex]->texture, 10);
 
     static std::shared_ptr<opal::Texture> fallbackSkyboxTexture = nullptr;
     if (fallbackSkyboxTexture == nullptr) {
@@ -1329,7 +1343,8 @@ bool photon::PathTracing::render(
                                              pathTracingAovTextures[0]->texture,
                                              4);
             pathDenoisePipeline->bindTexture(
-                "momentsTexture", pathTracingAovTextures[3]->texture, 5);
+                "momentsTexture",
+                pathTracingHistoryMoments[historyReadIndex]->texture, 5);
             pathDenoisePipeline->setUniform1i("parameters.stepWidth",
                                               denoiseSteps[pass]);
             commandBuffer->dispatch(outputWidth, outputHeight, 1);

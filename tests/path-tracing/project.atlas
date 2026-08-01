@@ -13,8 +13,14 @@ icon = "none"
 supported_platforms = "all"
 
 [renderer]
+accumulation_frames = 512
 default = "pathtracing"
+denoising = true
 global_illumination = false
+max_bounces = 8
+samples_per_pixel = 4
+upscaling_ratio = 0.67
+use_upscaling = true
 
 [window]
 dimensions = [1280, 720]
