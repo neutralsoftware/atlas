@@ -96,6 +96,20 @@ struct AreaLight {
     float twoSided;
 };
 
+struct EmissiveTriangle {
+    float4 p0;
+    float4 p1;
+    float4 p2;
+    float4 normal;
+    packed_float3 emission;
+    float area;
+    float cdf;
+    float selectionPdf;
+    float2 _pad;
+};
+
+static_assert(sizeof(EmissiveTriangle) == 96);
+
 struct SceneData {
     uint numDirectionalLights;
     uint numPointLights;
@@ -116,6 +130,9 @@ struct SceneData {
     uint pixelStride;
     float3 ambientColor;
     uint environmentEnabled;
+    uint accumulationFrameLimit;
+    float fireflyClamp;
+    uint numEmissiveTriangles;
 };
 
 static_assert(sizeof(SceneData) == 144);
@@ -124,6 +141,8 @@ static_assert(__builtin_offsetof(SceneData, atmosphereSunIntensity) == 64);
 static_assert(__builtin_offsetof(SceneData, atmosphereSunColor) == 80);
 static_assert(__builtin_offsetof(SceneData, pixelStride) == 96);
 static_assert(__builtin_offsetof(SceneData, ambientColor) == 112);
+static_assert(__builtin_offsetof(SceneData, accumulationFrameLimit) == 132);
+static_assert(__builtin_offsetof(SceneData, numEmissiveTriangles) == 140);
 
 float pow5(float x) {
     float x2 = x * x;
@@ -668,11 +687,7 @@ float3 traceShadowVisibility(intersector<triangle_data> isect,
             float3 p0 = float3(vertices[i0].position);
             float3 p1 = float3(vertices[i1].position);
             float3 p2 = float3(vertices[i2].position);
-            InstanceData inst = instanceData[objectIndex];
-            float3x3 normalMatrix = float3x3(
-                inst.normalCol0.xyz, inst.normalCol1.xyz, inst.normalCol2.xyz);
-            float3 hitNormal = normalizeOr(
-                normalMatrix * cross(p1 - p0, p2 - p0), -L);
+            float3 hitNormal = normalizeOr(cross(p1 - p0, p2 - p0), -L);
             hitNormal = dot(hitNormal, L) < 0.0 ? hitNormal : -hitNormal;
             float ior = max(material.ior, 1.0);
             float dielectricF0 = pow((ior - 1.0) / (ior + 1.0), 2.0);
@@ -741,6 +756,16 @@ float D_GGX(float NdotH, float roughness) {
 float3 F_Schlick(float cosTheta, float3 F0) {
     float c = clamp(1.0 - cosTheta, 0.0, 1.0);
     return F0 + (1.0 - F0) * pow5(c);
+}
+
+float3 materialF0(float3 albedo, float metallic, float reflectivity,
+                  float ior) {
+    float dielectricF0 = pow((max(ior, 1.0001) - 1.0) /
+                                 (max(ior, 1.0001) + 1.0),
+                             2.0);
+    float dielectricScale = mix(0.5, 1.5, clamp(reflectivity, 0.0, 1.0));
+    return mix(float3(clamp(dielectricF0 * dielectricScale, 0.0, 0.16)),
+               albedo, clamp(metallic, 0.0, 1.0));
 }
 
 float G_Smith(float NdotV, float NdotL, float roughness) {
@@ -817,20 +842,13 @@ float3 evalPBR(float3 albedo, float metallic, float roughness,
     float VdotH = max(dot(V, H), 0.0);
 
     float clampedRoughness = clamp(roughness, 0.045, 1.0);
-    float dielectricF0 = pow((max(ior, 1.0) - 1.0) /
-                                 (max(ior, 1.0) + 1.0),
-                             2.0);
-    float3 baseF0 = mix(float3(dielectricF0), albedo,
-                        clamp(metallic, 0.0, 1.0));
-    float3 reflectedColor = mix(float3(1.0), albedo, metallic);
-    float3 F0 = mix(baseF0, reflectedColor, clamp(reflectivity, 0.0, 1.0));
+    float3 F0 = materialF0(albedo, metallic, reflectivity, ior);
     float3 F = F_Schlick(VdotH, F0);
     float D = D_GGX(NdotH, clampedRoughness);
     float G = G_Smith(NdotV, NdotL, clampedRoughness);
 
     float3 specular = (D * G * F) / max(4.0 * NdotV * NdotL, 1e-4);
     float3 kD = (1.0 - F) * (1.0 - clamp(metallic, 0.0, 1.0)) *
-                (1.0 - clamp(reflectivity, 0.0, 1.0)) *
                 (1.0 - clamp(transmittance, 0.0, 1.0));
     float diffuseFactor = disneyDiffuseFactor(NdotV, NdotL, max(dot(L, H), 0.0),
                                               clampedRoughness);
@@ -871,6 +889,65 @@ float3 evalTransmission(float3 albedo, float3 N, float3 V, float3 L,
            transmissionLobe;
 }
 
+float3 evalEmissiveTriangleLighting(
+    intersector<triangle_data> isect,
+    primitive_acceleration_structure sceneAS, float3 P, float3 N, float3 Ng,
+    float3 V, float3 albedo, float metallic, float roughness,
+    float reflectivity, float ior, float transmittance, thread uint &rng,
+    constant SceneData &sceneData,
+    constant EmissiveTriangle *emissiveTriangles,
+    constant Material *materials, constant uint *primitiveObjects,
+    constant uint *blasPrimitiveOffsets, constant VertexData *vertices,
+    constant uint *indices, constant InstanceData *instanceData,
+    PT_MATERIAL_TEXTURE_PARAMS) {
+    if (sceneData.numEmissiveTriangles == 0) {
+        return float3(0.0);
+    }
+    float selector = rand(rng);
+    uint first = 0;
+    uint last = sceneData.numEmissiveTriangles - 1;
+    while (first < last) {
+        uint middle = first + (last - first) / 2;
+        if (selector <= emissiveTriangles[middle].cdf) {
+            last = middle;
+        } else {
+            first = middle + 1;
+        }
+    }
+    EmissiveTriangle light = emissiveTriangles[first];
+    float sqrtU = sqrt(rand(rng));
+    float barycentricV = rand(rng);
+    float b0 = 1.0 - sqrtU;
+    float b1 = sqrtU * (1.0 - barycentricV);
+    float b2 = sqrtU * barycentricV;
+    float3 lightPosition = light.p0.xyz * b0 + light.p1.xyz * b1 +
+                           light.p2.xyz * b2;
+    float3 toLight = lightPosition - P;
+    float distanceSquared = dot(toLight, toLight);
+    if (distanceSquared <= 1e-8) {
+        return float3(0.0);
+    }
+    float distanceToLight = sqrt(distanceSquared);
+    float3 L = toLight / distanceToLight;
+    float surfaceCosine = dot(N, L);
+    float lightCosine = abs(dot(light.normal.xyz, -L));
+    if (surfaceCosine <= 0.0 || dot(Ng, L) <= 0.0 ||
+        lightCosine <= 1e-5 || light.area <= 1e-8 ||
+        light.selectionPdf <= 1e-8) {
+        return float3(0.0);
+    }
+    float solidAnglePdf = light.selectionPdf * distanceSquared /
+                          max(lightCosine * light.area, 1e-8);
+    float3 visibility = traceShadowVisibility(
+        isect, sceneAS, P, Ng, L, distanceToLight, rng, materials,
+        primitiveObjects, blasPrimitiveOffsets, vertices, indices,
+        instanceData, sceneData, PT_MATERIAL_TEXTURE_ARGS);
+    return evalPBR(albedo, metallic, roughness, reflectivity, ior,
+                   transmittance, N, V, L, light.emission,
+                   1.0 / max(solidAnglePdf, 1e-8)) *
+           visibility;
+}
+
 // ---------------------------------------------------------------------------
 // Direct lighting with full PBR (replaces old evalDirectLighting)
 // ---------------------------------------------------------------------------
@@ -887,6 +964,7 @@ float3 evalDirectLightingPBR(intersector<triangle_data> isect,
                              constant PointLight *pointLights,
                              constant SpotLight *spotLights,
                              constant AreaLight *areaLights,
+                             constant EmissiveTriangle *emissiveTriangles,
                              constant Material *materials,
                              constant uint *primitiveObjects,
                              constant uint *blasPrimitiveOffsets,
@@ -998,6 +1076,12 @@ float3 evalDirectLightingPBR(intersector<triangle_data> isect,
         lighting += (c + s * (1.0 - transmittance)) * visibility;
     }
 
+    lighting += evalEmissiveTriangleLighting(
+        isect, sceneAS, P, N, Ng, V, albedo, metallic, roughness,
+        reflectivity, ior, transmittance, rng, sceneData, emissiveTriangles,
+        materials, primitiveObjects, blasPrimitiveOffsets, vertices, indices,
+        instanceData, PT_MATERIAL_TEXTURE_ARGS);
+
     return lighting;
 }
 
@@ -1018,6 +1102,7 @@ float3 sampleRadiance(uint2 gid, uint sampleIndex, uint w,
                       constant PointLight *pointLights,
                       constant SpotLight *spotLights,
                       constant AreaLight *areaLights,
+                      constant EmissiveTriangle *emissiveTriangles,
                       PT_MATERIAL_TEXTURE_PARAMS, texturecube<float> skybox,
                       thread float3 &primaryAlbedo,
                       thread float3 &primaryNormal,
@@ -1089,7 +1174,7 @@ float3 sampleRadiance(uint2 gid, uint sampleIndex, uint w,
             float3x3 normalMatrix = float3x3(
                 inst.normalCol0.xyz, inst.normalCol1.xyz, inst.normalCol2.xyz);
             geometricNormal = normalizeOr(
-                normalMatrix * cross(p1 - p0, p2 - p0),
+                cross(p1 - p0, p2 - p0),
                 normalizeOr(normalMatrix * localN, float3(0.0, 1.0, 0.0)));
 
             float alpha = resolveMaterialOpacity(
@@ -1153,17 +1238,21 @@ float3 sampleRadiance(uint2 gid, uint sampleIndex, uint w,
             primaryObjectId = surfaceObjectIndex;
         }
 
-        float reflectivity = clamp(mat.reflectivity, 0.0, 1.0) *
-                             (1.0 - transmittance);
+        float reflectivity = clamp(mat.reflectivity, 0.0, 1.0);
         float sssStrength = 0.0;
         float sssThickness = mix(0.25, 1.75, ao);
         float3 direct = evalDirectLightingPBR(
             isect, sceneAS, P, N, Ng, V, albedo, metallic, roughness,
             reflectivity, ior, transmittance, sssStrength, sssThickness, rng,
-            dirLight, sceneData, pointLights, spotLights, areaLights, materials,
-            primitiveObjects, blasPrimitiveOffsets, vertices, indices,
-            instanceData, PT_MATERIAL_TEXTURE_ARGS);
-        radiance += throughput * (direct + emissive);
+            dirLight, sceneData, pointLights, spotLights, areaLights,
+            emissiveTriangles, materials, primitiveObjects,
+            blasPrimitiveOffsets, vertices, indices, instanceData,
+            PT_MATERIAL_TEXTURE_ARGS);
+        radiance += throughput * direct;
+        if (depth == 0 || previousEventWasDelta ||
+            sceneData.numEmissiveTriangles == 0) {
+            radiance += throughput * emissive;
+        }
 
         if (depth == 0 && sceneData.ambientIntensity > 0.0) {
             float aoVisibility = mix(0.2, 1.0, ao);
@@ -1181,20 +1270,15 @@ float3 sampleRadiance(uint2 gid, uint sampleIndex, uint w,
         }
 
         float dielectricF0 = pow((ior - 1.0) / (ior + 1.0), 2.0);
-        float3 baseF0 = mix(float3(dielectricF0), albedo, metallic);
-        float3 reflectedColor = mix(float3(1.0), albedo, metallic);
-        float3 F0 = mix(baseF0, reflectedColor, reflectivity);
+        float3 F0 = materialF0(albedo, metallic, mat.reflectivity, ior);
         float NdotV = max(dot(N, V), 1e-4);
-        float dielectricFresnel =
-            F_Schlick(NdotV, float3(dielectricF0)).x;
-        float specProb = metallic * mix(0.35, 0.9, 1.0 - roughness) +
-                         (1.0 - metallic) * dielectricFresnel;
+        float3 viewFresnel = F_Schlick(NdotV, F0);
+        float fresnelProbability = clamp(luminance(viewFresnel), 0.001, 0.999);
+        float specProb = fresnelProbability;
         float transmitProb = transmittance * (1.0 - metallic) *
-                             (1.0 - dielectricFresnel);
-        float diffuseProb = (1.0 - metallic) * (1.0 - transmittance);
-        specProb = mix(specProb, 1.0, reflectivity);
-        transmitProb *= 1.0 - reflectivity;
-        diffuseProb *= 1.0 - reflectivity;
+                             (1.0 - fresnelProbability);
+        float diffuseProb = (1.0 - metallic) * (1.0 - transmittance) *
+                            (1.0 - fresnelProbability);
         float eta = frontFace ? 1.0 / ior : ior;
         float3 idealRefractedDirection = refract(-V, N, eta);
         bool totalInternalReflection =
@@ -1232,7 +1316,7 @@ float3 sampleRadiance(uint2 gid, uint sampleIndex, uint w,
                 float VdotH = max(dot(V, H), 1e-5);
                 float3 F = F_Schlick(VdotH, F0);
                 float3 kD = (1.0 - F) * (1.0 - metallic) *
-                            (1.0 - transmittance) * (1.0 - reflectivity);
+                            (1.0 - transmittance);
                 float diffuseFactor = disneyDiffuseFactor(
                     NdotV, NdotEnvironment,
                     max(dot(environmentDirection, H), 0.0), roughness);
@@ -1337,7 +1421,8 @@ float3 sampleRadiance(uint2 gid, uint sampleIndex, uint w,
             float NdotL = max(dot(N, nextDirection), 0.0);
             float3 H = normalizeOr(V + nextDirection, N);
             float3 F = F_Schlick(max(dot(V, H), 0.0), F0);
-            float3 kD = (1.0 - F) * (1.0 - metallic);
+            float3 kD = (1.0 - F) * (1.0 - metallic) *
+                        (1.0 - transmittance);
             float diffuseFactor = disneyDiffuseFactor(
                 NdotV, NdotL, max(dot(nextDirection, H), 0.0), roughness);
             float3 diffuseBsdf = kD * albedo * diffuseFactor / M_PI_F;
@@ -1386,13 +1471,15 @@ float3 sampleRadiance(uint2 gid, uint sampleIndex, uint w,
 }
 
 kernel void main0(texture2d<float, access::write> outTex [[texture(0)]],
-                  texture2d<float, access::read_write> historyTex [[texture(1)]],
+                  texture2d<float, access::read> historyTex [[texture(1)]],
                   texture2d<float, access::write> brightTex [[texture(2)]],
                   texture2d<float, access::write> albedoRoughnessTex [[texture(3)]],
                   texture2d<float, access::write> normalDepthTex [[texture(4)]],
                   texture2d<float, access::write> motionObjectTex [[texture(5)]],
-                  texture2d<float, access::write> momentsHitTex [[texture(6)]],
-                  texture2d<float, access::read_write> historyGuideTex [[texture(7)]],
+                  texture2d<float, access::read_write> momentsHitTex [[texture(6)]],
+                  texture2d<float, access::read> historyGuideTex [[texture(7)]],
+                  texture2d<float, access::write> historyOutTex [[texture(8)]],
+                  texture2d<float, access::write> historyGuideOutTex [[texture(9)]],
                   primitive_acceleration_structure sceneAS [[buffer(0)]],
                   constant CameraUniforms &cam [[buffer(1)]],
                   constant Material *materials [[buffer(2)]],
@@ -1405,6 +1492,7 @@ kernel void main0(texture2d<float, access::write> outTex [[texture(0)]],
                   constant PointLight *pointLights [[buffer(9)]],
                   constant SpotLight *spotLights [[buffer(10)]],
                   constant AreaLight *areaLights [[buffer(11)]],
+                  constant EmissiveTriangle *emissiveTriangles [[buffer(14)]],
                   PT_MATERIAL_TEXTURE_BINDINGS,
                   constant uint *blasPrimitiveOffsets [[buffer(13)]],
                   texturecube<float> skybox [[texture(60)]],
@@ -1436,8 +1524,10 @@ kernel void main0(texture2d<float, access::write> outTex [[texture(0)]],
     for (uint s = 0; s < spp; ++s) {
         uint cameraRng = seedBase(gid, w, sceneData.frameIndex,
                                   s + 0x9E3779B9u);
-        float2 pixelJitter =
-            float2(rand(cameraRng), rand(cameraRng)) - 0.5;
+        float2 pixelJitter = s == 0
+                                 ? float2(0.0)
+                                 : float2(rand(cameraRng), rand(cameraRng)) -
+                                       0.5;
         float2 sampleUv = (float2(gid) + 0.5 + pixelJitter) / float2(w, h);
         float2 sampleNdc = sampleUv * 2.0 - 1.0;
         sampleNdc.y = -sampleNdc.y;
@@ -1463,13 +1553,14 @@ kernel void main0(texture2d<float, access::write> outTex [[texture(0)]],
             gid, s, w, isect, sceneAS, primaryRay, materials, primitiveObjects,
             blasPrimitiveOffsets, vertices, indices, instanceData, dirLight,
             sceneData, pointLights, spotLights, areaLights,
-            PT_MATERIAL_TEXTURE_ARGS, skybox, sampleAlbedo, sampleNormal,
-            samplePosition, sampleDepth, sampleRoughness, sampleHitDistance,
-            sampleObjectId);
+            emissiveTriangles, PT_MATERIAL_TEXTURE_ARGS, skybox, sampleAlbedo,
+            sampleNormal, samplePosition, sampleDepth, sampleRoughness,
+            sampleHitDistance, sampleObjectId);
         if (!all(isfinite(sample))) {
             sample = float3(0.0);
         }
-        color += clampLuminance(max(sample, float3(0.0)), 12.0);
+        color += clampLuminance(max(sample, float3(0.0)),
+                                max(sceneData.fireflyClamp, 1.0));
         if (s == 0) {
             primaryAlbedo = sampleAlbedo;
             primaryNormal = sampleNormal;
@@ -1486,36 +1577,66 @@ kernel void main0(texture2d<float, access::write> outTex [[texture(0)]],
         color = float3(0.0);
     }
 
-    int frameIndex = int(sceneData.frameIndex);
-
-    float4 prevColor = historyTex.read(gid);
-    float4 previousGuide = historyGuideTex.read(gid);
     float objectIdValue = primaryObjectId == 0xFFFFFFFFu
                               ? -1.0
                               : float(primaryObjectId);
     float2 encodedNormal = encodeNormal(primaryNormal);
     float4 currentGuide =
         float4(encodedNormal, primaryDepth, objectIdValue);
-    bool historyValid = frameIndex > 0 &&
+    float4 previousClip = cam.prevViewProj * float4(primaryPosition, 1.0);
+    float2 previousNdc = previousClip.xy / max(abs(previousClip.w), 0.0001);
+    float2 previousUv = float2(previousNdc.x * 0.5 + 0.5,
+                               0.5 - previousNdc.y * 0.5);
+    bool previousUvValid = previousClip.w > 0.0 &&
+                           all(previousUv >= float2(0.0)) &&
+                           all(previousUv <= float2(1.0));
+    uint2 previousPixel = gid;
+    if (primaryObjectId != 0xFFFFFFFFu && previousUvValid) {
+        previousPixel = uint2(clamp(previousUv * float2(w, h), float2(0.0),
+                                    float2(w - 1, h - 1)));
+    }
+    float4 prevColor = historyTex.read(previousPixel);
+    float4 previousGuide = historyGuideTex.read(previousPixel);
+    float4 previousMoments = momentsHitTex.read(gid);
+    bool historyValid = sceneData.frameIndex > 0 && prevColor.w > 0.0 &&
                         abs(previousGuide.z - primaryDepth) <
-                            max(0.05, primaryDepth * 0.02) &&
-                        distance(previousGuide.xy, encodedNormal) < 0.08 &&
+                            max(0.02, primaryDepth * 0.01) &&
+                        distance(previousGuide.xy, encodedNormal) < 0.04 &&
                         abs(previousGuide.w - objectIdValue) < 0.5;
-    if (frameIndex == 0)
-        prevColor = float4(0, 0, 0, 1);
-    float sampleLuminanceLimit =
-        historyValid ? max(4.0, luminance(prevColor.xyz) * 2.0 + 0.5) : 12.0;
+    if (!historyValid) {
+        prevColor = float4(0.0);
+        previousMoments = float4(0.0);
+    }
+    float previousMean = historyValid ? previousMoments.x : 0.0;
+    float previousVariance =
+        historyValid
+            ? max(previousMoments.y - previousMean * previousMean, 0.0)
+            : 0.0;
+    float sampleLuminanceLimit = max(sceneData.fireflyClamp, 1.0);
+    if (historyValid && prevColor.w >= 4.0) {
+        float statisticalLimit = previousMean +
+                                 max(0.5, 6.0 * sqrt(previousVariance));
+        sampleLuminanceLimit =
+            min(sampleLuminanceLimit, max(4.0, statisticalLimit));
+    }
     color = clampLuminance(color, sampleLuminanceLimit);
-    if (!historyValid)
-        prevColor = float4(color, 1.0);
-
-    float historyLength = historyValid ? min(float(frameIndex), 255.0) : 0.0;
-    float3 lower = min(prevColor.xyz, color) - float3(0.35);
-    float3 upper = max(prevColor.xyz, color) + float3(0.35);
-    float3 clippedHistory = clamp(prevColor.xyz, lower, upper);
-    float3 accum = mix(color, clippedHistory,
-                       historyLength / (historyLength + 1.0));
-    accum = clampLuminance(accum, 24.0);
+    float historyLimit = max(float(sceneData.accumulationFrameLimit), 1.0);
+    float previousWeight =
+        historyValid ? min(prevColor.w, max(historyLimit - 1.0, 0.0)) : 0.0;
+    float newHistoryLength = min(previousWeight + 1.0, historyLimit);
+    float accumulationDenominator = max(previousWeight + 1.0, 1.0);
+    float3 accum =
+        (prevColor.xyz * previousWeight + color) / accumulationDenominator;
+    float moment = luminance(color);
+    float accumulatedMoment =
+        (previousMoments.x * previousWeight + moment) /
+        accumulationDenominator;
+    float accumulatedMomentSquared =
+        (previousMoments.y * previousWeight + moment * moment) /
+        accumulationDenominator;
+    float variance = max(accumulatedMomentSquared -
+                             accumulatedMoment * accumulatedMoment,
+                         0.0);
 
     constexpr float bloomThreshold = 0.8;
     constexpr float bloomKnee = 0.35;
@@ -1527,11 +1648,7 @@ kernel void main0(texture2d<float, access::write> outTex [[texture(0)]],
     float contribution = max(brightness - bloomThreshold, soft) /
                          max(brightness, 0.00001);
     float3 brightColor = accum * contribution;
-	float4 previousClip = cam.prevViewProj * float4(primaryPosition, 1.0);
-	float2 previousUv = previousClip.xy / max(abs(previousClip.w), 0.0001);
-	previousUv = previousUv * 0.5 + 0.5;
-	float2 motion = uv - previousUv;
-	float moment = luminance(color);
+    float2 motion = previousUvValid ? uv - previousUv : float2(0.0);
 
     for (uint y = 0; y < pixelStride; ++y) {
         for (uint x = 0; x < pixelStride; ++x) {
@@ -1539,14 +1656,15 @@ kernel void main0(texture2d<float, access::write> outTex [[texture(0)]],
             if (pixel.x >= w || pixel.y >= h) {
                 continue;
             }
-            historyTex.write(float4(accum, 1.0), pixel);
-            historyGuideTex.write(currentGuide, pixel);
+            historyOutTex.write(float4(accum, newHistoryLength), pixel);
+            historyGuideOutTex.write(currentGuide, pixel);
             albedoRoughnessTex.write(float4(primaryAlbedo, primaryRoughness),
                                      pixel);
             normalDepthTex.write(float4(primaryNormal, primaryDepth), pixel);
             motionObjectTex.write(float4(motion, objectIdValue, 1.0), pixel);
-            momentsHitTex.write(float4(moment, moment * moment,
-                                       primaryRoughness, primaryHitDistance),
+            momentsHitTex.write(float4(accumulatedMoment,
+                                       accumulatedMomentSquared, variance,
+                                       primaryHitDistance),
                                 pixel);
             outTex.write(float4(accum, 1.0), pixel);
             brightTex.write(float4(brightColor, 1.0), pixel);
