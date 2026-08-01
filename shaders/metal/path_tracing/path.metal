@@ -625,13 +625,16 @@ float3 traceShadowVisibility(intersector<triangle_data> isect,
                              PT_MATERIAL_TEXTURE_PARAMS) {
     float shadowBias = rayOffsetDistance(P);
     float3 visibility = float3(1.0);
+    float causticGain = 1.0;
+    float3 entryNormal = float3(0.0);
+    uint dielectricObject = 0xFFFFFFFFu;
     ray shadowRay;
     shadowRay.origin = offsetRayOrigin(P, Ng, L);
     shadowRay.direction = L;
     shadowRay.min_distance = 0.0;
     shadowRay.max_distance = max(maxDistance - shadowBias, shadowBias + 1e-4);
 
-    for (uint alphaStep = 0; alphaStep < 16; ++alphaStep) {
+    for (uint alphaStep = 0; alphaStep < 32; ++alphaStep) {
         auto shadowHit = isect.intersect(shadowRay, sceneAS);
         if (shadowHit.type == intersection_type::none) {
             return visibility;
@@ -665,6 +668,7 @@ float3 traceShadowVisibility(intersector<triangle_data> isect,
             float3 p1 = float3(vertices[i1].position);
             float3 p2 = float3(vertices[i2].position);
             float3 hitNormal = normalizeOr(cross(p1 - p0, p2 - p0), -L);
+            hitNormal = dot(hitNormal, L) < 0.0 ? hitNormal : -hitNormal;
             float ior = max(material.ior, 1.0);
             float dielectricF0 = pow((ior - 1.0) / (ior + 1.0), 2.0);
             float fresnel = dielectricF0 +
@@ -675,6 +679,20 @@ float3 traceShadowVisibility(intersector<triangle_data> isect,
                                     float3(1.0)),
                               0.15);
             visibility *= tint * transmission * (1.0 - fresnel);
+            if (dielectricObject == objectIndex) {
+                float curvature =
+                    1.0 - clamp(abs(dot(entryNormal, hitNormal)), 0.0, 1.0);
+                float smoothness =
+                    1.0 - clamp(material.roughness, 0.0, 1.0);
+                float focus = 1.0 + transmission * max(ior - 1.0, 0.0) *
+                                        smoothness * smoothness *
+                                        (0.35 + curvature * 3.0);
+                causticGain *= clamp(focus, 1.0, 2.5);
+                dielectricObject = 0xFFFFFFFFu;
+            } else {
+                dielectricObject = objectIndex;
+                entryNormal = hitNormal;
+            }
             if (luminance(visibility) <= 0.001) {
                 return float3(0.0);
             }
@@ -684,7 +702,7 @@ float3 traceShadowVisibility(intersector<triangle_data> isect,
         shadowRay.origin += shadowRay.direction * advance;
         shadowRay.max_distance -= advance;
         if (shadowRay.max_distance <= shadowBias) {
-            return visibility;
+            return clampLuminance(visibility * causticGain, 2.5);
         }
     }
 
@@ -785,8 +803,8 @@ float3 sampleGGXVNDF(float3 localView, float roughness, float2 u) {
 
 // Full Cook-Torrance PBR for a single analytic light
 float3 evalPBR(float3 albedo, float metallic, float roughness,
-               float reflectivity, float ior, float3 N, float3 V, float3 L,
-               float3 lightColor, float intensity) {
+               float reflectivity, float ior, float transmittance, float3 N,
+               float3 V, float3 L, float3 lightColor, float intensity) {
     float3 H = normalize(V + L);
     float NdotL = max(dot(N, L), 0.0);
     float NdotV = max(dot(N, V), 1e-4);
@@ -807,7 +825,8 @@ float3 evalPBR(float3 albedo, float metallic, float roughness,
 
     float3 specular = (D * G * F) / max(4.0 * NdotV * NdotL, 1e-4);
     float3 kD = (1.0 - F) * (1.0 - clamp(metallic, 0.0, 1.0)) *
-                (1.0 - clamp(reflectivity, 0.0, 1.0));
+                (1.0 - clamp(reflectivity, 0.0, 1.0)) *
+                (1.0 - clamp(transmittance, 0.0, 1.0));
     float diffuseFactor = disneyDiffuseFactor(NdotV, NdotL, max(dot(L, H), 0.0),
                                               clampedRoughness);
     float3 diffuse = (kD * albedo * diffuseFactor) / M_PI_F;
@@ -870,27 +889,20 @@ float3 evalDirectLightingPBR(intersector<triangle_data> isect,
                              constant uint *indices,
                              PT_MATERIAL_TEXTURE_PARAMS) {
     float3 lighting = float3(0.0);
-    float surfaceOpacity =
-        clamp(1.0 - transmittance * (1.0 - metallic), 0.0, 1.0);
-
     // Directional
     if (sceneData.numDirectionalLights > 0) {
         float3 L = sampleDirectionalLightDirection(dirLight, rng);
-        float3 c = evalPBR(albedo, metallic, roughness, reflectivity, ior, N,
-                           V, L, dirLight.color,
+        float3 c = evalPBR(albedo, metallic, roughness, reflectivity, ior,
+                           transmittance, N, V, L, dirLight.color,
                            max(dirLight.intensity, 0.0));
         float3 s = evalSubsurface(albedo, N, V, L, dirLight.color,
                                   max(dirLight.intensity, 0.0), roughness,
                                   sssStrength, sssThickness);
-        float3 t =
-            evalTransmission(albedo, N, V, L, dirLight.color,
-                             max(dirLight.intensity, 0.0), roughness, ior) *
-            transmittance;
         float3 visibility = traceShadowVisibility(
             isect, sceneAS, P, Ng, L, 1e30, rng, materials, primitiveObjects,
             blasPrimitiveOffsets, vertices, indices, sceneData,
             PT_MATERIAL_TEXTURE_ARGS);
-        lighting += ((c + s) * surfaceOpacity + t) * visibility;
+        lighting += (c + s * (1.0 - transmittance)) * visibility;
     }
 
     // Point lights
@@ -905,19 +917,17 @@ float3 evalDirectLightingPBR(intersector<triangle_data> isect,
         float rangeFade = 1.0 - smoothstep(lightRange * 0.75, lightRange, dist);
         float atten = rangeFade / max(distSq, 1e-4);
         float intensity = max(pointLights[i].intensity, 0.0) * atten;
-        float3 c = evalPBR(albedo, metallic, roughness, reflectivity, ior, N,
-                           V, L, pointLights[i].color, intensity);
+        float3 c = evalPBR(albedo, metallic, roughness, reflectivity, ior,
+                           transmittance, N, V, L, pointLights[i].color,
+                           intensity);
         float3 s =
             evalSubsurface(albedo, N, V, L, pointLights[i].color, intensity,
                            roughness, sssStrength, sssThickness);
-        float3 t = evalTransmission(albedo, N, V, L, pointLights[i].color,
-                                    intensity, roughness, ior) *
-                   transmittance;
         float3 visibility = traceShadowVisibility(
             isect, sceneAS, P, Ng, L, dist, rng, materials, primitiveObjects,
             blasPrimitiveOffsets, vertices, indices, sceneData,
             PT_MATERIAL_TEXTURE_ARGS);
-        lighting += ((c + s) * surfaceOpacity + t) * visibility;
+        lighting += (c + s * (1.0 - transmittance)) * visibility;
     }
 
     // Spot lights
@@ -936,19 +946,17 @@ float3 evalDirectLightingPBR(intersector<triangle_data> isect,
         float rangeFade = 1.0 - smoothstep(lightRange * 0.75, lightRange, dist);
         float atten = rangeFade / max(distSq, 1e-4);
         float intensity = max(spotLights[i].intensity, 0.0) * atten * spot;
-        float3 c = evalPBR(albedo, metallic, roughness, reflectivity, ior, N,
-                           V, L, spotLights[i].color, intensity);
+        float3 c = evalPBR(albedo, metallic, roughness, reflectivity, ior,
+                           transmittance, N, V, L, spotLights[i].color,
+                           intensity);
         float3 s =
             evalSubsurface(albedo, N, V, L, spotLights[i].color, intensity,
                            roughness, sssStrength, sssThickness);
-        float3 t = evalTransmission(albedo, N, V, L, spotLights[i].color,
-                                    intensity, roughness, ior) *
-                   transmittance;
         float3 visibility = traceShadowVisibility(
             isect, sceneAS, P, Ng, L, dist, rng, materials, primitiveObjects,
             blasPrimitiveOffsets, vertices, indices, sceneData,
             PT_MATERIAL_TEXTURE_ARGS);
-        lighting += ((c + s) * surfaceOpacity + t) * visibility;
+        lighting += (c + s * (1.0 - transmittance)) * visibility;
     }
 
     // Area lights
@@ -971,19 +979,17 @@ float3 evalDirectLightingPBR(intersector<triangle_data> isect,
         float distSq = max(dist * dist, 1e-6);
         float atten = cosLight / max(distSq * lightPdfArea, 1e-6);
         float intensity = max(areaLights[i].intensity, 0.0) * atten;
-        float3 c = evalPBR(albedo, metallic, roughness, reflectivity, ior, N,
-                           V, L, areaLights[i].color, intensity);
+        float3 c = evalPBR(albedo, metallic, roughness, reflectivity, ior,
+                           transmittance, N, V, L, areaLights[i].color,
+                           intensity);
         float3 s =
             evalSubsurface(albedo, N, V, L, areaLights[i].color, intensity,
                            roughness, sssStrength, sssThickness);
-        float3 t = evalTransmission(albedo, N, V, L, areaLights[i].color,
-                                    intensity, roughness, ior) *
-                   transmittance;
         float3 visibility = traceShadowVisibility(
             isect, sceneAS, P, Ng, L, dist, rng, materials, primitiveObjects,
             blasPrimitiveOffsets, vertices, indices, sceneData,
             PT_MATERIAL_TEXTURE_ARGS);
-        lighting += ((c + s) * surfaceOpacity + t) * visibility;
+        lighting += (c + s * (1.0 - transmittance)) * visibility;
     }
 
     return lighting;
@@ -1160,8 +1166,8 @@ float3 sampleRadiance(uint2 gid, uint sampleIndex, uint w,
             float3 ambientF = F_Schlick(max(dot(N, V), 0.0), ambientF0);
             float3 ambientDiffuse = (1.0 - ambientF) * (1.0 - metallic) *
                                     albedo * (1.0 - transmittance);
-            float3 ambientSpecular =
-                ambientF * mix(1.0, 0.35, roughness);
+            float3 ambientSpecular = ambientF * mix(1.0, 0.35, roughness) *
+                                     (1.0 - transmittance);
             float3 ambient = (ambientDiffuse + ambientSpecular) *
                              sceneData.ambientColor *
                              sceneData.ambientIntensity * aoVisibility;
@@ -1453,7 +1459,10 @@ kernel void main0(texture2d<float, access::write> outTex [[texture(0)]],
             PT_MATERIAL_TEXTURE_ARGS, skybox, sampleAlbedo, sampleNormal,
             samplePosition, sampleDepth, sampleRoughness, sampleHitDistance,
             sampleObjectId);
-        color += sample;
+        if (!all(isfinite(sample))) {
+            sample = float3(0.0);
+        }
+        color += clampLuminance(max(sample, float3(0.0)), 12.0);
         if (s == 0) {
             primaryAlbedo = sampleAlbedo;
             primaryNormal = sampleNormal;
@@ -1487,11 +1496,8 @@ kernel void main0(texture2d<float, access::write> outTex [[texture(0)]],
                         abs(previousGuide.w - objectIdValue) < 0.5;
     if (frameIndex == 0)
         prevColor = float4(0, 0, 0, 1);
-    float sampleLuminanceLimit = historyValid
-                                     ? max(6.0, luminance(prevColor.xyz) *
-                                                    4.0 +
-                                                    1.0)
-                                     : 32.0;
+    float sampleLuminanceLimit =
+        historyValid ? max(4.0, luminance(prevColor.xyz) * 2.0 + 0.5) : 12.0;
     color = clampLuminance(color, sampleLuminanceLimit);
     if (!historyValid)
         prevColor = float4(color, 1.0);
@@ -1502,7 +1508,7 @@ kernel void main0(texture2d<float, access::write> outTex [[texture(0)]],
     float3 clippedHistory = clamp(prevColor.xyz, lower, upper);
     float3 accum = mix(color, clippedHistory,
                        historyLength / (historyLength + 1.0));
-    accum = clampLuminance(accum, 256.0);
+    accum = clampLuminance(accum, 24.0);
 
     constexpr float bloomThreshold = 0.8;
     constexpr float bloomKnee = 0.35;

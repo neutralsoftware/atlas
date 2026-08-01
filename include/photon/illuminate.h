@@ -94,7 +94,7 @@ class PathTracing {
     std::shared_ptr<Texture> pathTracingTexturePrev;
 
     /** @brief Rays traced per pixel each dispatch. */
-    int raysPerPixel = 1;
+    int raysPerPixel = 2;
     /** @brief Maximum bounce count for indirect transport. */
     int maxBounces = 6;
     /** @brief Scalar multiplier for indirect lighting contribution. */

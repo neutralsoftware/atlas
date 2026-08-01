@@ -1128,8 +1128,7 @@ bool photon::PathTracing::render(
     const int refinementFrame = std::max(frameIndex, 0);
     const int pixelStride = interactive ? 4 : (refinementFrame < 4 ? 2 : 1);
     const int effectiveBounces =
-        interactive ? std::min(this->maxBounces, 1)
-                    : std::min(this->maxBounces, 2 + refinementFrame / 8);
+        interactive ? std::min(this->maxBounces, 2) : this->maxBounces;
     pathTracingPipeline->setUniform1i("sceneData.frameIndex", frameIndex);
     pathTracingPipeline->setUniform1i("sceneData.maxBounces", effectiveBounces);
     pathTracingPipeline->setUniform1i("sceneData.pixelStride", pixelStride);

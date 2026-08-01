@@ -29,6 +29,29 @@ kernel void main0(texture2d<float, access::read> inputTexture [[texture(0)]],
     bool centerSurface = centerGuide.w > 0.0;
     float centerNormalLength = dot(centerGuide.xyz, centerGuide.xyz);
     float centerLuminance = dot(center, float3(0.2126, 0.7152, 0.0722));
+    float neighborLuminance = 0.0;
+    float neighborWeight = 0.0;
+    for (int i = 1; i < 9; ++i) {
+        int2 samplePosition =
+            clamp(int2(gid) + offsets[i] * parameters.stepWidth, int2(0),
+                  int2(width - 1, height - 1));
+        float4 sampleGuide = guideTexture.read(uint2(samplePosition));
+        bool sampleSurface = sampleGuide.w > 0.0;
+        if (sampleSurface != centerSurface)
+            continue;
+        float sampleLuminance = dot(
+            inputTexture.read(uint2(samplePosition)).xyz,
+            float3(0.2126, 0.7152, 0.0722));
+        neighborLuminance += sampleLuminance;
+        neighborWeight += 1.0;
+    }
+    if (neighborWeight > 1.0) {
+        float localLimit = max(3.0, neighborLuminance / neighborWeight * 3.0);
+        if (centerLuminance > localLimit) {
+            center *= localLimit / max(centerLuminance, 0.00001);
+            centerLuminance = localLimit;
+        }
+    }
     float3 filtered = float3(0.0);
     float totalWeight = 0.0;
     for (int i = 0; i < 9; ++i) {
