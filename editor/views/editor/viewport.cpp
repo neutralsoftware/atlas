@@ -1087,8 +1087,21 @@ bool ViewportPanel::pasteRuntimeObject() {
         objectClipboard.isEmpty()) {
         return false;
     }
-    const int id =
-        runtimeContext->pasteObjectDefinition(objectClipboard.toStdString());
+    QProgressDialog progress("Pasting object…", QString(), 0, 100, this);
+    progress.setCancelButton(nullptr);
+    progress.setMinimumDuration(300);
+    progress.setWindowModality(Qt::WindowModal);
+    const int id = runtimeContext->pasteObjectDefinition(
+        objectClipboard.toStdString(),
+        [&progress](float value, const std::string &status) {
+            const int percentage = std::clamp(
+                static_cast<int>(std::round(value * 100.0f)), 0, 100);
+            progress.setValue(percentage);
+            progress.setLabelText(QString::fromStdString(status) +
+                                  QStringLiteral("… %1%").arg(percentage));
+            QCoreApplication::processEvents(QEventLoop::ExcludeUserInputEvents);
+        });
+    progress.setValue(100);
     if (id < 0)
         return false;
     if (undoStack != nullptr)
