@@ -924,6 +924,28 @@ computeShadowCasterSignature(const std::vector<Renderable *> &shadowCasters) {
 
     return signature;
 }
+
+class RenderingContextScope {
+  public:
+    explicit RenderingContextScope(Window &window)
+        : previousWindow(Window::mainWindow),
+          previousDevice(opal::Device::globalInstance) {
+        window.activateRenderingContext();
+    }
+
+    ~RenderingContextScope() {
+        if (previousWindow != nullptr) {
+            previousWindow->activateRenderingContext();
+            return;
+        }
+        Window::mainWindow = nullptr;
+        opal::Device::globalInstance = previousDevice;
+    }
+
+  private:
+    Window *previousWindow;
+    opal::Device *previousDevice;
+};
 } // namespace
 
 Window::Window(const WindowConfiguration &config)
@@ -1034,7 +1056,7 @@ Window::Window(const WindowConfiguration &config)
     this->setEditorControlsEnabled(config.editorControls);
     this->metalUpscalingRatio = this->renderScale;
 
-    Window::mainWindow = this;
+    activateRenderingContext();
 
     float initialMouseX = 0.0f;
     float initialMouseY = 0.0f;
@@ -1404,6 +1426,7 @@ void Window::pollEvents() {
 }
 
 bool Window::stepFrame() {
+    RenderingContextScope renderingContext(*this);
     this->initializeRunLoop();
     if (this->shouldClose) {
         return false;
@@ -1572,7 +1595,9 @@ bool Window::stepFrame() {
 
     DebugTimer gpuTimer("Gpu Data");
 
-    renderLightsToShadowMaps(commandBuffer);
+    if (!this->usePathTracing) {
+        renderLightsToShadowMaps(commandBuffer);
+    }
 
     std::vector<RenderTarget *> activeRenderTargets = this->renderTargets;
     bool usesModeScreenTarget = false;
@@ -1632,8 +1657,13 @@ bool Window::stepFrame() {
             }
 #ifdef METAL
             pathTracer->resizeOutput(target->getWidth(), target->getHeight());
-            pathTracer->render(commandBuffer, target->texture.texture,
-                               target->brightTexture.texture);
+            if (!pathTracer->render(commandBuffer, target->texture.texture,
+                                    target->brightTexture.texture)) {
+                commandBuffer->beginPass(newRenderPass);
+                commandBuffer->clearColor(0.08f, 0.01f, 0.01f, 1.0f);
+                commandBuffer->clearDepth(1.0f);
+                commandBuffer->endPass();
+            }
 #endif
 
             continue;
@@ -1968,6 +1998,14 @@ bool Window::stepFrame() {
     return !this->shouldClose;
 }
 
+void Window::activateRenderingContext() {
+    if (device != nullptr && device->context != nullptr) {
+        device->context->makeCurrent();
+    }
+    Window::mainWindow = this;
+    opal::Device::globalInstance = device.get();
+}
+
 void Window::resize(int width, int height, float scale) {
     const int clampedWidth = std::max(1, width);
     const int clampedHeight = std::max(1, height);
@@ -1995,6 +2033,31 @@ void Window::resize(int width, int height, float scale) {
 
     device->getDefaultFramebuffer()->setViewport(0, 0, pixelWidth, pixelHeight);
     setViewportState(0, 0, pixelWidth, pixelHeight);
+    const int targetWidth = std::max(
+        1, static_cast<int>(pixelWidth * this->getRenderScale()));
+    const int targetHeight = std::max(
+        1, static_cast<int>(pixelHeight * this->getRenderScale()));
+    for (RenderTarget *target : renderTargets) {
+        if (target != nullptr &&
+            (target->type == RenderTargetType::Scene ||
+             target->type == RenderTargetType::Multisampled) &&
+            (target->getWidth() != targetWidth ||
+             target->getHeight() != targetHeight)) {
+            target->resize(*this);
+        }
+    }
+    const std::array<std::shared_ptr<RenderTarget> *, 7> internalTargets = {
+        &gBuffer,          &ssaoBuffer,    &ssaoBlurBuffer,
+        &volumetricBuffer, &lightBuffer,   &ssrFramebuffer,
+        &ssrHistoryFramebuffer};
+    for (auto *target : internalTargets) {
+        if (target != nullptr && *target != nullptr) {
+            (*target)->resize(*this);
+        }
+    }
+    if (bloomBuffer != nullptr) {
+        bloomBuffer->destroy();
+    }
     this->editorGridInitialized = false;
     this->shadowMapsDirty = true;
     this->ssaoMapsDirty = true;
@@ -2301,8 +2364,13 @@ void Window::editorPointerEvent(int action, float x, float y, int button,
             updateEditorCameraDrag(x, y, effectiveScale);
         } else if (action == 2) {
             editorCameraDragging = false;
-            editorOrbitVelocityX *= 0.65f;
-            editorOrbitVelocityY *= 0.65f;
+            if (usePathTracing) {
+                editorOrbitVelocityX = 0.0f;
+                editorOrbitVelocityY = 0.0f;
+            } else {
+                editorOrbitVelocityX *= 0.65f;
+                editorOrbitVelocityY *= 0.65f;
+            }
         }
         return;
     }
@@ -2370,8 +2438,12 @@ void Window::editorScrollEvent(float delta, float scale) {
     }
 
     applyEditorZoomDelta(scrollAmount);
-    editorZoomVelocity += scrollAmount * 0.01f;
-    editorZoomVelocity = std::clamp(editorZoomVelocity, -80.0f, 80.0f);
+    if (usePathTracing) {
+        editorZoomVelocity = 0.0f;
+    } else {
+        editorZoomVelocity += scrollAmount * 0.01f;
+        editorZoomVelocity = std::clamp(editorZoomVelocity, -80.0f, 80.0f);
+    }
 }
 
 void Window::editorKeyEvent(int key, bool pressed) {
@@ -2888,8 +2960,13 @@ void Window::updateEditorCameraDrag(float x, float y, float scale) {
     float yawDelta = dx * 0.22f;
     float pitchDelta = -dy * 0.22f;
     applyEditorOrbitDelta(yawDelta, pitchDelta);
-    editorOrbitVelocityX = yawDelta * 45.0f;
-    editorOrbitVelocityY = pitchDelta * 45.0f;
+    if (usePathTracing) {
+        editorOrbitVelocityX = 0.0f;
+        editorOrbitVelocityY = 0.0f;
+    } else {
+        editorOrbitVelocityX = yawDelta * 45.0f;
+        editorOrbitVelocityY = pitchDelta * 45.0f;
+    }
 }
 
 void Window::updateEditorCameraPan(float x, float y, float scale) {
@@ -3053,6 +3130,13 @@ void Window::updateEditorCameraMovement(float deltaTime) {
 
 void Window::updateEditorCameraInertia(float deltaTime) {
     if (camera == nullptr || editorCameraFocused) {
+        return;
+    }
+
+    if (usePathTracing) {
+        editorOrbitVelocityX = 0.0f;
+        editorOrbitVelocityY = 0.0f;
+        editorZoomVelocity = 0.0f;
         return;
     }
 
@@ -4729,7 +4813,9 @@ void Window::renderPingpong(RenderTarget *target) {
     blurPipeline->setUniform1i("image", 0);
 
     target->object->vao->bind();
-    target->object->ebo->bind();
+    if (target->object->ebo != nullptr) {
+        target->object->ebo->bind();
+    }
 
     for (unsigned int i = 0; i < blurIterations; ++i) {
         this->pingpongFramebuffers.at(horizontal)->bind();
@@ -5543,5 +5629,28 @@ void Window::enablePathTracing() {
     this->usePathTracing = true;
     this->pathTracer = std::make_shared<photon::PathTracing>();
     pathTracer->init();
+}
+
+bool Window::setEditorPathTracingPreview(bool enabled) {
+    if (pathTracer == nullptr) {
+        return false;
+    }
+    if (enabled) {
+        if (gBuffer == nullptr) {
+            useDeferredRendering();
+        } else {
+            usePathTracing = false;
+            usesDeferred = true;
+        }
+    } else {
+        usesDeferred = false;
+        usePathTracing = true;
+    }
+    return true;
+}
+
+const std::string &Window::getPathTracingError() const {
+    static const std::string noError;
+    return pathTracer != nullptr ? pathTracer->getLastError() : noError;
 }
 #endif

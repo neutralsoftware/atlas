@@ -499,6 +499,7 @@ class RenderTarget : public Renderable {
     RenderTarget(Window &window,
                  RenderTargetType type = RenderTargetType::Scene,
                  int resolution = 1024);
+    void resize(Window &window);
 
     /**
      * @brief Displays the render target in the window.
@@ -590,6 +591,7 @@ class RenderTarget : public Renderable {
     std::shared_ptr<opal::Framebuffer> resolveFb = nullptr;
     std::shared_ptr<opal::DepthStencilBuffer> renderbuffer = nullptr;
     std::vector<std::shared_ptr<Effect>> effects;
+    int creationResolution = 1024;
 
     friend class Window;
     friend struct Fluid;

@@ -80,6 +80,7 @@ class ViewportPanel : public QWidget {
     bool openRuntimeScene(const QString &path);
     bool saveRuntimeSceneAs(const QString &path);
     QString currentRuntimeScene() const;
+    QString runtimeProjectFile() const { return projectFile; }
     QString currentSceneSnapshot() const { return lastSceneSnapshot; }
     int selectedRuntimeObjectId() const;
     bool applyRuntimeMaterial(int id, const QString &path);
@@ -95,6 +96,7 @@ class ViewportPanel : public QWidget {
     void stopRuntimePlayback();
     void reloadRuntime();
     void setRuntimeShadingMode(int mode);
+    void setPathTracingPreview(bool enabled);
     void setRuntimeControlMode(int mode);
     void toggleTransformSpace();
     void toggleTransformSnapping();
@@ -111,6 +113,9 @@ class ViewportPanel : public QWidget {
     void frameRateChanged(float framesPerSecond);
     void sceneDirtyChanged(bool dirty);
     void runtimeStartupFinished(bool success, const QString &message);
+    void runtimeLoadingStarted();
+    void runtimeLoadingStatusChanged(const QString &status);
+    void runtimeLoadingFinished();
     void transformHintChanged(const QString &hint);
     void sceneOpened(const QString &path);
     void transformSpaceChanged(bool local);
@@ -136,7 +141,7 @@ class ViewportPanel : public QWidget {
     void scheduleRuntimeStart();
     void startRuntime();
     void stopRuntime();
-    void stepRuntime();
+    bool stepRuntime();
     void resizeRuntime();
     void sendPointerEvent(int action, float x, float y, int button);
     void refreshSceneSnapshot();
@@ -173,6 +178,7 @@ class ViewportPanel : public QWidget {
     int keyboardTransformAxes = 7;
     int playbackState = 0;
     int shadingMode = 0;
+    bool pathTracingPreview = true;
     int rightDragRuntimeButton = 0;
 };
 

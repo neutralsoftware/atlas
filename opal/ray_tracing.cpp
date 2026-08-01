@@ -17,62 +17,125 @@
 #include "Metal/Metal.hpp"
 #include "metal_state.h"
 
+opal::PrimitiveAccelerationStructure::~PrimitiveAccelerationStructure() {
+    if (blasDescriptor != nullptr) {
+        blasDescriptor->release();
+    }
+    if (blas != nullptr) {
+        blas->release();
+    }
+}
+
 std::shared_ptr<opal::PrimitiveAccelerationStructure>
 opal::PrimitiveAccelerationStructure::create(
     const std::vector<PrimitiveVertex> &vertices,
     const std::vector<uint32_t> &indices) {
+    std::vector<float> positions;
+    positions.reserve(vertices.size() * 3);
+    for (const auto &vertex : vertices) {
+        positions.push_back(vertex.position[0]);
+        positions.push_back(vertex.position[1]);
+        positions.push_back(vertex.position[2]);
+    }
+    return create(positions, indices);
+}
+
+std::shared_ptr<opal::PrimitiveAccelerationStructure>
+opal::PrimitiveAccelerationStructure::create(
+    const std::vector<float> &positions, const std::vector<uint32_t> &indices) {
+    return create(std::vector<std::vector<float>>{positions},
+                  std::vector<std::vector<uint32_t>>{indices});
+}
+
+std::shared_ptr<opal::PrimitiveAccelerationStructure>
+opal::PrimitiveAccelerationStructure::create(
+    const std::vector<std::vector<float>> &positions,
+    const std::vector<std::vector<uint32_t>> &indices) {
+    if (positions.empty() || positions.size() != indices.size()) {
+        return nullptr;
+    }
     auto blas = std::make_shared<PrimitiveAccelerationStructure>();
-    blas->vertices = vertices;
-    blas->indices = indices;
 
     auto &deviceState = metal::deviceState(Device::globalInstance);
 
-    blas->vertexBuffer = std::shared_ptr<MTL::Buffer>(
-        deviceState.device->newBuffer(vertices.data(),
-                                      vertices.size() * sizeof(PrimitiveVertex),
-                                      MTL::ResourceStorageModeShared),
-        [](MTL::Buffer *b) {
-            if (b)
-                b->release();
-        });
+    std::vector<MTL::AccelerationStructureGeometryDescriptor *> descriptors;
+    descriptors.reserve(positions.size());
+    blas->vertexBuffers.reserve(positions.size());
+    blas->indexBuffers.reserve(indices.size());
+    for (size_t geometryIndex = 0; geometryIndex < positions.size();
+         ++geometryIndex) {
+        const auto &geometryPositions = positions[geometryIndex];
+        const auto &geometryIndices = indices[geometryIndex];
+        if (geometryPositions.size() < 9 || geometryPositions.size() % 3 != 0 ||
+            geometryIndices.size() < 3 || geometryIndices.size() % 3 != 0) {
+            return nullptr;
+        }
 
-    blas->indexBuffer = std::shared_ptr<MTL::Buffer>(
-        deviceState.device->newBuffer(indices.data(),
-                                      indices.size() * sizeof(uint32_t),
-                                      MTL::ResourceStorageModeShared),
-        [](MTL::Buffer *b) {
-            if (b)
-                b->release();
-        });
+        auto vertexBuffer = std::shared_ptr<MTL::Buffer>(
+            deviceState.device->newBuffer(geometryPositions.data(),
+                                          geometryPositions.size() *
+                                              sizeof(float),
+                                          MTL::ResourceStorageModeShared),
+            [](MTL::Buffer *buffer) {
+                if (buffer != nullptr) {
+                    buffer->release();
+                }
+            });
+        auto indexBuffer = std::shared_ptr<MTL::Buffer>(
+            deviceState.device->newBuffer(geometryIndices.data(),
+                                          geometryIndices.size() *
+                                              sizeof(uint32_t),
+                                          MTL::ResourceStorageModeShared),
+            [](MTL::Buffer *buffer) {
+                if (buffer != nullptr) {
+                    buffer->release();
+                }
+            });
+        if (vertexBuffer == nullptr || indexBuffer == nullptr) {
+            return nullptr;
+        }
 
-    auto *triDesc =
-        MTL::AccelerationStructureTriangleGeometryDescriptor::descriptor();
-
-    triDesc->setVertexBuffer(blas->vertexBuffer.get());
-    triDesc->setVertexStride(sizeof(PrimitiveVertex));
-    triDesc->setVertexFormat(MTL::AttributeFormatFloat3);
-    triDesc->setVertexBufferOffset(offsetof(PrimitiveVertex, position));
-
-    triDesc->setIndexBuffer(blas->indexBuffer.get());
-    triDesc->setIndexType(MTL::IndexType::IndexTypeUInt32);
-    triDesc->setTriangleCount(indices.size() / 3);
+        auto *triangleDescriptor =
+            MTL::AccelerationStructureTriangleGeometryDescriptor::descriptor();
+        triangleDescriptor->setVertexBuffer(vertexBuffer.get());
+        triangleDescriptor->setVertexStride(sizeof(float) * 3);
+        triangleDescriptor->setVertexFormat(MTL::AttributeFormatFloat3);
+        triangleDescriptor->setVertexBufferOffset(0);
+        triangleDescriptor->setIndexBuffer(indexBuffer.get());
+        triangleDescriptor->setIndexType(MTL::IndexType::IndexTypeUInt32);
+        triangleDescriptor->setTriangleCount(geometryIndices.size() / 3);
+        triangleDescriptor->setOpaque(true);
+        descriptors.push_back(triangleDescriptor);
+        blas->vertexBuffers.push_back(std::move(vertexBuffer));
+        blas->indexBuffers.push_back(std::move(indexBuffer));
+    }
 
     auto *blasDesc =
         MTL::PrimitiveAccelerationStructureDescriptor::descriptor()->retain();
-    NS::Array *geoms = NS::Array::array((NS::Object **)&triDesc, 1);
+    NS::Array *geoms =
+        NS::Array::array((NS::Object **)descriptors.data(), descriptors.size());
     blasDesc->setGeometryDescriptors(geoms);
+    blasDesc->setUsage(MTL::AccelerationStructureUsagePreferFastIntersection);
 
     MTL::AccelerationStructureSizes sizes =
         deviceState.device->accelerationStructureSizes(blasDesc);
 
-    blas->asBuffer = Buffer::create(BufferUsage::GeneralPurpose,
-                                    sizes.accelerationStructureSize);
-    blas->scratch = Buffer::create(BufferUsage::GeneralPurpose,
-                                   sizes.buildScratchBufferSize);
+    try {
+        blas->scratch = Buffer::create(BufferUsage::GeneralPurpose,
+                                       sizes.buildScratchBufferSize);
+    } catch (const std::runtime_error &) {
+        blasDesc->release();
+        return nullptr;
+    }
 
     MTL::AccelerationStructure *blasPtr =
         deviceState.device->newAccelerationStructure(
             sizes.accelerationStructureSize);
+
+    if (blasPtr == nullptr) {
+        blasDesc->release();
+        return nullptr;
+    }
 
     blas->blas = blasPtr;
     blas->blasDescriptor = blasDesc;
@@ -105,6 +168,87 @@ void opal::CommandBuffer::buildPrimitiveAccelerationStructure(
     asEnc->endEncoding();
 
     blas->isBuilt = true;
+    state.pendingResources.emplace_back(blas->scratch);
+    for (const auto &vertexBuffer : blas->vertexBuffers) {
+        state.pendingResources.emplace_back(vertexBuffer);
+    }
+    for (const auto &indexBuffer : blas->indexBuffers) {
+        state.pendingResources.emplace_back(indexBuffer);
+    }
+    blas->scratch.reset();
+    blas->vertexBuffers.clear();
+    blas->indexBuffers.clear();
+}
+
+std::shared_ptr<opal::InstanceAccelerationStructure>
+opal::CommandBuffer::buildAccelerationStructures(
+    const std::vector<std::shared_ptr<PrimitiveAccelerationStructure>> &blases,
+    const std::vector<AccelerationStructureInstance> &instances) {
+    if (blases.empty() || instances.empty()) {
+        return nullptr;
+    }
+
+    auto &deviceState = metal::deviceState(Device::globalInstance);
+    auto &state = metal::commandBufferState(this);
+    if (state.encoder != nullptr) {
+        state.encoder->endEncoding();
+        state.encoder = nullptr;
+        state.textureBindingsInitialized = false;
+    }
+    if (state.commandBuffer == nullptr) {
+        state.commandBuffer = deviceState.queue->commandBuffer();
+    }
+    if (state.computeEncoder != nullptr) {
+        state.computeEncoder->endEncoding();
+        state.computeEncoder = nullptr;
+    }
+
+    auto *asEnc = state.commandBuffer->accelerationStructureCommandEncoder();
+    for (const auto &blas : blases) {
+        if (blas == nullptr || blas->scratch == nullptr ||
+            blas->vertexBuffers.empty() || blas->indexBuffers.empty()) {
+            asEnc->endEncoding();
+            return nullptr;
+        }
+        auto &scratchBuffer = metal::bufferState(blas->scratch.get());
+        asEnc->buildAccelerationStructure(blas->blas, blas->blasDescriptor,
+                                          scratchBuffer.buffer, 0);
+        blas->isBuilt = true;
+        state.pendingResources.emplace_back(blas->scratch);
+        for (const auto &vertexBuffer : blas->vertexBuffers) {
+            state.pendingResources.emplace_back(vertexBuffer);
+        }
+        for (const auto &indexBuffer : blas->indexBuffers) {
+            state.pendingResources.emplace_back(indexBuffer);
+        }
+        blas->scratch.reset();
+        blas->vertexBuffers.clear();
+        blas->indexBuffers.clear();
+    }
+
+    std::shared_ptr<InstanceAccelerationStructure> tlas;
+    try {
+        tlas = InstanceAccelerationStructure::create(instances);
+    } catch (...) {
+        asEnc->endEncoding();
+        throw;
+    }
+    if (tlas == nullptr) {
+        asEnc->endEncoding();
+        return nullptr;
+    }
+
+    auto &scratchState = metal::bufferState(tlas->scratch.get());
+    asEnc->buildAccelerationStructure(tlas->tlas, tlas->tlasDescriptor,
+                                      scratchState.buffer, 0);
+    asEnc->endEncoding();
+
+    tlas->isBuilt = true;
+    state.pendingResources.emplace_back(tlas->scratch);
+    state.pendingResources.emplace_back(tlas->instanceBuffer);
+    tlas->scratch.reset();
+    tlas->instanceBuffer.reset();
+    return tlas;
 }
 
 static inline void opal::writeMetalTransform3x4(const glm::mat4 &M,
@@ -123,16 +267,28 @@ static inline void opal::writeMetalTransform3x4(const glm::mat4 &M,
     out[11] = M[3][2];
 }
 
+opal::InstanceAccelerationStructure::~InstanceAccelerationStructure() {
+    if (tlasDescriptor != nullptr) {
+        tlasDescriptor->release();
+    }
+    if (tlas != nullptr) {
+        tlas->release();
+    }
+}
+
 std::shared_ptr<opal::InstanceAccelerationStructure>
 opal::InstanceAccelerationStructure::create(
     const std::vector<opal::AccelerationStructureInstance> &instances) {
+    if (instances.empty()) {
+        return nullptr;
+    }
     auto tlas = std::make_shared<opal::InstanceAccelerationStructure>();
     tlas->instances = instances;
 
     tlas->blasRefs.reserve(instances.size());
     tlas->blasPtrs.reserve(instances.size());
 
-    std::vector<MTL::AccelerationStructureUserIDInstanceDescriptor> descs;
+    std::vector<MTL::AccelerationStructureInstanceDescriptor> descs;
     descs.resize(instances.size());
 
     for (size_t i = 0; i < instances.size(); ++i) {
@@ -154,25 +310,32 @@ opal::InstanceAccelerationStructure::create(
 
         d.accelerationStructureIndex = (uint32_t)i;
         d.mask = inst.mask ? inst.mask : 0xFF;
-        d.userID = inst.instanceId;
-        d.options =
-            inst.cullDisable
-                ? MTL::AccelerationStructureInstanceOptionDisableTriangleCulling
-                : 0;
+        d.options = MTL::AccelerationStructureInstanceOptionOpaque;
+        if (inst.cullDisable) {
+            d.options |=
+                MTL::AccelerationStructureInstanceOptionDisableTriangleCulling;
+        }
         d.intersectionFunctionTableOffset = 0;
     }
 
     tlas->instanceBuffer =
         Buffer::create(BufferUsage::GeneralPurpose,
                        descs.size() * sizeof(descs[0]), descs.data());
+    if (tlas->instanceBuffer == nullptr) {
+        return nullptr;
+    }
 
     tlas->tlasDescriptor =
         MTL::InstanceAccelerationStructureDescriptor::descriptor()->retain();
+    tlas->tlasDescriptor->setUsage(
+        MTL::AccelerationStructureUsagePreferFastIntersection);
+    tlas->tlasDescriptor->setInstanceDescriptorType(
+        MTL::AccelerationStructureInstanceDescriptorTypeDefault);
     auto &ib = metal::bufferState(tlas->instanceBuffer.get());
 
     tlas->tlasDescriptor->setInstanceDescriptorBuffer(ib.buffer);
     tlas->tlasDescriptor->setInstanceDescriptorStride(
-        sizeof(MTL::AccelerationStructureUserIDInstanceDescriptor));
+        sizeof(MTL::AccelerationStructureInstanceDescriptor));
     tlas->tlasDescriptor->setInstanceCount((NS::UInteger)descs.size());
 
     NS::Array *instancedAS =
@@ -192,6 +355,10 @@ opal::InstanceAccelerationStructure::create(
     MTL::AccelerationStructure *tlasPtr =
         deviceState.device->newAccelerationStructure(
             sizes.accelerationStructureSize);
+
+    if (tlasPtr == nullptr) {
+        return nullptr;
+    }
 
     tlas->tlas = tlasPtr;
 
@@ -225,6 +392,10 @@ void opal::CommandBuffer::buildInstanceAccelerationStructure(
     asEnc->endEncoding();
 
     tlas->isBuilt = true;
+    state.pendingResources.emplace_back(tlas->scratch);
+    state.pendingResources.emplace_back(tlas->instanceBuffer);
+    tlas->scratch.reset();
+    tlas->instanceBuffer.reset();
 }
 
 #endif

@@ -15,6 +15,7 @@
 #include "atlas/units.h"
 #include "opal/opal.h"
 #include <memory>
+#include <string>
 #include <unordered_map>
 #include <utility>
 #include <vector>
@@ -75,11 +76,11 @@ class PathTracing {
   public:
 #ifdef METAL
     /** @brief Runs one path tracing pass into the active output texture. */
-    void render(const std::shared_ptr<opal::CommandBuffer> &commandBuffer,
+    bool render(const std::shared_ptr<opal::CommandBuffer> &commandBuffer,
                 const std::shared_ptr<opal::Texture> &output,
                 const std::shared_ptr<opal::Texture> &brightOutput);
     /** @brief Rebuilds BLAS/TLAS data for the current scene geometry. */
-    void buildAccelerationStructure(
+    bool buildAccelerationStructure(
         const std::shared_ptr<opal::CommandBuffer> &commandBuffer);
     /** @brief Uploads light lists used by path tracing shaders. */
     bool createLightBuffers();
@@ -87,6 +88,7 @@ class PathTracing {
     void init();
     /** @brief Resizes path tracing output and history textures. */
     void resizeOutput(int width, int height);
+    const std::string &getLastError() const { return lastError; }
 
     /** @brief Current frame output texture. */
     std::shared_ptr<Texture> pathTracingTexturePrev;
@@ -94,9 +96,9 @@ class PathTracing {
     /** @brief Rays traced per pixel each dispatch. */
     int raysPerPixel = 1;
     /** @brief Maximum bounce count for indirect transport. */
-    int maxBounces = 1;
+    int maxBounces = 6;
     /** @brief Scalar multiplier for indirect lighting contribution. */
-    float indirectStrength = 0.55f;
+    float indirectStrength = 1.0f;
     /** @brief Whether normal maps are evaluated during shading. */
     bool sampleNormalMaps = true;
     /** @brief Strength multiplier applied to sampled normal maps. */
@@ -112,8 +114,10 @@ class PathTracing {
     std::shared_ptr<opal::Buffer> meshInfo;
     std::shared_ptr<opal::Buffer> materialBuffer;
     std::shared_ptr<opal::Buffer> instanceDataBuffer;
+    std::shared_ptr<opal::Buffer> blasPrimitiveOffsets;
     std::vector<std::shared_ptr<opal::Texture>> materialTextures;
-    std::shared_ptr<opal::InstanceAccelerationStructure> sceneTLAS;
+    std::vector<std::shared_ptr<opal::Texture>> materialTextureBindings;
+    std::shared_ptr<opal::PrimitiveAccelerationStructure> sceneBLAS;
     std::shared_ptr<opal::Pipeline> pathTracingPipeline;
     std::shared_ptr<opal::Pipeline> pathDenoisePipeline;
     std::shared_ptr<ShaderProgram> computePathTracer;
@@ -121,24 +125,35 @@ class PathTracing {
     std::array<std::shared_ptr<Texture>, 2> denoiseTextures;
     std::array<std::shared_ptr<Texture>, 4> pathTracingAovTextures;
     std::shared_ptr<Texture> pathTracingHistoryGuide;
-    std::unordered_map<int,
-                       std::shared_ptr<opal::PrimitiveAccelerationStructure>>
-        objectBLAS;
+    std::vector<uint32_t> cachedBLASPrimitiveOffsets;
     std::vector<CoreObject *> cachedObjects;
+    std::vector<CoreObject *> cachedSceneObjects;
     std::vector<glm::mat4> cachedInstanceTransforms;
     std::vector<uint64_t> cachedObjectStateHashes;
+    std::vector<uint64_t> cachedSceneObjectStateHashes;
     uint64_t cachedLightHash = 0;
 
     int frameIndex = 0;
     int outputWidth = 0;
     int outputHeight = 0;
+    int interactiveFramesRemaining = 0;
+    bool interactive = false;
+    bool accelerationBuildFailed = false;
+    std::string lastError;
     glm::mat4 cachedInvViewProj = glm::mat4(1.0f);
     glm::mat4 previousViewProj = glm::mat4(1.0f);
     glm::vec3 cachedDirectionalLightDirection = glm::vec3(0.0f, -1.0f, 0.0f);
     glm::vec3 cachedDirectionalLightColor = glm::vec3(1.0f, 1.0f, 1.0f);
     float cachedDirectionalLightIntensity = -1.0f;
+    glm::vec3 cachedAmbientColor = glm::vec3(-1.0f);
+    float cachedAmbientIntensity = -1.0f;
     int cachedDirectionalLightCount = -1;
     uint64_t cachedSkyboxTextureId = 0;
+    glm::vec3 cachedAtmosphereSunDirection = glm::vec3(0.0f);
+    glm::vec3 cachedAtmosphereSunColor = glm::vec3(0.0f);
+    float cachedAtmosphereSunIntensity = -1.0f;
+    float cachedAtmosphereSunSize = -1.0f;
+    int cachedAtmosphereEnabled = -1;
 
     friend class ::Window;
 #endif

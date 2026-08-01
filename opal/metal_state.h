@@ -130,6 +130,10 @@ struct PipelineState {
     MTL::Buffer *textureArgumentBuffer = nullptr;
     uint32_t textureArgumentBufferIndex = 0;
     std::vector<std::shared_ptr<Texture>> textureArgumentTextures;
+    std::unordered_map<uint32_t, std::shared_ptr<PrimitiveAccelerationStructure>>
+        primitiveAccelerationStructures;
+    std::unordered_map<uint32_t, std::shared_ptr<InstanceAccelerationStructure>>
+        instanceAccelerationStructures;
     MTL::PrimitiveType primitiveType = MTL::PrimitiveTypeTriangle;
     MTL::CullMode cullMode = MTL::CullModeBack;
     MTL::Winding frontFace = MTL::WindingCounterClockwise;
@@ -159,6 +163,8 @@ struct CommandBufferState {
     NS::AutoreleasePool *autoreleasePool = nullptr;
     MTL::CommandBuffer *commandBuffer = nullptr;
     std::vector<MTL::CommandBuffer *> inFlightCommandBuffers;
+    std::vector<std::vector<std::shared_ptr<void>>> inFlightResources;
+    std::vector<std::shared_ptr<void>> pendingResources;
     MTL::RenderCommandEncoder *encoder = nullptr;
     MTL::ComputeCommandEncoder *computeEncoder = nullptr;
     MTL::RenderPassDescriptor *passDescriptor = nullptr;

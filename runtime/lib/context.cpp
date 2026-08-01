@@ -92,6 +92,28 @@ struct MaterialDefinition {
     std::vector<Texture> textures;
 };
 
+class WindowActivationScope {
+  public:
+    explicit WindowActivationScope(Window &window)
+        : previousWindow(Window::mainWindow),
+          previousDevice(opal::Device::globalInstance) {
+        window.activateRenderingContext();
+    }
+
+    ~WindowActivationScope() {
+        if (previousWindow != nullptr) {
+            previousWindow->activateRenderingContext();
+            return;
+        }
+        Window::mainWindow = nullptr;
+        opal::Device::globalInstance = previousDevice;
+    }
+
+  private:
+    Window *previousWindow;
+    opal::Device *previousDevice;
+};
+
 struct PendingComponent {
     GameObject *object = nullptr;
     std::string objectType;
@@ -628,8 +650,7 @@ TextureType parseTextureTypeString(const std::string &value) {
     if (token == "normal" || token == "normalmap") {
         return TextureType::Normal;
     }
-    if (token == "parallax" || token == "displacement" ||
-        token == "height") {
+    if (token == "parallax" || token == "displacement" || token == "height") {
         return TextureType::Parallax;
     }
     if (token == "metallic" || token == "metalness") {
@@ -641,8 +662,7 @@ TextureType parseTextureTypeString(const std::string &value) {
     if (token == "ao" || token == "ambientocclusion") {
         return TextureType::AO;
     }
-    if (token == "pbrpack" || token == "orm" ||
-        token == "metallicroughness") {
+    if (token == "pbrpack" || token == "orm" || token == "metallicroughness") {
         return TextureType::PBRPack;
     }
     if (token == "opacity" || token == "alpha") {
@@ -752,7 +772,8 @@ MaterialDefinition loadMaterialDefinition(const json &value,
                     loaded.material.normalMapStrength);
     tryReadBoolAny(materialData, {"useNormalMap"},
                    loaded.material.useNormalMap);
-    if (const json *scale = findField(materialData, {"textureScale", "uvScale"});
+    if (const json *scale =
+            findField(materialData, {"textureScale", "uvScale"});
         scale != nullptr && scale->is_array() && scale->size() >= 2) {
         loaded.material.textureScale = {
             static_cast<float>((*scale)[0].get<double>()),
@@ -1567,9 +1588,9 @@ bool isEditorLightObject(const Context &context, GameObject &object) {
 void syncEditorLightObject(Context &context, GameObject &object) {
     const int id = static_cast<int>(object.getId());
     const auto sourceIt = context.editorLightSourceData.find(id);
-    const json *source =
-        sourceIt != context.editorLightSourceData.end() ? &sourceIt->second
-                                                        : nullptr;
+    const json *source = sourceIt != context.editorLightSourceData.end()
+                             ? &sourceIt->second
+                             : nullptr;
     if (auto it = context.editorPointLights.find(id);
         it != context.editorPointLights.end() && it->second != nullptr) {
         it->second->position = object.getPosition();
@@ -1602,11 +1623,10 @@ void syncEditorLightObject(Context &context, GameObject &object) {
             tryReadColorAny(*source, {"shineColor"}, it->second->shineColor);
             tryReadFloatAny(*source, {"intensity"}, it->second->intensity);
             tryReadFloatAny(*source, {"range", "distance"}, it->second->range);
-            float cutoff =
-                glm::degrees(std::acos(std::clamp(it->second->cutOff, -1.0f,
-                                                  1.0f)));
-            float outerCutoff = glm::degrees(std::acos(
-                std::clamp(it->second->outerCutoff, -1.0f, 1.0f)));
+            float cutoff = glm::degrees(
+                std::acos(std::clamp(it->second->cutOff, -1.0f, 1.0f)));
+            float outerCutoff = glm::degrees(
+                std::acos(std::clamp(it->second->outerCutoff, -1.0f, 1.0f)));
             tryReadFloatAny(*source, {"cutoff"}, cutoff);
             tryReadFloatAny(*source, {"outerCutoff"}, outerCutoff);
             it->second->cutOff = glm::cos(glm::radians(cutoff));
@@ -1983,8 +2003,7 @@ bool updateObjectNode(json &node, const Context &context, GameObject &object) {
                 }
             }
         }
-        if (auto components =
-                context.editorComponentData.find(object.getId());
+        if (auto components = context.editorComponentData.find(object.getId());
             components != context.editorComponentData.end()) {
             node["components"] = components->second;
         }
@@ -3039,9 +3058,9 @@ bool updateAttachedComponent(Context &context, GameObject &object,
             script->variables = *variables;
             if (script->instance != nullptr) {
                 const std::string serialized = variables->dump();
-                JSValue parsed = JS_ParseJSON(
-                    context.context, serialized.c_str(), serialized.size(),
-                    "<atlas:variables>");
+                JSValue parsed =
+                    JS_ParseJSON(context.context, serialized.c_str(),
+                                 serialized.size(), "<atlas:variables>");
                 if (!JS_IsException(parsed)) {
                     JS_SetPropertyStr(context.context,
                                       script->instance->instance, "variables",
@@ -3057,8 +3076,7 @@ bool updateAttachedComponent(Context &context, GameObject &object,
             tryReadStringAny(data, {"name", "class", "className"},
                              script->className);
             std::string source;
-            if (tryReadStringAny(data, {"source"}, source) &&
-                !source.empty()) {
+            if (tryReadStringAny(data, {"source"}, source) && !source.empty()) {
                 const std::string resolvedSource =
                     resolveRuntimePath(baseDir, source);
                 std::string extension =
@@ -3081,8 +3099,7 @@ bool updateAttachedComponent(Context &context, GameObject &object,
                     script->className = inferScriptClassName(resolvedSource);
                 }
             }
-            if (script->className.empty() ||
-                script->entryModuleName.empty()) {
+            if (script->className.empty() || script->entryModuleName.empty()) {
                 throw std::runtime_error(
                     "Script component is missing a valid class or source");
             }
@@ -3104,8 +3121,7 @@ bool updateAttachedComponent(Context &context, GameObject &object,
 
     if (auto rigidbody = std::dynamic_pointer_cast<Rigidbody>(component);
         rigidbody != nullptr) {
-        tryReadStringAny(data, {"sendSignal", "signal"},
-                         rigidbody->sendSignal);
+        tryReadStringAny(data, {"sendSignal", "signal"}, rigidbody->sendSignal);
         tryReadBoolAny(data, {"isSensor"}, rigidbody->isSensor);
         if (rigidbody->body != nullptr) {
             rigidbody->body->sensorSignal = rigidbody->sendSignal;
@@ -3162,8 +3178,7 @@ bool updateAttachedComponent(Context &context, GameObject &object,
             if (attached != context.editorRuntimeComponents.end()) {
                 for (const auto &entry : attached->second) {
                     const std::shared_ptr<Component> related = entry.lock();
-                    if (auto joint =
-                            std::dynamic_pointer_cast<Joint>(related);
+                    if (auto joint = std::dynamic_pointer_cast<Joint>(related);
                         joint != nullptr) {
                         joint->breakJoint();
                     }
@@ -3182,8 +3197,7 @@ bool updateAttachedComponent(Context &context, GameObject &object,
         audio != nullptr) {
         if (propertyPath == "/source") {
             std::string source;
-            if (tryReadStringAny(data, {"source"}, source) &&
-                !source.empty()) {
+            if (tryReadStringAny(data, {"source"}, source) && !source.empty()) {
                 audio->setSource(createRuntimeResource(
                     baseDir, source, ResourceType::Audio, "runtime-audio"));
             }
@@ -3238,18 +3252,15 @@ bool updateAttachedComponent(Context &context, GameObject &object,
                 limits != nullptr && limits->is_object()) {
                 tryReadBoolAny(*limits, {"isEnabled", "enabled"},
                                hinge->limits.enabled);
-                tryReadFloatAny(*limits, {"minAngle"},
-                                hinge->limits.minAngle);
-                tryReadFloatAny(*limits, {"maxAngle"},
-                                hinge->limits.maxAngle);
+                tryReadFloatAny(*limits, {"minAngle"}, hinge->limits.minAngle);
+                tryReadFloatAny(*limits, {"maxAngle"}, hinge->limits.maxAngle);
             }
             if (const json *motor = findField(data, {"motor"});
                 motor != nullptr && motor->is_object()) {
                 tryReadBoolAny(*motor, {"isEnabled", "enabled"},
                                hinge->motor.enabled);
                 tryReadFloatAny(*motor, {"maxForce"}, hinge->motor.maxForce);
-                tryReadFloatAny(*motor, {"maxTorque"},
-                                hinge->motor.maxTorque);
+                tryReadFloatAny(*motor, {"maxTorque"}, hinge->motor.maxTorque);
             }
         }
         if (auto spring = std::dynamic_pointer_cast<SpringJoint>(component);
@@ -3273,8 +3284,7 @@ bool updateAttachedComponent(Context &context, GameObject &object,
                                 spring->spring.dampingRatio);
                 tryReadFloatAny(*settings, {"stiffness"},
                                 spring->spring.stiffness);
-                tryReadFloatAny(*settings, {"damping"},
-                                spring->spring.damping);
+                tryReadFloatAny(*settings, {"damping"}, spring->spring.damping);
             }
         }
         return true;
@@ -3813,9 +3823,8 @@ Font loadGraphiteFont(const json &data, const std::string &baseDir) {
     if (const auto found = cache.find(key); found != cache.end()) {
         return found->second;
     }
-    Resource resource = createRuntimeResource(baseDir, source,
-                                              ResourceType::Font,
-                                              "graphite-font");
+    Resource resource = createRuntimeResource(
+        baseDir, source, ResourceType::Font, "graphite-font");
     Font font = Font::fromResource(name, resource, size);
     cache[key] = font;
     return font;
@@ -3882,12 +3891,10 @@ void repairGraphiteColors(json &value, const std::string &key = {}) {
     if (!value.is_array())
         return;
     const std::string normalizedKey = normalizeToken(key);
-    const bool colorField = normalizedKey == "background" ||
-                            normalizedKey == "foreground" ||
-                            normalizedKey == "border" ||
-                            normalizedKey == "tint" ||
-                            normalizedKey == "color" ||
-                            normalizedKey.ends_with("color");
+    const bool colorField =
+        normalizedKey == "background" || normalizedKey == "foreground" ||
+        normalizedKey == "border" || normalizedKey == "tint" ||
+        normalizedKey == "color" || normalizedKey.ends_with("color");
     if (colorField && value.size() == 4 && value[3].is_number() &&
         std::abs(value[3].get<double>() - (1.0 / 255.0)) < 0.00001)
         value[3] = 1.0;
@@ -3931,11 +3938,10 @@ JsonDefinition loadGraphiteDocument(const json &value,
                                  std::to_string(version));
     }
     repairGraphiteColors(definition.data);
-    const json defaultFont =
-        definition.data.contains("defaultFont") &&
-                definition.data["defaultFont"].is_object()
-            ? definition.data["defaultFont"]
-            : json::object();
+    const json defaultFont = definition.data.contains("defaultFont") &&
+                                     definition.data["defaultFont"].is_object()
+                                 ? definition.data["defaultFont"]
+                                 : json::object();
     if (definition.data.contains("root")) {
         inheritGraphiteDocumentDefaults(definition.data["root"], defaultFont);
     }
@@ -3981,8 +3987,8 @@ createRenderable(Context &context, const json &objectData,
             font = loadGraphiteFont(*fontData, baseDir);
         }
         graphite::UIStyle style;
-        const bool hasStyle = objectData.contains("style") &&
-                              objectData["style"].is_object();
+        const bool hasStyle =
+            objectData.contains("style") && objectData["style"].is_object();
         if (hasStyle) {
             style = parseGraphiteStyle(objectData["style"]);
         }
@@ -4000,7 +4006,8 @@ createRenderable(Context &context, const json &objectData,
             tryReadStringAny(objectData, {"content", "text"}, content);
             Color color = Color::white();
             tryReadColorAny(objectData, {"color", "textColor"}, color);
-            auto object = std::make_shared<Text>(content, font, color, position);
+            auto object =
+                std::make_shared<Text>(content, font, color, position);
             tryReadFloatAny(objectData, {"fontSize"}, object->fontSize);
             if (hasStyle)
                 object->setStyle(style);
@@ -4012,7 +4019,8 @@ createRenderable(Context &context, const json &objectData,
             object->position = position;
             object->size = Size2d{size.x, size.y};
             tryReadColorAny(objectData, {"tint"}, object->tint);
-            if (const json *source = findField(objectData, {"source", "texture"});
+            if (const json *source =
+                    findField(objectData, {"source", "texture"});
                 source != nullptr && !isEmptyStringValue(*source)) {
                 object->texture = loadTextureDefinition(
                     *source, baseDir, TextureType::Color, false);
@@ -4039,8 +4047,7 @@ createRenderable(Context &context, const json &objectData,
                             object->hoverBackgroundColor);
             tryReadColorAny(objectData, {"pressedBackgroundColor"},
                             object->pressedBackgroundColor);
-            tryReadColorAny(objectData, {"borderColor"},
-                            object->borderColor);
+            tryReadColorAny(objectData, {"borderColor"}, object->borderColor);
             tryReadColorAny(objectData, {"hoverBorderColor"},
                             object->hoverBorderColor);
             if (hasStyle)
@@ -4067,8 +4074,7 @@ createRenderable(Context &context, const json &objectData,
                             object->boxBackgroundColor);
             tryReadColorAny(objectData, {"hoverBoxBackgroundColor"},
                             object->hoverBoxBackgroundColor);
-            tryReadColorAny(objectData, {"borderColor"},
-                            object->borderColor);
+            tryReadColorAny(objectData, {"borderColor"}, object->borderColor);
             tryReadColorAny(objectData, {"activeBorderColor"},
                             object->activeBorderColor);
             tryReadColorAny(objectData, {"checkColor"}, object->checkColor);
@@ -4095,12 +4101,10 @@ createRenderable(Context &context, const json &objectData,
                             object->placeholderColor);
             tryReadColorAny(objectData, {"backgroundColor"},
                             object->backgroundColor);
-            tryReadColorAny(objectData, {"borderColor"},
-                            object->borderColor);
+            tryReadColorAny(objectData, {"borderColor"}, object->borderColor);
             tryReadColorAny(objectData, {"focusedBorderColor"},
                             object->focusedBorderColor);
-            tryReadColorAny(objectData, {"cursorColor"},
-                            object->cursorColor);
+            tryReadColorAny(objectData, {"cursorColor"}, object->cursorColor);
             if (hasStyle)
                 object->setStyle(style);
             return registerUIObject(object);
@@ -4258,8 +4262,8 @@ createRenderable(Context &context, const json &objectData,
         }
 
         applyTransform(*object, objectData);
-        collectPendingComponents(context, *object, objectData, baseDir, rigidbodies,
-                                 standard, joints);
+        collectPendingComponents(context, *object, objectData, baseDir,
+                                 rigidbodies, standard, joints);
         return object;
     }
 
@@ -4271,8 +4275,8 @@ createRenderable(Context &context, const json &objectData,
                            generatedIndex);
         context.objects.push_back(object);
         applyTransform(*object, objectData);
-        collectPendingComponents(context, *object, objectData, baseDir, rigidbodies,
-                                 standard, joints);
+        collectPendingComponents(context, *object, objectData, baseDir,
+                                 rigidbodies, standard, joints);
         return object;
     }
 
@@ -4303,8 +4307,8 @@ createRenderable(Context &context, const json &objectData,
         }
 
         applyTransform(*object, objectData);
-        collectPendingComponents(context, *object, objectData, baseDir, rigidbodies,
-                                 standard, joints);
+        collectPendingComponents(context, *object, objectData, baseDir,
+                                 rigidbodies, standard, joints);
         return object;
     }
 
@@ -4316,9 +4320,9 @@ createRenderable(Context &context, const json &objectData,
         }
 
         auto object = std::make_shared<Model>();
-        object->fromResource(createRuntimeResource(
-                                 baseDir, source, ResourceType::Model,
-                                 "runtime-model"),
+        object->fromResource(createRuntimeResource(baseDir, source,
+                                                   ResourceType::Model,
+                                                   "runtime-model"),
                              context.modelImportProgress);
 
         registerGameObject(context, *object, objectData, normalizedType,
@@ -4332,8 +4336,8 @@ createRenderable(Context &context, const json &objectData,
         }
 
         applyTransform(*object, objectData);
-        collectPendingComponents(context, *object, objectData, baseDir, rigidbodies,
-                                 standard, joints);
+        collectPendingComponents(context, *object, objectData, baseDir,
+                                 rigidbodies, standard, joints);
         return object;
     }
 
@@ -4416,8 +4420,8 @@ createRenderable(Context &context, const json &objectData,
             object->setParticleSettings(settings);
         }
 
-        collectPendingComponents(context, *object, objectData, baseDir, rigidbodies,
-                                 standard, joints);
+        collectPendingComponents(context, *object, objectData, baseDir,
+                                 rigidbodies, standard, joints);
         return object;
     }
 
@@ -4475,8 +4479,8 @@ createRenderable(Context &context, const json &objectData,
         }
 
         applyTransform(*object, objectData);
-        collectPendingComponents(context, *object, objectData, baseDir, rigidbodies,
-                                 standard, joints);
+        collectPendingComponents(context, *object, objectData, baseDir,
+                                 rigidbodies, standard, joints);
         return object;
     }
 
@@ -4532,8 +4536,7 @@ makeContextWithWindowOptions(std::string projectFile, void *metalView,
         ssaoScale = (*windowTable)["ssaoScale"].value_or(0.4f);
     }
     if (auto *rendererTable = configTable["renderer"].as_table()) {
-        useUpscaling =
-            (*rendererTable)["use_upscaling"].value_or(false);
+        useUpscaling = (*rendererTable)["use_upscaling"].value_or(false);
         renderScale = std::clamp(
             (*rendererTable)["upscaling_ratio"].value_or(0.5f), 0.5f, 1.0f);
     }
@@ -4575,8 +4578,7 @@ std::shared_ptr<Context> runtime::makeContext(std::string projectFile) {
                                         nullptr);
 }
 
-std::shared_ptr<Context>
-runtime::makeHiddenContext(std::string projectFile) {
+std::shared_ptr<Context> runtime::makeHiddenContext(std::string projectFile) {
     return makeContextWithWindowOptions(std::move(projectFile), nullptr,
                                         nullptr, false);
 }
@@ -4596,6 +4598,41 @@ runtime::makeContextForMetalView(std::string projectFile, void *metalView,
     (void)sdlInputWindow;
     throw std::runtime_error(
         "makeContextForMetalView is only available with the Metal backend");
+#endif
+}
+
+std::shared_ptr<Context> runtime::makeMaterialPreviewContextForMetalView(
+    std::string projectFile, void *metalView) {
+#ifdef METAL
+    if (metalView == nullptr) {
+        throw std::runtime_error("Metal view pointer cannot be null");
+    }
+    Window *previousWindow = Window::mainWindow;
+    opal::Device *previousDevice = opal::Device::globalInstance;
+    auto restorePrevious = [&] {
+        if (previousWindow != nullptr) {
+            previousWindow->activateRenderingContext();
+        } else {
+            Window::mainWindow = nullptr;
+            opal::Device::globalInstance = previousDevice;
+        }
+    };
+    try {
+        auto context = makeContextWithWindowOptions(std::move(projectFile),
+                                                    metalView, nullptr);
+        context->editorRuntime = false;
+        context->materialPreviewRuntime = true;
+        restorePrevious();
+        return context;
+    } catch (...) {
+        restorePrevious();
+        throw;
+    }
+#else
+    (void)projectFile;
+    (void)metalView;
+    throw std::runtime_error(
+        "Material preview embedding requires the Metal backend");
 #endif
 }
 
@@ -4694,6 +4731,7 @@ bool Context::stepFrame() {
     if (scene == nullptr) {
         throw std::runtime_error("Scene is not initialized");
     }
+    WindowActivationScope activeWindow(*window);
     if (editorRuntime) {
         repairEditorCamera(*this);
     }
@@ -4721,6 +4759,7 @@ bool Context::resize(int width, int height, float scale) {
     if (window == nullptr) {
         throw std::runtime_error("Window is not initialized");
     }
+    WindowActivationScope activeWindow(*window);
     window->resize(width, height, scale);
     return true;
 }
@@ -4779,6 +4818,26 @@ bool Context::setEditorShadingMode(int mode) {
     }
     window->setEditorShadingMode(static_cast<EditorShadingMode>(mode));
     return true;
+}
+
+bool Context::setEditorPathTracingPreview(bool enabled) {
+    if (window == nullptr || !editorRuntime) {
+        return false;
+    }
+#ifdef METAL
+    return window->setEditorPathTracingPreview(enabled);
+#else
+    (void)enabled;
+    return false;
+#endif
+}
+
+std::string Context::getPathTracingError() const {
+#ifdef METAL
+    return window != nullptr ? window->getPathTracingError() : std::string();
+#else
+    return {};
+#endif
 }
 
 float Context::frameRate() const {
@@ -4841,8 +4900,9 @@ bool Context::toggleEditorTransformSnapping() {
 }
 
 float Context::changeEditorTransformSnapIncrement(float factor) {
-    return window != nullptr ? window->changeEditorTransformSnapIncrement(factor)
-                             : 0.0f;
+    return window != nullptr
+               ? window->changeEditorTransformSnapIncrement(factor)
+               : 0.0f;
 }
 
 int Context::selectedObjectId() const {
@@ -4888,9 +4948,8 @@ bool setJsonProperty(json &target, const std::string &propertyPath,
         return false;
     }
     try {
-        const std::string pointerPath = propertyPath.front() == '/'
-                                            ? propertyPath
-                                            : '/' + propertyPath;
+        const std::string pointerPath =
+            propertyPath.front() == '/' ? propertyPath : '/' + propertyPath;
         target[json::json_pointer(pointerPath)] = value;
         return true;
     } catch (const json::exception &) {
@@ -4954,6 +5013,23 @@ std::string editorObjectType(const Context &context, GameObject &object) {
 
 bool editorObjectWorldBounds(GameObject &object, glm::vec3 &minimum,
                              glm::vec3 &maximum) {
+    if (auto *model = dynamic_cast<Model *>(&object)) {
+        bool found = false;
+        for (const auto &child : model->getObjects()) {
+            if (child == nullptr) {
+                continue;
+            }
+            glm::vec3 childMinimum;
+            glm::vec3 childMaximum;
+            if (!editorObjectWorldBounds(*child, childMinimum, childMaximum)) {
+                continue;
+            }
+            minimum = found ? glm::min(minimum, childMinimum) : childMinimum;
+            maximum = found ? glm::max(maximum, childMaximum) : childMaximum;
+            found = true;
+        }
+        return found;
+    }
     if (auto *compound = dynamic_cast<CompoundObject *>(&object)) {
         bool found = false;
         for (auto *child : compound->objects) {
@@ -4972,7 +5048,11 @@ bool editorObjectWorldBounds(GameObject &object, glm::vec3 &minimum,
         return found;
     }
 
-    const std::vector<CoreVertex> vertices = object.getVertices();
+    const auto *coreObject = dynamic_cast<const CoreObject *>(&object);
+    const std::vector<CoreVertex> copiedVertices =
+        coreObject == nullptr ? object.getVertices() : std::vector<CoreVertex>();
+    const std::vector<CoreVertex> &vertices =
+        coreObject != nullptr ? coreObject->vertices : copiedVertices;
     if (vertices.empty()) {
         return false;
     }
@@ -5022,8 +5102,7 @@ std::optional<json> propertySyncJsonValue(const json &value,
     try {
         if (path.empty())
             return value;
-        const std::string pointerPath =
-            path.front() == '/' ? path : '/' + path;
+        const std::string pointerPath = path.front() == '/' ? path : '/' + path;
         return value.at(json::json_pointer(pointerPath));
     } catch (const json::exception &) {
         return std::nullopt;
@@ -5038,11 +5117,10 @@ std::optional<json> propertySyncSourceValue(Context &context,
         normalizeToken(source.value("section", std::string()));
     const std::string path = source.value("path", std::string());
     auto withFallback = [&source](std::optional<json> value) {
-        return value.has_value()
-                   ? value
-                   : source.contains("fallback")
-                         ? std::optional<json>(source["fallback"])
-                         : std::nullopt;
+        return value.has_value() ? value
+               : source.contains("fallback")
+                   ? std::optional<json>(source["fallback"])
+                   : std::nullopt;
     };
     if (section == "camera")
         return withFallback(
@@ -5076,10 +5154,10 @@ std::optional<json> propertySyncSourceValue(Context &context,
             return withFallback(
                 propertySyncJsonValue(sourceData->second, path));
         auto objectData = context.editorObjectSourceData.find(id);
-        return withFallback(objectData != context.editorObjectSourceData.end()
-                                ? propertySyncJsonValue(objectData->second,
-                                                        path)
-                                : std::nullopt);
+        return withFallback(
+            objectData != context.editorObjectSourceData.end()
+                ? propertySyncJsonValue(objectData->second, path)
+                : std::nullopt);
     }
     const int index = source.value("componentIndex", -1);
     auto components = context.editorComponentData.find(id);
@@ -5090,8 +5168,7 @@ std::optional<json> propertySyncSourceValue(Context &context,
                    ? std::optional<json>(source["fallback"])
                    : std::nullopt;
     }
-    return withFallback(
-        propertySyncJsonValue(components->second[index], path));
+    return withFallback(propertySyncJsonValue(components->second[index], path));
 }
 
 bool applyPropertySyncTarget(Context &context, const json &target,
@@ -5111,8 +5188,7 @@ bool applyPropertySyncTarget(Context &context, const json &target,
     if (object == nullptr)
         return false;
     const int id = static_cast<int>(object->getId());
-    const std::string component =
-        target.value("component", std::string());
+    const std::string component = target.value("component", std::string());
     const std::string normalized = normalizeToken(component);
     const int index = target.value("componentIndex", -1);
     if (!attachComponents && normalized != "transform" &&
@@ -5158,10 +5234,9 @@ json canonicalPropertySyncEndpoint(Context &context, json endpoint) {
         return endpoint;
     const int id = static_cast<int>(object->getId());
     auto reference = context.objectSceneReferences.find(id);
-    endpoint["object"] =
-        reference != context.objectSceneReferences.end()
-            ? reference->second
-            : editorObjectName(context, *object);
+    endpoint["object"] = reference != context.objectSceneReferences.end()
+                             ? reference->second
+                             : editorObjectName(context, *object);
     return endpoint;
 }
 
@@ -5487,8 +5562,8 @@ bool Context::setPropertySync(const json &target, const json &source) {
     if (!editorPropertySyncs.is_array())
         editorPropertySyncs = json::array();
     for (json &binding : editorPropertySyncs) {
-        if (binding.is_object() && binding.value("target", json()) ==
-                                       canonicalTarget) {
+        if (binding.is_object() &&
+            binding.value("target", json()) == canonicalTarget) {
             binding["source"] = canonicalSource;
             applyPropertySyncs(*this, true);
             return true;
@@ -5541,6 +5616,169 @@ bool Context::setObjectMaterial(int id, const std::string &path) {
     return true;
 }
 
+bool Context::initializeMaterialPreview(const std::string &definition,
+                                        const std::string &baseDir,
+                                        int environmentMode) {
+    if (window == nullptr || scene == nullptr || !materialPreviewRuntime) {
+        return false;
+    }
+
+    WindowActivationScope activeWindow(*window);
+    sceneDir = baseDir;
+    config.renderer = "deferred";
+    camera = std::make_unique<Camera>();
+    camera->setPosition({0.0f, 0.0f, 2.15f});
+    camera->lookAt(Position3d::zero());
+    camera->nearClip = 0.05f;
+    camera->farClip = 50.0f;
+    window->setCamera(camera.get());
+    window->setEditorSceneCamera(nullptr);
+    window->setEditorControlsEnabled(false);
+    window->useDeferredRendering();
+
+    auto sphere = std::make_shared<CoreObject>();
+    *sphere = createSphere(0.72f, 64, 32, Color::white());
+    sphere->castsShadows = false;
+    objects.push_back(sphere);
+    window->addObject(sphere.get());
+
+    auto directional = std::make_unique<DirectionalLight>(
+        Magnitude3d{-0.4f, -0.55f, -1.0f}, Color::white(), Color::white(),
+        1.1f);
+    scene->addDirectionalLight(directional.get());
+    directionalLights.push_back(std::move(directional));
+
+    auto keyLight = std::make_unique<AreaLight>();
+    keyLight->position = {-1.4f, 1.25f, 1.8f};
+    keyLight->size = {1.6f, 1.0f};
+    keyLight->intensity = 5.0f;
+    keyLight->range = 8.0f;
+    keyLight->castsBothSides = true;
+    scene->addAreaLight(keyLight.get());
+    areaLights.push_back(std::move(keyLight));
+
+    auto rimLight = std::make_unique<AreaLight>();
+    rimLight->position = {1.35f, -0.75f, 0.6f};
+    rimLight->size = {0.9f, 1.4f};
+    rimLight->intensity = 2.5f;
+    rimLight->range = 7.0f;
+    rimLight->castsBothSides = true;
+    scene->addAreaLight(rimLight.get());
+    areaLights.push_back(std::move(rimLight));
+
+    window->setScene(scene.get());
+    return setMaterialPreviewEnvironment(environmentMode) &&
+           setMaterialPreviewMaterial(definition, baseDir);
+}
+
+bool Context::setMaterialPreviewMaterial(const std::string &definition,
+                                         const std::string &baseDir) {
+    if (window == nullptr || !materialPreviewRuntime || objects.empty() ||
+        definition.empty()) {
+        return false;
+    }
+    auto *sphere = dynamic_cast<GameObject *>(objects.front().get());
+    if (sphere == nullptr) {
+        return false;
+    }
+    try {
+        WindowActivationScope activeWindow(*window);
+        applyMaterial(*sphere,
+                      loadMaterialDefinition(json::parse(definition), baseDir));
+        return true;
+    } catch (const std::exception &error) {
+        RUNTIME_LOG("Material preview could not be updated: " +
+                    std::string(error.what()));
+        return false;
+    }
+}
+
+bool Context::setMaterialPreviewEnvironment(int mode) {
+    if (window == nullptr || scene == nullptr || !materialPreviewRuntime ||
+        directionalLights.empty() || areaLights.size() < 2) {
+        return false;
+    }
+
+    WindowActivationScope activeWindow(*window);
+    std::array<Color, 6> colors;
+    Color ambient;
+    Color key;
+    Color rim;
+    Color background;
+    float ambientIntensity = 0.0f;
+    float directionalIntensity = 0.0f;
+    float keyIntensity = 0.0f;
+    float rimIntensity = 0.0f;
+
+    if (mode == 1) {
+        colors = {Color{0.92f, 0.3f, 0.12f, 1.0f},
+                  Color{0.16f, 0.05f, 0.2f, 1.0f},
+                  Color{0.34f, 0.12f, 0.32f, 1.0f},
+                  Color{0.08f, 0.025f, 0.045f, 1.0f},
+                  Color{0.98f, 0.48f, 0.18f, 1.0f},
+                  Color{0.12f, 0.04f, 0.18f, 1.0f}};
+        ambient = {0.72f, 0.28f, 0.32f, 1.0f};
+        key = {1.0f, 0.42f, 0.18f, 1.0f};
+        rim = {0.42f, 0.16f, 0.72f, 1.0f};
+        background = {0.08f, 0.025f, 0.055f, 1.0f};
+        ambientIntensity = 0.7f;
+        directionalIntensity = 0.8f;
+        keyIntensity = 5.5f;
+        rimIntensity = 3.0f;
+    } else if (mode == 2) {
+        colors = {Color{0.52f, 0.76f, 1.0f, 1.0f},
+                  Color{0.42f, 0.68f, 0.96f, 1.0f},
+                  Color{0.3f, 0.62f, 1.0f, 1.0f},
+                  Color{0.72f, 0.78f, 0.82f, 1.0f},
+                  Color{0.62f, 0.82f, 1.0f, 1.0f},
+                  Color{0.46f, 0.72f, 0.98f, 1.0f}};
+        ambient = {0.58f, 0.74f, 1.0f, 1.0f};
+        key = {1.0f, 0.95f, 0.84f, 1.0f};
+        rim = {0.42f, 0.7f, 1.0f, 1.0f};
+        background = {0.28f, 0.5f, 0.76f, 1.0f};
+        ambientIntensity = 0.9f;
+        directionalIntensity = 1.15f;
+        keyIntensity = 4.0f;
+        rimIntensity = 2.2f;
+    } else {
+        colors = {Color{0.9f, 0.9f, 0.88f, 1.0f},
+                  Color{0.035f, 0.04f, 0.05f, 1.0f},
+                  Color{0.7f, 0.74f, 0.8f, 1.0f},
+                  Color{0.025f, 0.025f, 0.03f, 1.0f},
+                  Color{0.38f, 0.4f, 0.44f, 1.0f},
+                  Color{0.07f, 0.075f, 0.085f, 1.0f}};
+        ambient = {0.82f, 0.84f, 0.88f, 1.0f};
+        key = {1.0f, 0.97f, 0.9f, 1.0f};
+        rim = {0.52f, 0.65f, 0.88f, 1.0f};
+        background = {0.035f, 0.04f, 0.05f, 1.0f};
+        ambientIntensity = 0.6f;
+        directionalIntensity = 0.95f;
+        keyIntensity = 5.0f;
+        rimIntensity = 2.5f;
+    }
+
+    scene->setAmbientColor(ambient);
+    scene->setAmbientIntensity(ambientIntensity);
+    directionalLights.front()->color = key;
+    directionalLights.front()->shineColor = key;
+    directionalLights.front()->intensity = directionalIntensity;
+    areaLights[0]->color = key;
+    areaLights[0]->shineColor = key;
+    areaLights[0]->intensity = keyIntensity;
+    areaLights[1]->color = rim;
+    areaLights[1]->shineColor = rim;
+    areaLights[1]->intensity = rimIntensity;
+    window->setClearColor(background);
+
+    if (auto skybox = scene->getSkybox(); skybox != nullptr) {
+        skybox->cubemap.updateWithColors(colors);
+    } else {
+        scene->setSkybox(
+            Skybox::create(Cubemap::fromColors(colors, 32), *window));
+    }
+    return true;
+}
+
 static json inheritedRigidbodyCollider(GameObject &object) {
     return json{{"type", "box"}, {"size", editorObjectBoundsSize(object)}};
 }
@@ -5556,9 +5794,8 @@ int Context::addObjectComponent(int id, const json &component) {
     }
     const std::string normalizedType = normalizeToken(type);
     static const std::unordered_set<std::string> supported{
-        "script",      "traitscript", "rigidbody", "audioplayer",
-        "joint",       "fixedjoint",  "hingejoint", "springjoint",
-        "vehicle",
+        "script",     "traitscript", "rigidbody",   "audioplayer", "joint",
+        "fixedjoint", "hingejoint",  "springjoint", "vehicle",
     };
     if (!supported.contains(normalizedType)) {
         return -1;
@@ -5568,8 +5805,7 @@ int Context::addObjectComponent(int id, const json &component) {
     if (normalizedType == "rigidbody") {
         json &collider = storedComponent["collider"];
         const bool inheritObjectSize =
-            collider.is_object() &&
-            collider.value("inheritObjectSize", false);
+            collider.is_object() && collider.value("inheritObjectSize", false);
         if (inheritObjectSize) {
             collider = inheritedRigidbodyCollider(*object);
         }
@@ -5856,11 +6092,10 @@ bool Context::deleteObject(int id) {
         window->removeObject(object);
     }
 
-    auto objectIt = std::find_if(objects.begin(), objects.end(),
-                                 [&](const auto &renderable) {
-                                     return renderable != nullptr &&
-                                            renderable.get() == object;
-                                 });
+    auto objectIt = std::find_if(
+        objects.begin(), objects.end(), [&](const auto &renderable) {
+            return renderable != nullptr && renderable.get() == object;
+        });
     if (objectIt != objects.end()) {
         retiredObjects.push_back(std::move(*objectIt));
         objects.erase(objectIt);
@@ -6066,13 +6301,13 @@ int Context::createObject(const std::string &type, const std::string &name) {
     registerObjectReference(*this, displayName, object.get());
     registerObjectReference(*this, std::to_string(id), object.get());
 
-    editorObjectSourceData[id] = json::object(
-        {{"id", id},
-         {"name", displayName},
-         {"type", sceneType},
-         {"position", vec3ToJson(position)},
-         {"rotation", rotationToJson(object->getRotation())},
-         {"scale", vec3ToJson(object->getScale())}});
+    editorObjectSourceData[id] =
+        json::object({{"id", id},
+                      {"name", displayName},
+                      {"type", sceneType},
+                      {"position", vec3ToJson(position)},
+                      {"rotation", rotationToJson(object->getRotation())},
+                      {"scale", vec3ToJson(object->getScale())}});
     if (!solidType.empty()) {
         editorObjectSourceData[id]["solid_type"] = solidType;
     }
@@ -6128,8 +6363,7 @@ int Context::pasteObjectDefinition(const std::string &definition) {
             type == "point" || type == "pointlight" || type == "spot" ||
             type == "spotlight" || type == "directional" ||
             type == "directionallight" || type == "sun" || type == "area" ||
-            type == "arealight" || type == "ambient" ||
-            type == "ambientlight";
+            type == "arealight" || type == "ambient" || type == "ambientlight";
         const char *collection = isLight ? "lights" : "objects";
         if (!sceneData.contains(collection) ||
             !sceneData[collection].is_array()) {
@@ -6246,10 +6480,9 @@ bool Context::openSceneFile(const std::string &path) {
         return false;
     try {
         const std::filesystem::path requested(path);
-        const std::string resolved =
-            requested.is_absolute()
-                ? requested.lexically_normal().string()
-                : resolveRuntimePath(projectDir, path);
+        const std::string resolved = requested.is_absolute()
+                                         ? requested.lexically_normal().string()
+                                         : resolveRuntimePath(projectDir, path);
         json sceneData = loadJsonFile(resolved);
         if (!sceneData.is_object())
             return false;
@@ -6269,6 +6502,7 @@ void Context::end() {
     if (window == nullptr) {
         return;
     }
+    WindowActivationScope activeWindow(*window);
     window->close();
     window->endRunLoop();
 }
@@ -6327,8 +6561,7 @@ void Context::loadProject() {
         screenSpaceReflections = (*renderer)["ssr"].value_or(false);
         screenSpaceReflectionQuality =
             std::clamp((*renderer)["ssr_quality"].value_or(1), 0, 2);
-        screenSpaceReflectionDebug =
-            (*renderer)["ssr_debug"].value_or(false);
+        screenSpaceReflectionDebug = (*renderer)["ssr_debug"].value_or(false);
     }
 
     if (auto *gameTable = configTable["game"].as_table()) {
@@ -6384,10 +6617,9 @@ void RuntimeScene::update(Window &window) {
     }
 
     if (runtimeContext->cameraActions.size() >= 3) {
-        runtimeContext->camera->updateWithActions(window,
-                                                  runtimeContext->cameraActions[0],
-                                                  runtimeContext->cameraActions[1],
-                                                  runtimeContext->cameraActions[2]);
+        runtimeContext->camera->updateWithActions(
+            window, runtimeContext->cameraActions[0],
+            runtimeContext->cameraActions[1], runtimeContext->cameraActions[2]);
     } else {
         runtimeContext->camera->update(window);
     }
@@ -6468,20 +6700,17 @@ void Context::loadScene(Window &window, const json &sceneData) {
         sceneData.contains("targets") && sceneData["targets"].is_array()
             ? sceneData["targets"]
             : json::array();
-    editorEnvironmentData =
-        sceneData.contains("environment") &&
-                sceneData["environment"].is_object()
-            ? sceneData["environment"]
-            : json::object();
-    editorPropertySyncs =
-        sceneData.contains("property_syncs") &&
-                sceneData["property_syncs"].is_array()
-            ? sceneData["property_syncs"]
-            : json::array();
-    editorUIData =
-        sceneData.contains("ui") && sceneData["ui"].is_array()
-            ? sceneData["ui"]
-            : json::array();
+    editorEnvironmentData = sceneData.contains("environment") &&
+                                    sceneData["environment"].is_object()
+                                ? sceneData["environment"]
+                                : json::object();
+    editorPropertySyncs = sceneData.contains("property_syncs") &&
+                                  sceneData["property_syncs"].is_array()
+                              ? sceneData["property_syncs"]
+                              : json::array();
+    editorUIData = sceneData.contains("ui") && sceneData["ui"].is_array()
+                       ? sceneData["ui"]
+                       : json::array();
 
     scene->atmosphere.resetRuntimeState();
     scene->setUseAtmosphereSkybox(false);
@@ -6963,7 +7192,8 @@ void Context::loadScene(Window &window, const json &sceneData) {
 
     applyPropertySyncs(*this, false);
 
-    auto refreshPendingSyncValues = [this](std::vector<PendingComponent> &list) {
+    auto refreshPendingSyncValues = [this](
+                                        std::vector<PendingComponent> &list) {
         for (PendingComponent &pending : list) {
             if (pending.object == nullptr)
                 continue;

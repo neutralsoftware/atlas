@@ -14,58 +14,41 @@
         "orthoSize": 5.0,
         "orthographic": false,
         "position": [
-            -2.715547800064087,
-            1.4940226078033447,
-            4.527331352233887
+            0.4004000127315521,
+            1.9144999980926514,
+            -4.536300182342529
         ],
         "target": [
-            -0.3924787640571594,
-            -0.1557551771402359,
-            1.7118041515350342
+            0.0,
+            0.5273000001907349,
+            1.0
         ]
     },
     "environment": {
         "atmosphere": {
-            "enabled": true,
+            "enabled": false,
             "globalLight": {
                 "castsShadows": true,
                 "enabled": false,
                 "shadowResolution": 4096
             }
         },
-        "atmosphereSky": true,
+        "atmosphereSky": false,
         "automaticAmbient": false
     },
     "id": "main_scene",
-    "lights": [
-        {
-            "color": [
-                1.0,
-                1.0,
-                1.0,
-                1.0
-            ],
-            "id": "ambientLight_0",
-            "intensity": 0.05,
-            "name": "ambientLight_0",
-            "position": [
-                0.0,
-                0.0,
-                0.0
-            ],
-            "type": "ambientLight"
-        }
-    ],
+    "lights": [],
     "name": "Main Scene",
     "objects": [
         {
             "components": [],
-            "material": "",
-            "name": "Cube",
+            "id": 157052340,
+            "material": "assets/materials/BoxWhite.amat",
+            "name": "Floor",
             "position": [
-                0.0,
-                0.0,
-                0.0
+                -0.31472718715667725,
+                -0.15528558194637299,
+                0.15461790561676025
             ],
             "rotation": [
                 0.0,
@@ -73,23 +56,43 @@
                 0.0
             ],
             "scale": [
-                1.0,
-                1.0,
-                1.0
+                4.174081802368164,
+                0.05000000074505806,
+                4.174081802368164
             ],
             "solid_type": "cube",
             "type": "solid"
         },
         {
             "components": [],
-            "id": 262366761,
-            "material": "assets/materials/New Material.amat",
-            "name": "Cube 2",
-            "parent": "Cube",
+            "material": "assets/materials/BoxRed.amat",
+            "name": "Floor 2",
             "position": [
-                1.25,
+                -0.3160567581653595,
+                1.5384644269943237,
+                2.2118043899536133
+            ],
+            "rotation": [
+                -89.787841796875,
                 0.0,
                 0.0
+            ],
+            "scale": [
+                4.174081802368164,
+                0.05000000074505806,
+                7.269232749938965
+            ],
+            "solid_type": "cube",
+            "type": "solid"
+        },
+        {
+            "components": [],
+            "material": "assets/materials/BoxWhite.amat",
+            "name": "Floor 3",
+            "position": [
+                -0.2613140940666199,
+                5.090397834777832,
+                0.2858502268791199
             ],
             "rotation": [
                 0.0,
@@ -97,22 +100,22 @@
                 0.0
             ],
             "scale": [
-                1.0,
-                1.0,
-                1.0
+                4.174081802368164,
+                0.05000000074505806,
+                4.174081802368164
             ],
             "solid_type": "cube",
             "type": "solid"
         },
         {
             "components": [],
-            "id": 1966546454,
-            "material": "assets/materials/Emissive Ball.amat",
+            "id": 6739391,
+            "material": "assets/materials/Glass.amat",
             "name": "Sphere",
             "position": [
-                0.6134507656097412,
-                0.17499999701976776,
-                1.8578729629516602
+                -0.22421985864639282,
+                1.5384645462036133,
+                0.5111536979675293
             ],
             "rotation": [
                 0.0,
@@ -126,6 +129,29 @@
             ],
             "solid_type": "sphere",
             "type": "solid"
+        },
+        {
+            "components": [],
+            "id": 2097299432,
+            "material": "assets/materials/Emissive Ball.amat",
+            "name": "Plane",
+            "position": [
+                0.0,
+                2.497310161590576,
+                -5.3531646728515625
+            ],
+            "rotation": [
+                20.657730102539063,
+                0.0,
+                0.0
+            ],
+            "scale": [
+                3.9725027084350586,
+                2.9564456939697266,
+                3.064767360687256
+            ],
+            "solid_type": "plane",
+            "type": "solid"
         }
     ],
     "property_syncs": [],
@@ -137,5 +163,6 @@
             "render": true,
             "type": "scene"
         }
-    ]
+    ],
+    "ui": []
 }

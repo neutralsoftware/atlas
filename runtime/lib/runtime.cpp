@@ -17,6 +17,11 @@ void RuntimeScene::initialize(Window &window) {
         return;
     }
 
+    if (runtimeContext->materialPreviewRuntime) {
+        window.useDeferredRendering();
+        return;
+    }
+
     if (runtimeContext->config.renderer == "deferred") {
         window.useDeferredRendering();
 

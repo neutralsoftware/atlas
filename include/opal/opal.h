@@ -386,6 +386,7 @@ class Texture {
     TextureFormat format = TextureFormat::Rgba8;
     int width = 0;
     int height = 0;
+    uint mipLevels = 1;
     int samples = 1; // For multisampled textures
 
 #ifdef VULKAN
@@ -1132,25 +1133,28 @@ struct PrimitiveVertex {
 
 class PrimitiveAccelerationStructure {
   public:
-    std::vector<PrimitiveVertex> vertices;
-    std::vector<uint32_t> indices;
-
+    ~PrimitiveAccelerationStructure();
     static std::shared_ptr<PrimitiveAccelerationStructure>
     create(const std::vector<PrimitiveVertex> &vertices,
            const std::vector<uint32_t> &indices);
+    static std::shared_ptr<PrimitiveAccelerationStructure>
+    create(const std::vector<float> &positions,
+           const std::vector<uint32_t> &indices);
+    static std::shared_ptr<PrimitiveAccelerationStructure>
+    create(const std::vector<std::vector<float>> &positions,
+           const std::vector<std::vector<uint32_t>> &indices);
 
     bool isBuilt = false;
 
   private:
     friend class CommandBuffer;
     friend class InstanceAccelerationStructure;
-    std::shared_ptr<Buffer> asBuffer;
     std::shared_ptr<Buffer> scratch;
 
     MTL::AccelerationStructureDescriptor *blasDescriptor = nullptr;
     MTL::AccelerationStructure *blas = nullptr;
-    std::shared_ptr<MTL::Buffer> vertexBuffer;
-    std::shared_ptr<MTL::Buffer> indexBuffer;
+    std::vector<std::shared_ptr<MTL::Buffer>> vertexBuffers;
+    std::vector<std::shared_ptr<MTL::Buffer>> indexBuffers;
 };
 
 static inline void writeMetalTransform3x4(const glm::mat4 &M, float out3x4[12]);
@@ -1165,6 +1169,7 @@ struct AccelerationStructureInstance {
 
 class InstanceAccelerationStructure {
   public:
+    ~InstanceAccelerationStructure();
     static std::shared_ptr<opal::InstanceAccelerationStructure>
     create(const std::vector<opal::AccelerationStructureInstance> &instances);
 
@@ -1195,6 +1200,7 @@ class CommandBuffer {
                       const std::shared_ptr<Framebuffer> &writeFramebuffer);
     void endPass();
     void commit();
+    void waitForSubmittedWork();
 
     // The different commands
     void bindPipeline(const std::shared_ptr<Pipeline> &pipeline);
@@ -1229,6 +1235,12 @@ class CommandBuffer {
 #ifdef METAL
     void buildPrimitiveAccelerationStructure(
         const std::shared_ptr<PrimitiveAccelerationStructure> &blas);
+
+    std::shared_ptr<InstanceAccelerationStructure>
+    buildAccelerationStructures(
+        const std::vector<std::shared_ptr<PrimitiveAccelerationStructure>>
+            &blases,
+        const std::vector<AccelerationStructureInstance> &instances);
 
     void bindPrimitiveAccelerationStructure(
         const std::shared_ptr<PrimitiveAccelerationStructure> &blas,

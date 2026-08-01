@@ -36,6 +36,7 @@ class QShowEvent;
 class QTimer;
 class QFileSystemWatcher;
 class QEvent;
+class SplashScreen;
 
 class EditorWindow : public QMainWindow {
     Q_OBJECT
@@ -88,6 +89,7 @@ private:
     QMenu* viewMenu = nullptr;
     QMenu* windowMenu = nullptr;
     QTimer* layoutSaveTimer = nullptr;
+    SplashScreen* assetLoadingSplash = nullptr;
     QFileSystemWatcher* scriptWatcher = nullptr;
     QByteArray defaultDockState;
     QString projectFile;

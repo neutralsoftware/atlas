@@ -638,6 +638,17 @@ void uploadUniformBuffers(const std::shared_ptr<Pipeline> &pipeline,
                 return;
             }
 
+            if (bytes.size() <= 4096) {
+                if (stage == metal::MetalProgramStage::Fragment) {
+                    encoder->setFragmentBytes(bytes.data(), bytes.size(),
+                                              binding.index);
+                } else {
+                    encoder->setVertexBytes(bytes.data(), bytes.size(),
+                                            binding.index);
+                }
+                return;
+            }
+
             MTL::Buffer *inlineBuffer =
                 device->newBuffer(bytes.data(),
                                   static_cast<NS::UInteger>(alignUp(
@@ -840,6 +851,11 @@ void uploadComputeUniformBuffers(const std::shared_ptr<Pipeline> &pipeline,
             bytes.resize(requiredSize, 0);
         }
         if (bytes.empty()) {
+            continue;
+        }
+
+        if (bytes.size() <= 4096) {
+            encoder->setBytes(bytes.data(), bytes.size(), binding.index);
             continue;
         }
 
@@ -1173,23 +1189,42 @@ void CommandBuffer::start() {
     vkResetFences(device->logicalDevice, 1, &inFlightFences[currentFrame]);
 #elif defined(METAL)
     auto &state = metal::commandBufferState(this);
-    state.inFlightCommandBuffers.erase(
-        std::remove_if(state.inFlightCommandBuffers.begin(),
-                       state.inFlightCommandBuffers.end(),
-                       [](MTL::CommandBuffer *buffer) {
-                           if (buffer->status() < MTL::CommandBufferStatusCompleted) {
-                               return false;
-                           }
-                           buffer->release();
-                           return true;
-                       }),
-        state.inFlightCommandBuffers.end());
+    for (size_t i = 0; i < state.inFlightCommandBuffers.size();) {
+        auto *buffer = state.inFlightCommandBuffers[i];
+        if (buffer->status() < MTL::CommandBufferStatusCompleted) {
+            ++i;
+            continue;
+        }
+        if (buffer->status() == MTL::CommandBufferStatusError) {
+            auto *error = buffer->error();
+            const char *description =
+                error != nullptr && error->localizedDescription() != nullptr
+                    ? error->localizedDescription()->utf8String()
+                    : "Unknown Metal command buffer error";
+            atlas_error(std::string("Metal GPU command failed: ") +
+                        description);
+        }
+        buffer->release();
+        state.inFlightCommandBuffers.erase(
+            state.inFlightCommandBuffers.begin() + i);
+        state.inFlightResources.erase(state.inFlightResources.begin() + i);
+    }
     if (state.inFlightCommandBuffers.size() >= 3) {
         auto *oldest = state.inFlightCommandBuffers.front();
         oldest->waitUntilCompleted();
+        if (oldest->status() == MTL::CommandBufferStatusError) {
+            auto *error = oldest->error();
+            const char *description =
+                error != nullptr && error->localizedDescription() != nullptr
+                    ? error->localizedDescription()->utf8String()
+                    : "Unknown Metal command buffer error";
+            atlas_error(std::string("Metal GPU command failed: ") +
+                        description);
+        }
         oldest->release();
         state.inFlightCommandBuffers.erase(
             state.inFlightCommandBuffers.begin());
+        state.inFlightResources.erase(state.inFlightResources.begin());
     }
     if (state.autoreleasePool != nullptr) {
         state.autoreleasePool->release();
@@ -1527,6 +1562,8 @@ void CommandBuffer::commit() {
 
     state.commandBuffer->retain();
     state.inFlightCommandBuffers.push_back(state.commandBuffer);
+    state.inFlightResources.push_back(std::move(state.pendingResources));
+    state.pendingResources.clear();
     state.commandBuffer->commit();
     state.commandBuffer = nullptr;
     state.passDescriptor = nullptr;
@@ -1538,6 +1575,27 @@ void CommandBuffer::commit() {
         state.autoreleasePool->release();
         state.autoreleasePool = nullptr;
     }
+#endif
+}
+
+void CommandBuffer::waitForSubmittedWork() {
+#ifdef METAL
+    auto &state = metal::commandBufferState(this);
+    for (auto *submitted : state.inFlightCommandBuffers) {
+        submitted->waitUntilCompleted();
+        if (submitted->status() == MTL::CommandBufferStatusError) {
+            auto *error = submitted->error();
+            const char *description =
+                error != nullptr && error->localizedDescription() != nullptr
+                    ? error->localizedDescription()->utf8String()
+                    : "Unknown Metal command buffer error";
+            atlas_error(std::string("Metal GPU command failed: ") +
+                        description);
+        }
+        submitted->release();
+    }
+    state.inFlightCommandBuffers.clear();
+    state.inFlightResources.clear();
 #endif
 }
 
@@ -2111,6 +2169,29 @@ void CommandBuffer::dispatch(uint threadCountX, uint threadCountY,
                                 deviceState.device);
     bindComputeTextures(boundPipeline, state.computeEncoder,
                         deviceState.device);
+    auto &pipelineState = metal::pipelineState(boundPipeline.get());
+    for (const auto &[binding, accelerationStructure] :
+         pipelineState.primitiveAccelerationStructures) {
+        if (accelerationStructure == nullptr ||
+            accelerationStructure->blas == nullptr ||
+            !accelerationStructure->isBuilt) {
+            throw std::runtime_error(
+                "Metal primitive acceleration structure is unavailable");
+        }
+        state.computeEncoder->setAccelerationStructure(
+            accelerationStructure->blas, binding);
+    }
+    for (const auto &[binding, accelerationStructure] :
+         pipelineState.instanceAccelerationStructures) {
+        if (accelerationStructure == nullptr ||
+            accelerationStructure->tlas == nullptr ||
+            !accelerationStructure->isBuilt) {
+            throw std::runtime_error(
+                "Metal instance acceleration structure is unavailable");
+        }
+        state.computeEncoder->setAccelerationStructure(
+            accelerationStructure->tlas, binding);
+    }
 
     NS::UInteger tgX =
         static_cast<NS::UInteger>(boundPipeline->getComputeThreadgroupSizeX());
@@ -2171,7 +2252,8 @@ void CommandBuffer::generateMipmaps(const std::shared_ptr<Texture> &texture) {
 #elif defined(METAL)
     auto &state = metal::commandBufferState(this);
     auto &textureState = metal::textureState(texture.get());
-    if (state.commandBuffer == nullptr || textureState.texture == nullptr) {
+    if (state.commandBuffer == nullptr || textureState.texture == nullptr ||
+        textureState.texture->mipmapLevelCount() <= 1) {
         return;
     }
     if (state.encoder != nullptr) {
@@ -2316,21 +2398,25 @@ void CommandBuffer::clear(float r, float g, float b, float a, float depth) {
 void CommandBuffer::bindPrimitiveAccelerationStructure(
     const std::shared_ptr<PrimitiveAccelerationStructure> &as,
     uint32_t binding) {
-    auto &state = metal::commandBufferState(this);
-    if (state.computeEncoder == nullptr) {
-        state.computeEncoder = state.commandBuffer->computeCommandEncoder();
+    if (boundPipeline == nullptr) {
+        throw std::runtime_error(
+            "Cannot bind an acceleration structure without a pipeline");
     }
-    state.computeEncoder->setAccelerationStructure(as->blas, binding);
+    auto &pipelineState = metal::pipelineState(boundPipeline.get());
+    pipelineState.instanceAccelerationStructures.erase(binding);
+    pipelineState.primitiveAccelerationStructures[binding] = as;
 }
 
 void CommandBuffer::bindInstanceAccelerationStructure(
     const std::shared_ptr<InstanceAccelerationStructure> &as,
     uint32_t binding) {
-    auto &state = metal::commandBufferState(this);
-    if (state.computeEncoder == nullptr) {
-        state.computeEncoder = state.commandBuffer->computeCommandEncoder();
+    if (boundPipeline == nullptr) {
+        throw std::runtime_error(
+            "Cannot bind an acceleration structure without a pipeline");
     }
-    state.computeEncoder->setAccelerationStructure(as->tlas, binding);
+    auto &pipelineState = metal::pipelineState(boundPipeline.get());
+    pipelineState.primitiveAccelerationStructures.erase(binding);
+    pipelineState.instanceAccelerationStructures[binding] = as;
 }
 #endif
 

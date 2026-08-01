@@ -4,11 +4,13 @@
 #include <editor/styling/icons.h>
 
 #include <QActionGroup>
+#include <QFile>
 #include <QFileInfo>
 #include <QHBoxLayout>
 #include <QLabel>
 #include <QKeySequence>
 #include <QList>
+#include <QRegularExpression>
 #include <QSignalBlocker>
 #include <QStyle>
 #include <QTabBar>
@@ -120,28 +122,49 @@ ViewportTools::ViewportTools(ViewportPanel *viewport,
     tools->addWidget(reloadButton);
     tools->addStretch();
 
+    QFile manifest(projectFile);
+    bool pathTracingProject = false;
+    if (manifest.open(QIODevice::ReadOnly | QIODevice::Text)) {
+        const QString contents = QString::fromUtf8(manifest.readAll());
+        pathTracingProject = contents.contains(QRegularExpression(
+            QStringLiteral(
+                R"(default\s*=\s*["']path[\s_-]*tracing["'])"),
+            QRegularExpression::CaseInsensitiveOption));
+    }
+
     auto *shadingGroup = new QActionGroup(toolbar);
     shadingGroup->setExclusive(true);
-    const QStringList shadingNames{"Lit", "Wireframe", "Points"};
-    const QList<styling::Icon> shadingIcons{
-        styling::Icon::Sphere, styling::Icon::CubeTransparent,
-        styling::Icon::DotsNine};
+    const QStringList shadingNames =
+        pathTracingProject
+            ? QStringList{"PBR Preview", "Path Traced"}
+            : QStringList{"Lit", "Wireframe", "Points"};
+    const QList<styling::Icon> shadingIcons =
+        pathTracingProject
+            ? QList<styling::Icon>{styling::Icon::Sphere,
+                                   styling::Icon::Aperture}
+            : QList<styling::Icon>{styling::Icon::Sphere,
+                                   styling::Icon::CubeTransparent,
+                                   styling::Icon::DotsNine};
     for (int index = 0; index < shadingNames.size(); ++index) {
         auto *button = new QToolButton(toolbar);
         button->setObjectName("viewportShadingButton");
-        button->setToolButtonStyle(Qt::ToolButtonIconOnly);
+        button->setToolButtonStyle(pathTracingProject
+                                       ? Qt::ToolButtonTextBesideIcon
+                                       : Qt::ToolButtonIconOnly);
         button->setCheckable(true);
         auto *action = new QAction(shadingNames.at(index), button);
-        action->setIcon(
-            styling::icon(shadingIcons.at(index), "#9AA6B8"));
-        action->setToolTip(shadingNames.at(index) + " shading");
+        action->setIcon(styling::icon(shadingIcons.at(index), "#9AA6B8"));
+        action->setToolTip(pathTracingProject
+                               ? shadingNames.at(index)
+                               : shadingNames.at(index) + " shading");
         action->setCheckable(true);
         action->setData(index);
         button->setDefaultAction(action);
         shadingGroup->addAction(action);
         tools->addWidget(button);
-        if (index == 0)
+        if (index == 0) {
             action->setChecked(true);
+        }
     }
 
     auto *fpsButton = new QToolButton(toolbar);
@@ -182,8 +205,13 @@ ViewportTools::ViewportTools(ViewportPanel *viewport,
                 viewport->setRuntimeControlMode(action->data().toInt());
             });
     connect(shadingGroup, &QActionGroup::triggered, this,
-            [viewport](QAction *action) {
-                viewport->setRuntimeShadingMode(action->data().toInt());
+            [viewport, pathTracingProject](QAction *action) {
+                if (pathTracingProject) {
+                    viewport->setPathTracingPreview(action->data().toInt() ==
+                                                    0);
+                } else {
+                    viewport->setRuntimeShadingMode(action->data().toInt());
+                }
             });
     connect(spaceButton, &QToolButton::clicked, viewport,
             &ViewportPanel::toggleTransformSpace);

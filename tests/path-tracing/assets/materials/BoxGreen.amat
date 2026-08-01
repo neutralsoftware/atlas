@@ -1,19 +1,19 @@
 {
     "material": {
         "albedo": [
-            0.8,
-            0.8,
-            0.8,
+            0.1881742626428604,
+            0.8374150991439819,
+            0.1580987274646759,
             1
         ],
         "ao": 1,
         "emissiveColor": [
-            1,
-            1,
-            1,
+            0,
+            0,
+            0,
             1
         ],
-        "emissiveIntensity": 10,
+        "emissiveIntensity": 0,
         "ior": 1.45,
         "metallic": 0,
         "normalMapStrength": 1,
