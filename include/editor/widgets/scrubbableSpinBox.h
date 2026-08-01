@@ -54,7 +54,8 @@ template <typename SpinBox> class ScrubbableSpinBoxBase : public SpinBox {
                 selectOnRelease = false;
                 return true;
             }
-            if (mouse->button() == Qt::LeftButton && selectOnRelease) {
+            if (mouse->button() == Qt::LeftButton &&
+                (selectOnRelease || !this->lineEdit()->hasSelectedText())) {
                 selectOnRelease = false;
                 QTimer::singleShot(0, this->lineEdit(),
                                    [this] { this->lineEdit()->selectAll(); });

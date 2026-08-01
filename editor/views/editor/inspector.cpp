@@ -518,6 +518,129 @@ QString componentShape(const QJsonArray &components) {
     return result;
 }
 
+QJsonValue valueAtPath(QJsonValue value, const QString &path) {
+    const QStringList segments = path.split('/', Qt::SkipEmptyParts);
+    for (QString segment : segments) {
+        segment.replace("~1", "/").replace("~0", "~");
+        if (value.isObject()) {
+            value = value.toObject().value(segment);
+        } else if (value.isArray()) {
+            bool validIndex = false;
+            const int index = segment.toInt(&validIndex);
+            const QJsonArray array = value.toArray();
+            if (!validIndex || index < 0 || index >= array.size())
+                return {};
+            value = array.at(index);
+        } else {
+            return {};
+        }
+    }
+    return value;
+}
+
+void tagEditor(QWidget *editor, const QString &path, const QString &kind,
+               int index = -1) {
+    editor->setProperty("inspectorPath", path);
+    editor->setProperty("inspectorValueKind", kind);
+    if (index >= 0)
+        editor->setProperty("inspectorValueIndex", index);
+}
+
+bool isEditing(QWidget *editor) {
+    QWidget *focused = QApplication::focusWidget();
+    return focused != nullptr &&
+           (focused == editor || editor->isAncestorOf(focused));
+}
+
+void refreshTaggedEditors(QFrame *card, const QJsonObject &properties) {
+    const QList<QWidget *> editors = card->findChildren<QWidget *>();
+    for (QWidget *editor : editors) {
+        const QString path = editor->property("inspectorPath").toString();
+        const QString kind = editor->property("inspectorValueKind").toString();
+        if (kind.isEmpty() || isEditing(editor))
+            continue;
+        const QJsonValue value = valueAtPath(properties, path);
+        if (value.isUndefined())
+            continue;
+        if (kind == "number") {
+            auto *field = qobject_cast<QDoubleSpinBox *>(editor);
+            if (field != nullptr && value.isDouble()) {
+                const QSignalBlocker blocker(field);
+                field->setValue(value.toDouble());
+            }
+        } else if (kind == "vector") {
+            auto *field = qobject_cast<QDoubleSpinBox *>(editor);
+            const int index = editor->property("inspectorValueIndex").toInt();
+            const QJsonArray array = value.toArray();
+            if (field != nullptr && index >= 0 && index < array.size()) {
+                const QSignalBlocker blocker(field);
+                field->setValue(array.at(index).toDouble());
+            }
+        } else if (kind == "bool") {
+            auto *field = qobject_cast<QCheckBox *>(editor);
+            if (field != nullptr && value.isBool()) {
+                const QSignalBlocker blocker(field);
+                field->setChecked(value.toBool());
+            }
+        } else if (kind == "choice") {
+            auto *field = qobject_cast<QComboBox *>(editor);
+            if (field != nullptr && value.isString()) {
+                const QSignalBlocker blocker(field);
+                field->setCurrentText(value.toString());
+            }
+        } else if (kind == "text") {
+            auto *field = qobject_cast<QLineEdit *>(editor);
+            if (field != nullptr && value.isString()) {
+                const QSignalBlocker blocker(field);
+                field->setText(value.toString());
+            }
+        } else if (kind == "array") {
+            auto *field = qobject_cast<QLineEdit *>(editor);
+            if (field == nullptr || !value.isArray())
+                continue;
+            QStringList entries;
+            for (const QJsonValue &entry : value.toArray()) {
+                entries.append(entry.isString()
+                                   ? entry.toString()
+                                   : QString::number(entry.toDouble()));
+            }
+            const QSignalBlocker blocker(field);
+            field->setText(entries.join(", "));
+        } else if (kind == "color") {
+            const QJsonArray array = value.toArray();
+            if (array.size() < 3)
+                continue;
+            const bool normalized =
+                std::all_of(array.begin(), array.end(), [](QJsonValue entry) {
+                    return entry.toDouble() <= 1.0;
+                });
+            const double factor = normalized ? 255.0 : 1.0;
+            const QColor color(
+                std::clamp(static_cast<int>(array.at(0).toDouble() * factor), 0,
+                           255),
+                std::clamp(static_cast<int>(array.at(1).toDouble() * factor), 0,
+                           255),
+                std::clamp(static_cast<int>(array.at(2).toDouble() * factor), 0,
+                           255),
+                array.size() > 3
+                    ? std::clamp(
+                          static_cast<int>(array.at(3).toDouble() * factor), 0,
+                          255)
+                    : 255);
+            auto *swatch = editor->findChild<QPushButton *>();
+            auto *text = editor->findChild<QLineEdit *>();
+            if (swatch != nullptr) {
+                swatch->setIcon(styling::colorSwatch(color, QSize(22, 14)));
+                swatch->setIconSize(QSize(22, 14));
+            }
+            if (text != nullptr) {
+                const QSignalBlocker blocker(text);
+                text->setText(color.name(QColor::HexArgb).toUpper());
+            }
+        }
+    }
+}
+
 QStringList choicesFor(const QString &path) {
     const QString key = path.section('/', -1).toLower();
     if (key == "motiontype")
@@ -742,6 +865,7 @@ QWidget *vectorField(const QJsonArray &value, const PropertyChanged &changed,
         auto *box = numberField(values.at(index).toDouble(), valueEditor);
         box->setButtonSymbols(QAbstractSpinBox::NoButtons);
         box->setMinimumWidth(52);
+        tagEditor(box, path, "vector", index);
         boxes.append(box);
         valueLayout->addWidget(axis);
         valueLayout->addWidget(box, 1);
@@ -765,6 +889,7 @@ QWidget *colorField(const QJsonArray &value, const PropertyChanged &changed,
                     const QString &path, QWidget *parent) {
     auto *field = new QFrame(parent);
     field->setObjectName("inspectorColorField");
+    tagEditor(field, path, "color");
     auto *layout = new QHBoxLayout(field);
     layout->setContentsMargins(3, 2, 3, 2);
     layout->setSpacing(5);
@@ -837,6 +962,7 @@ QWidget *primitiveField(const QString &name, const QString &path,
                         const SyncProvider &syncProvider, QWidget *parent) {
     if (value.isBool()) {
         auto *field = new QCheckBox(parent);
+        tagEditor(field, path, "bool");
         field->setChecked(value.toBool());
         QObject::connect(
             field, &QCheckBox::toggled, parent,
@@ -850,6 +976,7 @@ QWidget *primitiveField(const QString &name, const QString &path,
         layout->setContentsMargins(0, 0, 0, 0);
         layout->setSpacing(2);
         auto *field = numberField(value.toDouble(), container);
+        tagEditor(field, path, "number");
         layout->addWidget(field, 1);
         addSyncPicker(layout, path, value, changed, syncProvider, field,
                       container);
@@ -867,6 +994,7 @@ QWidget *primitiveField(const QString &name, const QString &path,
             return vectorField(array, changed, path, syncProvider, parent);
         }
         auto *field = new QLineEdit(parent);
+        tagEditor(field, path, "array");
         QStringList entries;
         for (const QJsonValue &entry : array) {
             entries.append(entry.isString()
@@ -894,6 +1022,7 @@ QWidget *primitiveField(const QString &name, const QString &path,
     const QStringList choices = choicesFor(path);
     if (!choices.isEmpty()) {
         auto *field = new QComboBox(parent);
+        tagEditor(field, path, "choice");
         field->addItems(choices);
         field->setCurrentText(value.toString());
         QObject::connect(
@@ -902,6 +1031,7 @@ QWidget *primitiveField(const QString &name, const QString &path,
         return field;
     }
     auto *field = new QLineEdit(value.toString(), parent);
+    tagEditor(field, path, "text");
     connectLiveText(field,
                     [field, changed, path] { changed(path, field->text()); });
     return field;
@@ -1133,9 +1263,11 @@ QJsonValue objectSyncReference(const QJsonObject &object) {
 QFrame *componentCard(const QString &title, const QJsonObject &properties,
                       const QString &path, const PropertyChanged &changed,
                       QWidget *parent, const SyncProvider &syncProvider = {},
-                      const std::function<void()> &remove = {}) {
+                      const std::function<void()> &remove = {},
+                      const QString &scope = {}) {
     auto *card = new QFrame(parent);
     card->setObjectName("inspectorComponent");
+    card->setProperty("inspectorScope", scope);
     auto *layout = new QVBoxLayout(card);
     layout->setContentsMargins(0, 0, 0, 7);
     layout->setSpacing(2);
@@ -1217,6 +1349,15 @@ InspectorPanel::InspectorPanel(ViewportPanel *viewport,
         connect(viewport, &ViewportPanel::sceneSnapshotChanged, this,
                 &InspectorPanel::applySceneSnapshot);
     }
+    connect(qApp, &QApplication::focusChanged, this,
+            [this](QWidget *previous, QWidget *current) {
+                if (previous == nullptr || !isAncestorOf(previous) ||
+                    previous == current || fileTarget || cameraTarget ||
+                    environmentTarget || inspectedObjectId < 0) {
+                    return;
+                }
+                refreshObjectEditors(inspectedObject);
+            });
     showEmptyState();
 }
 
@@ -1236,17 +1377,28 @@ void InspectorPanel::applySceneSnapshot(const QString &snapshot) {
     const int selected = scene.value("selectedId").toInt(-1);
     const bool selectionChanged = selected != lastRuntimeSelection;
     lastRuntimeSelection = selected;
-    if (selectionChanged) {
+    if (selectionChanged ||
+        (!fileTarget && selected >= 0 && inspectedObjectId != selected)) {
         inspectRuntimeObject(selected);
     } else if (!fileTarget && inspectedObjectId >= 0) {
         const QJsonObject updated = findObject(inspectedObjectId);
-        const bool contentChanged = updated != inspectedObject;
-        QWidget *focused = QApplication::focusWidget();
-        const bool editingInspector =
-            focused != nullptr && isAncestorOf(focused);
+        if (updated.isEmpty()) {
+            inspectedObject = {};
+            inspectedObjectId = -1;
+            showEmptyState();
+            return;
+        }
+        const bool structureChanged =
+            updated.value("type") != inspectedObject.value("type") ||
+            jsonShape(updated.value("properties")) !=
+                jsonShape(inspectedObject.value("properties")) ||
+            componentShape(updated.value("components").toArray()) !=
+                componentShape(inspectedObject.value("components").toArray());
         inspectedObject = updated;
-        if (contentChanged && !editingInspector) {
+        if (structureChanged) {
             showObject(inspectedObject);
+        } else {
+            refreshObjectEditors(inspectedObject);
         }
     }
 }
@@ -1258,11 +1410,59 @@ void InspectorPanel::inspectRuntimeObject(int id) {
     inspectedFile.clear();
     inspectedCamera = {};
     inspectedObjectId = id;
+    lastRuntimeSelection = id;
     inspectedObject = findObject(id);
     if (inspectedObject.isEmpty()) {
         showEmptyState();
     } else {
         showObject(inspectedObject);
+    }
+}
+
+void InspectorPanel::refreshObjectEditors(const QJsonObject &object) {
+    if (nameField != nullptr && !isEditing(nameField)) {
+        const QSignalBlocker blocker(nameField);
+        nameField->setText(object.value("name").toString("Object"));
+    }
+    const QString type = object.value("type").toString("Object");
+    QJsonObject objectProperties = object.value("properties").toObject();
+    if (type.contains("light", Qt::CaseInsensitive) ||
+        type.compare("sun", Qt::CaseInsensitive) == 0) {
+        objectProperties = mergeObjects(lightSchema(type), objectProperties);
+    }
+    const QString materialPath = objectProperties.value("material").toString();
+    objectProperties.remove("material");
+    const QStringList hidden{"id",       "name",       "type",
+                             "position", "rotation",   "scale",
+                             "parent",   "components", "objects"};
+    for (const QString &key : hidden)
+        objectProperties.remove(key);
+    const QJsonObject transform{{"position", object.value("position")},
+                                {"rotation", object.value("rotation")},
+                                {"scale", object.value("scale")}};
+    const QJsonArray components = object.value("components").toArray();
+    const QList<QFrame *> cards = content->findChildren<QFrame *>();
+    for (QFrame *card : cards) {
+        if (card->objectName() != "inspectorComponent")
+            continue;
+        const QString scope = card->property("inspectorScope").toString();
+        if (scope == "transform") {
+            refreshTaggedEditors(card, transform);
+        } else if (scope == "object") {
+            refreshTaggedEditors(card, objectProperties);
+        } else if (scope == "material") {
+            refreshTaggedEditors(card,
+                                 QJsonObject{{"source", materialPath}});
+        } else if (scope.startsWith("component:")) {
+            bool validIndex = false;
+            const int index = scope.section(':', 1, 1).toInt(&validIndex);
+            if (!validIndex || index < 0 || index >= components.size())
+                continue;
+            const QJsonObject component = components.at(index).toObject();
+            refreshTaggedEditors(
+                card, componentValues(component.value("type").toString(),
+                                      component));
+        }
     }
 }
 
@@ -1411,7 +1611,8 @@ void InspectorPanel::showObject(const QJsonObject &object) {
             update("transform", -1, path, value);
         },
         content,
-        bindSyncProvider(syncProvider, viewport, &scene, transformTarget)));
+        bindSyncProvider(syncProvider, viewport, &scene, transformTarget), {},
+        "transform"));
 
     QJsonObject objectProperties = object.value("properties").toObject();
     if (type.contains("light", Qt::CaseInsensitive) ||
@@ -1436,7 +1637,8 @@ void InspectorPanel::showObject(const QJsonObject &object) {
                              QJsonObject{{"section", "object"},
                                          {"object", objectReference},
                                          {"component", "object"},
-                                         {"componentIndex", -1}})));
+                                         {"componentIndex", -1}}),
+            {}, "object"));
     }
 
     if (!materialPath.isEmpty()) {
@@ -1448,7 +1650,7 @@ void InspectorPanel::showObject(const QJsonObject &object) {
                     viewport->applyRuntimeMaterial(objectId, value.toString());
                 }
             },
-            content));
+            content, {}, {}, "material"));
     }
 
     for (int index = 0; index < components.size(); ++index) {
@@ -1480,7 +1682,8 @@ void InspectorPanel::showObject(const QJsonObject &object) {
                     QMessageBox::warning(this, "Remove Component",
                                          "The component could not be removed.");
                 }
-            }));
+            },
+            QStringLiteral("component:%1").arg(index)));
         if (componentType.toLower().remove('_').remove('-') == "audioplayer") {
             auto *controls = new QFrame(content);
             controls->setObjectName("inspectorAudioControls");
