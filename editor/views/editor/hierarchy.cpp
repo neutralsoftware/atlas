@@ -12,6 +12,7 @@
 
 #include <QAction>
 #include <QAbstractItemView>
+#include <QDialog>
 #include <QDropEvent>
 #include <QFileInfo>
 #include <QIcon>
@@ -23,15 +24,18 @@
 #include <QKeySequence>
 #include <QLineEdit>
 #include <QList>
+#include <QListWidget>
 #include <QMenu>
 #include <QMimeData>
 #include <QPair>
 #include <QSignalBlocker>
+#include <QShortcut>
 #include <QStandardItem>
 #include <QStandardItemModel>
 #include <QStyle>
 #include <QToolButton>
 #include <QTreeView>
+#include <QTimer>
 #include <QVBoxLayout>
 #include <QHBoxLayout>
 
@@ -41,6 +45,45 @@ namespace {
 constexpr int ObjectIdRole = Qt::UserRole + 1;
 constexpr int ObjectTypeRole = Qt::UserRole + 2;
 constexpr int AssetPathRole = Qt::UserRole + 3;
+constexpr int CreationTypeRole = Qt::UserRole + 4;
+constexpr int CreationNameRole = Qt::UserRole + 5;
+constexpr int CreationCategoryRole = Qt::UserRole + 6;
+constexpr int NoCreationResultsRole = Qt::UserRole + 7;
+
+struct CreationEntry {
+    QString category;
+    QString name;
+    QString type;
+};
+
+const QList<CreationEntry> &creationEntries() {
+    static const QList<CreationEntry> entries = {
+        {"3D Object", "Cube", "cube"},
+        {"3D Object", "Sphere", "sphere"},
+        {"3D Object", "Plane", "plane"},
+        {"3D Object", "Pyramid", "pyramid"},
+        {"3D Object", "Capsule", "capsule"},
+        {"3D Object", "Terrain", "terrain"},
+        {"Light", "Point Light", "pointLight"},
+        {"Light", "Spot Light", "spotLight"},
+        {"Light", "Directional Light", "directionalLight"},
+        {"Light", "Area Light", "areaLight"},
+        {"Light", "Ambient Light", "ambientLight"},
+        {"Scene", "Empty Object", "group"},
+        {"Scene", "Camera", "camera"},
+        {"Scene", "Particle Emitter", "particleEmitter"},
+    };
+    return entries;
+}
+
+int objectCount(const QJsonArray &objects) {
+    int count = 0;
+    for (const QJsonValue &value : objects) {
+        ++count;
+        count += objectCount(value.toObject().value("children").toArray());
+    }
+    return count;
+}
 
 QIcon hierarchyIcon(QWidget *, const QString &type) {
     const QString normalized = type.toLower();
@@ -124,7 +167,7 @@ HierarchyPanel::HierarchyPanel(ViewportPanel *viewport, QWidget *parent)
     model = new QStandardItemModel(this);
     treeView->setModel(model);
     treeView->setHeaderHidden(true);
-    treeView->setAnimated(true);
+    treeView->setAnimated(false);
     treeView->setEditTriggers(QAbstractItemView::NoEditTriggers);
     treeView->setSelectionMode(QAbstractItemView::ExtendedSelection);
     treeView->setSelectionBehavior(QAbstractItemView::SelectRows);
@@ -256,6 +299,7 @@ HierarchyPanel::HierarchyPanel(ViewportPanel *viewport, QWidget *parent)
     if (viewport != nullptr) {
         addButton->setEnabled(false);
         moreButton->setEnabled(false);
+        treeView->setEnabled(false);
         connect(viewport, &ViewportPanel::sceneSnapshotChanged, this,
                 &HierarchyPanel::applySceneSnapshot);
         connect(viewport, &ViewportPanel::runtimeAvailabilityChanged, this,
@@ -263,7 +307,22 @@ HierarchyPanel::HierarchyPanel(ViewportPanel *viewport, QWidget *parent)
                     addButton->setEnabled(available);
                     moreButton->setEnabled(available);
                     treeView->setEnabled(available);
+                    if (!available) {
+                        lastStructureSignature.clear();
+                        return;
+                    }
+                    QTimer::singleShot(0, this, [this] {
+                        const QString snapshot =
+                            this->viewport->currentSceneSnapshot();
+                        if (!snapshot.isEmpty())
+                            applySceneSnapshot(snapshot);
+                    });
                 });
+        QTimer::singleShot(0, this, [this] {
+            const QString snapshot = this->viewport->currentSceneSnapshot();
+            if (!snapshot.isEmpty())
+                applySceneSnapshot(snapshot);
+        });
     }
 }
 
@@ -282,7 +341,12 @@ void HierarchyPanel::applySceneSnapshot(const QString &snapshot) {
     const int selectedId = scene.value("selectedId").toInt(-1);
     const QString signature = sceneSignature(sceneName, objects, interfaces);
 
-    if (signature != lastStructureSignature) {
+    const bool incompleteModel =
+        model->rowCount() != 1 || itemsById.size() != objectCount(objects) ||
+        !specialItems.contains("camera") ||
+        !specialItems.contains("environment") ||
+        !specialItems.contains("graphite");
+    if (signature != lastStructureSignature || incompleteModel) {
         rebuildScene(sceneName, objects, interfaces, selectedId);
         lastStructureSignature = signature;
         return;
@@ -308,6 +372,7 @@ void HierarchyPanel::applySceneSnapshot(const QString &snapshot) {
         treeView->setCurrentIndex(QModelIndex());
     }
     applyingSnapshot = false;
+    treeView->viewport()->repaint();
 }
 
 void HierarchyPanel::rebuildScene(const QString &sceneName,
@@ -391,6 +456,8 @@ void HierarchyPanel::rebuildScene(const QString &sceneName,
             specialItems.value(selectedSpecialType)->index());
     }
     applyingSnapshot = false;
+    treeView->doItemsLayout();
+    treeView->viewport()->repaint();
 }
 
 bool HierarchyPanel::eventFilter(QObject *watched, QEvent *event) {
@@ -621,7 +688,97 @@ void HierarchyPanel::focusSearch() {
 }
 
 void HierarchyPanel::showCreationPopup() {
-    showAddObjectMenu(addButton->mapToGlobal(QPoint(0, addButton->height())));
+    if (viewport == nullptr || !addButton->isEnabled())
+        return;
+
+    QDialog dialog(this);
+    dialog.setObjectName("commandPaletteDialog");
+    dialog.setWindowTitle("Add Object");
+    dialog.setWindowFlags(dialog.windowFlags() | Qt::FramelessWindowHint);
+    dialog.resize(620, 430);
+    auto *layout = new QVBoxLayout(&dialog);
+    auto *search = new QLineEdit(&dialog);
+    search->setObjectName("commandPaletteSearch");
+    search->setPlaceholderText("Type an object to create…");
+    auto *objects = new QListWidget(&dialog);
+    objects->setObjectName("commandPaletteList");
+    layout->addWidget(search);
+    layout->addWidget(objects, 1);
+
+    for (const CreationEntry &entry : creationEntries()) {
+        auto *item = new QListWidgetItem(objects);
+        item->setText(QStringLiteral("%1  ·  %2")
+                          .arg(entry.name, entry.category));
+        item->setIcon(hierarchyIcon(this, entry.type));
+        item->setData(CreationTypeRole, entry.type);
+        item->setData(CreationNameRole, entry.name);
+        item->setData(CreationCategoryRole, entry.category);
+    }
+    if (objects->count() > 0)
+        objects->setCurrentRow(0);
+
+    auto *noObjects = new QListWidgetItem("No matching objects", objects);
+    noObjects->setData(NoCreationResultsRole, true);
+    noObjects->setHidden(true);
+    connect(search, &QLineEdit::textChanged, &dialog,
+            [objects, noObjects](const QString &text) {
+                const QString query = text.trimmed();
+                int firstMatch = -1;
+                for (int index = 0; index < objects->count(); ++index) {
+                    QListWidgetItem *item = objects->item(index);
+                    if (item == noObjects)
+                        continue;
+                    const QString searchable =
+                        item->data(CreationNameRole).toString() + ' ' +
+                        item->data(CreationCategoryRole).toString() + ' ' +
+                        item->data(CreationTypeRole).toString();
+                    const bool matches =
+                        query.isEmpty() ||
+                        searchable.contains(query, Qt::CaseInsensitive);
+                    item->setHidden(!matches);
+                    if (matches && firstMatch < 0)
+                        firstMatch = index;
+                }
+                noObjects->setHidden(firstMatch >= 0);
+                objects->setCurrentItem(firstMatch >= 0
+                                            ? objects->item(firstMatch)
+                                            : noObjects);
+            });
+    connect(objects, &QListWidget::itemActivated, &dialog,
+            [this, &dialog](QListWidgetItem *item) {
+                if (item == nullptr ||
+                    item->data(NoCreationResultsRole).toBool())
+                    return;
+                const QString type = item->data(CreationTypeRole).toString();
+                const QString name = item->data(CreationNameRole).toString();
+                dialog.accept();
+                createObject(type, name);
+            });
+    connect(search, &QLineEdit::returnPressed, &dialog, [objects] {
+        if (objects->currentItem() != nullptr)
+            emit objects->itemActivated(objects->currentItem());
+    });
+
+    auto moveSelection = [objects](int direction) {
+        if (objects->count() == 0)
+            return;
+        int row = objects->currentRow();
+        for (int attempt = 0; attempt < objects->count(); ++attempt) {
+            row = (row + direction + objects->count()) % objects->count();
+            if (!objects->item(row)->isHidden()) {
+                objects->setCurrentRow(row);
+                return;
+            }
+        }
+    };
+    auto *down = new QShortcut(QKeySequence(Qt::Key_Down), &dialog);
+    auto *up = new QShortcut(QKeySequence(Qt::Key_Up), &dialog);
+    connect(down, &QShortcut::activated, &dialog,
+            [moveSelection] { moveSelection(1); });
+    connect(up, &QShortcut::activated, &dialog,
+            [moveSelection] { moveSelection(-1); });
+    search->setFocus();
+    dialog.exec();
 }
 
 QString HierarchyPanel::sceneSignature(const QString &sceneName,

@@ -267,11 +267,15 @@ ViewportPanel::ViewportPanel(const QString &projectFile, QWidget *parent)
     environmentReloadTimer = new QTimer(this);
     undoStack = new QUndoStack(this);
     frameTimer->setTimerType(Qt::PreciseTimer);
+    frameTimer->setSingleShot(true);
     resizeTimer->setSingleShot(true);
     resizeTimer->setInterval(0);
     environmentReloadTimer->setSingleShot(true);
     environmentReloadTimer->setInterval(140);
-    connect(frameTimer, &QTimer::timeout, this, [this] { stepRuntime(); });
+    connect(frameTimer, &QTimer::timeout, this, [this] {
+        if (stepRuntime() && isVisible())
+            frameTimer->start(pathTracingPreview ? 16 : 1);
+    });
     connect(resizeTimer, &QTimer::timeout, this, [this] { resizeRuntime(); });
     connect(environmentReloadTimer, &QTimer::timeout, this,
             &ViewportPanel::reloadRuntime);
@@ -298,14 +302,17 @@ void ViewportPanel::setRuntimeStartupEnabled(bool enabled) {
 void ViewportPanel::showEvent(QShowEvent *event) {
     QWidget::showEvent(event);
     if (runtimeContext != nullptr) {
-        frameTimer->start(16);
+        frameTimer->start(pathTracingPreview ? 16 : 1);
         return;
     }
     if (runtimeStartupEnabled)
         scheduleRuntimeStart();
 }
 
-void ViewportPanel::hideEvent(QHideEvent *event) { QWidget::hideEvent(event); }
+void ViewportPanel::hideEvent(QHideEvent *event) {
+    frameTimer->stop();
+    QWidget::hideEvent(event);
+}
 
 void ViewportPanel::closeEvent(QCloseEvent *event) {
     shutdownRuntime();
@@ -647,7 +654,7 @@ void ViewportPanel::startRuntime() {
                                         "The first viewport frame failed");
             return;
         }
-        frameTimer->start(16);
+        frameTimer->start(pathTracingPreview ? 16 : 1);
         emit runtimeLoadingFinished();
         emit runtimeStartupFinished(true, {});
         if (playAfterRuntimeStart) {
@@ -716,6 +723,7 @@ bool ViewportPanel::stepRuntime() {
             stopRuntime();
             return false;
         }
+        refreshSceneSnapshot();
         emit frameRateChanged(runtimeContext->frameRate());
         return true;
     } catch (const std::exception &error) {
@@ -1385,9 +1393,12 @@ void ViewportPanel::setPathTracingPreview(bool enabled) {
                                          : "Preparing path-traced viewport...");
     QCoreApplication::processEvents(QEventLoop::ExcludeUserInputEvents);
     runtimeContext->setEditorPathTracingPreview(enabled);
-    stepRuntime();
+    frameTimer->stop();
+    const bool frameReady = stepRuntime();
+    if (frameReady && isVisible())
+        frameTimer->start(pathTracingPreview ? 16 : 1);
     emit runtimeLoadingFinished();
-    if (!enabled) {
+    if (!enabled && runtimeContext != nullptr) {
         const std::string error = runtimeContext->getPathTracingError();
         if (!error.empty()) {
             QMessageBox::critical(this, "Path Tracing Error",

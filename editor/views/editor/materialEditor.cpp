@@ -16,6 +16,7 @@
 #include <QFileInfo>
 #include <QFormLayout>
 #include <QGroupBox>
+#include <QHideEvent>
 #include <QHBoxLayout>
 #include <QImage>
 #include <QJsonArray>
@@ -163,6 +164,11 @@ class MaterialPreviewWidget : public QWidget {
         scheduleFrame();
     }
 
+    void hideEvent(QHideEvent *event) override {
+        frameTimer->stop();
+        QWidget::hideEvent(event);
+    }
+
     void resizeEvent(QResizeEvent *event) override {
         QWidget::resizeEvent(event);
         scheduleFrame();
@@ -170,6 +176,7 @@ class MaterialPreviewWidget : public QWidget {
 
   private:
     void scheduleFrame() {
+        pendingFrames = std::max(pendingFrames, 2);
         if (isVisible() && frameTimer != nullptr) {
             frameTimer->start(0);
         }
@@ -206,7 +213,8 @@ class MaterialPreviewWidget : public QWidget {
         if (runtimeContext == nullptr) {
             return;
         }
-        const float scale = static_cast<float>(devicePixelRatioF());
+        const float scale =
+            std::max(1.0f, static_cast<float>(devicePixelRatioF()));
         const int pixelWidth =
             std::max(1, static_cast<int>(std::round(width() * scale)));
         const int pixelHeight =
@@ -214,7 +222,7 @@ class MaterialPreviewWidget : public QWidget {
         if (pixelWidth == runtimeWidth && pixelHeight == runtimeHeight) {
             return;
         }
-        runtimeContext->resize(pixelWidth, pixelHeight, 1.0f);
+        runtimeContext->resize(width(), height(), scale);
         runtimeWidth = pixelWidth;
         runtimeHeight = pixelHeight;
     }
@@ -230,7 +238,11 @@ class MaterialPreviewWidget : public QWidget {
             resizeRuntime();
             if (!runtimeContext->stepFrame()) {
                 shutdownRuntime();
+                return;
             }
+            pendingFrames = std::max(0, pendingFrames - 1);
+            if (pendingFrames > 0 && isVisible())
+                frameTimer->start(1);
         } catch (const std::exception &error) {
             qWarning().noquote()
                 << QStringLiteral("Runtime material preview frame failed: %1")
@@ -253,6 +265,7 @@ class MaterialPreviewWidget : public QWidget {
         }
         runtimeWidth = 0;
         runtimeHeight = 0;
+        pendingFrames = 0;
     }
 
     QString projectFile;
@@ -263,6 +276,7 @@ class MaterialPreviewWidget : public QWidget {
     int runtimeWidth = 0;
     int runtimeHeight = 0;
     int environmentMode = 0;
+    int pendingFrames = 0;
 };
 
 MaterialEditorPanel::MaterialEditorPanel(ViewportPanel *viewport,
