@@ -85,6 +85,7 @@ class Context {
     bool cameraAutomaticMoving = false;
     bool editorCameraFocused = false;
     bool editorRuntime = false;
+    bool materialPreviewRuntime = false;
 
     std::unique_ptr<Window> window;
     std::vector<std::shared_ptr<Renderable>> objects;
@@ -153,6 +154,12 @@ class Context {
     bool setPropertySync(const json &target, const json &source);
     bool clearPropertySync(const json &target);
     bool setObjectMaterial(int id, const std::string &path);
+    bool initializeMaterialPreview(const std::string &definition,
+                                   const std::string &baseDir,
+                                   int environmentMode);
+    bool setMaterialPreviewMaterial(const std::string &definition,
+                                    const std::string &baseDir);
+    bool setMaterialPreviewEnvironment(int mode);
     int addObjectComponent(int id, const json &component);
     bool removeObjectComponent(int id, int componentIndex);
     bool controlObjectAudio(int id, int componentIndex,
@@ -183,6 +190,9 @@ std::shared_ptr<Context> makeHiddenContext(std::string projectFile);
 std::shared_ptr<Context>
 makeContextForMetalView(std::string projectFile, void *metalView,
                         CoreWindowReference sdlInputWindow = nullptr);
+std::shared_ptr<Context>
+makeMaterialPreviewContextForMetalView(std::string projectFile,
+                                       void *metalView);
 void runProjectInMetalView(std::string projectFile, void *metalView,
                            CoreWindowReference sdlInputWindow = nullptr);
 std::shared_ptr<Context> makeContextForMetalViewNonBlocking(

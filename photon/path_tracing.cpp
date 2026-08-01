@@ -31,11 +31,6 @@ constexpr int kPathTracerSkyboxTextureUnit = 60;
 constexpr size_t kPathTracerMaxPrimitivesPerGeometry = 250000;
 
 std::shared_ptr<opal::Texture> createFallbackSkyboxTexture() {
-    constexpr unsigned char horizon[4] = {0, 0, 0, 255};
-    constexpr unsigned char zenith[4] = {0, 0, 0, 255};
-    constexpr unsigned char nadir[4] = {0, 0, 0, 255};
-    const unsigned char *faceColors[6] = {horizon, horizon, zenith,
-                                          nadir,   horizon, horizon};
     auto texture = opal::Texture::create(
         opal::TextureType::TextureCubeMap, opal::TextureFormat::Rgba8, 1, 1,
         opal::TextureDataFormat::Rgba, nullptr, 1);
@@ -47,9 +42,9 @@ std::shared_ptr<opal::Texture> createFallbackSkyboxTexture() {
                          opal::TextureWrapMode::ClampToEdge);
     texture->setWrapMode(opal::TextureAxis::R,
                          opal::TextureWrapMode::ClampToEdge);
+    constexpr unsigned char black[4] = {0, 0, 0, 255};
     for (int face = 0; face < 6; ++face) {
-        texture->updateFace(face, faceColors[face], 1, 1,
-                            opal::TextureDataFormat::Rgba);
+        texture->updateFace(face, black, 1, 1, opal::TextureDataFormat::Rgba);
     }
     return texture;
 }
@@ -61,10 +56,8 @@ std::shared_ptr<opal::Texture> createFallbackMaterialTexture() {
         opal::TextureDataFormat::Rgba, white, 1);
     texture->setFilterMode(opal::TextureFilterMode::Linear,
                            opal::TextureFilterMode::Linear);
-    texture->setWrapMode(opal::TextureAxis::S,
-                         opal::TextureWrapMode::Repeat);
-    texture->setWrapMode(opal::TextureAxis::T,
-                         opal::TextureWrapMode::Repeat);
+    texture->setWrapMode(opal::TextureAxis::S, opal::TextureWrapMode::Repeat);
+    texture->setWrapMode(opal::TextureAxis::T, opal::TextureWrapMode::Repeat);
     return texture;
 }
 
@@ -230,12 +223,28 @@ void photon::PathTracing::init() {
     pathTracingPipeline->setComputeThreadgroupSize(8, 8, 1);
     pathTracingPipeline->build();
 
+    ComputeShader pathDenoiserShader =
+        ComputeShader::fromDefaultShader(AtlasComputeShader::PathDenoiser);
+    pathDenoiserShader.compile();
+    computePathDenoiser = std::make_shared<ShaderProgram>();
+    computePathDenoiser->computeShader = pathDenoiserShader;
+    computePathDenoiser->compile();
+    pathDenoisePipeline = opal::Pipeline::create();
+    pathDenoisePipeline->setShaderProgram(computePathDenoiser->shader);
+    pathDenoisePipeline->setComputeThreadgroupSize(8, 8, 1);
+    pathDenoisePipeline->build();
+
     outputWidth = std::max(1, Window::mainWindow->viewportWidth);
     outputHeight = std::max(1, Window::mainWindow->viewportHeight);
 
     pathTracingTexturePrev = std::make_shared<Texture>(
         Texture::create(outputWidth, outputHeight, opal::TextureFormat::Rgba16F,
                         opal::TextureDataFormat::Rgba, TextureType::Color));
+    for (auto &texture : denoiseTextures) {
+        texture = std::make_shared<Texture>(Texture::create(
+            outputWidth, outputHeight, opal::TextureFormat::Rgba16F,
+            opal::TextureDataFormat::Rgba, TextureType::Color));
+    }
     for (auto &texture : pathTracingAovTextures) {
         texture = std::make_shared<Texture>(Texture::create(
             outputWidth, outputHeight, opal::TextureFormat::Rgba16F,
@@ -261,6 +270,11 @@ void photon::PathTracing::resizeOutput(int width, int height) {
     pathTracingTexturePrev = std::make_shared<Texture>(
         Texture::create(outputWidth, outputHeight, opal::TextureFormat::Rgba16F,
                         opal::TextureDataFormat::Rgba, TextureType::Color));
+    for (auto &texture : denoiseTextures) {
+        texture = std::make_shared<Texture>(Texture::create(
+            outputWidth, outputHeight, opal::TextureFormat::Rgba16F,
+            opal::TextureDataFormat::Rgba, TextureType::Color));
+    }
     for (auto &texture : pathTracingAovTextures) {
         texture = std::make_shared<Texture>(Texture::create(
             outputWidth, outputHeight, opal::TextureFormat::Rgba16F,
@@ -301,6 +315,7 @@ bool photon::PathTracing::buildAccelerationStructure(
     };
 
     struct VertexData {
+        float position[3];
         float normal[3];
         float uv[2];
         float tangent[3];
@@ -308,7 +323,7 @@ bool photon::PathTracing::buildAccelerationStructure(
     };
 
     static_assert(sizeof(MaterialData) == 112);
-    static_assert(sizeof(VertexData) == 44);
+    static_assert(sizeof(VertexData) == 56);
 
     std::vector<CoreObject *> pathTracingObjects;
     std::unordered_set<CoreObject *> seenPathObjects;
@@ -446,6 +461,9 @@ bool photon::PathTracing::buildAccelerationStructure(
                 accelerationPositions.push_back(worldPosition.z);
 
                 VertexData vd{};
+                vd.position[0] = worldPosition.x;
+                vd.position[1] = worldPosition.y;
+                vd.position[2] = worldPosition.z;
                 vd.normal[0] = v.normal.x;
                 vd.normal[1] = v.normal.y;
                 vd.normal[2] = v.normal.z;
@@ -1066,6 +1084,10 @@ bool photon::PathTracing::render(
             skyboxTexture = skybox->cubemap.texture;
         }
     }
+    pathTracingPipeline->setUniform1i(
+        "sceneData.environmentEnabled",
+        skyboxTexture != fallbackSkyboxTexture || atmosphereEnabled != 0 ? 1
+                                                                         : 0);
     pathTracingPipeline->bindTexture("skybox", skyboxTexture,
                                      kPathTracerSkyboxTextureUnit);
     auto skyboxTextureId = skyboxTexture->textureID;
@@ -1078,7 +1100,14 @@ bool photon::PathTracing::render(
         std::fabs(cachedDirectionalLightIntensity - directionalLightIntensity) >
             0.0001f ||
         glm::length(cachedAmbientColor - ambientColor) > 0.0001f ||
-        std::fabs(cachedAmbientIntensity - ambientIntensity) > 0.0001f;
+        std::fabs(cachedAmbientIntensity - ambientIntensity) > 0.0001f ||
+        cachedAtmosphereEnabled != atmosphereEnabled ||
+        glm::length(cachedAtmosphereSunDirection - atmosphereSunDirection) >
+            0.0001f ||
+        glm::length(cachedAtmosphereSunColor - atmosphereSunColor) > 0.0001f ||
+        std::fabs(cachedAtmosphereSunIntensity - atmosphereSunIntensity) >
+            0.0001f ||
+        std::fabs(cachedAtmosphereSunSize - atmosphereSunSize) > 0.0001f;
     bool skyChanged = cachedSkyboxTextureId != skyboxTextureId;
     if (lightChanged || skyChanged) {
         frameIndex = 0;
@@ -1090,17 +1119,17 @@ bool photon::PathTracing::render(
     cachedAmbientColor = ambientColor;
     cachedAmbientIntensity = ambientIntensity;
     cachedSkyboxTextureId = skyboxTextureId;
+    cachedAtmosphereEnabled = atmosphereEnabled;
+    cachedAtmosphereSunDirection = atmosphereSunDirection;
+    cachedAtmosphereSunColor = atmosphereSunColor;
+    cachedAtmosphereSunIntensity = atmosphereSunIntensity;
+    cachedAtmosphereSunSize = atmosphereSunSize;
 
     const int refinementFrame = std::max(frameIndex, 0);
-    const int minimumPixelStride =
-        outputWidth * outputHeight > 1920 * 1080 ? 2 : 1;
-    const int pixelStride =
-        interactive ? std::max(4, minimumPixelStride)
-                    : std::max(refinementFrame < 24 ? 2 : 1,
-                               minimumPixelStride);
+    const int pixelStride = interactive ? 4 : (refinementFrame < 4 ? 2 : 1);
     const int effectiveBounces =
         interactive ? std::min(this->maxBounces, 1)
-                    : std::min(this->maxBounces, 2 + refinementFrame / 12);
+                    : std::min(this->maxBounces, 2 + refinementFrame / 8);
     pathTracingPipeline->setUniform1i("sceneData.frameIndex", frameIndex);
     pathTracingPipeline->setUniform1i("sceneData.maxBounces", effectiveBounces);
     pathTracingPipeline->setUniform1i("sceneData.pixelStride", pixelStride);
@@ -1135,6 +1164,34 @@ bool photon::PathTracing::render(
                             (outputHeight + pixelStride - 1) / pixelStride, 1);
 
     commandBuffer->computeBarrier();
+
+    if (!interactive && pixelStride == 1 && pathDenoisePipeline != nullptr &&
+        denoiseTextures[0] != nullptr && denoiseTextures[1] != nullptr) {
+        const std::array<int, 3> denoiseSteps = {1, 2, 4};
+        const size_t denoisePassCount = refinementFrame < 32 ? 2 : 3;
+        for (size_t pass = 0; pass < denoisePassCount; ++pass) {
+            const auto &input =
+                pass == 0 ? output : denoiseTextures[(pass - 1) % 2]->texture;
+            const auto &denoisedOutput =
+                pass + 1 == denoisePassCount
+                    ? output
+                    : denoiseTextures[pass % 2]->texture;
+            commandBuffer->bindPipeline(pathDenoisePipeline);
+            pathDenoisePipeline->bindTexture("inputTexture", input, 0);
+            pathDenoisePipeline->bindTexture("outputTexture", denoisedOutput,
+                                             1);
+            pathDenoisePipeline->bindTexture("brightTexture", brightOutput, 2);
+            pathDenoisePipeline->bindTexture(
+                "guideTexture", pathTracingAovTextures[1]->texture, 3);
+            pathDenoisePipeline->bindTexture("albedoRoughnessTexture",
+                                             pathTracingAovTextures[0]->texture,
+                                             4);
+            pathDenoisePipeline->setUniform1i("parameters.stepWidth",
+                                              denoiseSteps[pass]);
+            commandBuffer->dispatch(outputWidth, outputHeight, 1);
+            commandBuffer->computeBarrier();
+        }
+    }
 
     previousViewProj = viewProj;
     frameIndex++;

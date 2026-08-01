@@ -924,6 +924,28 @@ computeShadowCasterSignature(const std::vector<Renderable *> &shadowCasters) {
 
     return signature;
 }
+
+class RenderingContextScope {
+  public:
+    explicit RenderingContextScope(Window &window)
+        : previousWindow(Window::mainWindow),
+          previousDevice(opal::Device::globalInstance) {
+        window.activateRenderingContext();
+    }
+
+    ~RenderingContextScope() {
+        if (previousWindow != nullptr) {
+            previousWindow->activateRenderingContext();
+            return;
+        }
+        Window::mainWindow = nullptr;
+        opal::Device::globalInstance = previousDevice;
+    }
+
+  private:
+    Window *previousWindow;
+    opal::Device *previousDevice;
+};
 } // namespace
 
 Window::Window(const WindowConfiguration &config)
@@ -1034,7 +1056,7 @@ Window::Window(const WindowConfiguration &config)
     this->setEditorControlsEnabled(config.editorControls);
     this->metalUpscalingRatio = this->renderScale;
 
-    Window::mainWindow = this;
+    activateRenderingContext();
 
     float initialMouseX = 0.0f;
     float initialMouseY = 0.0f;
@@ -1404,6 +1426,7 @@ void Window::pollEvents() {
 }
 
 bool Window::stepFrame() {
+    RenderingContextScope renderingContext(*this);
     this->initializeRunLoop();
     if (this->shouldClose) {
         return false;
@@ -1975,6 +1998,14 @@ bool Window::stepFrame() {
     return !this->shouldClose;
 }
 
+void Window::activateRenderingContext() {
+    if (device != nullptr && device->context != nullptr) {
+        device->context->makeCurrent();
+    }
+    Window::mainWindow = this;
+    opal::Device::globalInstance = device.get();
+}
+
 void Window::resize(int width, int height, float scale) {
     const int clampedWidth = std::max(1, width);
     const int clampedHeight = std::max(1, height);
@@ -2333,8 +2364,13 @@ void Window::editorPointerEvent(int action, float x, float y, int button,
             updateEditorCameraDrag(x, y, effectiveScale);
         } else if (action == 2) {
             editorCameraDragging = false;
-            editorOrbitVelocityX *= 0.65f;
-            editorOrbitVelocityY *= 0.65f;
+            if (usePathTracing) {
+                editorOrbitVelocityX = 0.0f;
+                editorOrbitVelocityY = 0.0f;
+            } else {
+                editorOrbitVelocityX *= 0.65f;
+                editorOrbitVelocityY *= 0.65f;
+            }
         }
         return;
     }
@@ -2402,8 +2438,12 @@ void Window::editorScrollEvent(float delta, float scale) {
     }
 
     applyEditorZoomDelta(scrollAmount);
-    editorZoomVelocity += scrollAmount * 0.01f;
-    editorZoomVelocity = std::clamp(editorZoomVelocity, -80.0f, 80.0f);
+    if (usePathTracing) {
+        editorZoomVelocity = 0.0f;
+    } else {
+        editorZoomVelocity += scrollAmount * 0.01f;
+        editorZoomVelocity = std::clamp(editorZoomVelocity, -80.0f, 80.0f);
+    }
 }
 
 void Window::editorKeyEvent(int key, bool pressed) {
@@ -2920,8 +2960,13 @@ void Window::updateEditorCameraDrag(float x, float y, float scale) {
     float yawDelta = dx * 0.22f;
     float pitchDelta = -dy * 0.22f;
     applyEditorOrbitDelta(yawDelta, pitchDelta);
-    editorOrbitVelocityX = yawDelta * 45.0f;
-    editorOrbitVelocityY = pitchDelta * 45.0f;
+    if (usePathTracing) {
+        editorOrbitVelocityX = 0.0f;
+        editorOrbitVelocityY = 0.0f;
+    } else {
+        editorOrbitVelocityX = yawDelta * 45.0f;
+        editorOrbitVelocityY = pitchDelta * 45.0f;
+    }
 }
 
 void Window::updateEditorCameraPan(float x, float y, float scale) {
@@ -3085,6 +3130,13 @@ void Window::updateEditorCameraMovement(float deltaTime) {
 
 void Window::updateEditorCameraInertia(float deltaTime) {
     if (camera == nullptr || editorCameraFocused) {
+        return;
+    }
+
+    if (usePathTracing) {
+        editorOrbitVelocityX = 0.0f;
+        editorOrbitVelocityY = 0.0f;
+        editorZoomVelocity = 0.0f;
         return;
     }
 

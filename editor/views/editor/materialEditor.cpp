@@ -3,10 +3,12 @@
 #include <editor/styling/icons.h>
 
 #include <editor/views/viewport.h>
+#include <atlas/runtime/context.h>
 
 #include <QCheckBox>
 #include <QColorDialog>
 #include <QComboBox>
+#include <QDebug>
 #include <QDoubleSpinBox>
 #include <QDir>
 #include <QFile>
@@ -22,13 +24,14 @@
 #include <QLineEdit>
 #include <QList>
 #include <QMessageBox>
-#include <QPainter>
+#include <QPaintEngine>
 #include <QPixmap>
 #include <QPushButton>
 #include <QPair>
 #include <QSaveFile>
 #include <QScrollArea>
 #include <QSettings>
+#include <QShowEvent>
 #include <QSizePolicy>
 #include <QStyle>
 #include <QSignalBlocker>
@@ -36,10 +39,11 @@
 #include <QTimer>
 #include <QToolButton>
 #include <QVBoxLayout>
+#include <QResizeEvent>
 
 #include <algorithm>
 #include <cmath>
-#include <numbers>
+#include <utility>
 
 namespace {
 QColor jsonColor(const QJsonValue &value, const QColor &fallback) {
@@ -108,252 +112,156 @@ double arrayValue(const QJsonValue &value, int index, double fallback) {
     return array.size() > index ? array.at(index).toDouble(fallback) : fallback;
 }
 
-double channelAt(const QImage &image, double u, double v) {
-    if (image.isNull()) {
-        return 1.0;
-    }
-    const int x =
-        std::clamp(static_cast<int>(u * image.width()), 0, image.width() - 1);
-    const int y =
-        std::clamp(static_cast<int>(v * image.height()), 0, image.height() - 1);
-    return QColor::fromRgba(image.pixel(x, y)).lightnessF();
-}
-
-QColor imageAt(const QImage &image, double u, double v,
-               const QColor &fallback) {
-    if (image.isNull()) {
-        return fallback;
-    }
-    const int x =
-        std::clamp(static_cast<int>(u * image.width()), 0, image.width() - 1);
-    const int y =
-        std::clamp(static_cast<int>(v * image.height()), 0, image.height() - 1);
-    return QColor::fromRgba(image.pixel(x, y));
-}
 } // namespace
 
 class MaterialPreviewWidget : public QWidget {
   public:
-    explicit MaterialPreviewWidget(QWidget *parent = nullptr)
-        : QWidget(parent) {
+    explicit MaterialPreviewWidget(QString projectFile,
+                                   QWidget *parent = nullptr)
+        : QWidget(parent), projectFile(std::move(projectFile)) {
         setObjectName("materialPreview");
+        setAttribute(Qt::WA_DontCreateNativeAncestors);
+        setAttribute(Qt::WA_NativeWindow);
+        setAttribute(Qt::WA_NoSystemBackground);
+        setAttribute(Qt::WA_OpaquePaintEvent);
+        setAttribute(Qt::WA_PaintOnScreen);
+        setAutoFillBackground(false);
         setMinimumSize(80, 80);
         setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Expanding);
+        frameTimer = new QTimer(this);
+        frameTimer->setSingleShot(true);
+        connect(frameTimer, &QTimer::timeout, this,
+                [this] { renderRuntime(); });
     }
 
+    ~MaterialPreviewWidget() override { shutdownRuntime(); }
+
     void setMaterial(const QJsonObject &next, const QString &nextBaseDir) {
-        material = next;
+        materialDefinition =
+            QJsonDocument(next).toJson(QJsonDocument::Compact);
         baseDir = nextBaseDir;
-        albedoImage =
-            loadTextureImage(baseDir, material.value("albedoTexture"));
-        normalImage =
-            loadTextureImage(baseDir, material.value("normalTexture"));
-        metallicImage =
-            loadTextureImage(baseDir, material.value("metallicTexture"));
-        roughnessImage =
-            loadTextureImage(baseDir, material.value("roughnessTexture"));
-        aoImage = loadTextureImage(baseDir, material.value("aoTexture"));
-        displacementImage =
-            loadTextureImage(baseDir, material.value("displacementTexture"));
-        textureScaleU = arrayValue(material.value("textureScale"), 0, 1.0);
-        textureScaleV = arrayValue(material.value("textureScale"), 1, 1.0);
-        textureOffsetU = arrayValue(material.value("textureOffset"), 0, 0.0);
-        textureOffsetV = arrayValue(material.value("textureOffset"), 1, 0.0);
-        update();
+        if (runtimeContext != nullptr) {
+            runtimeContext->setMaterialPreviewMaterial(
+                materialDefinition.toStdString(), baseDir.toStdString());
+        }
+        scheduleFrame();
     }
 
     void setEnvironmentMode(int mode) {
         environmentMode = mode;
-        update();
+        if (runtimeContext != nullptr) {
+            runtimeContext->setMaterialPreviewEnvironment(environmentMode);
+        }
+        scheduleFrame();
     }
 
   protected:
-    void paintEvent(QPaintEvent *) override {
-        const qreal scale = devicePixelRatioF();
-        const int widthPixels = std::max(1, static_cast<int>(width() * scale));
-        const int heightPixels =
-            std::max(1, static_cast<int>(height() * scale));
-        QImage rendered(widthPixels, heightPixels, QImage::Format_ARGB32);
-        rendered.setDevicePixelRatio(scale);
+    QPaintEngine *paintEngine() const override { return nullptr; }
 
-        const QColor albedo =
-            jsonColor(material.value("albedo"), QColor::fromRgbF(.8, .8, .8));
-        const QColor emission = jsonColor(material.value("emissiveColor"),
-                                          QColor::fromRgbF(0, 0, 0));
-        const double metallic =
-            std::clamp(material.value("metallic").toDouble(0.0), 0.0, 1.0);
-        const double roughness =
-            std::clamp(material.value("roughness").toDouble(0.5), 0.02, 1.0);
-        const double ao =
-            std::clamp(material.value("ao").toDouble(1.0), 0.0, 1.0);
-        const double reflectivity =
-            std::clamp(material.value("reflectivity").toDouble(0.5), 0.0, 1.0);
-        const double emissionStrength =
-            std::max(0.0, material.value("emissiveIntensity").toDouble(0.0));
-        const double transmission =
-            std::clamp(material.value("transmittance").toDouble(0.0), 0.0, 1.0);
-        const double normalStrength = std::clamp(
-            material.value("normalMapStrength").toDouble(1.0), 0.0, 4.0);
-        const bool useNormal = material.value("useNormalMap").toBool(true) &&
-                               !normalImage.isNull();
-        const double cx = widthPixels * 0.5;
-        const double cy = heightPixels * 0.5;
-        const double radius = std::min(widthPixels, heightPixels) * 0.39;
-        const double lx = -0.42;
-        const double ly = -0.55;
-        const double lz = 0.72;
+    void showEvent(QShowEvent *event) override {
+        QWidget::showEvent(event);
+        scheduleFrame();
+    }
 
-        for (int y = 0; y < heightPixels; ++y) {
-            QRgb *line = reinterpret_cast<QRgb *>(rendered.scanLine(y));
-            for (int x = 0; x < widthPixels; ++x) {
-                const QColor background = environmentAt(
-                    (static_cast<double>(x) / widthPixels) * 2.0 - 1.0,
-                    1.0 - (static_cast<double>(y) / heightPixels) * 2.0);
-                const double px = (x - cx) / radius;
-                const double py = (cy - y) / radius;
-                const double rr = px * px + py * py;
-                if (rr > 1.0) {
-                    line[x] = background.rgba();
-                    continue;
-                }
-
-                double nx = px;
-                double ny = py;
-                double nz = std::sqrt(std::max(0.0, 1.0 - rr));
-                double u =
-                    std::atan2(nx, nz) / (2.0 * std::numbers::pi_v<double>)+0.5;
-                double v = 0.5 - std::asin(std::clamp(ny, -1.0, 1.0)) /
-                                     std::numbers::pi_v<double>;
-                u = u * textureScaleU + textureOffsetU;
-                v = v * textureScaleV + textureOffsetV;
-                u -= std::floor(u);
-                v -= std::floor(v);
-                if (useNormal) {
-                    const QColor sampled =
-                        imageAt(normalImage, u, v, QColor(128, 128, 255));
-                    const double tx = sampled.redF() * 2.0 - 1.0;
-                    const double ty = sampled.greenF() * 2.0 - 1.0;
-                    nx += tx * normalStrength * 0.28;
-                    ny += ty * normalStrength * 0.28;
-                    const double length =
-                        std::sqrt(nx * nx + ny * ny + nz * nz);
-                    nx /= length;
-                    ny /= length;
-                    nz /= length;
-                }
-
-                const QColor sampledAlbedo =
-                    imageAt(albedoImage, u, v, QColor(255, 255, 255));
-                const double localMetallic = std::clamp(
-                    metallic * channelAt(metallicImage, u, v), 0.0, 1.0);
-                const double localRoughness = std::clamp(
-                    roughness * channelAt(roughnessImage, u, v), 0.02, 1.0);
-                const double localAo =
-                    std::clamp(ao * channelAt(aoImage, u, v), 0.0, 1.0);
-                const double diffuse =
-                    std::max(0.0, nx * lx + ny * ly + nz * lz);
-                const double hx = lx;
-                const double hy = ly;
-                const double hz = lz + 1.0;
-                const double hlen = std::sqrt(hx * hx + hy * hy + hz * hz);
-                const double ndh =
-                    std::max(0.0, (nx * hx + ny * hy + nz * hz) / hlen);
-                const double exponent = 4.0 + (1.0 - localRoughness) *
-                                                  (1.0 - localRoughness) *
-                                                  252.0;
-                const double specular = std::pow(ndh, exponent) *
-                                        (0.12 + reflectivity * 0.88) *
-                                        (0.35 + localMetallic * 0.65);
-                const double fresnel =
-                    std::pow(1.0 - std::clamp(nz, 0.0, 1.0), 5.0);
-                const double light =
-                    localAo * 0.17 + diffuse * (0.83 - localMetallic * 0.38);
-                const double edgeTransmission =
-                    transmission * (0.2 + fresnel * 0.55);
-                const double rx = 2.0 * nx * nz;
-                const double ry = 2.0 * ny * nz;
-                const QColor reflected = environmentAt(rx, ry);
-                const double reflectionWeight =
-                    std::clamp(reflectivity * (0.12 + localMetallic * 0.88) *
-                                       (1.0 - localRoughness * 0.72) +
-                                   fresnel * 0.24,
-                               0.0, 0.92);
-                auto output = [&](double base, double texture, double emitted,
-                                  double environment, double behind) {
-                    double surface = base * texture * light + specular +
-                                     fresnel * reflectivity * 0.18;
-                    surface = surface * (1.0 - reflectionWeight) +
-                              environment * reflectionWeight;
-                    return std::clamp(surface * (1.0 - edgeTransmission) +
-                                          behind * edgeTransmission +
-                                          emitted * emissionStrength,
-                                      0.0, 1.0);
-                };
-                line[x] = qRgba(
-                    static_cast<int>(output(albedo.redF(), sampledAlbedo.redF(),
-                                            emission.redF(), reflected.redF(),
-                                            background.redF()) *
-                                     255.0),
-                    static_cast<int>(
-                        output(albedo.greenF(), sampledAlbedo.greenF(),
-                               emission.greenF(), reflected.greenF(),
-                               background.greenF()) *
-                        255.0),
-                    static_cast<int>(output(albedo.blueF(),
-                                            sampledAlbedo.blueF(),
-                                            emission.blueF(), reflected.blueF(),
-                                            background.blueF()) *
-                                     255.0),
-                    255);
-            }
-        }
-
-        QPainter painter(this);
-        painter.setRenderHint(QPainter::SmoothPixmapTransform);
-        painter.drawImage(rect(), rendered);
+    void resizeEvent(QResizeEvent *event) override {
+        QWidget::resizeEvent(event);
+        scheduleFrame();
     }
 
   private:
-    QColor environmentAt(double x, double y) const {
-        const double horizon = std::clamp((y + 1.0) * 0.5, 0.0, 1.0);
-        if (environmentMode == 1) {
-            const double sun = std::pow(
-                std::max(0.0, 1.0 - std::hypot(x + 0.38, y - 0.08)), 12.0);
-            return QColor::fromRgbF(
-                std::clamp(0.16 + horizon * 0.58 + sun, 0.0, 1.0),
-                std::clamp(0.07 + horizon * 0.27 + sun * 0.55, 0.0, 1.0),
-                std::clamp(0.12 + horizon * 0.24 + sun * 0.18, 0.0, 1.0));
+    void scheduleFrame() {
+        if (isVisible() && frameTimer != nullptr) {
+            frameTimer->start(0);
         }
-        if (environmentMode == 2) {
-            const double cloud =
-                std::pow(std::max(0.0, std::sin(x * 8.0 + y * 3.0)), 6.0) *
-                0.22;
-            return QColor::fromRgbF(
-                std::clamp(0.12 + horizon * 0.3 + cloud, 0.0, 1.0),
-                std::clamp(0.24 + horizon * 0.42 + cloud, 0.0, 1.0),
-                std::clamp(0.39 + horizon * 0.48 + cloud, 0.0, 1.0));
-        }
-        const double strip = std::pow(std::max(0.0, 1.0 - std::abs(y)), 24.0);
-        const double panel =
-            std::pow(std::max(0.0, std::cos(x * 5.5)), 18.0) * 0.58;
-        const double value = 0.055 + horizon * 0.12 + strip * (0.34 + panel);
-        return QColor::fromRgbF(std::clamp(value * 0.92, 0.0, 1.0),
-                                std::clamp(value * 0.98, 0.0, 1.0),
-                                std::clamp(value, 0.0, 1.0));
     }
 
-    QJsonObject material;
+    void startRuntime() {
+        if (runtimeContext != nullptr || projectFile.isEmpty() || width() <= 1 ||
+            height() <= 1 || materialDefinition.isEmpty()) {
+            return;
+        }
+#ifdef METAL
+        try {
+            void *metalView =
+                reinterpret_cast<void *>(static_cast<quintptr>(winId()));
+            runtimeContext = runtime::makeMaterialPreviewContextForMetalView(
+                projectFile.toStdString(), metalView);
+            if (!runtimeContext->initializeMaterialPreview(
+                    materialDefinition.toStdString(), baseDir.toStdString(),
+                    environmentMode)) {
+                shutdownRuntime();
+                return;
+            }
+            resizeRuntime();
+        } catch (const std::exception &error) {
+            qWarning().noquote()
+                << QStringLiteral("Failed to start runtime material preview: %1")
+                       .arg(QString::fromUtf8(error.what()));
+            runtimeContext.reset();
+        }
+#endif
+    }
+
+    void resizeRuntime() {
+        if (runtimeContext == nullptr) {
+            return;
+        }
+        const float scale = static_cast<float>(devicePixelRatioF());
+        const int pixelWidth =
+            std::max(1, static_cast<int>(std::round(width() * scale)));
+        const int pixelHeight =
+            std::max(1, static_cast<int>(std::round(height() * scale)));
+        if (pixelWidth == runtimeWidth && pixelHeight == runtimeHeight) {
+            return;
+        }
+        runtimeContext->resize(pixelWidth, pixelHeight, 1.0f);
+        runtimeWidth = pixelWidth;
+        runtimeHeight = pixelHeight;
+    }
+
+    void renderRuntime() {
+        if (runtimeContext == nullptr) {
+            startRuntime();
+        }
+        if (runtimeContext == nullptr) {
+            return;
+        }
+        try {
+            resizeRuntime();
+            if (!runtimeContext->stepFrame()) {
+                shutdownRuntime();
+            }
+        } catch (const std::exception &error) {
+            qWarning().noquote()
+                << QStringLiteral("Runtime material preview frame failed: %1")
+                       .arg(QString::fromUtf8(error.what()));
+            shutdownRuntime();
+        }
+    }
+
+    void shutdownRuntime() {
+        if (frameTimer != nullptr) {
+            frameTimer->stop();
+        }
+        if (runtimeContext == nullptr) {
+            return;
+        }
+        auto context = std::move(runtimeContext);
+        try {
+            context->end();
+        } catch (...) {
+        }
+        runtimeWidth = 0;
+        runtimeHeight = 0;
+    }
+
+    QString projectFile;
+    QByteArray materialDefinition;
     QString baseDir;
-    QImage albedoImage;
-    QImage normalImage;
-    QImage metallicImage;
-    QImage roughnessImage;
-    QImage aoImage;
-    QImage displacementImage;
-    double textureScaleU = 1.0;
-    double textureScaleV = 1.0;
-    double textureOffsetU = 0.0;
-    double textureOffsetV = 0.0;
+    QTimer *frameTimer = nullptr;
+    std::shared_ptr<Context> runtimeContext;
+    int runtimeWidth = 0;
+    int runtimeHeight = 0;
     int environmentMode = 0;
 };
 
@@ -514,7 +422,9 @@ void MaterialEditorPanel::showMaterial() {
     auto *previewLayout = new QVBoxLayout(previewPane);
     previewLayout->setContentsMargins(0, 0, 5, 0);
     previewLayout->setSpacing(8);
-    preview = new MaterialPreviewWidget(previewPane);
+    preview = new MaterialPreviewWidget(
+        viewport != nullptr ? viewport->runtimeProjectFile() : QString(),
+        previewPane);
     preview->setMaterial(material, QFileInfo(materialPath).absolutePath());
     auto *previewOptions = new QWidget(previewPane);
     auto *previewOptionsLayout = new QHBoxLayout(previewOptions);

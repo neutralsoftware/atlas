@@ -92,6 +92,28 @@ struct MaterialDefinition {
     std::vector<Texture> textures;
 };
 
+class WindowActivationScope {
+  public:
+    explicit WindowActivationScope(Window &window)
+        : previousWindow(Window::mainWindow),
+          previousDevice(opal::Device::globalInstance) {
+        window.activateRenderingContext();
+    }
+
+    ~WindowActivationScope() {
+        if (previousWindow != nullptr) {
+            previousWindow->activateRenderingContext();
+            return;
+        }
+        Window::mainWindow = nullptr;
+        opal::Device::globalInstance = previousDevice;
+    }
+
+  private:
+    Window *previousWindow;
+    opal::Device *previousDevice;
+};
+
 struct PendingComponent {
     GameObject *object = nullptr;
     std::string objectType;
@@ -4579,6 +4601,41 @@ runtime::makeContextForMetalView(std::string projectFile, void *metalView,
 #endif
 }
 
+std::shared_ptr<Context> runtime::makeMaterialPreviewContextForMetalView(
+    std::string projectFile, void *metalView) {
+#ifdef METAL
+    if (metalView == nullptr) {
+        throw std::runtime_error("Metal view pointer cannot be null");
+    }
+    Window *previousWindow = Window::mainWindow;
+    opal::Device *previousDevice = opal::Device::globalInstance;
+    auto restorePrevious = [&] {
+        if (previousWindow != nullptr) {
+            previousWindow->activateRenderingContext();
+        } else {
+            Window::mainWindow = nullptr;
+            opal::Device::globalInstance = previousDevice;
+        }
+    };
+    try {
+        auto context = makeContextWithWindowOptions(std::move(projectFile),
+                                                    metalView, nullptr);
+        context->editorRuntime = false;
+        context->materialPreviewRuntime = true;
+        restorePrevious();
+        return context;
+    } catch (...) {
+        restorePrevious();
+        throw;
+    }
+#else
+    (void)projectFile;
+    (void)metalView;
+    throw std::runtime_error(
+        "Material preview embedding requires the Metal backend");
+#endif
+}
+
 std::shared_ptr<Context> runtime::makeContextForMetalViewNonBlocking(
     std::string projectFile, void *metalView,
     CoreWindowReference sdlInputWindow) {
@@ -4674,6 +4731,7 @@ bool Context::stepFrame() {
     if (scene == nullptr) {
         throw std::runtime_error("Scene is not initialized");
     }
+    WindowActivationScope activeWindow(*window);
     if (editorRuntime) {
         repairEditorCamera(*this);
     }
@@ -4701,6 +4759,7 @@ bool Context::resize(int width, int height, float scale) {
     if (window == nullptr) {
         throw std::runtime_error("Window is not initialized");
     }
+    WindowActivationScope activeWindow(*window);
     window->resize(width, height, scale);
     return true;
 }
@@ -5557,6 +5616,169 @@ bool Context::setObjectMaterial(int id, const std::string &path) {
     return true;
 }
 
+bool Context::initializeMaterialPreview(const std::string &definition,
+                                        const std::string &baseDir,
+                                        int environmentMode) {
+    if (window == nullptr || scene == nullptr || !materialPreviewRuntime) {
+        return false;
+    }
+
+    WindowActivationScope activeWindow(*window);
+    sceneDir = baseDir;
+    config.renderer = "deferred";
+    camera = std::make_unique<Camera>();
+    camera->setPosition({0.0f, 0.0f, 2.15f});
+    camera->lookAt(Position3d::zero());
+    camera->nearClip = 0.05f;
+    camera->farClip = 50.0f;
+    window->setCamera(camera.get());
+    window->setEditorSceneCamera(nullptr);
+    window->setEditorControlsEnabled(false);
+    window->useDeferredRendering();
+
+    auto sphere = std::make_shared<CoreObject>();
+    *sphere = createSphere(0.72f, 64, 32, Color::white());
+    sphere->castsShadows = false;
+    objects.push_back(sphere);
+    window->addObject(sphere.get());
+
+    auto directional = std::make_unique<DirectionalLight>(
+        Magnitude3d{-0.4f, -0.55f, -1.0f}, Color::white(), Color::white(),
+        1.1f);
+    scene->addDirectionalLight(directional.get());
+    directionalLights.push_back(std::move(directional));
+
+    auto keyLight = std::make_unique<AreaLight>();
+    keyLight->position = {-1.4f, 1.25f, 1.8f};
+    keyLight->size = {1.6f, 1.0f};
+    keyLight->intensity = 5.0f;
+    keyLight->range = 8.0f;
+    keyLight->castsBothSides = true;
+    scene->addAreaLight(keyLight.get());
+    areaLights.push_back(std::move(keyLight));
+
+    auto rimLight = std::make_unique<AreaLight>();
+    rimLight->position = {1.35f, -0.75f, 0.6f};
+    rimLight->size = {0.9f, 1.4f};
+    rimLight->intensity = 2.5f;
+    rimLight->range = 7.0f;
+    rimLight->castsBothSides = true;
+    scene->addAreaLight(rimLight.get());
+    areaLights.push_back(std::move(rimLight));
+
+    window->setScene(scene.get());
+    return setMaterialPreviewEnvironment(environmentMode) &&
+           setMaterialPreviewMaterial(definition, baseDir);
+}
+
+bool Context::setMaterialPreviewMaterial(const std::string &definition,
+                                         const std::string &baseDir) {
+    if (window == nullptr || !materialPreviewRuntime || objects.empty() ||
+        definition.empty()) {
+        return false;
+    }
+    auto *sphere = dynamic_cast<GameObject *>(objects.front().get());
+    if (sphere == nullptr) {
+        return false;
+    }
+    try {
+        WindowActivationScope activeWindow(*window);
+        applyMaterial(*sphere,
+                      loadMaterialDefinition(json::parse(definition), baseDir));
+        return true;
+    } catch (const std::exception &error) {
+        RUNTIME_LOG("Material preview could not be updated: " +
+                    std::string(error.what()));
+        return false;
+    }
+}
+
+bool Context::setMaterialPreviewEnvironment(int mode) {
+    if (window == nullptr || scene == nullptr || !materialPreviewRuntime ||
+        directionalLights.empty() || areaLights.size() < 2) {
+        return false;
+    }
+
+    WindowActivationScope activeWindow(*window);
+    std::array<Color, 6> colors;
+    Color ambient;
+    Color key;
+    Color rim;
+    Color background;
+    float ambientIntensity = 0.0f;
+    float directionalIntensity = 0.0f;
+    float keyIntensity = 0.0f;
+    float rimIntensity = 0.0f;
+
+    if (mode == 1) {
+        colors = {Color{0.92f, 0.3f, 0.12f, 1.0f},
+                  Color{0.16f, 0.05f, 0.2f, 1.0f},
+                  Color{0.34f, 0.12f, 0.32f, 1.0f},
+                  Color{0.08f, 0.025f, 0.045f, 1.0f},
+                  Color{0.98f, 0.48f, 0.18f, 1.0f},
+                  Color{0.12f, 0.04f, 0.18f, 1.0f}};
+        ambient = {0.72f, 0.28f, 0.32f, 1.0f};
+        key = {1.0f, 0.42f, 0.18f, 1.0f};
+        rim = {0.42f, 0.16f, 0.72f, 1.0f};
+        background = {0.08f, 0.025f, 0.055f, 1.0f};
+        ambientIntensity = 0.7f;
+        directionalIntensity = 0.8f;
+        keyIntensity = 5.5f;
+        rimIntensity = 3.0f;
+    } else if (mode == 2) {
+        colors = {Color{0.52f, 0.76f, 1.0f, 1.0f},
+                  Color{0.42f, 0.68f, 0.96f, 1.0f},
+                  Color{0.3f, 0.62f, 1.0f, 1.0f},
+                  Color{0.72f, 0.78f, 0.82f, 1.0f},
+                  Color{0.62f, 0.82f, 1.0f, 1.0f},
+                  Color{0.46f, 0.72f, 0.98f, 1.0f}};
+        ambient = {0.58f, 0.74f, 1.0f, 1.0f};
+        key = {1.0f, 0.95f, 0.84f, 1.0f};
+        rim = {0.42f, 0.7f, 1.0f, 1.0f};
+        background = {0.28f, 0.5f, 0.76f, 1.0f};
+        ambientIntensity = 0.9f;
+        directionalIntensity = 1.15f;
+        keyIntensity = 4.0f;
+        rimIntensity = 2.2f;
+    } else {
+        colors = {Color{0.9f, 0.9f, 0.88f, 1.0f},
+                  Color{0.035f, 0.04f, 0.05f, 1.0f},
+                  Color{0.7f, 0.74f, 0.8f, 1.0f},
+                  Color{0.025f, 0.025f, 0.03f, 1.0f},
+                  Color{0.38f, 0.4f, 0.44f, 1.0f},
+                  Color{0.07f, 0.075f, 0.085f, 1.0f}};
+        ambient = {0.82f, 0.84f, 0.88f, 1.0f};
+        key = {1.0f, 0.97f, 0.9f, 1.0f};
+        rim = {0.52f, 0.65f, 0.88f, 1.0f};
+        background = {0.035f, 0.04f, 0.05f, 1.0f};
+        ambientIntensity = 0.6f;
+        directionalIntensity = 0.95f;
+        keyIntensity = 5.0f;
+        rimIntensity = 2.5f;
+    }
+
+    scene->setAmbientColor(ambient);
+    scene->setAmbientIntensity(ambientIntensity);
+    directionalLights.front()->color = key;
+    directionalLights.front()->shineColor = key;
+    directionalLights.front()->intensity = directionalIntensity;
+    areaLights[0]->color = key;
+    areaLights[0]->shineColor = key;
+    areaLights[0]->intensity = keyIntensity;
+    areaLights[1]->color = rim;
+    areaLights[1]->shineColor = rim;
+    areaLights[1]->intensity = rimIntensity;
+    window->setClearColor(background);
+
+    if (auto skybox = scene->getSkybox(); skybox != nullptr) {
+        skybox->cubemap.updateWithColors(colors);
+    } else {
+        scene->setSkybox(
+            Skybox::create(Cubemap::fromColors(colors, 32), *window));
+    }
+    return true;
+}
+
 static json inheritedRigidbodyCollider(GameObject &object) {
     return json{{"type", "box"}, {"size", editorObjectBoundsSize(object)}};
 }
@@ -6280,6 +6502,7 @@ void Context::end() {
     if (window == nullptr) {
         return;
     }
+    WindowActivationScope activeWindow(*window);
     window->close();
     window->endRunLoop();
 }

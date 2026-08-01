@@ -80,6 +80,7 @@ class ViewportPanel : public QWidget {
     bool openRuntimeScene(const QString &path);
     bool saveRuntimeSceneAs(const QString &path);
     QString currentRuntimeScene() const;
+    QString runtimeProjectFile() const { return projectFile; }
     QString currentSceneSnapshot() const { return lastSceneSnapshot; }
     int selectedRuntimeObjectId() const;
     bool applyRuntimeMaterial(int id, const QString &path);

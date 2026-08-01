@@ -119,7 +119,10 @@ class PathTracing {
     std::vector<std::shared_ptr<opal::Texture>> materialTextureBindings;
     std::shared_ptr<opal::PrimitiveAccelerationStructure> sceneBLAS;
     std::shared_ptr<opal::Pipeline> pathTracingPipeline;
+    std::shared_ptr<opal::Pipeline> pathDenoisePipeline;
     std::shared_ptr<ShaderProgram> computePathTracer;
+    std::shared_ptr<ShaderProgram> computePathDenoiser;
+    std::array<std::shared_ptr<Texture>, 2> denoiseTextures;
     std::array<std::shared_ptr<Texture>, 4> pathTracingAovTextures;
     std::shared_ptr<Texture> pathTracingHistoryGuide;
     std::vector<uint32_t> cachedBLASPrimitiveOffsets;
@@ -146,6 +149,11 @@ class PathTracing {
     float cachedAmbientIntensity = -1.0f;
     int cachedDirectionalLightCount = -1;
     uint64_t cachedSkyboxTextureId = 0;
+    glm::vec3 cachedAtmosphereSunDirection = glm::vec3(0.0f);
+    glm::vec3 cachedAtmosphereSunColor = glm::vec3(0.0f);
+    float cachedAtmosphereSunIntensity = -1.0f;
+    float cachedAtmosphereSunSize = -1.0f;
+    int cachedAtmosphereEnabled = -1;
 
     friend class ::Window;
 #endif

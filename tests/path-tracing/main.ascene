@@ -26,14 +26,14 @@
     },
     "environment": {
         "atmosphere": {
-            "enabled": true,
+            "enabled": false,
             "globalLight": {
                 "castsShadows": true,
                 "enabled": false,
                 "shadowResolution": 4096
             }
         },
-        "atmosphereSky": true,
+        "atmosphereSky": false,
         "automaticAmbient": false
     },
     "id": "main_scene",
@@ -57,77 +57,7 @@
         }
     ],
     "name": "Main Scene",
-    "objects": [
-        {
-            "components": [],
-            "material": "",
-            "name": "Cube",
-            "position": [
-                0.0,
-                0.0,
-                0.0
-            ],
-            "rotation": [
-                0.0,
-                0.0,
-                0.0
-            ],
-            "scale": [
-                1.0,
-                1.0,
-                1.0
-            ],
-            "solid_type": "cube",
-            "type": "solid"
-        },
-        {
-            "components": [],
-            "id": 262366761,
-            "material": "assets/materials/New Material.amat",
-            "name": "Cube 2",
-            "parent": "Cube",
-            "position": [
-                1.25,
-                0.0,
-                0.0
-            ],
-            "rotation": [
-                0.0,
-                0.0,
-                0.0
-            ],
-            "scale": [
-                1.0,
-                1.0,
-                1.0
-            ],
-            "solid_type": "cube",
-            "type": "solid"
-        },
-        {
-            "components": [],
-            "id": 1966546454,
-            "material": "assets/materials/Emissive Ball.amat",
-            "name": "Sphere",
-            "position": [
-                0.6134507656097412,
-                0.17499999701976776,
-                1.8578729629516602
-            ],
-            "rotation": [
-                0.0,
-                0.0,
-                0.0
-            ],
-            "scale": [
-                1.0,
-                1.0,
-                1.0
-            ],
-            "solid_type": "sphere",
-            "type": "solid"
-        }
-    ],
+    "objects": [],
     "property_syncs": [],
     "targets": [
         {
@@ -137,5 +67,6 @@
             "render": true,
             "type": "scene"
         }
-    ]
+    ],
+    "ui": []
 }

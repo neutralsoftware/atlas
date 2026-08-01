@@ -437,6 +437,7 @@ class Window {
      * @return (bool) True while rendering should continue.
      */
     bool stepFrame();
+    void activateRenderingContext();
     void resize(int width, int height, float scale = 1.0f);
     void setEditorControlsEnabled(bool enabled);
     bool areEditorControlsEnabled() const { return editorControlsEnabled; }
