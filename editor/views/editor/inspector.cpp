@@ -861,7 +861,7 @@ QWidget *vectorField(const QJsonArray &value, const PropertyChanged &changed,
     QList<QDoubleSpinBox *> boxes;
     for (int index = 0; index < dimensions; ++index) {
         auto *axis = new QLabel(axes.at(index), valueEditor);
-        axis->setObjectName("inspectorAxisLabel");
+        axis->setObjectName("inspectorAxis" + axes.at(index));
         auto *box = numberField(values.at(index).toDouble(), valueEditor);
         box->setButtonSymbols(QAbstractSpinBox::NoButtons);
         box->setMinimumWidth(52);
