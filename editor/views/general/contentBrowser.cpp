@@ -610,7 +610,7 @@ void ContentBrowserPanel::createMaterial() {
         "        \"metallic\": 0.0,\n"
         "        \"roughness\": 0.5,\n"
         "        \"ao\": 1.0,\n"
-        "        \"reflectivity\": 0.5,\n"
+        "        \"reflectivity\": 0.0,\n"
         "        \"emissiveColor\": [0.0, 0.0, 0.0, 1.0],\n"
         "        \"emissiveIntensity\": 0.0,\n"
         "        \"normalMapStrength\": 1.0,\n"

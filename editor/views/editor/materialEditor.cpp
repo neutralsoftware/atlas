@@ -349,7 +349,7 @@ MaterialEditorPanel::normalizedMaterial(const QJsonObject &source) const {
     if (!result.value("ao").isDouble())
         result.insert("ao", 1.0);
     if (!result.value("reflectivity").isDouble())
-        result.insert("reflectivity", 0.5);
+        result.insert("reflectivity", 0.0);
     if (!result.value("emissiveColor").isArray())
         result.insert("emissiveColor", QJsonArray{0.0, 0.0, 0.0, 1.0});
     if (!result.value("emissiveIntensity").isDouble())
