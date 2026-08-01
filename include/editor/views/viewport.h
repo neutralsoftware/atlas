@@ -66,8 +66,7 @@ class ViewportPanel : public QWidget {
     int addRuntimeObjectComponent(int id, const QString &type,
                                   const QJsonObject &properties);
     bool removeRuntimeObjectComponent(int id, int componentIndex);
-    bool controlRuntimeAudio(int id, int componentIndex,
-                             const QString &action);
+    bool controlRuntimeAudio(int id, int componentIndex, const QString &action);
     bool setRuntimeObjectParent(int childId, int parentId);
     bool deleteRuntimeObject(int id);
     int createRuntimeObject(const QString &type, const QString &name = {});
@@ -178,8 +177,9 @@ class ViewportPanel : public QWidget {
     int keyboardTransformAxes = 7;
     int playbackState = 0;
     int shadingMode = 0;
-    bool pathTracingPreview = true;
+    bool pbrPreview = true;
     int rightDragRuntimeButton = 0;
+    int middleDragRuntimeButton = 0;
 };
 
 #endif // ATLAS_VIEWPORT_H

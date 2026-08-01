@@ -5,11 +5,11 @@
 #include <QLineEdit>
 #include <QMouseEvent>
 #include <QSpinBox>
+#include <QTimer>
 
 #include <cmath>
 
-template <typename SpinBox>
-class ScrubbableSpinBoxBase : public SpinBox {
+template <typename SpinBox> class ScrubbableSpinBoxBase : public SpinBox {
   public:
     explicit ScrubbableSpinBoxBase(QWidget *parent = nullptr)
         : SpinBox(parent) {
@@ -29,6 +29,7 @@ class ScrubbableSpinBoxBase : public SpinBox {
                 scrubStartX = mouse->globalPosition().x();
                 scrubStartValue = this->value();
                 scrubbing = false;
+                selectOnRelease = !this->lineEdit()->hasFocus();
             }
         } else if (event->type() == QEvent::MouseMove) {
             auto *mouse = static_cast<QMouseEvent *>(event);
@@ -50,7 +51,13 @@ class ScrubbableSpinBoxBase : public SpinBox {
             auto *mouse = static_cast<QMouseEvent *>(event);
             if (mouse->button() == Qt::LeftButton && scrubbing) {
                 scrubbing = false;
+                selectOnRelease = false;
                 return true;
+            }
+            if (mouse->button() == Qt::LeftButton && selectOnRelease) {
+                selectOnRelease = false;
+                QTimer::singleShot(0, this->lineEdit(),
+                                   [this] { this->lineEdit()->selectAll(); });
             }
         }
         return SpinBox::eventFilter(watched, event);
@@ -60,6 +67,7 @@ class ScrubbableSpinBoxBase : public SpinBox {
     double scrubStartX = 0.0;
     double scrubStartValue = 0.0;
     bool scrubbing = false;
+    bool selectOnRelease = false;
 };
 
 using ScrubbableDoubleSpinBox = ScrubbableSpinBoxBase<QDoubleSpinBox>;

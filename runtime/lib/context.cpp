@@ -4601,8 +4601,9 @@ runtime::makeContextForMetalView(std::string projectFile, void *metalView,
 #endif
 }
 
-std::shared_ptr<Context> runtime::makeMaterialPreviewContextForMetalView(
-    std::string projectFile, void *metalView) {
+std::shared_ptr<Context>
+runtime::makeMaterialPreviewContextForMetalView(std::string projectFile,
+                                                void *metalView) {
 #ifdef METAL
     if (metalView == nullptr) {
         throw std::runtime_error("Metal view pointer cannot be null");
@@ -5050,7 +5051,8 @@ bool editorObjectWorldBounds(GameObject &object, glm::vec3 &minimum,
 
     const auto *coreObject = dynamic_cast<const CoreObject *>(&object);
     const std::vector<CoreVertex> copiedVertices =
-        coreObject == nullptr ? object.getVertices() : std::vector<CoreVertex>();
+        coreObject == nullptr ? object.getVertices()
+                              : std::vector<CoreVertex>();
     const std::vector<CoreVertex> &vertices =
         coreObject != nullptr ? coreObject->vertices : copiedVertices;
     if (vertices.empty()) {
@@ -5437,11 +5439,22 @@ bool Context::setObjectProperty(int id, const std::string &component,
         } else if (property == "rotation") {
             object->setRotation(Rotation3d{vector.x, vector.y, vector.z});
         } else if (property == "scale") {
+            auto clampComponent = [](float component) {
+                if (!std::isfinite(component))
+                    return 1.0f;
+                if (std::abs(component) >= 0.001f)
+                    return component;
+                return std::signbit(component) ? -0.001f : 0.001f;
+            };
+            vector.x = clampComponent(vector.x);
+            vector.y = clampComponent(vector.y);
+            vector.z = clampComponent(vector.z);
             object->setScale(vector);
         } else {
             return false;
         }
-        setJsonProperty(editorObjectSourceData[id], "/" + property, value);
+        setJsonProperty(editorObjectSourceData[id], "/" + property,
+                        property == "scale" ? vec3ToJson(vector) : value);
         syncEditorLightObject(*this, *object);
         applyPropertySyncs(*this, true);
         return true;
@@ -5726,12 +5739,10 @@ bool Context::setMaterialPreviewEnvironment(int mode) {
         keyIntensity = 5.5f;
         rimIntensity = 3.0f;
     } else if (mode == 2) {
-        colors = {Color{0.52f, 0.76f, 1.0f, 1.0f},
-                  Color{0.42f, 0.68f, 0.96f, 1.0f},
-                  Color{0.3f, 0.62f, 1.0f, 1.0f},
-                  Color{0.72f, 0.78f, 0.82f, 1.0f},
-                  Color{0.62f, 0.82f, 1.0f, 1.0f},
-                  Color{0.46f, 0.72f, 0.98f, 1.0f}};
+        colors = {
+            Color{0.52f, 0.76f, 1.0f, 1.0f}, Color{0.42f, 0.68f, 0.96f, 1.0f},
+            Color{0.3f, 0.62f, 1.0f, 1.0f},  Color{0.72f, 0.78f, 0.82f, 1.0f},
+            Color{0.62f, 0.82f, 1.0f, 1.0f}, Color{0.46f, 0.72f, 0.98f, 1.0f}};
         ambient = {0.58f, 0.74f, 1.0f, 1.0f};
         key = {1.0f, 0.95f, 0.84f, 1.0f};
         rim = {0.42f, 0.7f, 1.0f, 1.0f};
@@ -6354,9 +6365,6 @@ int Context::pasteObjectDefinition(const std::string &definition) {
             objectData["position"][2] =
                 objectData["position"][2].get<double>() + 0.5;
         }
-        json sceneData = loadJsonFile(currentSceneFile);
-        if (!sceneData.is_object())
-            return -1;
         const std::string type =
             normalizeToken(objectData.value("type", std::string()));
         const bool isLight =
@@ -6364,6 +6372,43 @@ int Context::pasteObjectDefinition(const std::string &definition) {
             type == "spotlight" || type == "directional" ||
             type == "directionallight" || type == "sun" || type == "area" ||
             type == "arealight" || type == "ambient" || type == "ambientlight";
+        if (!isLight) {
+            std::vector<PendingComponent> rigidbodyComponents;
+            std::vector<PendingComponent> standardComponents;
+            std::vector<PendingComponent> jointComponents;
+            auto pasted = createRenderable(
+                *this, objectData, sceneDir.empty() ? projectDir : sceneDir,
+                rigidbodyComponents, standardComponents, jointComponents);
+            auto object = std::dynamic_pointer_cast<GameObject>(pasted);
+            if (object == nullptr)
+                return -1;
+            applyPropertySyncs(*this, false);
+            auto attach = [this](const std::vector<PendingComponent> &pending) {
+                for (const PendingComponent &component : pending) {
+                    try {
+                        attachComponent(*this, component);
+                    } catch (const std::exception &error) {
+                        RUNTIME_LOG("Pasted component is waiting for valid "
+                                    "values: " +
+                                    std::string(error.what()));
+                    }
+                }
+            };
+            attach(rigidbodyComponents);
+            attach(standardComponents);
+            attach(jointComponents);
+            if (std::dynamic_pointer_cast<UIObject>(pasted) != nullptr)
+                window->addUIObject(pasted.get());
+            else
+                window->addObject(pasted.get());
+            window->selectEditorObject(object.get(), false);
+            if (!saveCurrentScene())
+                return -1;
+            return static_cast<int>(object->getId());
+        }
+        json sceneData = loadJsonFile(currentSceneFile);
+        if (!sceneData.is_object())
+            return -1;
         const char *collection = isLight ? "lights" : "objects";
         if (!sceneData.contains(collection) ||
             !sceneData[collection].is_array()) {

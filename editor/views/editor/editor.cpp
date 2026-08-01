@@ -40,6 +40,7 @@
 #include <QJsonDocument>
 #include <QJsonObject>
 #include <QMenuBar>
+#include <QMenu>
 #include <QMessageBox>
 #include <QPlainTextEdit>
 #include <QProcess>
@@ -354,43 +355,15 @@ void EditorWindow::setupMenus() {
         styling::icon(styling::Icon::ArrowCounterClockwise, "#7E929C"));
     undoAction->setShortcut(QKeySequence::Undo);
     undoAction->setShortcutContext(Qt::ApplicationShortcut);
-    connect(undoAction, &QAction::triggered, this, [this] {
-        if (auto *field =
-                qobject_cast<QLineEdit *>(QApplication::focusWidget())) {
-            field->undo();
-        } else if (materialEditorPanel != nullptr &&
-                   materialEditorPanel->isAncestorOf(
-                       QApplication::focusWidget())) {
-            materialEditorPanel->undo();
-        } else if (graphiteEditorPanel != nullptr &&
-                   graphiteEditorPanel->isAncestorOf(
-                       QApplication::focusWidget())) {
-            graphiteEditorPanel->undo();
-        } else if (viewportPanel != nullptr) {
-            viewportPanel->undo();
-        }
-    });
+    connect(undoAction, &QAction::triggered, this,
+            &EditorWindow::undoActiveEditor);
     auto *redoAction = editMenu->addAction("Redo");
     redoAction->setIcon(
         styling::icon(styling::Icon::ArrowClockwise, "#7E929C"));
     redoAction->setShortcut(QKeySequence::Redo);
     redoAction->setShortcutContext(Qt::ApplicationShortcut);
-    connect(redoAction, &QAction::triggered, this, [this] {
-        if (auto *field =
-                qobject_cast<QLineEdit *>(QApplication::focusWidget())) {
-            field->redo();
-        } else if (materialEditorPanel != nullptr &&
-                   materialEditorPanel->isAncestorOf(
-                       QApplication::focusWidget())) {
-            materialEditorPanel->redo();
-        } else if (graphiteEditorPanel != nullptr &&
-                   graphiteEditorPanel->isAncestorOf(
-                       QApplication::focusWidget())) {
-            graphiteEditorPanel->redo();
-        } else if (viewportPanel != nullptr) {
-            viewportPanel->redo();
-        }
-    });
+    connect(redoAction, &QAction::triggered, this,
+            &EditorWindow::redoActiveEditor);
     editMenu->addSeparator();
     addCommand(editMenu, "Find…", "Meta+F", [this] { showGlobalSearch(); });
     editMenu->addSeparator();
@@ -614,14 +587,13 @@ void EditorWindow::setupDocks() {
                                                   : "Runtime unavailable");
                 emit startupReady(success, message);
             });
-    connect(viewportPanel, &ViewportPanel::runtimeLoadingStarted, this,
-            [this] {
-                if (!startupComplete || assetLoadingSplash != nullptr) {
-                    return;
-                }
-                assetLoadingSplash = new SplashScreen(this);
-                assetLoadingSplash->start("Loading assets...");
-            });
+    connect(viewportPanel, &ViewportPanel::runtimeLoadingStarted, this, [this] {
+        if (!startupComplete || assetLoadingSplash != nullptr) {
+            return;
+        }
+        assetLoadingSplash = new SplashScreen(this);
+        assetLoadingSplash->start("Loading assets...");
+    });
     connect(viewportPanel, &ViewportPanel::runtimeLoadingStatusChanged, this,
             [this](const QString &status) {
                 emit startupStatusChanged(status);
@@ -641,8 +613,7 @@ void EditorWindow::setupDocks() {
     viewportTools = new ViewportTools(viewportPanel, projectFile);
     materialEditorPanel = new MaterialEditorPanel(viewportPanel);
     postProcessingPanel = new PostProcessingPanel(viewportPanel);
-    graphiteEditorPanel =
-        new GraphiteEditorPanel(viewportPanel, projectFile);
+    graphiteEditorPanel = new GraphiteEditorPanel(viewportPanel, projectFile);
     workspaceStack = new QStackedWidget(this);
     workspaceStack->setObjectName("editorWorkspaceStack");
     workspaceStack->addWidget(viewportTools);
@@ -726,11 +697,10 @@ void EditorWindow::setupDocks() {
             action->setShortcutContext(Qt::ApplicationShortcut);
         }
         windowMenu->addSeparator();
-        const QList<QPair<QString, int>> workspaceModes{
-            {"Scene", 0},
-            {"Shading", 1},
-            {"Post-Processing", 2},
-            {"Graphite", 3}};
+        const QList<QPair<QString, int>> workspaceModes{{"Scene", 0},
+                                                        {"Shading", 1},
+                                                        {"Post-Processing", 2},
+                                                        {"Graphite", 3}};
         for (const auto &[name, index] : workspaceModes) {
             auto *action = windowMenu->addAction(
                 QStringLiteral("Open %1 Workspace").arg(name), this,
@@ -742,8 +712,7 @@ void EditorWindow::setupDocks() {
                 });
             action->setIcon(
                 index == 0 ? styling::icon(styling::Icon::CubeFocus, "#7E929C")
-                : index == 1
-                    ? styling::icon(styling::Icon::Material, "#A1957D")
+                : index == 1 ? styling::icon(styling::Icon::Material, "#A1957D")
                 : index == 2
                     ? styling::icon(styling::Icon::FilmStrip, "#849589")
                     : styling::icon(styling::Icon::Palette, "#849589"));
@@ -1782,9 +1751,54 @@ bool EditorWindow::contentBrowserHasFocus() const {
            (focused == contentBrowser || contentBrowser->isAncestorOf(focused));
 }
 
+void EditorWindow::undoActiveEditor() {
+    if (auto *field = qobject_cast<QLineEdit *>(QApplication::focusWidget())) {
+        field->undo();
+    } else if (materialEditorPanel != nullptr &&
+               materialEditorPanel->isAncestorOf(QApplication::focusWidget())) {
+        materialEditorPanel->undo();
+    } else if (graphiteEditorPanel != nullptr &&
+               graphiteEditorPanel->isAncestorOf(QApplication::focusWidget())) {
+        graphiteEditorPanel->undo();
+    } else if (viewportPanel != nullptr) {
+        viewportPanel->undo();
+    }
+}
+
+void EditorWindow::redoActiveEditor() {
+    if (auto *field = qobject_cast<QLineEdit *>(QApplication::focusWidget())) {
+        field->redo();
+    } else if (materialEditorPanel != nullptr &&
+               materialEditorPanel->isAncestorOf(QApplication::focusWidget())) {
+        materialEditorPanel->redo();
+    } else if (graphiteEditorPanel != nullptr &&
+               graphiteEditorPanel->isAncestorOf(QApplication::focusWidget())) {
+        graphiteEditorPanel->redo();
+    } else if (viewportPanel != nullptr) {
+        viewportPanel->redo();
+    }
+}
+
 bool EditorWindow::eventFilter(QObject *watched, QEvent *event) {
+    if (event->type() == QEvent::Polish) {
+        if (auto *menu = qobject_cast<QMenu *>(watched)) {
+            menu->setAttribute(Qt::WA_TranslucentBackground);
+        } else if (auto *dialog = qobject_cast<QDialog *>(watched);
+                   dialog != nullptr &&
+                   dialog->windowFlags().testFlag(Qt::FramelessWindowHint)) {
+            dialog->setAttribute(Qt::WA_TranslucentBackground);
+        }
+    }
     if (event->type() == QEvent::KeyPress) {
         auto *key = static_cast<QKeyEvent *>(event);
+        if (!key->isAutoRepeat() && key->matches(QKeySequence::Undo)) {
+            undoActiveEditor();
+            return true;
+        }
+        if (!key->isAutoRepeat() && key->matches(QKeySequence::Redo)) {
+            redoActiveEditor();
+            return true;
+        }
         QWidget *focused = QApplication::focusWidget();
         const bool typing = qobject_cast<QLineEdit *>(focused) != nullptr;
         if (!typing && key->key() == Qt::Key_Tab &&

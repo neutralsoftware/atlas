@@ -79,12 +79,13 @@ int runtimeMouseButton(Qt::MouseButton button) {
 }
 
 int activeRuntimeMouseButton(Qt::MouseButtons buttons,
-                             int rightDragRuntimeButton) {
+                             int rightDragRuntimeButton,
+                             int middleDragRuntimeButton) {
     if (buttons.testFlag(Qt::RightButton)) {
         return rightDragRuntimeButton;
     }
     if (buttons.testFlag(Qt::MiddleButton)) {
-        return runtimeMouseButton(Qt::MiddleButton);
+        return middleDragRuntimeButton;
     }
     if (buttons.testFlag(Qt::LeftButton)) {
         return runtimeMouseButton(Qt::LeftButton);
@@ -246,7 +247,7 @@ class RuntimeRenameCommand : public QUndoCommand {
     QString before;
     QString after;
 };
-}
+} // namespace
 
 ViewportPanel::ViewportPanel(const QString &projectFile, QWidget *parent)
     : QWidget(parent), projectFile(projectFile) {
@@ -274,7 +275,7 @@ ViewportPanel::ViewportPanel(const QString &projectFile, QWidget *parent)
     environmentReloadTimer->setInterval(140);
     connect(frameTimer, &QTimer::timeout, this, [this] {
         if (stepRuntime() && isVisible())
-            frameTimer->start(pathTracingPreview ? 16 : 1);
+            frameTimer->start(pbrPreview ? 16 : 1);
     });
     connect(resizeTimer, &QTimer::timeout, this, [this] { resizeRuntime(); });
     connect(environmentReloadTimer, &QTimer::timeout, this,
@@ -302,7 +303,7 @@ void ViewportPanel::setRuntimeStartupEnabled(bool enabled) {
 void ViewportPanel::showEvent(QShowEvent *event) {
     QWidget::showEvent(event);
     if (runtimeContext != nullptr) {
-        frameTimer->start(pathTracingPreview ? 16 : 1);
+        frameTimer->start(pbrPreview ? 16 : 1);
         return;
     }
     if (runtimeStartupEnabled)
@@ -424,6 +425,11 @@ void ViewportPanel::mousePressEvent(QMouseEvent *event) {
                                      ? runtimeMouseButton(Qt::RightButton)
                                      : runtimeMouseButton(Qt::MiddleButton);
         pointerButton = rightDragRuntimeButton;
+    } else if (event->button() == Qt::MiddleButton) {
+        middleDragRuntimeButton = event->modifiers().testFlag(Qt::ShiftModifier)
+                                      ? runtimeMouseButton(Qt::RightButton)
+                                      : runtimeMouseButton(Qt::MiddleButton);
+        pointerButton = middleDragRuntimeButton;
     }
     sendPointerEvent(0, static_cast<float>(event->position().x()),
                      static_cast<float>(event->position().y()), pointerButton);
@@ -436,10 +442,11 @@ void ViewportPanel::mousePressEvent(QMouseEvent *event) {
 void ViewportPanel::mouseMoveEvent(QMouseEvent *event) {
     if (event->buttons().testFlag(Qt::LeftButton))
         leftPointerMoved = true;
-    sendPointerEvent(
-        1, static_cast<float>(event->position().x()),
-        static_cast<float>(event->position().y()),
-        activeRuntimeMouseButton(event->buttons(), rightDragRuntimeButton));
+    sendPointerEvent(1, static_cast<float>(event->position().x()),
+                     static_cast<float>(event->position().y()),
+                     activeRuntimeMouseButton(event->buttons(),
+                                              rightDragRuntimeButton,
+                                              middleDragRuntimeButton));
     if (keyboardTransformActive) {
         const QRect bounds(mapToGlobal(QPoint(0, 0)), size());
         QPoint cursor = event->globalPosition().toPoint();
@@ -467,6 +474,8 @@ void ViewportPanel::mouseMoveEvent(QMouseEvent *event) {
 void ViewportPanel::mouseReleaseEvent(QMouseEvent *event) {
     const int pointerButton = event->button() == Qt::RightButton
                                   ? rightDragRuntimeButton
+                              : event->button() == Qt::MiddleButton
+                                  ? middleDragRuntimeButton
                                   : runtimeMouseButton(event->button());
     sendPointerEvent(2, static_cast<float>(event->position().x()),
                      static_cast<float>(event->position().y()), pointerButton);
@@ -483,6 +492,8 @@ void ViewportPanel::mouseReleaseEvent(QMouseEvent *event) {
     leftPointerMoved = false;
     if (event->button() == Qt::RightButton)
         rightDragRuntimeButton = 0;
+    if (event->button() == Qt::MiddleButton)
+        middleDragRuntimeButton = 0;
     event->accept();
 }
 
@@ -624,7 +635,7 @@ void ViewportPanel::startRuntime() {
         runtimeContext->setEditorSimulationEnabled(false);
         runtimeContext->setEditorControlMode(0);
         runtimeContext->setEditorShadingMode(shadingMode);
-        runtimeContext->setEditorPathTracingPreview(pathTracingPreview);
+        runtimeContext->setEditorPathTracingPreview(pbrPreview);
         resizeRuntime();
         refreshSceneSnapshot();
         if (!selectionToRestore.isEmpty()) {
@@ -654,7 +665,7 @@ void ViewportPanel::startRuntime() {
                                         "The first viewport frame failed");
             return;
         }
-        frameTimer->start(pathTracingPreview ? 16 : 1);
+        frameTimer->start(pbrPreview ? 16 : 1);
         emit runtimeLoadingFinished();
         emit runtimeStartupFinished(true, {});
         if (playAfterRuntimeStart) {
@@ -1173,7 +1184,6 @@ bool ViewportPanel::applyRuntimeMaterialDirect(int id, const QString &path) {
     runtimeContext->saveCurrentScene();
     refreshSceneSnapshot();
     setSceneDirty(true);
-    reloadRuntime();
     return true;
 }
 
@@ -1383,7 +1393,7 @@ void ViewportPanel::setRuntimeShadingMode(int mode) {
 }
 
 void ViewportPanel::setPathTracingPreview(bool enabled) {
-    pathTracingPreview = enabled;
+    pbrPreview = enabled;
     if (runtimeContext == nullptr) {
         return;
     }
@@ -1396,7 +1406,7 @@ void ViewportPanel::setPathTracingPreview(bool enabled) {
     frameTimer->stop();
     const bool frameReady = stepRuntime();
     if (frameReady && isVisible())
-        frameTimer->start(pathTracingPreview ? 16 : 1);
+        frameTimer->start(pbrPreview ? 16 : 1);
     emit runtimeLoadingFinished();
     if (!enabled && runtimeContext != nullptr) {
         const std::string error = runtimeContext->getPathTracingError();

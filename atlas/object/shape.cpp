@@ -195,36 +195,35 @@ CoreObject createPlane(Size2d size, Color color) {
     double h = size.height / 2.0;
 
     std::vector<CoreVertex> vertices = {
-        {{-w, -h, 0.0},
+        {{-w, 0.0, h},
          color,
          {0.0, 0.0},
-         {0.0f, 0.0f, 1.0f},
+         {0.0f, 1.0f, 0.0f},
          {1.0f, 0.0f, 0.0f},
-         {0.0f, 1.0f, 0.0f}},
-        {{w, -h, 0.0},
+         {0.0f, 0.0f, -1.0f}},
+        {{w, 0.0, h},
          color,
          {1.0, 0.0},
-         {0.0f, 0.0f, 1.0f},
+         {0.0f, 1.0f, 0.0f},
          {1.0f, 0.0f, 0.0f},
-         {0.0f, 1.0f, 0.0f}},
-        {{w, h, 0.0},
+         {0.0f, 0.0f, -1.0f}},
+        {{w, 0.0, -h},
          color,
          {1.0, 1.0},
-         {0.0f, 0.0f, 1.0f},
+         {0.0f, 1.0f, 0.0f},
          {1.0f, 0.0f, 0.0f},
-         {0.0f, 1.0f, 0.0f}},
-        {{-w, h, 0.0},
+         {0.0f, 0.0f, -1.0f}},
+        {{-w, 0.0, -h},
          color,
          {0.0, 1.0},
-         {0.0f, 0.0f, 1.0f},
+         {0.0f, 1.0f, 0.0f},
          {1.0f, 0.0f, 0.0f},
-         {0.0f, 1.0f, 0.0f}},
+         {0.0f, 0.0f, -1.0f}},
     };
 
     CoreObject plane;
     plane.attachVertices(vertices);
     plane.attachIndices({0, 1, 2, 2, 3, 0});
-    plane.rotate({-90.0, 0.0, 0.0});
     plane.material.albedo = color;
     return plane;
 }
