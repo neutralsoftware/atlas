@@ -11,6 +11,7 @@ kernel void main0(texture2d<float, access::read> inputTexture [[texture(0)]],
                   texture2d<float, access::read> guideTexture [[texture(3)]],
                   texture2d<float, access::read> albedoRoughnessTexture
                       [[texture(4)]],
+                  texture2d<float, access::read> momentsTexture [[texture(5)]],
                   constant DenoiseParameters &parameters [[buffer(0)]],
                   uint2 gid [[thread_position_in_grid]]) {
     uint width = outputTexture.get_width();
@@ -26,6 +27,7 @@ kernel void main0(texture2d<float, access::read> inputTexture [[texture(0)]],
     float3 center = inputTexture.read(gid).xyz;
     float4 centerGuide = guideTexture.read(gid);
     float4 centerAlbedoRoughness = albedoRoughnessTexture.read(gid);
+    float4 centerMoments = momentsTexture.read(gid);
     bool centerSurface = centerGuide.w > 0.0;
     float centerNormalLength = dot(centerGuide.xyz, centerGuide.xyz);
     float centerLuminance = dot(center, float3(0.2126, 0.7152, 0.0722));
@@ -97,7 +99,17 @@ kernel void main0(texture2d<float, access::read> inputTexture [[texture(0)]],
         filtered += sampleColor * weight;
         totalWeight += weight;
     }
-    float3 result = totalWeight > 0.0001 ? filtered / totalWeight : center;
+    float3 spatialResult =
+        totalWeight > 0.0001 ? filtered / totalWeight : center;
+    float roughness = clamp(centerAlbedoRoughness.w, 0.0, 1.0);
+    float relativeNoise = sqrt(max(centerMoments.z, 0.0)) /
+                          max(centerLuminance, 0.05);
+    float filterStrength = clamp(relativeNoise * 1.5, 0.02, 1.0) *
+                           mix(0.12, 1.0, roughness * roughness);
+    if (!centerSurface) {
+        filterStrength *= 0.25;
+    }
+    float3 result = mix(center, spatialResult, filterStrength);
     float brightness = dot(result, float3(0.2126, 0.7152, 0.0722));
     constexpr float bloomThreshold = 0.8;
     constexpr float bloomKnee = 0.35;

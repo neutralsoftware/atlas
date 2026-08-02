@@ -208,6 +208,8 @@ void photon::PathTracing::init() {
     cachedObjectStateHashes.clear();
     cachedSceneObjectStateHashes.clear();
     cachedInstanceTransforms.clear();
+    emissiveTriangles.reset();
+    emissiveTriangleCount = 0;
     accelerationBuildFailed = false;
     lastError.clear();
 
@@ -237,9 +239,21 @@ void photon::PathTracing::init() {
     outputWidth = std::max(1, Window::mainWindow->viewportWidth);
     outputHeight = std::max(1, Window::mainWindow->viewportHeight);
 
-    pathTracingTexturePrev = std::make_shared<Texture>(
-        Texture::create(outputWidth, outputHeight, opal::TextureFormat::Rgba16F,
-                        opal::TextureDataFormat::Rgba, TextureType::Color));
+    for (auto &texture : pathTracingHistoryTextures) {
+        texture = std::make_shared<Texture>(Texture::create(
+            outputWidth, outputHeight, opal::TextureFormat::Rgba16F,
+            opal::TextureDataFormat::Rgba, TextureType::Color));
+    }
+    for (auto &texture : pathTracingHistoryGuides) {
+        texture = std::make_shared<Texture>(Texture::create(
+            outputWidth, outputHeight, opal::TextureFormat::Rgba16F,
+            opal::TextureDataFormat::Rgba, TextureType::Color));
+    }
+    for (auto &texture : pathTracingHistoryMoments) {
+        texture = std::make_shared<Texture>(Texture::create(
+            outputWidth, outputHeight, opal::TextureFormat::Rgba16F,
+            opal::TextureDataFormat::Rgba, TextureType::Color));
+    }
     for (auto &texture : denoiseTextures) {
         texture = std::make_shared<Texture>(Texture::create(
             outputWidth, outputHeight, opal::TextureFormat::Rgba16F,
@@ -250,9 +264,8 @@ void photon::PathTracing::init() {
             outputWidth, outputHeight, opal::TextureFormat::Rgba16F,
             opal::TextureDataFormat::Rgba, TextureType::Color));
     }
-    pathTracingHistoryGuide = std::make_shared<Texture>(
-        Texture::create(outputWidth, outputHeight, opal::TextureFormat::Rgba16F,
-                        opal::TextureDataFormat::Rgba, TextureType::Color));
+    historyReadIndex = 0;
+    frameIndex = 0;
     interactiveFramesRemaining = 4;
     interactive = true;
 }
@@ -261,15 +274,28 @@ void photon::PathTracing::resizeOutput(int width, int height) {
     const int newWidth = std::max(1, width);
     const int newHeight = std::max(1, height);
     if (newWidth == outputWidth && newHeight == outputHeight &&
-        pathTracingTexturePrev != nullptr) {
+        pathTracingHistoryTextures[0] != nullptr &&
+        pathTracingHistoryTextures[1] != nullptr) {
         return;
     }
 
     outputWidth = newWidth;
     outputHeight = newHeight;
-    pathTracingTexturePrev = std::make_shared<Texture>(
-        Texture::create(outputWidth, outputHeight, opal::TextureFormat::Rgba16F,
-                        opal::TextureDataFormat::Rgba, TextureType::Color));
+    for (auto &texture : pathTracingHistoryTextures) {
+        texture = std::make_shared<Texture>(Texture::create(
+            outputWidth, outputHeight, opal::TextureFormat::Rgba16F,
+            opal::TextureDataFormat::Rgba, TextureType::Color));
+    }
+    for (auto &texture : pathTracingHistoryGuides) {
+        texture = std::make_shared<Texture>(Texture::create(
+            outputWidth, outputHeight, opal::TextureFormat::Rgba16F,
+            opal::TextureDataFormat::Rgba, TextureType::Color));
+    }
+    for (auto &texture : pathTracingHistoryMoments) {
+        texture = std::make_shared<Texture>(Texture::create(
+            outputWidth, outputHeight, opal::TextureFormat::Rgba16F,
+            opal::TextureDataFormat::Rgba, TextureType::Color));
+    }
     for (auto &texture : denoiseTextures) {
         texture = std::make_shared<Texture>(Texture::create(
             outputWidth, outputHeight, opal::TextureFormat::Rgba16F,
@@ -280,11 +306,33 @@ void photon::PathTracing::resizeOutput(int width, int height) {
             outputWidth, outputHeight, opal::TextureFormat::Rgba16F,
             opal::TextureDataFormat::Rgba, TextureType::Color));
     }
-    pathTracingHistoryGuide = std::make_shared<Texture>(
-        Texture::create(outputWidth, outputHeight, opal::TextureFormat::Rgba16F,
-                        opal::TextureDataFormat::Rgba, TextureType::Color));
+    historyReadIndex = 0;
     frameIndex = 0;
     interactiveFramesRemaining = 4;
+    interactive = true;
+}
+
+void photon::PathTracing::configure(int samplesPerPixel, int bounceLimit,
+                                    bool useDenoising, int historyFrames) {
+    const int newSamples = std::clamp(samplesPerPixel, 1, 64);
+    const int newBounces = std::clamp(bounceLimit, 1, 16);
+    const int newHistoryFrames = std::clamp(historyFrames, 1, 2048);
+    if (raysPerPixel == newSamples && maxBounces == newBounces &&
+        denoisingEnabled == useDenoising &&
+        accumulationFrames == newHistoryFrames) {
+        return;
+    }
+    raysPerPixel = newSamples;
+    maxBounces = newBounces;
+    denoisingEnabled = useDenoising;
+    accumulationFrames = newHistoryFrames;
+    resetAccumulation();
+}
+
+void photon::PathTracing::resetAccumulation() {
+    frameIndex = 0;
+    historyReadIndex = 0;
+    interactiveFramesRemaining = 2;
     interactive = true;
 }
 
@@ -322,8 +370,21 @@ bool photon::PathTracing::buildAccelerationStructure(
         float bitangent[3];
     };
 
+    struct EmissiveTriangleData {
+        float p0[4];
+        float p1[4];
+        float p2[4];
+        float normal[4];
+        float emission[3];
+        float area;
+        float cdf;
+        float selectionPdf;
+        float _pad[2];
+    };
+
     static_assert(sizeof(MaterialData) == 112);
     static_assert(sizeof(VertexData) == 56);
+    static_assert(sizeof(EmissiveTriangleData) == 96);
 
     std::vector<CoreObject *> pathTracingObjects;
     std::unordered_set<CoreObject *> seenPathObjects;
@@ -389,6 +450,7 @@ bool photon::PathTracing::buildAccelerationStructure(
     std::vector<VertexData> allVertices;
     std::vector<uint32_t> allIndices;
     std::vector<uint32_t> primitiveObjects;
+    std::vector<EmissiveTriangleData> emissiveTriangleData;
 
     int objectID = 0;
     if (needsRebuild) {
@@ -555,7 +617,73 @@ bool photon::PathTracing::buildAccelerationStructure(
             data._pad1[1] = 0;
             materialData.push_back(data);
 
+            const glm::vec3 emission =
+                glm::vec3(data.emissiveColor[0], data.emissiveColor[1],
+                          data.emissiveColor[2]) *
+                std::max(data.emissiveIntensity, 0.0f);
+            const float emissionLuminance =
+                glm::dot(emission, glm::vec3(0.2126f, 0.7152f, 0.0722f));
+            if (emissionLuminance > 0.0001f) {
+                for (size_t primitive = 0; primitive < objectPrimitiveCount;
+                     ++primitive) {
+                    const uint32_t i0 =
+                        vertexOffset + objectIndices[primitive * 3 + 0];
+                    const uint32_t i1 =
+                        vertexOffset + objectIndices[primitive * 3 + 1];
+                    const uint32_t i2 =
+                        vertexOffset + objectIndices[primitive * 3 + 2];
+                    const glm::vec3 p0(allVertices[i0].position[0],
+                                       allVertices[i0].position[1],
+                                       allVertices[i0].position[2]);
+                    const glm::vec3 p1(allVertices[i1].position[0],
+                                       allVertices[i1].position[1],
+                                       allVertices[i1].position[2]);
+                    const glm::vec3 p2(allVertices[i2].position[0],
+                                       allVertices[i2].position[1],
+                                       allVertices[i2].position[2]);
+                    const glm::vec3 crossValue = glm::cross(p1 - p0, p2 - p0);
+                    const float twiceArea = glm::length(crossValue);
+                    if (twiceArea <= 0.000001f) {
+                        continue;
+                    }
+                    EmissiveTriangleData triangle{};
+                    const glm::vec3 normal = crossValue / twiceArea;
+                    for (int axis = 0; axis < 3; ++axis) {
+                        triangle.p0[axis] = p0[axis];
+                        triangle.p1[axis] = p1[axis];
+                        triangle.p2[axis] = p2[axis];
+                        triangle.normal[axis] = normal[axis];
+                        triangle.emission[axis] = emission[axis];
+                    }
+                    triangle.p0[3] = 1.0f;
+                    triangle.p1[3] = 1.0f;
+                    triangle.p2[3] = 1.0f;
+                    triangle.area = twiceArea * 0.5f;
+                    triangle.selectionPdf =
+                        triangle.area * emissionLuminance;
+                    emissiveTriangleData.push_back(triangle);
+                }
+            }
+
             objectID++;
+        }
+
+        float totalEmissiveWeight = 0.0f;
+        for (const auto &triangle : emissiveTriangleData) {
+            totalEmissiveWeight += triangle.selectionPdf;
+        }
+        float cumulativeWeight = 0.0f;
+        if (totalEmissiveWeight > 0.0f) {
+            for (auto &triangle : emissiveTriangleData) {
+                triangle.selectionPdf /= totalEmissiveWeight;
+                cumulativeWeight += triangle.selectionPdf;
+                triangle.cdf = cumulativeWeight;
+            }
+            emissiveTriangleData.back().cdf = 1.0f;
+        }
+        emissiveTriangleCount = static_cast<int>(emissiveTriangleData.size());
+        if (emissiveTriangleData.empty()) {
+            emissiveTriangleData.push_back({});
         }
 
         if (!flushAccelerationChunk()) {
@@ -609,9 +737,13 @@ bool photon::PathTracing::buildAccelerationStructure(
             opal::BufferUsage::ShaderRead,
             cachedBLASPrimitiveOffsets.size() * sizeof(uint32_t),
             cachedBLASPrimitiveOffsets.data());
+        emissiveTriangles = opal::Buffer::create(
+            opal::BufferUsage::ShaderRead,
+            emissiveTriangleData.size() * sizeof(EmissiveTriangleData),
+            emissiveTriangleData.data());
         if (materialBuffer == nullptr || globalVertices == nullptr ||
             globalIndices == nullptr || meshInfo == nullptr ||
-            blasPrimitiveOffsets == nullptr) {
+            blasPrimitiveOffsets == nullptr || emissiveTriangles == nullptr) {
             lastError = "Failed to allocate path tracing scene buffers";
             sceneBLAS.reset();
             accelerationBuildFailed = true;
@@ -1021,8 +1153,6 @@ bool photon::PathTracing::render(
                                       spotLightCount);
     pathTracingPipeline->setUniform1i("sceneData.numAreaLights",
                                       areaLightCount);
-    pathTracingPipeline->setUniform1i("sceneData.raysPerPixel",
-                                      this->raysPerPixel);
     pathTracingPipeline->setUniform1f("sceneData.indirectStrength",
                                       this->indirectStrength);
 
@@ -1042,7 +1172,7 @@ bool photon::PathTracing::render(
     }
     if (instanceDataBuffer == nullptr || materialBuffer == nullptr ||
         meshInfo == nullptr || globalVertices == nullptr ||
-        globalIndices == nullptr) {
+        globalIndices == nullptr || emissiveTriangles == nullptr) {
         return fail("Required scene buffers are unavailable");
     }
     try {
@@ -1059,8 +1189,11 @@ bool photon::PathTracing::render(
     }
     commandBuffer->bindPipeline(this->pathTracingPipeline);
     pathTracingPipeline->bindTexture("outTex", output, 0);
+    const int historyWriteIndex = 1 - historyReadIndex;
     pathTracingPipeline->bindTexture("historyTex",
-                                     pathTracingTexturePrev->texture, 1);
+                                     pathTracingHistoryTextures[historyReadIndex]
+                                         ->texture,
+                                     1);
     pathTracingPipeline->bindTexture("brightTex", brightOutput, 2);
     pathTracingPipeline->bindTexture("albedoRoughnessTex",
                                      pathTracingAovTextures[0]->texture, 3);
@@ -1068,10 +1201,22 @@ bool photon::PathTracing::render(
                                      pathTracingAovTextures[1]->texture, 4);
     pathTracingPipeline->bindTexture("motionObjectTex",
                                      pathTracingAovTextures[2]->texture, 5);
-    pathTracingPipeline->bindTexture("momentsHitTex",
-                                     pathTracingAovTextures[3]->texture, 6);
+    pathTracingPipeline->bindTexture(
+        "historyMomentsTex",
+        pathTracingHistoryMoments[historyReadIndex]->texture, 6);
     pathTracingPipeline->bindTexture("historyGuideTex",
-                                     pathTracingHistoryGuide->texture, 7);
+                                     pathTracingHistoryGuides[historyReadIndex]
+                                         ->texture,
+                                     7);
+    pathTracingPipeline->bindTexture(
+        "historyOutTex",
+        pathTracingHistoryTextures[historyWriteIndex]->texture, 8);
+    pathTracingPipeline->bindTexture(
+        "historyGuideOutTex",
+        pathTracingHistoryGuides[historyWriteIndex]->texture, 9);
+    pathTracingPipeline->bindTexture(
+        "historyMomentsOutTex",
+        pathTracingHistoryMoments[historyWriteIndex]->texture, 10);
 
     static std::shared_ptr<opal::Texture> fallbackSkyboxTexture = nullptr;
     if (fallbackSkyboxTexture == nullptr) {
@@ -1126,12 +1271,20 @@ bool photon::PathTracing::render(
     cachedAtmosphereSunSize = atmosphereSunSize;
 
     const int refinementFrame = std::max(frameIndex, 0);
-    const int pixelStride = interactive ? 4 : (refinementFrame < 4 ? 2 : 1);
+    const int pixelStride = interactive ? 2 : 1;
+    const int effectiveSamples = interactive ? 1 : this->raysPerPixel;
     const int effectiveBounces =
         interactive ? std::min(this->maxBounces, 2) : this->maxBounces;
     pathTracingPipeline->setUniform1i("sceneData.frameIndex", frameIndex);
+    pathTracingPipeline->setUniform1i("sceneData.raysPerPixel",
+                                      effectiveSamples);
     pathTracingPipeline->setUniform1i("sceneData.maxBounces", effectiveBounces);
     pathTracingPipeline->setUniform1i("sceneData.pixelStride", pixelStride);
+    pathTracingPipeline->setUniform1i("sceneData.accumulationFrameLimit",
+                                      accumulationFrames);
+    pathTracingPipeline->setUniform1f("sceneData.fireflyClamp", fireflyClamp);
+    pathTracingPipeline->setUniform1i("sceneData.numEmissiveTriangles",
+                                      emissiveTriangleCount);
 
     commandBuffer->bindPrimitiveAccelerationStructure(this->sceneBLAS, 0);
 
@@ -1145,6 +1298,8 @@ bool photon::PathTracing::render(
     pathTracingPipeline->bindBuffer("areaLights", areaLights, 11);
     pathTracingPipeline->bindBuffer("blasPrimitiveOffsets",
                                     blasPrimitiveOffsets, 13);
+    pathTracingPipeline->bindBuffer("emissiveTriangles", emissiveTriangles,
+                                    14);
     pathTracingPipeline->setUniform1i(
         "sceneData.materialTextureCount",
         std::min<int>(static_cast<int>(materialTextures.size()),
@@ -1163,8 +1318,10 @@ bool photon::PathTracing::render(
                             (outputHeight + pixelStride - 1) / pixelStride, 1);
 
     commandBuffer->computeBarrier();
+    historyReadIndex = historyWriteIndex;
 
-    if (!interactive && pixelStride == 1 && pathDenoisePipeline != nullptr &&
+    if (denoisingEnabled && !interactive && pixelStride == 1 &&
+        pathDenoisePipeline != nullptr &&
         denoiseTextures[0] != nullptr && denoiseTextures[1] != nullptr) {
         const std::array<int, 3> denoiseSteps = {1, 2, 4};
         const size_t denoisePassCount = refinementFrame < 32 ? 2 : 3;
@@ -1185,6 +1342,9 @@ bool photon::PathTracing::render(
             pathDenoisePipeline->bindTexture("albedoRoughnessTexture",
                                              pathTracingAovTextures[0]->texture,
                                              4);
+            pathDenoisePipeline->bindTexture(
+                "momentsTexture",
+                pathTracingHistoryMoments[historyReadIndex]->texture, 5);
             pathDenoisePipeline->setUniform1i("parameters.stepWidth",
                                               denoiseSteps[pass]);
             commandBuffer->dispatch(outputWidth, outputHeight, 1);

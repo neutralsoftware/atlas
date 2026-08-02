@@ -88,21 +88,24 @@ class PathTracing {
     void init();
     /** @brief Resizes path tracing output and history textures. */
     void resizeOutput(int width, int height);
+    void configure(int samplesPerPixel, int bounceLimit, bool useDenoising,
+                   int historyFrames);
+    void resetAccumulation();
     const std::string &getLastError() const { return lastError; }
 
-    /** @brief Current frame output texture. */
-    std::shared_ptr<Texture> pathTracingTexturePrev;
-
     /** @brief Rays traced per pixel each dispatch. */
-    int raysPerPixel = 2;
+    int raysPerPixel = 4;
     /** @brief Maximum bounce count for indirect transport. */
-    int maxBounces = 6;
+    int maxBounces = 8;
     /** @brief Scalar multiplier for indirect lighting contribution. */
     float indirectStrength = 1.0f;
     /** @brief Whether normal maps are evaluated during shading. */
     bool sampleNormalMaps = true;
     /** @brief Strength multiplier applied to sampled normal maps. */
     float normalMapStrength = 1.0f;
+    bool denoisingEnabled = true;
+    int accumulationFrames = 512;
+    float fireflyClamp = 32.0f;
 
   private:
     std::shared_ptr<opal::Buffer> pointLights;
@@ -115,6 +118,7 @@ class PathTracing {
     std::shared_ptr<opal::Buffer> materialBuffer;
     std::shared_ptr<opal::Buffer> instanceDataBuffer;
     std::shared_ptr<opal::Buffer> blasPrimitiveOffsets;
+    std::shared_ptr<opal::Buffer> emissiveTriangles;
     std::vector<std::shared_ptr<opal::Texture>> materialTextures;
     std::vector<std::shared_ptr<opal::Texture>> materialTextureBindings;
     std::shared_ptr<opal::PrimitiveAccelerationStructure> sceneBLAS;
@@ -123,8 +127,10 @@ class PathTracing {
     std::shared_ptr<ShaderProgram> computePathTracer;
     std::shared_ptr<ShaderProgram> computePathDenoiser;
     std::array<std::shared_ptr<Texture>, 2> denoiseTextures;
-    std::array<std::shared_ptr<Texture>, 4> pathTracingAovTextures;
-    std::shared_ptr<Texture> pathTracingHistoryGuide;
+    std::array<std::shared_ptr<Texture>, 2> pathTracingHistoryTextures;
+    std::array<std::shared_ptr<Texture>, 2> pathTracingHistoryGuides;
+    std::array<std::shared_ptr<Texture>, 2> pathTracingHistoryMoments;
+    std::array<std::shared_ptr<Texture>, 3> pathTracingAovTextures;
     std::vector<uint32_t> cachedBLASPrimitiveOffsets;
     std::vector<CoreObject *> cachedObjects;
     std::vector<CoreObject *> cachedSceneObjects;
@@ -132,8 +138,10 @@ class PathTracing {
     std::vector<uint64_t> cachedObjectStateHashes;
     std::vector<uint64_t> cachedSceneObjectStateHashes;
     uint64_t cachedLightHash = 0;
+    int emissiveTriangleCount = 0;
 
     int frameIndex = 0;
+    int historyReadIndex = 0;
     int outputWidth = 0;
     int outputHeight = 0;
     int interactiveFramesRemaining = 0;

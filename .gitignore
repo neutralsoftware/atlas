@@ -31,3 +31,4 @@ build_verify
 dist
 node_modules
 .obsidian
+*.app

@@ -1,6 +1,6 @@
 app_name = "path-tracing"
 atlas_version = "alpha9"
-backend = "AUTO"
+backend = "METAL"
 name = "path-tracing"
 platform = "DESKTOP"
 
@@ -12,12 +12,25 @@ main_scene = "main.ascene"
 icon = "none"
 supported_platforms = "all"
 
+identifier = "org.atlasengine.path-tracing"
+version = "1.0.0"
 [renderer]
+accumulation_frames = 512
 default = "pathtracing"
+denoising = true
 global_illumination = false
+max_bounces = 8
+samples_per_pixel = 50
+upscaling_ratio = 0.67
+use_upscaling = true
 
+ssr = false
+ssr_quality = 1
+ssr_debug = false
 [window]
 dimensions = [1280, 720]
 mouse_capture = false
 multisampling = false
 ssaoScale = 0.5
+
+fullscreen = false
