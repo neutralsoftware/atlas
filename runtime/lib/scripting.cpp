@@ -1036,6 +1036,10 @@ bool parseEnvironmentValue(JSContext *ctx, ScriptHost &host, JSValueConst value,
     prop = JS_GetPropertyStr(ctx, value, "lightBloom");
     if (!JS_IsException(prop) && !JS_IsUndefined(prop) && JS_IsObject(prop) &&
         !JS_IsNull(prop)) {
+        double threshold = out.lightBloom.threshold;
+        readNumberProperty(ctx, prop, "threshold", threshold);
+        out.lightBloom.threshold = static_cast<float>(threshold);
+
         double radius = out.lightBloom.radius;
         readNumberProperty(ctx, prop, "radius", radius);
         out.lightBloom.radius = static_cast<float>(radius);
@@ -8803,6 +8807,11 @@ JSValue jsCreateCheckerboardTexture(JSContext *ctx, JSValueConst, int argc,
             ctx, "Expected texture, width, height, check size, and two colors");
     }
 
+    if (host->context != nullptr && host->context->window != nullptr &&
+        state->texture->object != nullptr) {
+        host->context->window->removePreferencedObject(
+            state->texture->object.get());
+    }
     *state->texture = Texture::createCheckerboard(
         static_cast<int>(width), static_cast<int>(height),
         static_cast<int>(checkSize), color1, color2);
@@ -8843,6 +8852,11 @@ JSValue jsCreateDoubleCheckerboardTexture(JSContext *ctx, JSValueConst,
                                       "check sizes, and three colors");
     }
 
+    if (host->context != nullptr && host->context->window != nullptr &&
+        state->texture->object != nullptr) {
+        host->context->window->removePreferencedObject(
+            state->texture->object.get());
+    }
     *state->texture = Texture::createDoubleCheckerboard(
         static_cast<int>(width), static_cast<int>(height),
         static_cast<int>(checkSizeBig), static_cast<int>(checkSizeSmall),
@@ -14978,8 +14992,10 @@ JSValue jsSetRotationQuaternion(JSContext *ctx, JSValueConst, int argc,
 
 void runtime::scripting::dumpExecution(JSContext *ctx) {
     JSValue exceptionVal = JS_GetException(ctx);
+    std::string report;
     const char *exceptionStr = JS_ToCString(ctx, exceptionVal);
     if (exceptionStr) {
+        report = exceptionStr;
         std::cout << BOLD << RED << "Script execution failed: " << RESET
                   << YELLOW << exceptionStr << RESET << std::endl;
         JS_FreeCString(ctx, exceptionStr);
@@ -14989,9 +15005,17 @@ void runtime::scripting::dumpExecution(JSContext *ctx) {
     if (!JS_IsUndefined(stack)) {
         const char *stackStr = JS_ToCString(ctx, stack);
         if (stackStr) {
+            if (!report.empty())
+                report += '\n';
+            report += stackStr;
             std::cerr << stackStr << "\n";
             JS_FreeCString(ctx, stackStr);
         }
+    }
+
+    if (auto *host = getHost(ctx); host != nullptr && host->context != nullptr &&
+        host->context->errorReporter && !report.empty()) {
+        host->context->errorReporter(report);
     }
 
     JS_FreeValue(ctx, stack);
@@ -15068,6 +15092,11 @@ void runtime::scripting::clearSceneBindings(JSContext *ctx, ScriptHost &host) {
     host.springJoints.clear();
 
     for (auto &[_, state] : host.textures) {
+        if (host.context != nullptr && host.context->window != nullptr &&
+            state.texture != nullptr && state.texture->object != nullptr) {
+            host.context->window->removePreferencedObject(
+                state.texture->object.get());
+        }
         JS_FreeValue(ctx, state.value);
     }
     host.textures.clear();
@@ -15083,6 +15112,12 @@ void runtime::scripting::clearSceneBindings(JSContext *ctx, ScriptHost &host) {
     host.skyboxes.clear();
 
     for (auto &[_, state] : host.renderTargets) {
+        if (host.context != nullptr && host.context->window != nullptr &&
+            state.renderTarget != nullptr) {
+            host.context->window->removeRenderTarget(state.renderTarget.get());
+            host.context->window->removePreferencedObject(
+                state.renderTarget.get());
+        }
         JS_FreeValue(ctx, state.value);
     }
     host.renderTargets.clear();

@@ -25,6 +25,7 @@
 #include <QLineEdit>
 #include <QList>
 #include <QMessageBox>
+#include <QMouseEvent>
 #include <QPaintEngine>
 #include <QPixmap>
 #include <QPushButton>
@@ -47,6 +48,9 @@
 #include <utility>
 
 namespace {
+constexpr int MaterialPreviewPathTracingFrames = 24;
+constexpr int MaterialPreviewPathTracingIntervalMs = 50;
+
 QColor jsonColor(const QJsonValue &value, const QColor &fallback) {
     const QJsonArray array = value.toArray();
     if (array.size() < 3) {
@@ -174,10 +178,51 @@ class MaterialPreviewWidget : public QWidget {
         scheduleFrame();
     }
 
+    void mousePressEvent(QMouseEvent *event) override {
+        if (event->button() == Qt::LeftButton) {
+            rotating = true;
+            lastPointer = event->position();
+            setCursor(Qt::ClosedHandCursor);
+            event->accept();
+            return;
+        }
+        QWidget::mousePressEvent(event);
+    }
+
+    void mouseMoveEvent(QMouseEvent *event) override {
+        if (rotating && runtimeContext != nullptr) {
+            const QPointF delta = event->position() - lastPointer;
+            lastPointer = event->position();
+            if (runtimeContext->rotateMaterialPreview(
+                    static_cast<float>(delta.x() * 0.55),
+                    static_cast<float>(delta.y() * 0.55))) {
+                scheduleFrame();
+            }
+            event->accept();
+            return;
+        }
+        QWidget::mouseMoveEvent(event);
+    }
+
+    void mouseReleaseEvent(QMouseEvent *event) override {
+        if (event->button() == Qt::LeftButton && rotating) {
+            rotating = false;
+            unsetCursor();
+            event->accept();
+            return;
+        }
+        QWidget::mouseReleaseEvent(event);
+    }
+
   private:
     void scheduleFrame() {
-        pendingFrames = std::max(pendingFrames, 2);
-        if (isVisible() && frameTimer != nullptr) {
+        const int requestedFrames =
+            runtimeContext != nullptr &&
+                    runtimeContext->materialPreviewUsesPathTracing()
+                ? MaterialPreviewPathTracingFrames
+                : 2;
+        pendingFrames = std::max(pendingFrames, requestedFrames);
+        if (isVisible() && frameTimer != nullptr && !frameTimer->isActive()) {
             frameTimer->start(0);
         }
     }
@@ -200,6 +245,10 @@ class MaterialPreviewWidget : public QWidget {
                 return;
             }
             resizeRuntime();
+            if (runtimeContext->materialPreviewUsesPathTracing()) {
+                pendingFrames =
+                    std::max(pendingFrames, MaterialPreviewPathTracingFrames);
+            }
         } catch (const std::exception &error) {
             qWarning().noquote()
                 << QStringLiteral("Failed to start runtime material preview: %1")
@@ -241,8 +290,12 @@ class MaterialPreviewWidget : public QWidget {
                 return;
             }
             pendingFrames = std::max(0, pendingFrames - 1);
-            if (pendingFrames > 0 && isVisible())
-                frameTimer->start(1);
+            if (pendingFrames > 0 && isVisible()) {
+                frameTimer->start(
+                    runtimeContext->materialPreviewUsesPathTracing()
+                        ? MaterialPreviewPathTracingIntervalMs
+                        : 1);
+            }
         } catch (const std::exception &error) {
             qWarning().noquote()
                 << QStringLiteral("Runtime material preview frame failed: %1")
@@ -277,6 +330,8 @@ class MaterialPreviewWidget : public QWidget {
     int runtimeHeight = 0;
     int environmentMode = 0;
     int pendingFrames = 0;
+    QPointF lastPointer;
+    bool rotating = false;
 };
 
 MaterialEditorPanel::MaterialEditorPanel(ViewportPanel *viewport,
@@ -335,6 +390,11 @@ MaterialEditorPanel::~MaterialEditorPanel() {
     if (saveTimer->isActive()) {
         saveMaterial();
     }
+}
+
+void MaterialEditorPanel::flushPendingSave() {
+    if (saveTimer->isActive())
+        saveMaterial();
 }
 
 QJsonObject
@@ -445,7 +505,7 @@ void MaterialEditorPanel::showMaterial() {
     previewOptionsLayout->setContentsMargins(0, 0, 0, 0);
     auto *previewLabel = new QLabel("Preview Environment", previewOptions);
     auto *environment = new QComboBox(previewOptions);
-    environment->addItems({"Studio", "Sunset", "Open Sky"});
+    environment->addItems({"Studio", "Sky", "Empty"});
     previewOptionsLayout->addWidget(previewLabel);
     previewOptionsLayout->addStretch();
     previewOptionsLayout->addWidget(environment);

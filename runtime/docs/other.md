@@ -109,6 +109,7 @@ The scene can define an `environment` object. This combines the scene `Environme
     "exposure": 0.7
   },
   "lightBloom": {
+    "threshold": 0.8,
     "radius": 0.01,
     "maxSamples": 6
   },
@@ -178,6 +179,7 @@ Top-level `environment` properties:
   * `decay`: Falloff per step.
   * `exposure`: Final intensity multiplier.
 * `lightBloom`: Controls deferred bloom generation.
+  * `threshold`: Minimum luminance extracted into the bloom buffer.
   * `radius`: Bloom blur radius.
   * `maxSamples`: Number of blur passes.
 * `rimLight`: Controls rim lighting applied in supported shaders.

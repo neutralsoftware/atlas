@@ -1917,9 +1917,6 @@ bool Window::stepFrame() {
     }
 
     if (!editorControlsRenderedInScenePass) {
-        if (this->usePathTracing) {
-            renderEditorGrid(commandBuffer);
-        }
         renderEditorOverlays(commandBuffer);
     }
 
@@ -3862,6 +3859,13 @@ void Window::addPreferencedObject(Renderable *obj) {
     }
 }
 
+void Window::removePreferencedObject(Renderable *obj) {
+    this->preferenceRenderables.erase(
+        std::remove(this->preferenceRenderables.begin(),
+                    this->preferenceRenderables.end(), obj),
+        this->preferenceRenderables.end());
+}
+
 void Window::addPreludeObject(Renderable *obj) {
     if (obj == nullptr) {
         return;
@@ -5686,6 +5690,12 @@ void Window::configurePathTracing(int samplesPerPixel, int bounceLimit,
     }
     pathTracer->configure(samplesPerPixel, bounceLimit, denoising,
                           accumulationFrames);
+}
+
+void Window::resetPathTracingAccumulation() {
+    if (pathTracer != nullptr) {
+        pathTracer->resetAccumulation();
+    }
 }
 
 bool Window::setEditorPathTracingPreview(bool enabled) {

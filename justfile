@@ -60,7 +60,11 @@ frametest:
     timeout 2 ./build/bin/atlas_test
 
 cli:
-    cargo build
+    cargo build 
+
+copy-cli:
+    cargo build --release
+    cp target/release/atlas /usr/local/bin/atlas 
 
 package-debug-macos:
     ./scripts/package_app.py --debug --macOS

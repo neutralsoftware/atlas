@@ -255,7 +255,8 @@ QJsonObject environmentSchema() {
                                            {"weight", 0.02},
                                            {"decay", 0.95},
                                            {"exposure", 0.7}}},
-        {"lightBloom", QJsonObject{{"radius", 0.01}, {"maxSamples", 6}}},
+        {"lightBloom",
+         QJsonObject{{"threshold", 0.8}, {"radius", 0.01}, {"maxSamples", 6}}},
         {"rimLight", QJsonObject{{"intensity", 0.0},
                                  {"color", QJsonArray{1.0, 0.96, 0.86}}}},
         {"atmosphere",
@@ -1621,13 +1622,10 @@ void InspectorPanel::showObject(const QJsonObject &object) {
     auto update = [runtime, objectId](const QString &component, int index,
                                       const QString &path,
                                       const QJsonValue &value) {
-        QTimer::singleShot(0,
-                           [runtime, objectId, component, index, path, value] {
-                               if (runtime != nullptr) {
-                                   runtime->setRuntimeObjectProperty(
-                                       objectId, component, index, path, value);
-                               }
-                           });
+        if (runtime != nullptr) {
+            runtime->setRuntimeObjectProperty(objectId, component, index, path,
+                                              value);
+        }
     };
     QJsonObject transform{{"position", object.value("position")},
                           {"rotation", object.value("rotation")},

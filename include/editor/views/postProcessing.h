@@ -2,6 +2,7 @@
 #define ATLAS_POSTPROCESSING_H
 
 #include <QJsonArray>
+#include <QJsonObject>
 #include <QJsonValue>
 #include <QString>
 #include <QWidget>
@@ -22,6 +23,9 @@ class PostProcessingPanel : public QWidget {
   public slots:
     void applySceneSnapshot(const QString &snapshot);
 
+  signals:
+    void settingsChanged();
+
   private:
     void rebuildTargetList();
     void rebuildEditor();
@@ -33,6 +37,7 @@ class PostProcessingPanel : public QWidget {
     void setTargetValue(const QString &path, const QJsonValue &value);
     void setEffectValue(int effectIndex, const QString &key,
                         const QJsonValue &value);
+    void setBloomThreshold(double value);
     void replaceTargets();
 
     ViewportPanel *viewport = nullptr;
@@ -42,6 +47,7 @@ class PostProcessingPanel : public QWidget {
     QWidget *body = nullptr;
     QVBoxLayout *bodyLayout = nullptr;
     QJsonArray targets;
+    QJsonObject environment;
     int targetIndex = -1;
     bool applying = false;
 };

@@ -573,6 +573,7 @@ GraphiteEditorPanel::~GraphiteEditorPanel() {
 }
 
 void GraphiteEditorPanel::showEmptyState() {
+    documentDirty = false;
     document = QJsonObject{{"format", "atlas.graphite.ui"},
                            {"version", 1},
                            {"canvas", QJsonObject{{"width", 1280},
@@ -635,6 +636,7 @@ void GraphiteEditorPanel::openUI(const QString &path) {
         }
     }
     document = next;
+    documentDirty = repaired;
     undoStack->clear();
     titleLabel->setText(QFileInfo(uiPath).completeBaseName());
     statusLabel->setText("Ready");
@@ -655,7 +657,14 @@ void GraphiteEditorPanel::saveUI() {
         QMessageBox::warning(this, "Graphite", "The UI asset could not be saved.");
         return;
     }
+    documentDirty = false;
     statusLabel->setText("Saved");
+    emit documentSaved();
+}
+
+void GraphiteEditorPanel::flushPendingSave() {
+    if (documentDirty)
+        saveUI();
 }
 
 void GraphiteEditorPanel::undo() { undoStack->undo(); }
@@ -720,6 +729,7 @@ void GraphiteEditorPanel::setDocument(const QJsonObject &next, bool recordUndo) 
         canvas->setDocument(document, uiPath);
         canvas->setSelectedPath(path);
         rebuildInspector();
+        documentDirty = true;
         statusLabel->setText("Modified");
     };
     if (recordUndo)
@@ -1387,5 +1397,4 @@ void GraphiteEditorPanel::attachToScene(bool preview) {
             });
         emit previewRequested();
     }
-    viewport->reloadRuntime();
 }

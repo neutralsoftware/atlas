@@ -25,11 +25,13 @@ class GraphiteEditorPanel : public QWidget {
 
     void openUI(const QString &path);
     void saveUI();
+    void flushPendingSave();
     void undo();
     void redo();
 
   signals:
     void previewRequested();
+    void documentSaved();
 
   private:
     void showEmptyState();
@@ -64,6 +66,7 @@ class GraphiteEditorPanel : public QWidget {
     QVBoxLayout *inspectorLayout = nullptr;
     QUndoStack *undoStack = nullptr;
     bool loading = false;
+    bool documentDirty = false;
     int nextElementNumber = 1;
     QString styleVariant = "normal";
 };

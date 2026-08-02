@@ -133,9 +133,10 @@ struct SceneData {
     uint accumulationFrameLimit;
     float fireflyClamp;
     uint numEmissiveTriangles;
+    float bloomThreshold;
 };
 
-static_assert(sizeof(SceneData) == 144);
+static_assert(sizeof(SceneData) == 160);
 static_assert(__builtin_offsetof(SceneData, atmosphereSunDirection) == 48);
 static_assert(__builtin_offsetof(SceneData, atmosphereSunIntensity) == 64);
 static_assert(__builtin_offsetof(SceneData, atmosphereSunColor) == 80);
@@ -143,6 +144,7 @@ static_assert(__builtin_offsetof(SceneData, pixelStride) == 96);
 static_assert(__builtin_offsetof(SceneData, ambientColor) == 112);
 static_assert(__builtin_offsetof(SceneData, accumulationFrameLimit) == 132);
 static_assert(__builtin_offsetof(SceneData, numEmissiveTriangles) == 140);
+static_assert(__builtin_offsetof(SceneData, bloomThreshold) == 144);
 
 float pow5(float x) {
     float x2 = x * x;
@@ -1639,14 +1641,13 @@ kernel void main0(texture2d<float, access::write> outTex [[texture(0)]],
                              accumulatedMoment * accumulatedMoment,
                          0.0);
 
-    constexpr float bloomThreshold = 0.8;
     constexpr float bloomKnee = 0.35;
 
     float brightness = luminance(accum);
-    float soft = clamp(brightness - bloomThreshold + bloomKnee, 0.0,
+    float soft = clamp(brightness - sceneData.bloomThreshold + bloomKnee, 0.0,
                        bloomKnee * 2.0);
     soft = soft * soft / max(bloomKnee * 4.0, 0.00001);
-    float contribution = max(brightness - bloomThreshold, soft) /
+    float contribution = max(brightness - sceneData.bloomThreshold, soft) /
                          max(brightness, 0.00001);
     float3 brightColor = accum * contribution;
     float2 motion = previousUvValid ? uv - previousUv : float2(0.0);

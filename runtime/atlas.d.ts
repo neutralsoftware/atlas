@@ -64,6 +64,7 @@ declare module "atlas" {
     };
 
     export type LightBloomConfiguration = {
+        threshold: number;
         radius: number;
         maxSamples: number;
     };

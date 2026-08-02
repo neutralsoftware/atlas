@@ -508,6 +508,7 @@ class Window {
     void enablePathTracing();
     void configurePathTracing(int samplesPerPixel, int bounceLimit,
                               bool denoising, int accumulationFrames);
+    void resetPathTracingAccumulation();
     bool setEditorPathTracingPreview(bool enabled);
     const std::string &getPathTracingError() const;
 #endif
@@ -534,6 +535,7 @@ class Window {
      * property is a good idea.
      */
     void addPreferencedObject(Renderable *object);
+    void removePreferencedObject(Renderable *object);
     /**
      * @brief Adds a renderable object to be rendered first.
      *

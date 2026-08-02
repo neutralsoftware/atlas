@@ -112,9 +112,6 @@ PostProcessingPanel::PostProcessingPanel(ViewportPanel *viewport,
     removeTargetButton->setText("Remove");
     removeTargetButton->setIcon(
         styling::icon(styling::Icon::Trash, "#A17F7F"));
-    auto *applyButton = new QPushButton("Apply to Preview", toolbar);
-    applyButton->setIcon(
-        styling::icon(styling::Icon::Sparkle, "#849589"));
     statusLabel = new QLabel(toolbar);
     statusLabel->setObjectName("postProcessingStatus");
     toolbarLayout->addWidget(title);
@@ -123,7 +120,6 @@ PostProcessingPanel::PostProcessingPanel(ViewportPanel *viewport,
     toolbarLayout->addWidget(removeTargetButton);
     toolbarLayout->addStretch();
     toolbarLayout->addWidget(statusLabel);
-    toolbarLayout->addWidget(applyButton);
     layout->addWidget(toolbar);
 
     auto *scroll = new QScrollArea(this);
@@ -147,12 +143,6 @@ PostProcessingPanel::PostProcessingPanel(ViewportPanel *viewport,
             &PostProcessingPanel::addTarget);
     connect(removeTargetButton, &QToolButton::clicked, this,
             &PostProcessingPanel::removeTarget);
-    connect(applyButton, &QPushButton::clicked, this, [this] {
-        if (this->viewport != nullptr) {
-            statusLabel->setText("Reloading…");
-            this->viewport->reloadRuntime();
-        }
-    });
     if (viewport != nullptr) {
         connect(viewport, &ViewportPanel::sceneSnapshotChanged, this,
                 &PostProcessingPanel::applySceneSnapshot);
@@ -169,10 +159,13 @@ void PostProcessingPanel::applySceneSnapshot(const QString &snapshot) {
     const QJsonDocument document = QJsonDocument::fromJson(snapshot.toUtf8());
     if (!document.isObject())
         return;
-    const QJsonArray nextTargets = document.object().value("targets").toArray();
-    if (nextTargets == targets)
+    const QJsonObject root = document.object();
+    const QJsonArray nextTargets = root.value("targets").toArray();
+    const QJsonObject nextEnvironment = root.value("environment").toObject();
+    if (nextTargets == targets && nextEnvironment == environment)
         return;
     targets = nextTargets;
+    environment = nextEnvironment;
     if (!applying) {
         rebuildTargetList();
     }
@@ -204,6 +197,19 @@ void PostProcessingPanel::rebuildEditor() {
             item->widget()->deleteLater();
         delete item;
     }
+
+    const QJsonObject lightBloom = environment.value("lightBloom").toObject();
+    auto *bloom = new QGroupBox("Bloom", body);
+    auto *bloomForm = new QFormLayout(bloom);
+    auto *threshold =
+        effectNumber(lightBloom.value("threshold").toDouble(0.8), bloom);
+    threshold->setRange(0.0, 10000.0);
+    threshold->setSingleStep(0.05);
+    bloomForm->addRow("Threshold", threshold);
+    bodyLayout->addWidget(bloom);
+    connect(threshold, &QDoubleSpinBox::valueChanged, this,
+            [this](double value) { setBloomThreshold(value); });
+
     if (targetIndex < 0 || targetIndex >= targets.size()) {
         auto *empty = new QLabel(
             "Create a render target to build a post-processing stack.", body);
@@ -434,9 +440,13 @@ void PostProcessingPanel::setTargetValue(const QString &path,
     target.insert(path.mid(1), value);
     targets.replace(targetIndex, target);
     applying = true;
-    viewport->setRuntimeSceneProperty("targets", targetIndex, path, value);
+    if (!viewport->setRuntimeSceneProperty("targets", targetIndex, path, value)) {
+        applying = false;
+        return;
+    }
     applying = false;
-    statusLabel->setText("Saved · apply to update preview");
+    statusLabel->setText("Saved · return to Scene to update preview");
+    emit settingsChanged();
     if (path == "/name")
         rebuildTargetList();
 }
@@ -457,11 +467,32 @@ void PostProcessingPanel::setEffectValue(int effectIndex, const QString &key,
     setTargetValue("/effects", effects);
 }
 
+void PostProcessingPanel::setBloomThreshold(double value) {
+    if (viewport == nullptr)
+        return;
+    QJsonObject lightBloom = environment.value("lightBloom").toObject();
+    lightBloom.insert("threshold", value);
+    environment.insert("lightBloom", lightBloom);
+    applying = true;
+    if (!viewport->setRuntimeSceneProperty("environment", -1,
+                                           "/lightBloom/threshold", value)) {
+        applying = false;
+        return;
+    }
+    applying = false;
+    statusLabel->setText("Saved · return to Scene to update preview");
+    emit settingsChanged();
+}
+
 void PostProcessingPanel::replaceTargets() {
     if (viewport == nullptr)
         return;
     applying = true;
-    viewport->setRuntimeSceneProperty("targets", -1, QString(), targets);
+    if (!viewport->setRuntimeSceneProperty("targets", -1, QString(), targets)) {
+        applying = false;
+        return;
+    }
     applying = false;
-    statusLabel->setText("Saved · apply to update preview");
+    statusLabel->setText("Saved · return to Scene to update preview");
+    emit settingsChanged();
 }

@@ -38,6 +38,7 @@
 #include <limits>
 #include <memory>
 #include <numbers>
+#include <random>
 #include <sstream>
 #include <stdexcept>
 #include <json.hpp>
@@ -113,6 +114,18 @@ class WindowActivationScope {
     Window *previousWindow;
     opal::Device *previousDevice;
 };
+
+void clearRenderTargets(
+    Window *window,
+    std::map<std::string, std::unique_ptr<RenderTarget>> &renderTargets) {
+    if (window != nullptr) {
+        for (auto &[_, target] : renderTargets) {
+            window->removeRenderTarget(target.get());
+            window->removePreferencedObject(target.get());
+        }
+    }
+    renderTargets.clear();
+}
 
 struct PendingComponent {
     GameObject *object = nullptr;
@@ -333,6 +346,13 @@ std::string normalizeToken(std::string value) {
             static_cast<char>(std::tolower(static_cast<unsigned char>(ch))));
     }
     return normalized;
+}
+
+std::string propertyNameToken(const std::string &path) {
+    const std::size_t separator = path.find_last_of('/');
+    return normalizeToken(separator == std::string::npos
+                              ? path
+                              : path.substr(separator + 1));
 }
 
 std::string resolveRuntimePath(const std::string &baseDir,
@@ -896,6 +916,8 @@ loadEnvironmentDefinition(const json &sceneData, const std::string &baseDir) {
             throw std::runtime_error("Environment light bloom must be an "
                                      "object");
         }
+        tryReadFloatAny(*bloomNode, {"threshold"},
+                        loaded.environment.lightBloom.threshold);
         tryReadFloatAny(*bloomNode, {"radius"},
                         loaded.environment.lightBloom.radius);
         tryReadIntAny(*bloomNode, {"maxSamples"},
@@ -4623,6 +4645,7 @@ runtime::makeMaterialPreviewContextForMetalView(std::string projectFile,
                                                     metalView, nullptr);
         context->editorRuntime = false;
         context->materialPreviewRuntime = true;
+        context->loadProject();
         restorePrevious();
         return context;
     } catch (...) {
@@ -4762,6 +4785,19 @@ bool Context::resize(int width, int height, float scale) {
     }
     WindowActivationScope activeWindow(*window);
     window->resize(width, height, scale);
+    if (materialPreviewRuntime && camera != nullptr) {
+        const float aspect = static_cast<float>(std::max(1, width)) /
+                             static_cast<float>(std::max(1, height));
+        const float verticalHalfFov = glm::radians(camera->fov * 0.5f);
+        const float horizontalHalfFov =
+            std::atan(std::tan(verticalHalfFov) * aspect);
+        const float limitingHalfFov =
+            std::max(glm::radians(5.0f),
+                     std::min(verticalHalfFov, horizontalHalfFov));
+        const float distance = 0.82f / std::sin(limitingHalfFov);
+        camera->setPosition({0.0f, 0.0f, distance});
+        camera->lookAt(Position3d::zero());
+    }
     return true;
 }
 
@@ -5165,7 +5201,7 @@ std::optional<json> propertySyncSourceValue(Context &context,
     if (component == "bounds")
         return editorObjectBoundsSize(*object);
     if (component == "transform") {
-        const std::string property = normalizeToken(path);
+        const std::string property = propertyNameToken(path);
         if (property == "position")
             return vec3ToJson(object->getPosition());
         if (property == "rotation")
@@ -5457,7 +5493,7 @@ bool Context::setObjectProperty(int id, const std::string &component,
         if (!readEditorVec3(value, vector)) {
             return false;
         }
-        const std::string property = normalizeToken(propertyPath);
+        const std::string property = propertyNameToken(propertyPath);
         if (property == "position") {
             object->setPosition(vector);
         } else if (property == "rotation") {
@@ -5552,6 +5588,8 @@ bool Context::setObjectProperty(int id, const std::string &component,
     } catch (const std::exception &error) {
         RUNTIME_LOG("Component update is waiting for valid values: " +
                     std::string(error.what()));
+        if (errorReporter)
+            errorReporter(error.what());
     }
     applyPropertySyncs(*this, true);
     return true;
@@ -5662,16 +5700,17 @@ bool Context::initializeMaterialPreview(const std::string &definition,
 
     WindowActivationScope activeWindow(*window);
     sceneDir = baseDir;
-    config.renderer = "deferred";
     camera = std::make_unique<Camera>();
     camera->setPosition({0.0f, 0.0f, 2.15f});
     camera->lookAt(Position3d::zero());
     camera->nearClip = 0.05f;
     camera->farClip = 50.0f;
+    materialPreviewYaw = 0.0f;
+    materialPreviewPitch = 0.0f;
     window->setCamera(camera.get());
     window->setEditorSceneCamera(nullptr);
     window->setEditorControlsEnabled(false);
-    window->useDeferredRendering();
+    window->setScene(scene.get());
 
     auto sphere = std::make_shared<CoreObject>();
     *sphere = createSphere(0.72f, 64, 32, Color::white());
@@ -5703,7 +5742,6 @@ bool Context::initializeMaterialPreview(const std::string &definition,
     scene->addAreaLight(rimLight.get());
     areaLights.push_back(std::move(rimLight));
 
-    window->setScene(scene.get());
     return setMaterialPreviewEnvironment(environmentMode) &&
            setMaterialPreviewMaterial(definition, baseDir);
 }
@@ -5722,6 +5760,9 @@ bool Context::setMaterialPreviewMaterial(const std::string &definition,
         WindowActivationScope activeWindow(*window);
         applyMaterial(*sphere,
                       loadMaterialDefinition(json::parse(definition), baseDir));
+#ifdef METAL
+        window->resetPathTracingAccumulation();
+#endif
         return true;
     } catch (const std::exception &error) {
         RUNTIME_LOG("Material preview could not be updated: " +
@@ -5737,7 +5778,6 @@ bool Context::setMaterialPreviewEnvironment(int mode) {
     }
 
     WindowActivationScope activeWindow(*window);
-    std::array<Color, 6> colors;
     Color ambient;
     Color key;
     Color rim;
@@ -5746,42 +5786,58 @@ bool Context::setMaterialPreviewEnvironment(int mode) {
     float directionalIntensity = 0.0f;
     float keyIntensity = 0.0f;
     float rimIntensity = 0.0f;
+    if (const auto activeSkybox = scene->getSkybox(); activeSkybox != nullptr) {
+        activeSkybox->hide();
+    }
 
     if (mode == 1) {
-        colors = {Color{0.92f, 0.3f, 0.12f, 1.0f},
-                  Color{0.16f, 0.05f, 0.2f, 1.0f},
-                  Color{0.34f, 0.12f, 0.32f, 1.0f},
-                  Color{0.08f, 0.025f, 0.045f, 1.0f},
-                  Color{0.98f, 0.48f, 0.18f, 1.0f},
-                  Color{0.12f, 0.04f, 0.18f, 1.0f}};
-        ambient = {0.72f, 0.28f, 0.32f, 1.0f};
-        key = {1.0f, 0.42f, 0.18f, 1.0f};
-        rim = {0.42f, 0.16f, 0.72f, 1.0f};
-        background = {0.08f, 0.025f, 0.055f, 1.0f};
-        ambientIntensity = 0.7f;
-        directionalIntensity = 0.8f;
-        keyIntensity = 5.5f;
-        rimIntensity = 3.0f;
+        scene->atmosphere.enable();
+        scene->atmosphere.setTime(14.0f);
+        scene->setUseAtmosphereSkybox(true);
+        scene->updateScene(0.0f);
+        if (const auto skybox = scene->getSkybox(); skybox != nullptr) {
+            skybox->show();
+        }
+        ambient = scene->atmosphere.getLightColor();
+        key = scene->atmosphere.getLightColor();
+        rim = {0.48f, 0.68f, 1.0f, 1.0f};
+        background = {0.3f, 0.55f, 0.82f, 1.0f};
+        ambientIntensity = 0.35f;
+        directionalIntensity = scene->atmosphere.getLightIntensity();
+        keyIntensity = 3.5f;
+        rimIntensity = 1.8f;
     } else if (mode == 2) {
-        colors = {
-            Color{0.52f, 0.76f, 1.0f, 1.0f}, Color{0.42f, 0.68f, 0.96f, 1.0f},
-            Color{0.3f, 0.62f, 1.0f, 1.0f},  Color{0.72f, 0.78f, 0.82f, 1.0f},
-            Color{0.62f, 0.82f, 1.0f, 1.0f}, Color{0.46f, 0.72f, 0.98f, 1.0f}};
-        ambient = {0.58f, 0.74f, 1.0f, 1.0f};
-        key = {1.0f, 0.95f, 0.84f, 1.0f};
-        rim = {0.42f, 0.7f, 1.0f, 1.0f};
-        background = {0.28f, 0.5f, 0.76f, 1.0f};
-        ambientIntensity = 0.9f;
-        directionalIntensity = 1.15f;
-        keyIntensity = 4.0f;
-        rimIntensity = 2.2f;
+        scene->atmosphere.disable();
+        scene->setUseAtmosphereSkybox(false);
+        ambient = {0.18f, 0.18f, 0.18f, 1.0f};
+        key = {1.0f, 0.97f, 0.92f, 1.0f};
+        rim = {0.5f, 0.62f, 0.82f, 1.0f};
+        background = Color::black();
+        ambientIntensity = 0.18f;
+        directionalIntensity = 0.65f;
+        keyIntensity = 4.5f;
+        rimIntensity = 2.0f;
     } else {
-        colors = {Color{0.9f, 0.9f, 0.88f, 1.0f},
-                  Color{0.035f, 0.04f, 0.05f, 1.0f},
-                  Color{0.7f, 0.74f, 0.8f, 1.0f},
-                  Color{0.025f, 0.025f, 0.03f, 1.0f},
-                  Color{0.38f, 0.4f, 0.44f, 1.0f},
-                  Color{0.07f, 0.075f, 0.085f, 1.0f}};
+        static std::mt19937 generator(std::random_device{}());
+        std::uniform_real_distribution<float> tint(0.82f, 1.0f);
+        const float warm = tint(generator);
+        const float cool = tint(generator);
+        const std::array<Color, 6> colors = {
+            Color{warm, warm * 0.96f, warm * 0.88f, 1.0f},
+            Color{0.025f, 0.03f, 0.04f, 1.0f},
+            Color{cool * 0.72f, cool * 0.8f, cool, 1.0f},
+            Color{0.018f, 0.02f, 0.026f, 1.0f},
+            Color{warm * 0.42f, warm * 0.44f, warm * 0.48f, 1.0f},
+            Color{cool * 0.06f, cool * 0.072f, cool * 0.09f, 1.0f}};
+        scene->atmosphere.disable();
+        scene->setUseAtmosphereSkybox(false);
+        if (const auto skybox = scene->getSkybox(); skybox != nullptr) {
+            skybox->cubemap.updateWithColors(colors);
+            skybox->show();
+        } else {
+            scene->setSkybox(
+                Skybox::create(Cubemap::fromColors(colors, 64), *window));
+        }
         ambient = {0.82f, 0.84f, 0.88f, 1.0f};
         key = {1.0f, 0.97f, 0.9f, 1.0f};
         rim = {0.52f, 0.65f, 0.88f, 1.0f};
@@ -5804,13 +5860,30 @@ bool Context::setMaterialPreviewEnvironment(int mode) {
     areaLights[1]->shineColor = rim;
     areaLights[1]->intensity = rimIntensity;
     window->setClearColor(background);
+#ifdef METAL
+    window->resetPathTracingAccumulation();
+#endif
 
-    if (auto skybox = scene->getSkybox(); skybox != nullptr) {
-        skybox->cubemap.updateWithColors(colors);
-    } else {
-        scene->setSkybox(
-            Skybox::create(Cubemap::fromColors(colors, 32), *window));
+    return true;
+}
+
+bool Context::rotateMaterialPreview(float yawDelta, float pitchDelta) {
+    if (window == nullptr || !materialPreviewRuntime || objects.empty()) {
+        return false;
     }
+    auto *sphere = dynamic_cast<GameObject *>(objects.front().get());
+    if (sphere == nullptr) {
+        return false;
+    }
+    materialPreviewYaw = std::fmod(materialPreviewYaw + yawDelta, 360.0f);
+    materialPreviewPitch =
+        std::clamp(materialPreviewPitch + pitchDelta, -85.0f, 85.0f);
+    WindowActivationScope activeWindow(*window);
+    sphere->setRotation(
+        Rotation3d{materialPreviewPitch, materialPreviewYaw, 0.0f});
+#ifdef METAL
+    window->resetPathTracingAccumulation();
+#endif
     return true;
 }
 
@@ -6569,11 +6642,11 @@ Context::~Context() {
         end();
     } catch (...) {
     }
+    clearRenderTargets(window.get(), renderTargets);
     if (context != nullptr) {
         runtime::scripting::clearSceneBindings(context, scriptHost);
         editorRuntimeComponents.clear();
         objects.clear();
-        renderTargets.clear();
         directionalLights.clear();
         pointLights.clear();
         spotlights.clear();
@@ -6838,7 +6911,7 @@ void Context::loadScene(Window &window, const json &sceneData) {
     editorDirectionalLights.clear();
     editorLightSourceData.clear();
     deletedObjectReferences.clear();
-    renderTargets.clear();
+    clearRenderTargets(&window, renderTargets);
     directionalLights.clear();
     pointLights.clear();
     spotlights.clear();
@@ -6884,6 +6957,12 @@ void Context::loadScene(Window &window, const json &sceneData) {
                 continue;
             }
 
+            std::string name;
+            JSON_READ_STRING(targetData, "name", name);
+            if (name.empty()) {
+                continue;
+            }
+
             std::unique_ptr<RenderTarget> target;
             const std::string normalizedType = normalizeToken(type);
             if (normalizedType == "multisampled") {
@@ -6921,10 +7000,10 @@ void Context::loadScene(Window &window, const json &sceneData) {
                 target->display(window);
             }
 
-            std::string name;
-            JSON_READ_STRING(targetData, "name", name);
-            if (name.empty()) {
-                continue;
+            if (auto existing = renderTargets.find(name);
+                existing != renderTargets.end()) {
+                window.removeRenderTarget(existing->second.get());
+                window.removePreferencedObject(existing->second.get());
             }
             renderTargets[name] = std::move(target);
         }

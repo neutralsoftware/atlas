@@ -60,6 +60,9 @@ constexpr int RuntimeEditorCameraKeyLeft = 2;
 constexpr int RuntimeEditorCameraKeyRight = 3;
 constexpr int RuntimeEditorCameraKeyUp = 4;
 constexpr int RuntimeEditorCameraKeyDown = 5;
+constexpr int RuntimeFrameIntervalMs = 16;
+constexpr int RuntimeSnapshotIntervalMs = 50;
+constexpr int RuntimeFrameRateIntervalMs = 250;
 
 int runtimeMouseButton(Qt::MouseButton button) {
     switch (button) {
@@ -265,21 +268,16 @@ ViewportPanel::ViewportPanel(const QString &projectFile, QWidget *parent)
 
     frameTimer = new QTimer(this);
     resizeTimer = new QTimer(this);
-    environmentReloadTimer = new QTimer(this);
     undoStack = new QUndoStack(this);
     frameTimer->setTimerType(Qt::PreciseTimer);
     frameTimer->setSingleShot(true);
     resizeTimer->setSingleShot(true);
     resizeTimer->setInterval(0);
-    environmentReloadTimer->setSingleShot(true);
-    environmentReloadTimer->setInterval(140);
     connect(frameTimer, &QTimer::timeout, this, [this] {
         if (stepRuntime() && isVisible())
-            frameTimer->start(pbrPreview ? 16 : 1);
+            frameTimer->start(RuntimeFrameIntervalMs);
     });
     connect(resizeTimer, &QTimer::timeout, this, [this] { resizeRuntime(); });
-    connect(environmentReloadTimer, &QTimer::timeout, this,
-            &ViewportPanel::reloadRuntime);
     if (auto *app = QCoreApplication::instance()) {
         connect(app, &QCoreApplication::aboutToQuit, this,
                 [this] { shutdownRuntime(); });
@@ -303,7 +301,7 @@ void ViewportPanel::setRuntimeStartupEnabled(bool enabled) {
 void ViewportPanel::showEvent(QShowEvent *event) {
     QWidget::showEvent(event);
     if (runtimeContext != nullptr) {
-        frameTimer->start(pbrPreview ? 16 : 1);
+        frameTimer->start(RuntimeFrameIntervalMs);
         return;
     }
     if (runtimeStartupEnabled)
@@ -396,8 +394,6 @@ void ViewportPanel::shutdownRuntime() {
     runtimeStartQueued = false;
     if (resizeTimer != nullptr)
         resizeTimer->stop();
-    if (environmentReloadTimer != nullptr)
-        environmentReloadTimer->stop();
     stopRuntime();
 }
 
@@ -601,6 +597,7 @@ void ViewportPanel::startRuntime() {
     const std::string runtimeProjectFile = projectFile.toUtf8().toStdString();
     if (runtimeProjectFile.empty()) {
         qWarning() << "Atlas viewport runtime project file is not configured";
+        emit runtimeErrorOccurred("Runtime project file is not configured");
         emit runtimeStartupFinished(false,
                                     "Runtime project file is not configured");
         return;
@@ -609,6 +606,7 @@ void ViewportPanel::startRuntime() {
     void *metalView = reinterpret_cast<void *>(static_cast<quintptr>(winId()));
     if (metalView == nullptr) {
         qWarning() << "Atlas viewport could not resolve a native Metal view";
+        emit runtimeErrorOccurred("Viewport native surface is unavailable");
         emit runtimeStartupFinished(false,
                                     "Viewport native surface is unavailable");
         return;
@@ -620,6 +618,14 @@ void ViewportPanel::startRuntime() {
         QCoreApplication::processEvents(QEventLoop::ExcludeUserInputEvents);
         runtimeContext =
             runtime::makeContextForMetalView(runtimeProjectFile, metalView);
+        QPointer<ViewportPanel> runtimeOwner(this);
+        runtimeContext->errorReporter =
+            [runtimeOwner](const std::string &error) {
+                if (runtimeOwner != nullptr) {
+                    emit runtimeOwner->runtimeErrorOccurred(
+                        QString::fromUtf8(error.c_str()));
+                }
+            };
         runtimeContext->modelImportProgress = [this](
                                                   float value,
                                                   const std::string &status) {
@@ -637,6 +643,19 @@ void ViewportPanel::startRuntime() {
         runtimeContext->setEditorShadingMode(shadingMode);
         runtimeContext->setEditorPathTracingPreview(pbrPreview);
         resizeRuntime();
+        emit runtimeAvailabilityChanged(true);
+        emit cameraFocusChanged(false);
+        playbackState = 0;
+        emit playbackStateChanged(playbackState);
+        emit runtimeLoadingStatusChanged("Preparing viewport...");
+        QCoreApplication::processEvents(QEventLoop::ExcludeUserInputEvents);
+        if (!stepRuntime()) {
+            emit runtimeErrorOccurred("The first viewport frame failed");
+            emit runtimeLoadingFinished();
+            emit runtimeStartupFinished(false,
+                                        "The first viewport frame failed");
+            return;
+        }
         refreshSceneSnapshot();
         if (!selectionToRestore.isEmpty()) {
             const QJsonDocument document =
@@ -652,20 +671,8 @@ void ViewportPanel::startRuntime() {
                 emit runtimeObjectActivated(restoredId);
             }
         }
-        emit runtimeAvailabilityChanged(true);
-        emit cameraFocusChanged(false);
-        playbackState = 0;
-        emit playbackStateChanged(playbackState);
         emit sceneOpened(currentRuntimeScene());
-        emit runtimeLoadingStatusChanged("Preparing viewport...");
-        QCoreApplication::processEvents(QEventLoop::ExcludeUserInputEvents);
-        if (!stepRuntime()) {
-            emit runtimeLoadingFinished();
-            emit runtimeStartupFinished(false,
-                                        "The first viewport frame failed");
-            return;
-        }
-        frameTimer->start(pbrPreview ? 16 : 1);
+        frameTimer->start(RuntimeFrameIntervalMs);
         emit runtimeLoadingFinished();
         emit runtimeStartupFinished(true, {});
         if (playAfterRuntimeStart) {
@@ -675,15 +682,18 @@ void ViewportPanel::startRuntime() {
             emit playbackStateChanged(playbackState);
         }
     } catch (const std::exception &error) {
+        const QString message = QString::fromUtf8(error.what());
         qWarning().noquote()
             << QStringLiteral("Failed to start Atlas viewport runtime: %1")
-                   .arg(QString::fromUtf8(error.what()));
+                   .arg(message);
+        emit runtimeErrorOccurred(message);
         runtimeContext.reset();
         playAfterRuntimeStart = false;
         emit runtimeLoadingFinished();
-        emit runtimeStartupFinished(false, QString::fromUtf8(error.what()));
+        emit runtimeStartupFinished(false, message);
     } catch (...) {
         qWarning() << "Failed to start Atlas viewport runtime";
+        emit runtimeErrorOccurred("Runtime initialization failed");
         runtimeContext.reset();
         playAfterRuntimeStart = false;
         emit runtimeLoadingFinished();
@@ -691,6 +701,7 @@ void ViewportPanel::startRuntime() {
     }
 #else
     qWarning() << "Atlas viewport runtime embedding requires the Metal backend";
+    emit runtimeErrorOccurred("Runtime embedding requires the Metal backend");
     emit runtimeStartupFinished(false,
                                 "Runtime embedding requires the Metal backend");
 #endif
@@ -723,6 +734,8 @@ void ViewportPanel::stopRuntime() {
     runtimeWidth = 0;
     runtimeHeight = 0;
     runtimeScale = 0.0f;
+    snapshotTimer.invalidate();
+    frameRateTimer.invalidate();
 }
 
 bool ViewportPanel::stepRuntime() {
@@ -731,20 +744,33 @@ bool ViewportPanel::stepRuntime() {
     }
     try {
         if (!runtimeContext->stepFrame()) {
+            emit runtimeErrorOccurred(
+                "The viewport runtime stopped unexpectedly");
             stopRuntime();
             return false;
         }
-        refreshSceneSnapshot();
-        emit frameRateChanged(runtimeContext->frameRate());
+        if (playbackState == 1 &&
+            (!snapshotTimer.isValid() ||
+             snapshotTimer.elapsed() >= RuntimeSnapshotIntervalMs)) {
+            refreshSceneSnapshot();
+        }
+        if (!frameRateTimer.isValid() ||
+            frameRateTimer.elapsed() >= RuntimeFrameRateIntervalMs) {
+            emit frameRateChanged(runtimeContext->frameRate());
+            frameRateTimer.restart();
+        }
         return true;
     } catch (const std::exception &error) {
+        const QString message = QString::fromUtf8(error.what());
         qWarning().noquote()
             << QStringLiteral("Atlas viewport runtime frame failed: %1")
-                   .arg(QString::fromUtf8(error.what()));
+                   .arg(message);
+        emit runtimeErrorOccurred(message);
         stopRuntime();
         return false;
     } catch (...) {
         qWarning() << "Atlas viewport runtime frame failed";
+        emit runtimeErrorOccurred("The viewport runtime frame failed");
         stopRuntime();
         return false;
     }
@@ -767,11 +793,14 @@ void ViewportPanel::resizeRuntime() {
         runtimeHeight = nextHeight;
         runtimeScale = nextScale;
     } catch (const std::exception &error) {
+        const QString message = QString::fromUtf8(error.what());
         qWarning().noquote()
             << QStringLiteral("Atlas viewport resize failed: %1")
-                   .arg(QString::fromUtf8(error.what()));
+                   .arg(message);
+        emit runtimeErrorOccurred(message);
     } catch (...) {
         qWarning() << "Atlas viewport resize failed";
+        emit runtimeErrorOccurred("The viewport runtime could not be resized");
     }
 }
 
@@ -898,8 +927,6 @@ bool ViewportPanel::setRuntimeSceneProperty(const QString &section, int index,
     runtimeContext->saveCurrentScene();
     refreshSceneSnapshot();
     setSceneDirty(true);
-    if (section.compare("environment", Qt::CaseInsensitive) == 0)
-        environmentReloadTimer->start();
     return true;
 }
 
@@ -1362,6 +1389,7 @@ void ViewportPanel::stepRuntimeOnce() {
     stepRuntime();
     if (runtimeContext != nullptr) {
         runtimeContext->setEditorSimulationEnabled(false);
+        refreshSceneSnapshot();
         playbackState = 2;
         emit playbackStateChanged(playbackState);
     }
@@ -1419,7 +1447,7 @@ void ViewportPanel::setPathTracingPreview(bool enabled) {
     frameTimer->stop();
     const bool frameReady = stepRuntime();
     if (frameReady && isVisible())
-        frameTimer->start(pbrPreview ? 16 : 1);
+        frameTimer->start(RuntimeFrameIntervalMs);
     emit runtimeLoadingFinished();
     if (!enabled && runtimeContext != nullptr) {
         const std::string error = runtimeContext->getPathTracingError();
@@ -1442,7 +1470,7 @@ bool ViewportPanel::applyPathTracingSettings(
         internalScale);
     const bool frameReady = applied && stepRuntime();
     if (frameReady && isVisible()) {
-        frameTimer->start(pbrPreview ? 16 : 1);
+        frameTimer->start(RuntimeFrameIntervalMs);
     }
     return applied;
 }
@@ -1594,6 +1622,7 @@ void ViewportPanel::refreshSceneSnapshot() {
     }
     const QString snapshot =
         QString::fromStdString(runtimeContext->sceneObjectsJson());
+    snapshotTimer.restart();
     if (snapshot == lastSceneSnapshot) {
         return;
     }

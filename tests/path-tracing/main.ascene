@@ -34,7 +34,10 @@
             }
         },
         "atmosphereSky": false,
-        "automaticAmbient": false
+        "automaticAmbient": false,
+        "lightBloom": {
+            "threshold": 2.108
+        }
     },
     "id": "main_scene",
     "lights": [],

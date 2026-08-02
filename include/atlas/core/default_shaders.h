@@ -2738,7 +2738,6 @@ static inline __attribute__((always_inline))
 float4 applyColorEffects(thread float4& color, constant PushConstants& _372, device EffectBuffer& _381, device EffectFloat1Buffer& _394, device EffectFloat2Buffer& _403, device EffectFloat3Buffer& _411, device EffectFloat4Buffer& _419, device EffectFloat5Buffer& _426, constant Uniforms& _849, device EffectFloat6Buffer& _1049, thread float4& gl_FragCoord)
 {
     ColorCorrection cc;
-    float3 _noise;
     for (int i = 0; i < _372.EffectCount; i++)
     {
         if (_381.Effects[i] == 0)
@@ -2790,19 +2789,15 @@ float4 applyColorEffects(thread float4& color, constant PushConstants& _372, dev
                             float amount = _394.EffectFloat1[i];
                             float3 seed = float3(gl_FragCoord.xy, _849.deltaTime * 100.0);
                             float n = dot(seed, float3(12.98980045318603515625, 78.233001708984375, 45.16400146484375));
-                            _noise.x = fract(sin(n) * 43758.546875);
-                            n = dot(seed, float3(93.9889984130859375, 67.345001220703125, 12.9890003204345703125));
-                            _noise.y = fract(sin(n) * 28001.123046875);
-                            n = dot(seed, float3(39.34600067138671875, 11.1350002288818359375, 83.154998779296875));
-                            _noise.z = fract(sin(n) * 19283.45703125);
-                            float3 grain = ((_noise - float3(0.5)) * 2.0) * amount;
-                            float luminance = dot(color.xyz)",
-R"(, float3(0.2989999949932098388671875, 0.58700001239776611328125, 0.114000000059604644775390625));
+                            float noise = fract(sin(n) * 43758.546875);
+                            float grain = ((noise - 0.5) * 2.0) * amount;
+                            float luminance = dot(color.xyz, float3(0.2989999949932098388671875, 0.58700001239776611328125, 0.114000000059604644775390625));
                             float visibility = 1.0 - (abs(luminance - 0.5) * 0.5);
                             float4 _1210 = color;
-                            float3 _1212 = _1210.xyz + (grain * visibility);
+                            float3 _1212 = _1210.xyz + float3(grain * visibility);
                             color.x = _1212.x;
-                            color.y = _1212.y;
+                            color.y = _12)",
+R"(12.y;
                             color.z = _1212.z;
                             float4 _1219 = color;
                             float3 _1223 = fast::clamp(_1219.xyz, float3(0.0), float3(1.0));
@@ -2986,8 +2981,7 @@ float4 cloudRendering(thread const float4& inColor, thread float2& TexCoord, con
         return inColor;
     }
     float dstLimit = fast::min(sceneDistance - distToContainer, distInContainer);
-    dstLimit = fast::)",
-R"(max(dstLimit, 0.0);
+    dstLimit = fast::max(dstLimit, 0.0);
     if (dstLimit <= 9.9999997473787516355514526367188e-05)
     {
         return inColor;
@@ -2997,7 +2991,8 @@ R"(max(dstLimit, 0.0);
     float stepSize = fast::max(baseStep, _1929.cloudMinStepLength);
     float3 param_4 = float3(TexCoord, _849.time);
     float jitter = hashNoise(param_4) - 0.5;
-    float travelled = fast::clamp(jitter, -0.3499999940395355224609375, 0.3499999940395355224609375) * stepSize;
+    float travelled = f)",
+R"(ast::clamp(jitter, -0.3499999940395355224609375, 0.3499999940395355224609375) * stepSize;
     travelled = fast::max(travelled, 0.0);
     float3 accumulatedLight = float3(0.0);
     float transmittance = 1.0;
@@ -3159,8 +3154,8 @@ float4 composeLighting(thread const float2& uv, thread const float4& baseColor, 
 }
 
 static inline __attribute__((always_inline))
-float4 applyMotionBlur(thr)",
-R"(ead const float2& texCoord, thread const float& size, thread const float& separation, thread const float4& color, constant PushConstants& _372, device EffectBuffer& _381, device EffectFloat1Buffer& _394, device EffectFloat2Buffer& _403, device EffectFloat3Buffer& _411, device EffectFloat4Buffer& _419, device EffectFloat5Buffer& _426, texture2d<float> Texture, sampler TextureSmplr, texture2d<float> BrightTexture, sampler BrightTextureSmplr, constant Uniforms& _849, texture2d<float> VolumetricLightTexture, sampler VolumetricLightTextureSmplr, texture2d<float> SSRTexture, sampler SSRTextureSmplr, texture2d<float> PositionTexture, sampler PositionTextureSmplr, texture2d<float> DepthTexture, sampler DepthTextureSmplr)
+float4 applyMotionBlur(thread const float2& texCoord, thread const float& size, thread const float& separation, thread const float4& color, constant PushConstants& _372, device EffectBuffer& _381, device EffectFloat1Buffer& _394, device EffectFloat2Buffer& _403, device EffectFloat3Buffer& _411, device EffectFloat4Buffer& _419, device EffectFloat5Buffer& _426, texture2d<float> Texture, sampler TextureSmplr, texture2d<fl)",
+R"(oat> BrightTexture, sampler BrightTextureSmplr, constant Uniforms& _849, texture2d<float> VolumetricLightTexture, sampler VolumetricLightTextureSmplr, texture2d<float> SSRTexture, sampler SSRTextureSmplr, texture2d<float> PositionTexture, sampler PositionTextureSmplr, texture2d<float> DepthTexture, sampler DepthTextureSmplr)
 {
     float4 fallbackColor = composeLighting(texCoord, color, _372, _381, _394, _403, _411, _419, _426, BrightTexture, BrightTextureSmplr, VolumetricLightTexture, VolumetricLightTextureSmplr, SSRTexture, SSRTextureSmplr);
     if ((size <= 0.0) || (separation <= 0.0))
@@ -3343,8 +3338,8 @@ float3 acesToneMapping(thread const float3& color)
     return fast::clamp((color * ((color * a) + float3(b))) / ((color * ((color * c) + float3(d))) + float3(e)), float3(0.0), float3(1.0));
 }
 
-fragment main0_out main0(main0_in in [[stage_in]], constant PushConstants& _372 [[buffer(0)]], device EffectBuffer& _381 [[buffer(1)]], device EffectFloat1Buffer& _394 [[buffer(2)]], device EffectFloat2Buffer& _403 [[buffer(3)]], device EffectFloat3Buffer& _411 [[buffer(4)]], device EffectFloat4Buffer& _419 [[buffer(5)]], device EffectFloat5Buffer& _426 [[buffer(6)]], constant Uniforms& _849 [[buffer(7)]], device EffectFloat6Bu)",
-R"(ffer& _1049 [[buffer(8)]], constant Clouds& _1929 [[buffer(9)]], constant Environment& environment [[buffer(10)]], texture2d<float> Texture [[texture(0)]], texture2d<float> BrightTexture [[texture(1)]], texture2d<float> VolumetricLightTexture [[texture(2)]], texture2d<float> SSRTexture [[texture(3)]], texture2d<float> PositionTexture [[texture(4)]], texture2d<float> LUTTexture [[texture(5)]], texture3d<float> cloudsTexture [[texture(6)]], texture2d<float> DepthTexture [[texture(7)]], sampler TextureSmplr [[sampler(0)]], sampler BrightTextureSmplr [[sampler(1)]], sampler VolumetricLightTextureSmplr [[sampler(2)]], sampler SSRTextureSmplr [[sampler(3)]], sampler PositionTextureSmplr [[sampler(4)]], sampler LUTTextureSmplr [[sampler(5)]], sampler cloudsTextureSmplr [[sampler(6)]], sampler DepthTextureSmplr [[sampler(7)]], float4 gl_FragCoord [[position]])
+fragment main0_out main0(main0_in in [[stage_in]], constant PushConstants& _372 [[buffer(0)]], device EffectBuffer& _381 [[buffer(1)]], device EffectFloat1Buffer& _394 [[buffer(2)]], device EffectFloat2Buffer& _403 [[buffer(3)]], device EffectFloat3Buffer& _411 [[buffer(4)]], device EffectFloat4Buffer& _419 [[buffer(5)]], device EffectFloat5Buffer& _426 [[buffer(6)]], constant Uniforms& _849 [[buffer(7)]], device EffectFloat6Buffer& _1049 [[buffer(8)]], constant Clouds& _1929 [[buffer(9)]], constant Environment& environment [[buffer(10)]], texture2d<float> Texture [[texture(0)]], texture2d<float> BrightTexture [[texture(1)]], texture2d<float> VolumetricLightTexture [[texture(2)]], texture2d<float> SSRTexture [[texture(3)]], texture2d<float> PositionTexture [[texture(4)]], texture2d<float> LUTTexture [[texture(5)]], )",
+R"(texture3d<float> cloudsTexture [[texture(6)]], texture2d<float> DepthTexture [[texture(7)]], sampler TextureSmplr [[sampler(0)]], sampler BrightTextureSmplr [[sampler(1)]], sampler VolumetricLightTextureSmplr [[sampler(2)]], sampler SSRTextureSmplr [[sampler(3)]], sampler PositionTextureSmplr [[sampler(4)]], sampler LUTTextureSmplr [[sampler(5)]], sampler cloudsTextureSmplr [[sampler(6)]], sampler DepthTextureSmplr [[sampler(7)]], float4 gl_FragCoord [[position]])
 {
     main0_out out = {};
     float2 param = in.TexCoord;
@@ -3693,6 +3688,7 @@ struct UBO {
 struct Environment {
     float rimLightIntensity;
     float3 rimLightColor;
+    float bloomThreshold;
 };
 
 struct PushConstants {
@@ -3821,9 +3817,9 @@ constant spvUnsafeArray<float2, 12> _660 = spvUnsafeArray<float2, 12>(
     {float2(-0.3260000050067901611328125, -0.4059999883174896240234375),
      float2(-0.839999973773956298828125, -0.07400000095367431640625),
      float2(-0.69599997997283935546875, 0.4569999873638153076171875),
-     float2(-0.20299999415874481201171875, 0.620999991893768310546875),
-     float2(0.96200001)",
-R"(239776611328125, -0.194999992847442626953125),
+     float2(-0.20299999415874481201171875, 0.62099999189376831054687)",
+R"(5),
+     float2(0.96200001239776611328125, -0.194999992847442626953125),
      float2(0.472999989986419677734375, -0.4799999892711639404296875),
      float2(0.518999993801116943359375, 0.767000019550323486328125),
      float2(0.185000002384185791015625, -0.89300000667572021484375),
@@ -4005,9 +4001,9 @@ static inline __attribute__((always_inline)) float4 sampleTextureAt(
     } else {
         if (textureIndex == 1) {
             return texture2.sample(texture2Smplr, uv);
-        } else {
-            if (textureIn)",
-R"(dex == 2) {
+        } else {)",
+R"(
+            if (textureIndex == 2) {
                 return texture3.sample(texture3Smplr, uv);
             } else {
                 if (textureIndex == 3) {
@@ -4241,8 +4237,8 @@ static inline __attribute__((always_inline)) float3 calcDirectionalLight(
     thread const float3 &albedo, thread const float &metallic,
     thread const float &roughness) {
     float3 L = fast::normalize(-light.direction);
-    float3 radiance = light.diffuse * fast:)",
-R"(:max(light.intensity, 0.0);
+    float3 radian)",
+R"(ce = light.diffuse * fast::max(light.intensity, 0.0);
     float3 param = L;
     float3 param_1 = radiance;
     float3 param_2 = N;
@@ -4455,8 +4451,8 @@ static inline float4
 sampleProbeDirectionalRadiance(texture2d<float> ddgiTexture,
                                constant ProbeSpace &ps, uint probeIndex,
                                uint atlasW, uint atlasH, float3 dirWS) {
-    float2 uv = ddgiAtlasUV(probeIndex, dirWS, ps, atlasW)",
-R"(, atlasH);
+    float2 uv = ddgiAtlasUV(pro)",
+R"(beIndex, dirWS, ps, atlasW, atlasH);
     return sampleDDGITextureBilinear(ddgiTexture, uv);
 }
 
@@ -4628,9 +4624,9 @@ static inline float3 sampleDDGIIrradiance(texture2d<float> ddgiTexture,
 
 fragment main0_out main0(
     main0_in in [[stage_in]], constant UBO &_526 [[buffer(0)]],
-    constant Environment &environment [[buffer(1)]],
-   )",
-R"( constant PushConstants &_1355 [[buffer(2)]],
+    constant Environment &envi)",
+R"(ronment [[buffer(1)]],
+    constant PushConstants &_1355 [[buffer(2)]],
     device ShadowParams &_1372 [[buffer(3)]],
     device DirectionalLights &_1422 [[buffer(4)]],
     device PointLights &_1465 [[buffer(5)]],
@@ -4797,8 +4793,8 @@ R"( constant PushConstants &_1355 [[buffer(2)]],
             float3 param_4 = shadowNormal;
             spotShadow = fast::max(
                 spotShadow,
-                calculateShadow(param_2, param_3, pa)",
-R"(ram_4, texture1,
+                calculateS)",
+R"(hadow(param_2, param_3, param_4, texture1,
                                 texture1Smplr, texture2, texture2Smplr,
                                 texture3, texture3Smplr, texture4,
                                 texture4Smplr, texture5, texture5Smplr, _526));
@@ -4959,8 +4955,8 @@ R"(ram_4, texture1,
                 float attenuation = 1.0 / ((1.0 + (dist / range)) +
                                            ((dist * dist) / (range * range)));
                 float fade = 1.0 - smoothstep(range * 0.89999997615814208984375,
-                                           )",
-R"(   range, dist);
+                 )",
+R"(                             range, dist);
                 float3 radiance =
                     (((float3(_1552.areaLights[i_4].diffuse) *
                        fast::max(_1552.areaLights[i_4].intensity, 0.0)) *
@@ -5076,7 +5072,7 @@ R"(   range, dist);
         dot(out.FragColor.xyz,
             float3(0.2125999927520751953125, 0.715200006961822509765625,
                    0.072200000286102294921875));
-    if (brightness > 0.75) {
+    if (brightness > environment.bloomThreshold) {
         out.BrightColor = float4(out.FragColor.xyz, 1.0);
     } else {
         out.BrightColor = float4(0.0, 0.0, 0.0, 1.0);
@@ -6753,9 +6749,10 @@ struct SceneData {
     uint accumulationFrameLimit;
     float fireflyClamp;
     uint numEmissiveTriangles;
+    float bloomThreshold;
 };
 
-static_assert(sizeof(SceneData) == 144);
+static_assert(sizeof(SceneData) == 160);
 static_assert(__builtin_offsetof(SceneData, atmosphereSunDirection) == 48);
 static_assert(__builtin_offsetof(SceneData, atmosphereSunIntensity) == 64);
 static_assert(__builtin_offsetof(SceneData, atmosphereSunColor) == 80);
@@ -6763,6 +6760,7 @@ static_assert(__builtin_offsetof(SceneData, pixelStride) == 96);
 static_assert(__builtin_offsetof(SceneData, ambientColor) == 112);
 static_assert(__builtin_offsetof(SceneData, accumulationFrameLimit) == 132);
 static_assert(__builtin_offsetof(SceneData, numEmissiveTriangles) == 140);
+static_assert(__builtin_offsetof(SceneData, bloomThreshold) == 144);
 
 float pow5(float x) {
     float x2 = x * x;
@@ -6900,13 +6898,13 @@ float2 encodeNormal(float3 normal) {
     float2 encoded = normal.xy;
     if (normal.z < 0.0) {
         float2 signValue = select(float2(-1.0), float2(1.0), encoded >= 0.0);
-        encoded = (1.0 - abs(encoded.yx)) * signValue;
+        encoded = (1.0 - a)",
+R"(bs(encoded.yx)) * signValue;
     }
     return encoded;
 }
 
-constexpr sampler materialTexSampler()",
-R"(coord::normalized, address::repeat,
+constexpr sampler materialTexSampler(coord::normalized, address::repeat,
                                      filter::linear, mip_filter::linear);
 
 #define PT_MATERIAL_TEXTURE_PARAMS                                             \
@@ -7010,9 +7008,9 @@ R"(coord::normalized, address::repeat,
         texture2d<float> materialTexture35 [[texture(47)]],                    \
         texture2d<float> materialTexture36 [[texture(48)]],                    \
         texture2d<float> materialTexture37 [[texture(49)]],                    \
-        texture2d<float> materialTexture38 [[texture(50)]],                    \
-        texture2d)",
-R"(<float> materialTexture39 [[texture(51)]],                    \
+   )",
+R"(     texture2d<float> materialTexture38 [[texture(50)]],                    \
+        texture2d<float> materialTexture39 [[texture(51)]],                    \
         texture2d<float> materialTexture40 [[texture(52)]],                    \
         texture2d<float> materialTexture41 [[texture(53)]],                    \
         texture2d<float> materialTexture42 [[texture(54)]],                    \
@@ -7205,9 +7203,9 @@ void resolveMaterialParameters(Material mat, float2 uv, uint textureCount,
         }
         roughness *= clamp(roughnessValue, 0.0, 1.0);
     }
-    if (mat.aoTextureIndex >= 0 && uint(mat.aoTextureIndex) < textureCount) {
-        ao *= clamp(sampleMaterialTexture(mat.aoTextureIndex, )",
-R"(uv,
+    if (mat.aoTextureIndex >= 0 && uint(mat.a)",
+R"(oTextureIndex) < textureCount) {
+        ao *= clamp(sampleMaterialTexture(mat.aoTextureIndex, uv,
                                           PT_MATERIAL_TEXTURE_ARGS)
                         .x,
                     0.0, 1.0);
@@ -7393,10 +7391,10 @@ float3 materialF0(float3 albedo, float metallic, float reflectivity,
 
 float G_Smith(float NdotV, float NdotL, float roughness) {
     float r = roughness + 1.0;
-    float k = (r * r) / 8.0;
+    float k = (r * r))",
+R"( / 8.0;
     float gV = NdotV / (NdotV * (1.0 - k) + k);
-    float gL = NdotL / (NdotL * (1.0 - )",
-R"(k) + k);
+    float gL = NdotL / (NdotL * (1.0 - k) + k);
     return gV * gL;
 }
 
@@ -7577,10 +7575,10 @@ float3 evalEmissiveTriangleLighting(
 // ---------------------------------------------------------------------------
 
 float3 evalDirectLightingPBR(intersector<triangle_data> isect,
-                             primitive_acceleration_structure sceneAS, float3 P,
+                             primitive_acceleration_structure )",
+R"(sceneAS, float3 P,
                              float3 N, float3 Ng, float3 V, float3 albedo,
- )",
-R"(                            float metallic, float roughness, float reflectivity,
+                             float metallic, float roughness, float reflectivity,
                              float ior, float transmittance, float sssStrength,
                              float sssThickness,
                              thread uint &rng,
@@ -7730,10 +7728,10 @@ float3 sampleRadiance(uint2 gid, uint sampleIndex, uint w,
                       constant EmissiveTriangle *emissiveTriangles,
                       PT_MATERIAL_TEXTURE_PARAMS, texturecube<float> skybox,
                       thread float3 &primaryAlbedo,
-                      thread float3 &primaryNormal,
+                      )",
+R"(thread float3 &primaryNormal,
                       thread float3 &primaryPosition,
-           )",
-R"(           thread float &primaryDepth,
+                      thread float &primaryDepth,
                       thread float &primaryRoughness,
                       thread float &primaryHitDistance,
                       thread uint &primaryObjectId) {
@@ -7905,10 +7903,10 @@ R"(           thread float &primaryDepth,
                              (1.0 - fresnelProbability);
         float diffuseProb = (1.0 - metallic) * (1.0 - transmittance) *
                             (1.0 - fresnelProbability);
-        float eta = frontFace ? 1.0 / ior : ior;
+        float eta = )",
+R"(frontFace ? 1.0 / ior : ior;
         float3 idealRefractedDirection = refract(-V, N, eta);
-    )",
-R"(    bool totalInternalReflection =
+        bool totalInternalReflection =
             dot(idealRefractedDirection, idealRefractedDirection) < 1e-8;
         if (totalInternalReflection) {
             specProb += transmitProb;
@@ -8076,10 +8074,10 @@ R"(    bool totalInternalReflection =
 
         if (depth >= 2) {
             float survival = clamp(max(throughput.x,
-                                       max(throughput.y, throughput.z)),
+                               )",
+R"(        max(throughput.y, throughput.z)),
                                    0.05, 0.95);
-     )",
-R"(       if (rand(rng) > survival) {
+            if (rand(rng) > survival) {
                 break;
             }
             throughput /= survival;
@@ -8254,10 +8252,10 @@ kernel void main0(texture2d<float, access::write> outTex [[texture(0)]],
         historyValid ? min(prevColor.w, max(historyLimit - 1.0, 0.0)) : 0.0;
     float newHistoryLength = min(previousWeight + 1.0, historyLimit);
     float accumulationDenominator = max(previousWeight + 1.0, 1.0);
-    float3 accum =
-        (prevColor.xyz * previousWeight + color) / accumulationDenominator;
   )",
-R"(  float moment = luminance(color);
+R"(  float3 accum =
+        (prevColor.xyz * previousWeight + color) / accumulationDenominator;
+    float moment = luminance(color);
     float accumulatedMoment =
         (previousMoments.x * previousWeight + moment) /
         accumulationDenominator;
@@ -8268,14 +8266,13 @@ R"(  float moment = luminance(color);
                              accumulatedMoment * accumulatedMoment,
                          0.0);
 
-    constexpr float bloomThreshold = 0.8;
     constexpr float bloomKnee = 0.35;
 
     float brightness = luminance(accum);
-    float soft = clamp(brightness - bloomThreshold + bloomKnee, 0.0,
+    float soft = clamp(brightness - sceneData.bloomThreshold + bloomKnee, 0.0,
                        bloomKnee * 2.0);
     soft = soft * soft / max(bloomKnee * 4.0, 0.00001);
-    float contribution = max(brightness - bloomThreshold, soft) /
+    float contribution = max(brightness - sceneData.bloomThreshold, soft) /
                          max(brightness, 0.00001);
     float3 brightColor = accum * contribution;
     float2 motion = previousUvValid ? uv - previousUv : float2(0.0);
@@ -8311,6 +8308,7 @@ using namespace metal;
 
 struct DenoiseParameters {
     int stepWidth;
+    float bloomThreshold;
 };
 
 kernel void main0(texture2d<float, access::read> inputTexture [[texture(0)]],
@@ -8419,12 +8417,11 @@ kernel void main0(texture2d<float, access::read> inputTexture [[texture(0)]],
     }
     float3 result = mix(center, spatialResult, filterStrength);
     float brightness = dot(result, float3(0.2126, 0.7152, 0.0722));
-    constexpr float bloomThreshold = 0.8;
     constexpr float bloomKnee = 0.35;
-    float soft = clamp(brightness - bloomThreshold + bloomKnee, 0.0,
+    float soft = clamp(brightness - parameters.bloomThreshold + bloomKnee, 0.0,
                        bloomKnee * 2.0);
     soft = soft * soft / max(bloomKnee * 4.0, 0.00001);
-    float contribution = max(brightness - bloomThreshold, soft) /
+    float contribution = max(brightness - parameters.bloomThreshold, soft) /
                          max(brightness, 0.00001);
     outputTexture.write(float4(result, 1.0), gid);
     brightTexture.write(float4(result * contribution, 1.0), gid);

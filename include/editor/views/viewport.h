@@ -13,6 +13,7 @@
 #include <memory>
 
 #include <QByteArray>
+#include <QElapsedTimer>
 #include <QJsonObject>
 #include <QList>
 #include <QString>
@@ -118,6 +119,7 @@ class ViewportPanel : public QWidget {
     void runtimeLoadingStarted();
     void runtimeLoadingStatusChanged(const QString &status);
     void runtimeLoadingFinished();
+    void runtimeErrorOccurred(const QString &message);
     void transformHintChanged(const QString &hint);
     void sceneOpened(const QString &path);
     void transformSpaceChanged(bool local);
@@ -158,7 +160,6 @@ class ViewportPanel : public QWidget {
 
     QTimer *frameTimer = nullptr;
     QTimer *resizeTimer = nullptr;
-    QTimer *environmentReloadTimer = nullptr;
     QUndoStack *undoStack = nullptr;
     QString projectFile;
     std::shared_ptr<Context> runtimeContext;
@@ -169,6 +170,8 @@ class ViewportPanel : public QWidget {
     QString selectionToRestore;
     QByteArray objectClipboard;
     QJsonObject transformUndoBefore;
+    QElapsedTimer snapshotTimer;
+    QElapsedTimer frameRateTimer;
     bool runtimeStartQueued = false;
     bool runtimeStartupEnabled = false;
     bool shuttingDown = false;

@@ -25,6 +25,7 @@ class MaterialEditorPanel : public QWidget {
     explicit MaterialEditorPanel(ViewportPanel *viewport,
                                  QWidget *parent = nullptr);
     ~MaterialEditorPanel() override;
+    void flushPendingSave();
 
   public slots:
     void openMaterial(const QString &path);

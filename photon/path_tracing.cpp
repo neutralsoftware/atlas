@@ -1283,6 +1283,9 @@ bool photon::PathTracing::render(
     pathTracingPipeline->setUniform1i("sceneData.accumulationFrameLimit",
                                       accumulationFrames);
     pathTracingPipeline->setUniform1f("sceneData.fireflyClamp", fireflyClamp);
+    pathTracingPipeline->setUniform1f(
+        "sceneData.bloomThreshold",
+        std::max(scene->getEnvironment().lightBloom.threshold, 0.0f));
     pathTracingPipeline->setUniform1i("sceneData.numEmissiveTriangles",
                                       emissiveTriangleCount);
 
@@ -1347,6 +1350,9 @@ bool photon::PathTracing::render(
                 pathTracingHistoryMoments[historyReadIndex]->texture, 5);
             pathDenoisePipeline->setUniform1i("parameters.stepWidth",
                                               denoiseSteps[pass]);
+            pathDenoisePipeline->setUniform1f(
+                "parameters.bloomThreshold",
+                std::max(scene->getEnvironment().lightBloom.threshold, 0.0f));
             commandBuffer->dispatch(outputWidth, outputHeight, 1);
             commandBuffer->computeBarrier();
         }
