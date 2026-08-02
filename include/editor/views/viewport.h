@@ -10,6 +10,8 @@
 #ifndef ATLAS_VIEWPORT_H
 #define ATLAS_VIEWPORT_H
 
+#include <array>
+#include <cstdint>
 #include <memory>
 
 #include <QByteArray>
@@ -21,6 +23,7 @@
 
 class Context;
 class QCloseEvent;
+class QEvent;
 class QDragEnterEvent;
 class QDropEvent;
 class QHideEvent;
@@ -107,6 +110,8 @@ class ViewportPanel : public QWidget {
     bool setCameraFocused(bool focused);
     void toggleCameraFocus();
     bool isCameraFocused() const;
+    bool isRuntimePlaying() const { return playbackState == 1; }
+    bool routeRuntimeInputEvent(QEvent *event);
 
   signals:
     void sceneSnapshotChanged(const QString &snapshot);
@@ -127,6 +132,7 @@ class ViewportPanel : public QWidget {
     void cameraFocusChanged(bool focused);
 
   protected:
+    bool event(QEvent *event) override;
     QPaintEngine *paintEngine() const override;
     void showEvent(QShowEvent *event) override;
     void hideEvent(QHideEvent *event) override;
@@ -146,8 +152,11 @@ class ViewportPanel : public QWidget {
     void startRuntime();
     void stopRuntime();
     bool stepRuntime();
+    bool pollCapturedRuntimeInput();
     void resizeRuntime();
     void sendPointerEvent(int action, float x, float y, int button);
+    void captureRuntimeInput();
+    void releaseRuntimeInput();
     void refreshSceneSnapshot();
     void setSceneDirty(bool dirty);
     void beginKeyboardTransform(int mode);
@@ -179,6 +188,8 @@ class ViewportPanel : public QWidget {
     bool playAfterRuntimeStart = false;
     bool leftPointerMoved = false;
     bool keyboardTransformActive = false;
+    bool runtimeInputCaptured = false;
+    std::array<std::uint32_t, 4> runtimeMouseEventCounters{};
     int keyboardTransformMode = 0;
     int keyboardTransformAxes = 7;
     int playbackState = 0;

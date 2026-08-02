@@ -577,8 +577,6 @@ void EditorWindow::setupMenus() {
     auto *toolsSettings = addCommand(toolsMenu, "Project Settings…", QString(),
                                      [this] { showProjectSettings(); });
     toolsSettings->setMenuRole(QAction::NoRole);
-    addCommand(toolsMenu, "Input Actions…", QString(),
-               [this] { showInputActions(); });
     addCommand(toolsMenu, "Install Atlas Toolchain…", QString(),
                [this] { ToolchainInstaller::install(this); });
     addCommand(toolsMenu, "Command Palette…", "Meta+Shift+P",
@@ -589,6 +587,9 @@ void EditorWindow::setupMenus() {
     windowMenu->addAction("Zoom", this, [this] {
         isMaximized() ? showNormal() : showMaximized();
     });
+    windowMenu->addSeparator();
+    windowMenu->addAction("Controller Actions", this,
+                          [this] { showInputActions(); });
 
     auto *helpMenu = menuBar()->addMenu("Help");
     auto *aboutAction = helpMenu->addAction("About Atlas Engine", this, [this] {
@@ -602,9 +603,24 @@ void EditorWindow::setupMenus() {
 }
 
 void EditorWindow::showInputActions() {
-    InputActionsDialog dialog(projectFile, this);
-    if (dialog.exec() == QDialog::Accepted && viewportPanel != nullptr)
-        viewportPanel->reloadRuntime();
+    if (inputActionsDialog != nullptr) {
+        inputActionsDialog->showNormal();
+        inputActionsDialog->raise();
+        inputActionsDialog->activateWindow();
+        return;
+    }
+    inputActionsDialog = new InputActionsDialog(projectFile, this);
+    inputActionsDialog->setAttribute(Qt::WA_DeleteOnClose);
+    connect(inputActionsDialog, &InputActionsDialog::actionsSaved, this,
+            [this] {
+                if (viewportPanel != nullptr)
+                    viewportPanel->reloadRuntime();
+            });
+    connect(inputActionsDialog, &QObject::destroyed, this,
+            [this] { inputActionsDialog = nullptr; });
+    inputActionsDialog->show();
+    inputActionsDialog->raise();
+    inputActionsDialog->activateWindow();
 }
 
 void EditorWindow::setupDocks() {
@@ -2193,6 +2209,9 @@ bool EditorWindow::eventFilter(QObject *watched, QEvent *event) {
             dialog->setAttribute(Qt::WA_TranslucentBackground);
         }
     }
+    if (viewportPanel != nullptr &&
+        viewportPanel->routeRuntimeInputEvent(event))
+        return true;
     if (event->type() == QEvent::KeyPress) {
         auto *key = static_cast<QKeyEvent *>(event);
         if (!key->isAutoRepeat() && key->matches(QKeySequence::Undo)) {

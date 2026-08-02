@@ -64,6 +64,7 @@ class InspectorPanel : public QWidget {
     QJsonObject inspectedCamera;
     QString inspectedFile;
     QString projectRoot;
+    QString projectFile;
     int inspectedObjectId = -1;
     int lastRuntimeSelection = -1;
     bool fileTarget = false;

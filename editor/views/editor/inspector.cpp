@@ -58,6 +58,7 @@
 #include <memory>
 
 #include "editor/views/viewport.h"
+#include "editor/views/inputActionsDialog.h"
 #include "editor/widgets/scrubbableSpinBox.h"
 
 namespace {
@@ -607,6 +608,18 @@ void refreshTaggedEditors(QFrame *card, const QJsonObject &properties) {
             }
             const QSignalBlocker blocker(field);
             field->setText(entries.join(", "));
+        } else if (kind == "action") {
+            auto *field = qobject_cast<QToolButton *>(editor);
+            if (field == nullptr || !value.isArray())
+                continue;
+            const QJsonArray actions = value.toArray();
+            const int index =
+                editor->property("inspectorValueIndex").toInt();
+            const QString action = index >= 0 && index < actions.size()
+                                       ? actions.at(index).toString()
+                                       : QString();
+            field->setProperty("actionValue", action);
+            field->setText(action.isEmpty() ? "Select Action" : action);
         } else if (kind == "color") {
             const QJsonArray array = value.toArray();
             if (array.size() < 3)
@@ -1311,6 +1324,143 @@ QFrame *componentCard(const QString &title, const QJsonObject &properties,
     return card;
 }
 
+QFrame *controllerActionsCard(const QJsonArray &actions, bool automaticMoving,
+                              const QString &projectFile,
+                              const PropertyChanged &changed,
+                              QWidget *parent) {
+    auto *card = new QFrame(parent);
+    card->setObjectName("inspectorComponent");
+    card->setProperty("inspectorScope", "camera:actions");
+    auto *layout = new QVBoxLayout(card);
+    layout->setContentsMargins(0, 0, 0, 7);
+    layout->setSpacing(2);
+    auto *header = new QToolButton(card);
+    header->setObjectName("inspectorComponentHeader");
+    header->setText("Controller Actions");
+    header->setCheckable(true);
+    header->setChecked(true);
+    header->setIcon(styling::icon(styling::Icon::CaretDown, "#8490A4"));
+    header->setToolButtonStyle(Qt::ToolButtonTextBesideIcon);
+    layout->addWidget(header);
+    auto *body = new QWidget(card);
+    body->setObjectName("inspectorComponentBody");
+    auto *bodyLayout = new QVBoxLayout(body);
+    bodyLayout->setContentsMargins(0, 2, 0, 0);
+    bodyLayout->setSpacing(1);
+    auto *automatic = new QCheckBox("Enable Automatic Movement", body);
+    automatic->setChecked(automaticMoving);
+    automatic->setCursor(Qt::PointingHandCursor);
+    tagEditor(automatic, "/automaticMoving", "bool");
+    bodyLayout->addWidget(automatic);
+    QObject::connect(automatic, &QCheckBox::toggled, body,
+                     [changed](bool checked) {
+                         changed("/automaticMoving", checked);
+                     });
+    const QStringList labels{"Movement", "Look", "Vertical"};
+    QList<QToolButton *> pickers;
+    for (int index = 0; index < labels.size(); ++index) {
+        auto *picker = new QToolButton(body);
+        picker->setObjectName("inspectorActionPicker");
+        picker->setPopupMode(QToolButton::InstantPopup);
+        picker->setToolButtonStyle(Qt::ToolButtonTextBesideIcon);
+        picker->setIcon(styling::icon(styling::Icon::CaretDown, "#8490A4"));
+        const QString current =
+            index < actions.size() ? actions.at(index).toString() : QString();
+        picker->setProperty("actionValue", current);
+        picker->setProperty("actionIndex", index);
+        picker->setText(current.isEmpty() ? "Select Action" : current);
+        tagEditor(picker, "/actions", "action", index);
+        pickers.append(picker);
+        bodyLayout->addWidget(propertyRow(labels.at(index), picker, body));
+    }
+    auto commit = [pickers, changed] {
+        QJsonArray result;
+        for (QToolButton *picker : pickers)
+            result.append(picker->property("actionValue").toString());
+        while (!result.isEmpty() && result.last().toString().isEmpty())
+            result.removeAt(result.size() - 1);
+        changed("/actions", result);
+    };
+    for (QToolButton *picker : pickers) {
+        auto *menu = new QMenu(picker);
+        auto *searchAction = new QWidgetAction(menu);
+        auto *search = new PickerSearchField(menu);
+        search->setPlaceholderText("Search actions");
+        search->setClearButtonEnabled(true);
+        search->setMinimumWidth(260);
+        searchAction->setDefaultWidget(search);
+        menu->addAction(searchAction);
+        menu->addSeparator();
+        QObject::connect(
+            menu, &QMenu::aboutToShow, menu,
+            [menu, search, picker, projectFile, commit] {
+                const QList<QAction *> existing = menu->actions();
+                for (QAction *action : existing) {
+                    if (action->property("actionChoice").toBool()) {
+                        menu->removeAction(action);
+                        delete action;
+                    }
+                }
+                QAction *none = menu->addAction("Unassigned");
+                none->setProperty("actionChoice", true);
+                none->setProperty("searchText", "unassigned none");
+                QObject::connect(none, &QAction::triggered, picker,
+                                 [picker, commit] {
+                                     picker->setProperty("actionValue",
+                                                         QString());
+                                     picker->setText("Select Action");
+                                     commit();
+                                 });
+                const QStringList names =
+                    InputActionsDialog::actionNamesForProject(projectFile);
+                for (const QString &name : names) {
+                    QAction *choice = menu->addAction(name);
+                    choice->setProperty("actionChoice", true);
+                    choice->setProperty("searchText", name.toLower());
+                    QObject::connect(choice, &QAction::triggered, picker,
+                                     [picker, name, commit] {
+                                         picker->setProperty("actionValue",
+                                                             name);
+                                         picker->setText(name);
+                                         commit();
+                                     });
+                }
+                if (names.isEmpty()) {
+                    QAction *empty = menu->addAction(
+                        "No actions yet — use Window → Controller Actions");
+                    empty->setEnabled(false);
+                    empty->setProperty("actionChoice", true);
+                }
+                search->clear();
+                search->setFocus();
+            });
+        QObject::connect(search, &QLineEdit::textChanged, menu,
+                         [menu](const QString &text) {
+                             const QString query = text.trimmed().toLower();
+                             for (QAction *action : menu->actions()) {
+                                 if (!action->property("actionChoice").toBool() ||
+                                     !action->isEnabled())
+                                     continue;
+                                 action->setVisible(
+                                     query.isEmpty() ||
+                                     action->property("searchText")
+                                         .toString()
+                                         .contains(query));
+                             }
+                         });
+        picker->setMenu(menu);
+    }
+    layout->addWidget(body);
+    QObject::connect(
+        header, &QToolButton::toggled, card, [header, body](bool expanded) {
+            body->setVisible(expanded);
+            header->setIcon(styling::icon(expanded ? styling::Icon::CaretDown
+                                                   : styling::Icon::CaretRight,
+                                          "#8490A4"));
+        });
+    return card;
+}
+
 QJsonObject findObjectInArray(const QJsonArray &objects, int id) {
     for (const QJsonValue &value : objects) {
         const QJsonObject object = value.toObject();
@@ -1327,7 +1477,7 @@ QJsonObject findObjectInArray(const QJsonArray &objects, int id) {
 
 InspectorPanel::InspectorPanel(ViewportPanel *viewport,
                                const QString &projectFile, QWidget *parent)
-    : QWidget(parent), viewport(viewport) {
+    : QWidget(parent), viewport(viewport), projectFile(projectFile) {
     setObjectName("inspectorPanel");
     setMinimumWidth(400);
     setAcceptDrops(true);
@@ -1419,7 +1569,6 @@ void InspectorPanel::applySceneSnapshot(const QString &snapshot) {
             {"controllerLookSensitivity",
              inspectedCamera.value("controllerLookSensitivity")},
             {"lookSmoothness", inspectedCamera.value("lookSmoothness")},
-            {"automaticMoving", inspectedCamera.value("automaticMoving")},
             {"actions", inspectedCamera.value("actions").isArray()
                             ? inspectedCamera.value("actions")
                             : QJsonValue(QJsonArray{})}};
@@ -1436,6 +1585,14 @@ void InspectorPanel::applySceneSnapshot(const QString &snapshot) {
                 refreshTaggedEditors(card, focus);
             else if (scope == "camera:controls")
                 refreshTaggedEditors(card, controls);
+            else if (scope == "camera:actions")
+                refreshTaggedEditors(card,
+                                     QJsonObject{
+                                         {"automaticMoving",
+                                          inspectedCamera.value(
+                                              "automaticMoving")},
+                                         {"actions", inspectedCamera.value(
+                                                         "actions")}});
         }
         return;
     }
@@ -1961,11 +2118,7 @@ void InspectorPanel::showCamera() {
         {"mouseSensitivity", inspectedCamera.value("mouseSensitivity")},
         {"controllerLookSensitivity",
          inspectedCamera.value("controllerLookSensitivity")},
-        {"lookSmoothness", inspectedCamera.value("lookSmoothness")},
-        {"automaticMoving", inspectedCamera.value("automaticMoving")},
-        {"actions", inspectedCamera.value("actions").isArray()
-                        ? inspectedCamera.value("actions")
-                        : QJsonValue(QJsonArray{})}};
+        {"lookSmoothness", inspectedCamera.value("lookSmoothness")}};
     SyncOptions syncOptions;
     collectSyncOptions("Camera", inspectedCamera,
                        QJsonObject{{"section", "camera"}}, QString(),
@@ -1991,6 +2144,10 @@ void InspectorPanel::showCamera() {
                       bindSyncProvider(syncProvider, viewport, &scene,
                                        QJsonObject{{"section", "camera"}}),
                       {}, "camera:controls"));
+    contentLayout->addWidget(controllerActionsCard(
+        inspectedCamera.value("actions").toArray(),
+        inspectedCamera.value("automaticMoving").toBool(false), projectFile,
+        update, content));
     contentLayout->addStretch();
 }
 

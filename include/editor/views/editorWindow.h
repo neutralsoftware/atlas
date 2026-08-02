@@ -38,6 +38,7 @@ class QFileSystemWatcher;
 class QEvent;
 class SplashScreen;
 class QPlainTextEdit;
+class InputActionsDialog;
 
 class EditorWindow : public QMainWindow {
     Q_OBJECT
@@ -95,6 +96,7 @@ class EditorWindow : public QMainWindow {
     SplashScreen *assetLoadingSplash = nullptr;
     QFileSystemWatcher *scriptWatcher = nullptr;
     QPlainTextEdit *runtimeErrors = nullptr;
+    InputActionsDialog *inputActionsDialog = nullptr;
     QByteArray defaultDockState;
     QString projectFile;
     QString projectName;

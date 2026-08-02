@@ -3422,6 +3422,59 @@ MouseButton parseMouseButtonString(const std::string &value) {
     throw std::runtime_error("Unknown mouse trigger: " + value);
 }
 
+int parseControllerButtonString(const std::string &value) {
+    const std::string token = normalizeToken(value);
+    if (token == "a" || token == "south" || token == "cross")
+        return static_cast<int>(ControllerButton::A);
+    if (token == "b" || token == "east" || token == "circle")
+        return static_cast<int>(ControllerButton::B);
+    if (token == "x" || token == "west" || token == "square")
+        return static_cast<int>(ControllerButton::X);
+    if (token == "y" || token == "north" || token == "triangle")
+        return static_cast<int>(ControllerButton::Y);
+    if (token == "leftbumper" || token == "leftshoulder" || token == "l1")
+        return static_cast<int>(ControllerButton::LeftBumper);
+    if (token == "rightbumper" || token == "rightshoulder" || token == "r1")
+        return static_cast<int>(ControllerButton::RightBumper);
+    if (token == "back" || token == "select" || token == "share" ||
+        token == "minus")
+        return static_cast<int>(ControllerButton::Back);
+    if (token == "start" || token == "options" || token == "plus")
+        return static_cast<int>(ControllerButton::Start);
+    if (token == "guide" || token == "home")
+        return static_cast<int>(ControllerButton::Guide);
+    if (token == "leftthumb" || token == "leftstick")
+        return static_cast<int>(ControllerButton::LeftThumb);
+    if (token == "rightthumb" || token == "rightstick")
+        return static_cast<int>(ControllerButton::RightThumb);
+    if (token == "dpadup")
+        return static_cast<int>(ControllerButton::DPadUp);
+    if (token == "dpadright")
+        return static_cast<int>(ControllerButton::DPadRight);
+    if (token == "dpaddown")
+        return static_cast<int>(ControllerButton::DPadDown);
+    if (token == "dpadleft")
+        return static_cast<int>(ControllerButton::DPadLeft);
+    throw std::runtime_error("Unknown controller button: " + value);
+}
+
+int parseControllerAxisString(const std::string &value) {
+    const std::string token = normalizeToken(value);
+    if (token == "leftstickx" || token == "leftx")
+        return CONTROLLER_AXIS_LEFT_X;
+    if (token == "leftsticky" || token == "lefty")
+        return CONTROLLER_AXIS_LEFT_Y;
+    if (token == "rightstickx" || token == "rightx")
+        return CONTROLLER_AXIS_RIGHT_X;
+    if (token == "rightsticky" || token == "righty")
+        return CONTROLLER_AXIS_RIGHT_Y;
+    if (token == "lefttrigger" || token == "triggerleft" || token == "l2")
+        return CONTROLLER_AXIS_LEFT_TRIGGER;
+    if (token == "righttrigger" || token == "triggerright" || token == "r2")
+        return CONTROLLER_AXIS_RIGHT_TRIGGER;
+    throw std::runtime_error("Unknown controller axis: " + value);
+}
+
 Trigger parseTrigger(const json &triggerData) {
     if (triggerData.is_string()) {
         const std::string raw = triggerData.get<std::string>();
@@ -3453,8 +3506,17 @@ Trigger parseTrigger(const json &triggerData) {
         int controllerId = -1;
         int buttonIndex = -1;
         JSON_READ_INT(triggerData, "id", controllerId);
-        JSON_READ_INT(triggerData, "button", buttonIndex);
-        JSON_READ_INT(triggerData, "buttonIndex", buttonIndex);
+        const auto button = triggerData.find("button");
+        const auto legacyButton = triggerData.find("buttonIndex");
+        const auto selected = button != triggerData.end() ? button
+                                                          : legacyButton;
+        if (selected != triggerData.end()) {
+            if (selected->is_string())
+                buttonIndex =
+                    parseControllerButtonString(selected->get<std::string>());
+            else if (selected->is_number_integer())
+                buttonIndex = selected->get<int>();
+        }
         if (buttonIndex < 0) {
             throw std::runtime_error("Controller trigger is missing button");
         }
@@ -3499,13 +3561,20 @@ AxisTrigger parseAxisTrigger(const json &triggerData) {
         int axisIndex = -1;
         int axisIndexY = -1;
         JSON_READ_INT(triggerData, "id", controllerId);
-        JSON_READ_INT(triggerData, "index", axisIndex);
-        JSON_READ_INT(triggerData, "indexY", axisIndexY);
+        auto readAxis = [](const json &value) {
+            return value.is_string()
+                       ? parseControllerAxisString(value.get<std::string>())
+                       : value.get<int>();
+        };
+        if (triggerData.contains("index"))
+            axisIndex = readAxis(triggerData["index"]);
+        if (triggerData.contains("indexY"))
+            axisIndexY = readAxis(triggerData["indexY"]);
         if (axisIndex < 0 && triggerData.contains("indexes") &&
             triggerData["indexes"].is_array() &&
             triggerData["indexes"].size() == 2) {
-            axisIndex = triggerData["indexes"][0].get<int>();
-            axisIndexY = triggerData["indexes"][1].get<int>();
+            axisIndex = readAxis(triggerData["indexes"][0]);
+            axisIndexY = readAxis(triggerData["indexes"][1]);
         }
         if (axisIndex < 0) {
             throw std::runtime_error(
@@ -4927,6 +4996,42 @@ bool Context::editorKeyEvent(int key, bool pressed) {
         throw std::runtime_error("Window is not initialized");
     }
     window->editorKeyEvent(key, pressed);
+    return true;
+}
+
+bool Context::editorRuntimeKeyEvent(int key, bool pressed) {
+    if (window == nullptr)
+        return false;
+    window->editorRuntimeKeyEvent(key, pressed);
+    return true;
+}
+
+bool Context::editorRuntimeMouseMove(float x, float y, float deltaX,
+                                     float deltaY) {
+    if (window == nullptr)
+        return false;
+    window->editorRuntimeMouseMove(x, y, deltaX, deltaY);
+    return true;
+}
+
+bool Context::editorRuntimeMouseButtonEvent(int action, int button) {
+    if (window == nullptr)
+        return false;
+    window->editorRuntimeMouseButtonEvent(action, button);
+    return true;
+}
+
+bool Context::editorRuntimeScrollEvent(float x, float y) {
+    if (window == nullptr)
+        return false;
+    window->editorRuntimeScrollEvent(x, y);
+    return true;
+}
+
+bool Context::clearEditorRuntimeInput() {
+    if (window == nullptr)
+        return false;
+    window->clearEditorRuntimeInput();
     return true;
 }
 
@@ -6762,13 +6867,14 @@ void RuntimeScene::update(Window &window) {
         return;
     }
 
-    if (runtimeContext->cameraActions.size() >= 3) {
-        runtimeContext->camera->updateWithActions(
-            window, runtimeContext->cameraActions[0],
-            runtimeContext->cameraActions[1], runtimeContext->cameraActions[2]);
-    } else {
-        runtimeContext->camera->update(window);
-    }
+    static const std::string emptyAction;
+    const auto actionAt = [&](std::size_t index) -> const std::string & {
+        return index < runtimeContext->cameraActions.size()
+                   ? runtimeContext->cameraActions[index]
+                   : emptyAction;
+    };
+    runtimeContext->camera->updateWithActions(window, actionAt(0), actionAt(1),
+                                              actionAt(2));
 
     if (runtimeContext->context != nullptr) {
         runtime::scripting::dispatchInteractiveFrame(
@@ -6792,13 +6898,6 @@ void RuntimeScene::onMouseMove(Window &window, Movement2d movement) {
             runtimeContext->context, runtimeContext->scriptHost, window, packet,
             window.getDeltaTime());
     }
-
-    if (runtimeContext == nullptr || runtimeContext->camera == nullptr ||
-        !runtimeContext->cameraAutomaticMoving ||
-        runtimeContext->cameraActions.size() >= 3) {
-        return;
-    }
-    runtimeContext->camera->updateLook(window, movement);
 }
 
 void RuntimeScene::onMouseScroll(Window &window, Movement2d offset) {
@@ -6809,13 +6908,6 @@ void RuntimeScene::onMouseScroll(Window &window, Movement2d offset) {
             runtimeContext->context, runtimeContext->scriptHost, packet,
             window.getDeltaTime());
     }
-
-    if (runtimeContext == nullptr || runtimeContext->camera == nullptr ||
-        !runtimeContext->cameraAutomaticMoving ||
-        runtimeContext->cameraActions.size() >= 3) {
-        return;
-    }
-    runtimeContext->camera->updateZoom(window, offset);
 }
 
 void Context::loadMainScene(Window &window) {
