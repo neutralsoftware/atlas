@@ -643,6 +643,19 @@ void ViewportPanel::startRuntime() {
         runtimeContext->setEditorShadingMode(shadingMode);
         runtimeContext->setEditorPathTracingPreview(pbrPreview);
         resizeRuntime();
+        emit runtimeAvailabilityChanged(true);
+        emit cameraFocusChanged(false);
+        playbackState = 0;
+        emit playbackStateChanged(playbackState);
+        emit runtimeLoadingStatusChanged("Preparing viewport...");
+        QCoreApplication::processEvents(QEventLoop::ExcludeUserInputEvents);
+        if (!stepRuntime()) {
+            emit runtimeErrorOccurred("The first viewport frame failed");
+            emit runtimeLoadingFinished();
+            emit runtimeStartupFinished(false,
+                                        "The first viewport frame failed");
+            return;
+        }
         refreshSceneSnapshot();
         if (!selectionToRestore.isEmpty()) {
             const QJsonDocument document =
@@ -658,20 +671,7 @@ void ViewportPanel::startRuntime() {
                 emit runtimeObjectActivated(restoredId);
             }
         }
-        emit runtimeAvailabilityChanged(true);
-        emit cameraFocusChanged(false);
-        playbackState = 0;
-        emit playbackStateChanged(playbackState);
         emit sceneOpened(currentRuntimeScene());
-        emit runtimeLoadingStatusChanged("Preparing viewport...");
-        QCoreApplication::processEvents(QEventLoop::ExcludeUserInputEvents);
-        if (!stepRuntime()) {
-            emit runtimeErrorOccurred("The first viewport frame failed");
-            emit runtimeLoadingFinished();
-            emit runtimeStartupFinished(false,
-                                        "The first viewport frame failed");
-            return;
-        }
         frameTimer->start(RuntimeFrameIntervalMs);
         emit runtimeLoadingFinished();
         emit runtimeStartupFinished(true, {});
