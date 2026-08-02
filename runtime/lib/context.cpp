@@ -336,6 +336,13 @@ std::string normalizeToken(std::string value) {
     return normalized;
 }
 
+std::string propertyNameToken(const std::string &path) {
+    const std::size_t separator = path.find_last_of('/');
+    return normalizeToken(separator == std::string::npos
+                              ? path
+                              : path.substr(separator + 1));
+}
+
 std::string resolveRuntimePath(const std::string &baseDir,
                                const std::string &path) {
     const std::filesystem::path candidate(path);
@@ -4626,6 +4633,7 @@ runtime::makeMaterialPreviewContextForMetalView(std::string projectFile,
                                                     metalView, nullptr);
         context->editorRuntime = false;
         context->materialPreviewRuntime = true;
+        context->loadProject();
         restorePrevious();
         return context;
     } catch (...) {
@@ -5181,7 +5189,7 @@ std::optional<json> propertySyncSourceValue(Context &context,
     if (component == "bounds")
         return editorObjectBoundsSize(*object);
     if (component == "transform") {
-        const std::string property = normalizeToken(path);
+        const std::string property = propertyNameToken(path);
         if (property == "position")
             return vec3ToJson(object->getPosition());
         if (property == "rotation")
@@ -5473,7 +5481,7 @@ bool Context::setObjectProperty(int id, const std::string &component,
         if (!readEditorVec3(value, vector)) {
             return false;
         }
-        const std::string property = normalizeToken(propertyPath);
+        const std::string property = propertyNameToken(propertyPath);
         if (property == "position") {
             object->setPosition(vector);
         } else if (property == "rotation") {
@@ -5588,44 +5596,11 @@ bool Context::setSceneProperty(const std::string &section, int index,
         return true;
     }
     if (normalizedSection == "environment") {
-        if (!setJsonProperty(editorEnvironmentData, propertyPath, value))
-            return false;
-        try {
-            WindowActivationScope activeWindow(*window);
-            RuntimeEnvironmentDefinition definition =
-                loadEnvironmentDefinition(
-                    json{{"environment", editorEnvironmentData}}, sceneDir);
-            scene->clearLights();
-            for (const auto &light : directionalLights)
-                scene->addDirectionalLight(light.get());
-            for (const auto &light : pointLights)
-                scene->addLight(light.get());
-            for (const auto &light : spotlights)
-                scene->addSpotlight(light.get());
-            for (const auto &light : areaLights)
-                scene->addAreaLight(light.get());
-            scene->setUseAtmosphereSkybox(false);
-            scene->setAtmosphereSkybox(nullptr);
-            scene->atmosphere.resetRuntimeState();
-            scene->setEnvironment(std::move(definition.environment));
-            scene->atmosphere = std::move(definition.atmosphere);
-            scene->setUseAtmosphereSkybox(definition.useAtmosphereSkybox);
-            scene->setAutomaticAmbient(definition.automaticAmbient);
-            if (definition.useGlobalLight) {
-                scene->atmosphere.useGlobalLight();
-                if (definition.atmosphereCastsShadows) {
-                    scene->atmosphere.castShadowsFromSunlight(
-                        definition.atmosphereShadowResolution);
-                }
-            }
-            scene->updateScene(0.0f);
+        const bool changed =
+            setJsonProperty(editorEnvironmentData, propertyPath, value);
+        if (changed)
             applyPropertySyncs(*this, true);
-            return true;
-        } catch (const std::exception &error) {
-            if (errorReporter)
-                errorReporter(error.what());
-            return false;
-        }
+        return changed;
     }
     if (normalizedSection == "target" || normalizedSection == "targets") {
         if (index < 0 && propertyPath.empty() && value.is_array()) {
@@ -5713,7 +5688,6 @@ bool Context::initializeMaterialPreview(const std::string &definition,
 
     WindowActivationScope activeWindow(*window);
     sceneDir = baseDir;
-    config.renderer = "deferred";
     camera = std::make_unique<Camera>();
     camera->setPosition({0.0f, 0.0f, 2.15f});
     camera->lookAt(Position3d::zero());
@@ -5774,6 +5748,9 @@ bool Context::setMaterialPreviewMaterial(const std::string &definition,
         WindowActivationScope activeWindow(*window);
         applyMaterial(*sphere,
                       loadMaterialDefinition(json::parse(definition), baseDir));
+#ifdef METAL
+        window->resetPathTracingAccumulation();
+#endif
         return true;
     } catch (const std::exception &error) {
         RUNTIME_LOG("Material preview could not be updated: " +
@@ -5871,6 +5848,9 @@ bool Context::setMaterialPreviewEnvironment(int mode) {
     areaLights[1]->shineColor = rim;
     areaLights[1]->intensity = rimIntensity;
     window->setClearColor(background);
+#ifdef METAL
+    window->resetPathTracingAccumulation();
+#endif
 
     return true;
 }
@@ -5889,6 +5869,9 @@ bool Context::rotateMaterialPreview(float yawDelta, float pitchDelta) {
     WindowActivationScope activeWindow(*window);
     sphere->setRotation(
         Rotation3d{materialPreviewPitch, materialPreviewYaw, 0.0f});
+#ifdef METAL
+    window->resetPathTracingAccumulation();
+#endif
     return true;
 }
 

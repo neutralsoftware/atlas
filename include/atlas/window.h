@@ -508,6 +508,7 @@ class Window {
     void enablePathTracing();
     void configurePathTracing(int samplesPerPixel, int bounceLimit,
                               bool denoising, int accumulationFrames);
+    void resetPathTracingAccumulation();
     bool setEditorPathTracingPreview(bool enabled);
     const std::string &getPathTracingError() const;
 #endif

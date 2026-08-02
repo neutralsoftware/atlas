@@ -1622,13 +1622,10 @@ void InspectorPanel::showObject(const QJsonObject &object) {
     auto update = [runtime, objectId](const QString &component, int index,
                                       const QString &path,
                                       const QJsonValue &value) {
-        QTimer::singleShot(0,
-                           [runtime, objectId, component, index, path, value] {
-                               if (runtime != nullptr) {
-                                   runtime->setRuntimeObjectProperty(
-                                       objectId, component, index, path, value);
-                               }
-                           });
+        if (runtime != nullptr) {
+            runtime->setRuntimeObjectProperty(objectId, component, index, path,
+                                              value);
+        }
     };
     QJsonObject transform{{"position", object.value("position")},
                           {"rotation", object.value("rotation")},

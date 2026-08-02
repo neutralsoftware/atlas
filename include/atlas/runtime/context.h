@@ -171,6 +171,9 @@ class Context {
                                     const std::string &baseDir);
     bool setMaterialPreviewEnvironment(int mode);
     bool rotateMaterialPreview(float yawDelta, float pitchDelta);
+    bool materialPreviewUsesPathTracing() const {
+        return materialPreviewRuntime && config.renderer == "pathtracing";
+    }
     int addObjectComponent(int id, const json &component);
     bool removeObjectComponent(int id, int componentIndex);
     bool controlObjectAudio(int id, int componentIndex,

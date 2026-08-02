@@ -18,7 +18,21 @@ void RuntimeScene::initialize(Window &window) {
     }
 
     if (runtimeContext->materialPreviewRuntime) {
-        window.useDeferredRendering();
+        if (runtimeContext->config.renderer == "pathtracing") {
+            window.enablePathTracing();
+            window.configurePathTracing(
+                runtimeContext->config.pathTracingSamples,
+                runtimeContext->config.pathTracingBounces,
+                runtimeContext->config.pathTracingDenoising,
+                runtimeContext->config.pathTracingAccumulationFrames);
+        } else {
+            window.useDeferredRendering();
+        }
+        if (runtimeContext->config.useUpscaling) {
+#ifdef METAL
+            window.useMetalUpscaling(runtimeContext->config.upscalingRatio);
+#endif
+        }
         return;
     }
 

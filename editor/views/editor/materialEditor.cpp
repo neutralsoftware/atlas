@@ -278,7 +278,9 @@ class MaterialPreviewWidget : public QWidget {
                 return;
             }
             pendingFrames = std::max(0, pendingFrames - 1);
-            if (pendingFrames > 0 && isVisible())
+            if (isVisible() && runtimeContext->materialPreviewUsesPathTracing())
+                frameTimer->start(1);
+            else if (pendingFrames > 0 && isVisible())
                 frameTimer->start(1);
         } catch (const std::exception &error) {
             qWarning().noquote()

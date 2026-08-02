@@ -5685,6 +5685,12 @@ void Window::configurePathTracing(int samplesPerPixel, int bounceLimit,
                           accumulationFrames);
 }
 
+void Window::resetPathTracingAccumulation() {
+    if (pathTracer != nullptr) {
+        pathTracer->resetAccumulation();
+    }
+}
+
 bool Window::setEditorPathTracingPreview(bool enabled) {
     if (pathTracer == nullptr) {
         return false;

@@ -3,11 +3,36 @@
 
 #include <QDoubleSpinBox>
 #include <QLineEdit>
+#include <QLocale>
 #include <QMouseEvent>
 #include <QSpinBox>
 #include <QTimer>
 
 #include <cmath>
+
+class FlexibleDoubleSpinBox : public QDoubleSpinBox {
+  public:
+    explicit FlexibleDoubleSpinBox(QWidget *parent = nullptr)
+        : QDoubleSpinBox(parent) {}
+
+  protected:
+    double valueFromText(const QString &text) const override {
+        return QDoubleSpinBox::valueFromText(normalizedText(text));
+    }
+
+    QValidator::State validate(QString &text, int &position) const override {
+        QString normalized = normalizedText(text);
+        return QDoubleSpinBox::validate(normalized, position);
+    }
+
+  private:
+    QString normalizedText(QString text) const {
+        const QString decimalPoint = locale().decimalPoint();
+        text.replace('.', decimalPoint);
+        text.replace(',', decimalPoint);
+        return text;
+    }
+};
 
 template <typename SpinBox> class ScrubbableSpinBoxBase : public SpinBox {
   public:
@@ -71,7 +96,7 @@ template <typename SpinBox> class ScrubbableSpinBoxBase : public SpinBox {
     bool selectOnRelease = false;
 };
 
-using ScrubbableDoubleSpinBox = ScrubbableSpinBoxBase<QDoubleSpinBox>;
+using ScrubbableDoubleSpinBox = ScrubbableSpinBoxBase<FlexibleDoubleSpinBox>;
 using ScrubbableSpinBox = ScrubbableSpinBoxBase<QSpinBox>;
 
 #endif
