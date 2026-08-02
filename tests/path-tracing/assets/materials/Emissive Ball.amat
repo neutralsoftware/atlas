@@ -13,12 +13,12 @@
             1,
             1
         ],
-        "emissiveIntensity": 10,
+        "emissiveIntensity": 1,
         "ior": 1.45,
         "metallic": 0,
         "normalMapStrength": 1,
         "reflectivity": 0.5,
-        "roughness": 1.0,
+        "roughness": 1,
         "textureOffset": [
             0,
             0
