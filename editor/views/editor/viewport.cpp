@@ -22,6 +22,7 @@
 #include <QDragEnterEvent>
 #include <QDropEvent>
 #include <QEventLoop>
+#include <QApplication>
 #include <QFile>
 #include <QFileInfo>
 #include <QHideEvent>
@@ -476,11 +477,69 @@ ViewportPanel::ViewportPanel(const QString &projectFile, QWidget *parent)
 }
 
 bool ViewportPanel::event(QEvent *event) {
-    if (playbackState == 1 && event->type() == QEvent::ShortcutOverride) {
+    if (routeRuntimeInputEvent(event))
+        return true;
+    return QWidget::event(event);
+}
+
+bool ViewportPanel::routeRuntimeInputEvent(QEvent *event) {
+    if (playbackState != 1 || runtimeContext == nullptr || event == nullptr)
+        return false;
+    if (event->type() == QEvent::ShortcutOverride) {
         event->accept();
         return true;
     }
-    return QWidget::event(event);
+    if (event->type() == QEvent::KeyPress ||
+        event->type() == QEvent::KeyRelease) {
+        auto *keyEvent = static_cast<QKeyEvent *>(event);
+        if (event->type() == QEvent::KeyPress &&
+            keyEvent->key() == Qt::Key_Escape &&
+            !keyEvent->isAutoRepeat()) {
+            stopRuntimePlayback();
+            event->accept();
+            return true;
+        }
+        const int key = runtimeKey(keyEvent);
+        if (key >= 0 && !keyEvent->isAutoRepeat())
+            runtimeContext->editorRuntimeKeyEvent(
+                key, event->type() == QEvent::KeyPress);
+        event->accept();
+        return true;
+    }
+    if (event->type() == QEvent::MouseMove) {
+        auto *mouseEvent = static_cast<QMouseEvent *>(event);
+        const QPoint center = mapToGlobal(QPoint(width() / 2, height() / 2));
+        const QPointF delta = mouseEvent->globalPosition() - QPointF(center);
+        if (!qFuzzyIsNull(delta.x()) || !qFuzzyIsNull(delta.y())) {
+            runtimeContext->editorRuntimeMouseMove(
+                static_cast<float>(width()) * 0.5f,
+                static_cast<float>(height()) * 0.5f,
+                static_cast<float>(delta.x()),
+                static_cast<float>(-delta.y()));
+            QCursor::setPos(center);
+        }
+        event->accept();
+        return true;
+    }
+    if (event->type() == QEvent::MouseButtonPress ||
+        event->type() == QEvent::MouseButtonDblClick ||
+        event->type() == QEvent::MouseButtonRelease) {
+        auto *mouseEvent = static_cast<QMouseEvent *>(event);
+        runtimeContext->editorRuntimeMouseButtonEvent(
+            event->type() == QEvent::MouseButtonRelease ? 2 : 0,
+            runtimeMouseButton(mouseEvent->button()));
+        event->accept();
+        return true;
+    }
+    if (event->type() == QEvent::Wheel) {
+        auto *wheelEvent = static_cast<QWheelEvent *>(event);
+        runtimeContext->editorRuntimeScrollEvent(
+            static_cast<float>(wheelEvent->angleDelta().x()) / 120.0f,
+            static_cast<float>(wheelEvent->angleDelta().y()) / 120.0f);
+        event->accept();
+        return true;
+    }
+    return false;
 }
 
 ViewportPanel::~ViewportPanel() { shutdownRuntime(); }
@@ -601,12 +660,8 @@ void ViewportPanel::shutdownRuntime() {
 
 void ViewportPanel::mousePressEvent(QMouseEvent *event) {
     setFocus(Qt::MouseFocusReason);
-    if (playbackState == 1 && runtimeContext != nullptr) {
-        runtimeContext->editorRuntimeMouseButtonEvent(
-            0, runtimeMouseButton(event->button()));
-        event->accept();
+    if (routeRuntimeInputEvent(event))
         return;
-    }
     if (keyboardTransformActive && (event->button() == Qt::LeftButton ||
                                     event->button() == Qt::RightButton)) {
         finishKeyboardTransform(event->button() == Qt::LeftButton);
@@ -644,20 +699,8 @@ void ViewportPanel::mousePressEvent(QMouseEvent *event) {
 }
 
 void ViewportPanel::mouseMoveEvent(QMouseEvent *event) {
-    if (playbackState == 1 && runtimeContext != nullptr) {
-        const QPoint center(width() / 2, height() / 2);
-        const QPointF delta = event->position() - QPointF(center);
-        if (!qFuzzyIsNull(delta.x()) || !qFuzzyIsNull(delta.y())) {
-            runtimeContext->editorRuntimeMouseMove(
-                static_cast<float>(event->position().x()),
-                static_cast<float>(height() - event->position().y()),
-                static_cast<float>(delta.x()),
-                static_cast<float>(-delta.y()));
-            QCursor::setPos(mapToGlobal(center));
-        }
-        event->accept();
+    if (routeRuntimeInputEvent(event))
         return;
-    }
     if (event->buttons().testFlag(Qt::LeftButton))
         leftPointerMoved = true;
     sendPointerEvent(1, static_cast<float>(event->position().x()),
@@ -690,12 +733,8 @@ void ViewportPanel::mouseMoveEvent(QMouseEvent *event) {
 }
 
 void ViewportPanel::mouseReleaseEvent(QMouseEvent *event) {
-    if (playbackState == 1 && runtimeContext != nullptr) {
-        runtimeContext->editorRuntimeMouseButtonEvent(
-            2, runtimeMouseButton(event->button()));
-        event->accept();
+    if (routeRuntimeInputEvent(event))
         return;
-    }
     const int pointerButton = event->button() == Qt::RightButton
                                   ? rightDragRuntimeButton
                               : event->button() == Qt::MiddleButton
@@ -722,17 +761,14 @@ void ViewportPanel::mouseReleaseEvent(QMouseEvent *event) {
 }
 
 void ViewportPanel::wheelEvent(QWheelEvent *event) {
+    if (routeRuntimeInputEvent(event))
+        return;
     if (runtimeContext == nullptr) {
         QWidget::wheelEvent(event);
         return;
     }
     const float deltaX = static_cast<float>(event->angleDelta().x()) / 120.0f;
     const float delta = static_cast<float>(event->angleDelta().y()) / 120.0f;
-    if (playbackState == 1) {
-        runtimeContext->editorRuntimeScrollEvent(deltaX, delta);
-        event->accept();
-        return;
-    }
     if (std::abs(delta) > 0.0f) {
         runtimeContext->editorScrollEvent(delta, widgetScale(this));
     }
@@ -740,18 +776,8 @@ void ViewportPanel::wheelEvent(QWheelEvent *event) {
 }
 
 void ViewportPanel::keyPressEvent(QKeyEvent *event) {
-    if (playbackState == 1 && runtimeContext != nullptr) {
-        if (event->key() == Qt::Key_Escape && !event->isAutoRepeat()) {
-            stopRuntimePlayback();
-            event->accept();
-            return;
-        }
-        const int key = runtimeKey(event);
-        if (key >= 0 && !event->isAutoRepeat())
-            runtimeContext->editorRuntimeKeyEvent(key, true);
-        event->accept();
+    if (routeRuntimeInputEvent(event))
         return;
-    }
     if (!event->isAutoRepeat() && runtimeContext != nullptr &&
         playbackState == 0) {
         if (event->key() == Qt::Key_0 &&
@@ -817,13 +843,8 @@ void ViewportPanel::keyPressEvent(QKeyEvent *event) {
 }
 
 void ViewportPanel::keyReleaseEvent(QKeyEvent *event) {
-    if (playbackState == 1 && runtimeContext != nullptr) {
-        const int key = runtimeKey(event);
-        if (key >= 0 && !event->isAutoRepeat())
-            runtimeContext->editorRuntimeKeyEvent(key, false);
-        event->accept();
+    if (routeRuntimeInputEvent(event))
         return;
-    }
     const int key = editorCameraKey(event->key());
     if (event->isAutoRepeat()) {
         if (key >= 0) {
@@ -1659,12 +1680,12 @@ void ViewportPanel::stopRuntimePlayback() {
 }
 
 void ViewportPanel::captureRuntimeInput() {
-    if (runtimeInputCaptured || playbackState != 1 || !isVisible())
+    if (runtimeInputCaptured || playbackState != 1)
         return;
     setFocus(Qt::OtherFocusReason);
     grabKeyboard();
     grabMouse();
-    setCursor(Qt::BlankCursor);
+    QApplication::setOverrideCursor(Qt::BlankCursor);
     runtimeInputCaptured = true;
     QCursor::setPos(mapToGlobal(QPoint(width() / 2, height() / 2)));
 }
@@ -1676,7 +1697,7 @@ void ViewportPanel::releaseRuntimeInput() {
         return;
     releaseKeyboard();
     releaseMouse();
-    unsetCursor();
+    QApplication::restoreOverrideCursor();
     runtimeInputCaptured = false;
 }
 

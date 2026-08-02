@@ -109,6 +109,7 @@ class ViewportPanel : public QWidget {
     void toggleCameraFocus();
     bool isCameraFocused() const;
     bool isRuntimePlaying() const { return playbackState == 1; }
+    bool routeRuntimeInputEvent(QEvent *event);
 
   signals:
     void sceneSnapshotChanged(const QString &snapshot);

@@ -2209,9 +2209,10 @@ bool EditorWindow::eventFilter(QObject *watched, QEvent *event) {
             dialog->setAttribute(Qt::WA_TranslucentBackground);
         }
     }
+    if (viewportPanel != nullptr &&
+        viewportPanel->routeRuntimeInputEvent(event))
+        return true;
     if (event->type() == QEvent::KeyPress) {
-        if (viewportPanel != nullptr && viewportPanel->isRuntimePlaying())
-            return QMainWindow::eventFilter(watched, event);
         auto *key = static_cast<QKeyEvent *>(event);
         if (!key->isAutoRepeat() && key->matches(QKeySequence::Undo)) {
             undoActiveEditor();
