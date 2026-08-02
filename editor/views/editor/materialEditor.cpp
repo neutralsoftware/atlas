@@ -337,6 +337,11 @@ MaterialEditorPanel::~MaterialEditorPanel() {
     }
 }
 
+void MaterialEditorPanel::flushPendingSave() {
+    if (saveTimer->isActive())
+        saveMaterial();
+}
+
 QJsonObject
 MaterialEditorPanel::normalizedMaterial(const QJsonObject &source) const {
     QJsonObject result = source;

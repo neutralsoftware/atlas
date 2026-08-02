@@ -23,6 +23,9 @@ class PostProcessingPanel : public QWidget {
   public slots:
     void applySceneSnapshot(const QString &snapshot);
 
+  signals:
+    void settingsChanged();
+
   private:
     void rebuildTargetList();
     void rebuildEditor();

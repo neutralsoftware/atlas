@@ -100,6 +100,7 @@ class EditorWindow : public QMainWindow {
     bool restoringLayout = false;
     bool startupQueued = false;
     bool startupComplete = false;
+    bool workspaceChangesPending = false;
 
     void closeEvent(QCloseEvent *event) override;
     void showEvent(QShowEvent *event) override;

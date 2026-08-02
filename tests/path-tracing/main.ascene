@@ -34,7 +34,10 @@
             }
         },
         "atmosphereSky": false,
-        "automaticAmbient": false
+        "automaticAmbient": false,
+        "lightBloom": {
+            "threshold": 2.108
+        }
     },
     "id": "main_scene",
     "lights": [],
@@ -229,12 +232,7 @@
     "targets": [
         {
             "display": true,
-            "effects": [
-                {
-                    "amount": 1,
-                    "type": "film_grain"
-                }
-            ],
+            "effects": [],
             "name": "Main Target",
             "render": true,
             "type": "scene"

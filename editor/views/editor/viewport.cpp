@@ -265,21 +265,16 @@ ViewportPanel::ViewportPanel(const QString &projectFile, QWidget *parent)
 
     frameTimer = new QTimer(this);
     resizeTimer = new QTimer(this);
-    environmentReloadTimer = new QTimer(this);
     undoStack = new QUndoStack(this);
     frameTimer->setTimerType(Qt::PreciseTimer);
     frameTimer->setSingleShot(true);
     resizeTimer->setSingleShot(true);
     resizeTimer->setInterval(0);
-    environmentReloadTimer->setSingleShot(true);
-    environmentReloadTimer->setInterval(140);
     connect(frameTimer, &QTimer::timeout, this, [this] {
         if (stepRuntime() && isVisible())
             frameTimer->start(pbrPreview ? 16 : 1);
     });
     connect(resizeTimer, &QTimer::timeout, this, [this] { resizeRuntime(); });
-    connect(environmentReloadTimer, &QTimer::timeout, this,
-            &ViewportPanel::reloadRuntime);
     if (auto *app = QCoreApplication::instance()) {
         connect(app, &QCoreApplication::aboutToQuit, this,
                 [this] { shutdownRuntime(); });
@@ -396,8 +391,6 @@ void ViewportPanel::shutdownRuntime() {
     runtimeStartQueued = false;
     if (resizeTimer != nullptr)
         resizeTimer->stop();
-    if (environmentReloadTimer != nullptr)
-        environmentReloadTimer->stop();
     stopRuntime();
 }
 
@@ -898,8 +891,6 @@ bool ViewportPanel::setRuntimeSceneProperty(const QString &section, int index,
     runtimeContext->saveCurrentScene();
     refreshSceneSnapshot();
     setSceneDirty(true);
-    if (section.compare("environment", Qt::CaseInsensitive) == 0)
-        environmentReloadTimer->start();
     return true;
 }
 

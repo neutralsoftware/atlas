@@ -400,24 +400,14 @@ vec4 applyColorEffects(vec4 color) {
 
             vec3 seed = vec3(gl_FragCoord.xy, deltaTime * 100.0);
 
-            vec3 noise;
-            float n;
-
-            n = dot(seed, vec3(12.9898, 78.233, 45.164));
-            noise.r = fract(sin(n) * 43758.5453);
-
-            n = dot(seed, vec3(93.989, 67.345, 12.989));
-            noise.g = fract(sin(n) * 28001.1234);
-
-            n = dot(seed, vec3(39.346, 11.135, 83.155));
-            noise.b = fract(sin(n) * 19283.4567);
-
-            vec3 grain = (noise - 0.5) * 2.0 * amount;
+            float n = dot(seed, vec3(12.9898, 78.233, 45.164));
+            float noise = fract(sin(n) * 43758.5453);
+            float grain = (noise - 0.5) * 2.0 * amount;
 
             float luminance = dot(color.rgb, vec3(0.299, 0.587, 0.114));
             float visibility = 1.0 - abs(luminance - 0.5) * 0.5;
 
-            color.rgb += grain * visibility;
+            color.rgb += vec3(grain * visibility);
             color.rgb = clamp(color.rgb, 0.0, 1.0);
         }
     }

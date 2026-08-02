@@ -2738,7 +2738,6 @@ static inline __attribute__((always_inline))
 float4 applyColorEffects(thread float4& color, constant PushConstants& _372, device EffectBuffer& _381, device EffectFloat1Buffer& _394, device EffectFloat2Buffer& _403, device EffectFloat3Buffer& _411, device EffectFloat4Buffer& _419, device EffectFloat5Buffer& _426, constant Uniforms& _849, device EffectFloat6Buffer& _1049, thread float4& gl_FragCoord)
 {
     ColorCorrection cc;
-    float3 _noise;
     for (int i = 0; i < _372.EffectCount; i++)
     {
         if (_381.Effects[i] == 0)
@@ -2790,19 +2789,15 @@ float4 applyColorEffects(thread float4& color, constant PushConstants& _372, dev
                             float amount = _394.EffectFloat1[i];
                             float3 seed = float3(gl_FragCoord.xy, _849.deltaTime * 100.0);
                             float n = dot(seed, float3(12.98980045318603515625, 78.233001708984375, 45.16400146484375));
-                            _noise.x = fract(sin(n) * 43758.546875);
-                            n = dot(seed, float3(93.9889984130859375, 67.345001220703125, 12.9890003204345703125));
-                            _noise.y = fract(sin(n) * 28001.123046875);
-                            n = dot(seed, float3(39.34600067138671875, 11.1350002288818359375, 83.154998779296875));
-                            _noise.z = fract(sin(n) * 19283.45703125);
-                            float3 grain = ((_noise - float3(0.5)) * 2.0) * amount;
-                            float luminance = dot(color.xyz)",
-R"(, float3(0.2989999949932098388671875, 0.58700001239776611328125, 0.114000000059604644775390625));
+                            float noise = fract(sin(n) * 43758.546875);
+                            float grain = ((noise - 0.5) * 2.0) * amount;
+                            float luminance = dot(color.xyz, float3(0.2989999949932098388671875, 0.58700001239776611328125, 0.114000000059604644775390625));
                             float visibility = 1.0 - (abs(luminance - 0.5) * 0.5);
                             float4 _1210 = color;
-                            float3 _1212 = _1210.xyz + (grain * visibility);
+                            float3 _1212 = _1210.xyz + float3(grain * visibility);
                             color.x = _1212.x;
-                            color.y = _1212.y;
+                            color.y = _12)",
+R"(12.y;
                             color.z = _1212.z;
                             float4 _1219 = color;
                             float3 _1223 = fast::clamp(_1219.xyz, float3(0.0), float3(1.0));
@@ -2986,8 +2981,7 @@ float4 cloudRendering(thread const float4& inColor, thread float2& TexCoord, con
         return inColor;
     }
     float dstLimit = fast::min(sceneDistance - distToContainer, distInContainer);
-    dstLimit = fast::)",
-R"(max(dstLimit, 0.0);
+    dstLimit = fast::max(dstLimit, 0.0);
     if (dstLimit <= 9.9999997473787516355514526367188e-05)
     {
         return inColor;
@@ -2997,7 +2991,8 @@ R"(max(dstLimit, 0.0);
     float stepSize = fast::max(baseStep, _1929.cloudMinStepLength);
     float3 param_4 = float3(TexCoord, _849.time);
     float jitter = hashNoise(param_4) - 0.5;
-    float travelled = fast::clamp(jitter, -0.3499999940395355224609375, 0.3499999940395355224609375) * stepSize;
+    float travelled = f)",
+R"(ast::clamp(jitter, -0.3499999940395355224609375, 0.3499999940395355224609375) * stepSize;
     travelled = fast::max(travelled, 0.0);
     float3 accumulatedLight = float3(0.0);
     float transmittance = 1.0;
@@ -3159,8 +3154,8 @@ float4 composeLighting(thread const float2& uv, thread const float4& baseColor, 
 }
 
 static inline __attribute__((always_inline))
-float4 applyMotionBlur(thr)",
-R"(ead const float2& texCoord, thread const float& size, thread const float& separation, thread const float4& color, constant PushConstants& _372, device EffectBuffer& _381, device EffectFloat1Buffer& _394, device EffectFloat2Buffer& _403, device EffectFloat3Buffer& _411, device EffectFloat4Buffer& _419, device EffectFloat5Buffer& _426, texture2d<float> Texture, sampler TextureSmplr, texture2d<float> BrightTexture, sampler BrightTextureSmplr, constant Uniforms& _849, texture2d<float> VolumetricLightTexture, sampler VolumetricLightTextureSmplr, texture2d<float> SSRTexture, sampler SSRTextureSmplr, texture2d<float> PositionTexture, sampler PositionTextureSmplr, texture2d<float> DepthTexture, sampler DepthTextureSmplr)
+float4 applyMotionBlur(thread const float2& texCoord, thread const float& size, thread const float& separation, thread const float4& color, constant PushConstants& _372, device EffectBuffer& _381, device EffectFloat1Buffer& _394, device EffectFloat2Buffer& _403, device EffectFloat3Buffer& _411, device EffectFloat4Buffer& _419, device EffectFloat5Buffer& _426, texture2d<float> Texture, sampler TextureSmplr, texture2d<fl)",
+R"(oat> BrightTexture, sampler BrightTextureSmplr, constant Uniforms& _849, texture2d<float> VolumetricLightTexture, sampler VolumetricLightTextureSmplr, texture2d<float> SSRTexture, sampler SSRTextureSmplr, texture2d<float> PositionTexture, sampler PositionTextureSmplr, texture2d<float> DepthTexture, sampler DepthTextureSmplr)
 {
     float4 fallbackColor = composeLighting(texCoord, color, _372, _381, _394, _403, _411, _419, _426, BrightTexture, BrightTextureSmplr, VolumetricLightTexture, VolumetricLightTextureSmplr, SSRTexture, SSRTextureSmplr);
     if ((size <= 0.0) || (separation <= 0.0))
@@ -3343,8 +3338,8 @@ float3 acesToneMapping(thread const float3& color)
     return fast::clamp((color * ((color * a) + float3(b))) / ((color * ((color * c) + float3(d))) + float3(e)), float3(0.0), float3(1.0));
 }
 
-fragment main0_out main0(main0_in in [[stage_in]], constant PushConstants& _372 [[buffer(0)]], device EffectBuffer& _381 [[buffer(1)]], device EffectFloat1Buffer& _394 [[buffer(2)]], device EffectFloat2Buffer& _403 [[buffer(3)]], device EffectFloat3Buffer& _411 [[buffer(4)]], device EffectFloat4Buffer& _419 [[buffer(5)]], device EffectFloat5Buffer& _426 [[buffer(6)]], constant Uniforms& _849 [[buffer(7)]], device EffectFloat6Bu)",
-R"(ffer& _1049 [[buffer(8)]], constant Clouds& _1929 [[buffer(9)]], constant Environment& environment [[buffer(10)]], texture2d<float> Texture [[texture(0)]], texture2d<float> BrightTexture [[texture(1)]], texture2d<float> VolumetricLightTexture [[texture(2)]], texture2d<float> SSRTexture [[texture(3)]], texture2d<float> PositionTexture [[texture(4)]], texture2d<float> LUTTexture [[texture(5)]], texture3d<float> cloudsTexture [[texture(6)]], texture2d<float> DepthTexture [[texture(7)]], sampler TextureSmplr [[sampler(0)]], sampler BrightTextureSmplr [[sampler(1)]], sampler VolumetricLightTextureSmplr [[sampler(2)]], sampler SSRTextureSmplr [[sampler(3)]], sampler PositionTextureSmplr [[sampler(4)]], sampler LUTTextureSmplr [[sampler(5)]], sampler cloudsTextureSmplr [[sampler(6)]], sampler DepthTextureSmplr [[sampler(7)]], float4 gl_FragCoord [[position]])
+fragment main0_out main0(main0_in in [[stage_in]], constant PushConstants& _372 [[buffer(0)]], device EffectBuffer& _381 [[buffer(1)]], device EffectFloat1Buffer& _394 [[buffer(2)]], device EffectFloat2Buffer& _403 [[buffer(3)]], device EffectFloat3Buffer& _411 [[buffer(4)]], device EffectFloat4Buffer& _419 [[buffer(5)]], device EffectFloat5Buffer& _426 [[buffer(6)]], constant Uniforms& _849 [[buffer(7)]], device EffectFloat6Buffer& _1049 [[buffer(8)]], constant Clouds& _1929 [[buffer(9)]], constant Environment& environment [[buffer(10)]], texture2d<float> Texture [[texture(0)]], texture2d<float> BrightTexture [[texture(1)]], texture2d<float> VolumetricLightTexture [[texture(2)]], texture2d<float> SSRTexture [[texture(3)]], texture2d<float> PositionTexture [[texture(4)]], texture2d<float> LUTTexture [[texture(5)]], )",
+R"(texture3d<float> cloudsTexture [[texture(6)]], texture2d<float> DepthTexture [[texture(7)]], sampler TextureSmplr [[sampler(0)]], sampler BrightTextureSmplr [[sampler(1)]], sampler VolumetricLightTextureSmplr [[sampler(2)]], sampler SSRTextureSmplr [[sampler(3)]], sampler PositionTextureSmplr [[sampler(4)]], sampler LUTTextureSmplr [[sampler(5)]], sampler cloudsTextureSmplr [[sampler(6)]], sampler DepthTextureSmplr [[sampler(7)]], float4 gl_FragCoord [[position]])
 {
     main0_out out = {};
     float2 param = in.TexCoord;

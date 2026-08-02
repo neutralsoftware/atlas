@@ -358,7 +358,6 @@ static inline __attribute__((always_inline))
 float4 applyColorEffects(thread float4& color, constant PushConstants& _372, device EffectBuffer& _381, device EffectFloat1Buffer& _394, device EffectFloat2Buffer& _403, device EffectFloat3Buffer& _411, device EffectFloat4Buffer& _419, device EffectFloat5Buffer& _426, constant Uniforms& _849, device EffectFloat6Buffer& _1049, thread float4& gl_FragCoord)
 {
     ColorCorrection cc;
-    float3 _noise;
     for (int i = 0; i < _372.EffectCount; i++)
     {
         if (_381.Effects[i] == 0)
@@ -410,16 +409,12 @@ float4 applyColorEffects(thread float4& color, constant PushConstants& _372, dev
                             float amount = _394.EffectFloat1[i];
                             float3 seed = float3(gl_FragCoord.xy, _849.deltaTime * 100.0);
                             float n = dot(seed, float3(12.98980045318603515625, 78.233001708984375, 45.16400146484375));
-                            _noise.x = fract(sin(n) * 43758.546875);
-                            n = dot(seed, float3(93.9889984130859375, 67.345001220703125, 12.9890003204345703125));
-                            _noise.y = fract(sin(n) * 28001.123046875);
-                            n = dot(seed, float3(39.34600067138671875, 11.1350002288818359375, 83.154998779296875));
-                            _noise.z = fract(sin(n) * 19283.45703125);
-                            float3 grain = ((_noise - float3(0.5)) * 2.0) * amount;
+                            float noise = fract(sin(n) * 43758.546875);
+                            float grain = ((noise - 0.5) * 2.0) * amount;
                             float luminance = dot(color.xyz, float3(0.2989999949932098388671875, 0.58700001239776611328125, 0.114000000059604644775390625));
                             float visibility = 1.0 - (abs(luminance - 0.5) * 0.5);
                             float4 _1210 = color;
-                            float3 _1212 = _1210.xyz + (grain * visibility);
+                            float3 _1212 = _1210.xyz + float3(grain * visibility);
                             color.x = _1212.x;
                             color.y = _1212.y;
                             color.z = _1212.z;

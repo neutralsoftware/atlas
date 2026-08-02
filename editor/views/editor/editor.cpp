@@ -646,6 +646,12 @@ void EditorWindow::setupDocks() {
     materialEditorPanel = new MaterialEditorPanel(viewportPanel);
     postProcessingPanel = new PostProcessingPanel(viewportPanel);
     graphiteEditorPanel = new GraphiteEditorPanel(viewportPanel, projectFile);
+    connect(materialEditorPanel, &MaterialEditorPanel::materialSaved, this,
+            [this](const QString &) { workspaceChangesPending = true; });
+    connect(postProcessingPanel, &PostProcessingPanel::settingsChanged, this,
+            [this] { workspaceChangesPending = true; });
+    connect(graphiteEditorPanel, &GraphiteEditorPanel::documentSaved, this,
+            [this] { workspaceChangesPending = true; });
     workspaceStack = new QStackedWidget(this);
     workspaceStack->setObjectName("editorWorkspaceStack");
     workspaceStack->addWidget(viewportTools);
@@ -1035,9 +1041,16 @@ void EditorWindow::activateWorkspace(int index) {
         index >= workspaceStack->count())
         return;
     const int previousIndex = workspaceStack->currentIndex();
+    if (index == 0 && previousIndex == 1 && materialEditorPanel != nullptr)
+        materialEditorPanel->flushPendingSave();
+    if (index == 0 && previousIndex == 3 && graphiteEditorPanel != nullptr)
+        graphiteEditorPanel->flushPendingSave();
     workspaceStack->setCurrentIndex(index);
-    if (index == 0 && previousIndex != 0 && viewportPanel != nullptr)
+    if (index == 0 && previousIndex != 0 && workspaceChangesPending &&
+        viewportPanel != nullptr) {
+        workspaceChangesPending = false;
         viewportPanel->reloadRuntime();
+    }
     if (workspaceModeGroup != nullptr) {
         if (auto *button = workspaceModeGroup->button(index)) {
             button->setChecked(true);

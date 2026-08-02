@@ -158,7 +158,6 @@ class ViewportPanel : public QWidget {
 
     QTimer *frameTimer = nullptr;
     QTimer *resizeTimer = nullptr;
-    QTimer *environmentReloadTimer = nullptr;
     QUndoStack *undoStack = nullptr;
     QString projectFile;
     std::shared_ptr<Context> runtimeContext;
