@@ -1324,7 +1324,7 @@ QFrame *componentCard(const QString &title, const QJsonObject &properties,
     return card;
 }
 
-QFrame *controllerActionsCard(const QJsonArray &actions,
+QFrame *controllerActionsCard(const QJsonArray &actions, bool automaticMoving,
                               const QString &projectFile,
                               const PropertyChanged &changed,
                               QWidget *parent) {
@@ -1347,6 +1347,15 @@ QFrame *controllerActionsCard(const QJsonArray &actions,
     auto *bodyLayout = new QVBoxLayout(body);
     bodyLayout->setContentsMargins(0, 2, 0, 0);
     bodyLayout->setSpacing(1);
+    auto *automatic = new QCheckBox("Enable Automatic Movement", body);
+    automatic->setChecked(automaticMoving);
+    automatic->setCursor(Qt::PointingHandCursor);
+    tagEditor(automatic, "/automaticMoving", "bool");
+    bodyLayout->addWidget(automatic);
+    QObject::connect(automatic, &QCheckBox::toggled, body,
+                     [changed](bool checked) {
+                         changed("/automaticMoving", checked);
+                     });
     const QStringList labels{"Movement", "Look", "Vertical"};
     QList<QToolButton *> pickers;
     for (int index = 0; index < labels.size(); ++index) {
@@ -1560,7 +1569,6 @@ void InspectorPanel::applySceneSnapshot(const QString &snapshot) {
             {"controllerLookSensitivity",
              inspectedCamera.value("controllerLookSensitivity")},
             {"lookSmoothness", inspectedCamera.value("lookSmoothness")},
-            {"automaticMoving", inspectedCamera.value("automaticMoving")},
             {"actions", inspectedCamera.value("actions").isArray()
                             ? inspectedCamera.value("actions")
                             : QJsonValue(QJsonArray{})}};
@@ -1578,9 +1586,13 @@ void InspectorPanel::applySceneSnapshot(const QString &snapshot) {
             else if (scope == "camera:controls")
                 refreshTaggedEditors(card, controls);
             else if (scope == "camera:actions")
-                refreshTaggedEditors(
-                    card, QJsonObject{{"actions",
-                                      inspectedCamera.value("actions")}});
+                refreshTaggedEditors(card,
+                                     QJsonObject{
+                                         {"automaticMoving",
+                                          inspectedCamera.value(
+                                              "automaticMoving")},
+                                         {"actions", inspectedCamera.value(
+                                                         "actions")}});
         }
         return;
     }
@@ -2106,8 +2118,7 @@ void InspectorPanel::showCamera() {
         {"mouseSensitivity", inspectedCamera.value("mouseSensitivity")},
         {"controllerLookSensitivity",
          inspectedCamera.value("controllerLookSensitivity")},
-        {"lookSmoothness", inspectedCamera.value("lookSmoothness")},
-        {"automaticMoving", inspectedCamera.value("automaticMoving")}};
+        {"lookSmoothness", inspectedCamera.value("lookSmoothness")}};
     SyncOptions syncOptions;
     collectSyncOptions("Camera", inspectedCamera,
                        QJsonObject{{"section", "camera"}}, QString(),
@@ -2134,8 +2145,9 @@ void InspectorPanel::showCamera() {
                                        QJsonObject{{"section", "camera"}}),
                       {}, "camera:controls"));
     contentLayout->addWidget(controllerActionsCard(
-        inspectedCamera.value("actions").toArray(), projectFile, update,
-        content));
+        inspectedCamera.value("actions").toArray(),
+        inspectedCamera.value("automaticMoving").toBool(false), projectFile,
+        update, content));
     contentLayout->addStretch();
 }
 
