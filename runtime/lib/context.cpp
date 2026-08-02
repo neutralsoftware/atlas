@@ -6859,9 +6859,7 @@ void Context::loadScene(Window &window, const json &sceneData) {
                        : json::array();
 
     scene->atmosphere.resetRuntimeState();
-    scene->setUseAtmosphereSkybox(false);
-    scene->setAtmosphereSkybox(nullptr);
-    scene->setSkybox(nullptr);
+    scene->clearSkyboxes(window);
     scene->setAutomaticAmbient(false);
     scene->setEnvironment(Environment());
     scene->atmosphere = Atmosphere();

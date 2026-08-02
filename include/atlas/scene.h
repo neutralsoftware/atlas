@@ -344,6 +344,8 @@ class Scene {
         return atmosphereSkybox;
     }
 
+    void clearSkyboxes(Window &window);
+
     /**
      * @brief Overrides the environmental rendering configuration for the
      * scene.

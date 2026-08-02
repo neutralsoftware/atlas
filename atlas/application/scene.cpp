@@ -13,6 +13,19 @@
 #include <algorithm>
 #include <array>
 
+void Scene::clearSkyboxes(Window &window) {
+    if (userSkybox != nullptr) {
+        window.removePreludeObject(userSkybox.get());
+    }
+    if (atmosphereSkybox != nullptr && atmosphereSkybox != userSkybox) {
+        window.removePreludeObject(atmosphereSkybox.get());
+    }
+    skybox.reset();
+    userSkybox.reset();
+    atmosphereSkybox.reset();
+    useAtmosphereSkybox = false;
+}
+
 void Scene::updateScene(float dt) {
     atmosphere.update(dt);
 

@@ -154,6 +154,7 @@ string(TIMESTAMP ATLAS_EDITOR_BUILD_DATE "%Y%m%d")
 target_compile_definitions(AtlasEditor PRIVATE
         ATLAS_TOOLCHAIN_VERSION="beta1"
         "$<$<CONFIG:Debug>:ATLAS_DEBUG_BUILD>"
+        "$<$<NOT:$<CONFIG:Debug>>:ATLAS_RELEASE_BUILD>"
         "$<$<CONFIG:Debug>:ATLAS_BUILD_STRING=\"${ATLAS_EDITOR_BUILD_DATE}\">"
 )
 

@@ -544,6 +544,7 @@ class Window {
      * property is a good idea.
      */
     void addPreludeObject(Renderable *object);
+    void removePreludeObject(Renderable *object);
 
     /**
      * @brief Registers a UI renderable so it is drawn after world geometry.

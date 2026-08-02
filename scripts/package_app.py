@@ -366,11 +366,17 @@ def main():
 
     plist_path = packaged_app / "Contents" / "Info.plist"
     resources_directory = packaged_app / "Contents" / "Resources"
-    shutil.copy2(icon_assets, resources_directory / "Assets.car")
+    modern_icon = resources_directory / "Assets.car"
     with plist_path.open("rb") as stream:
         plist = plistlib.load(stream)
     plist["CFBundleIconFile"] = "AtlasEngine"
-    plist["CFBundleIconName"] = "AtlasEngine"
+    if args.release:
+        plist.pop("CFBundleIconName", None)
+        if modern_icon.exists():
+            modern_icon.unlink()
+    else:
+        shutil.copy2(icon_assets, modern_icon)
+        plist["CFBundleIconName"] = "AtlasEngine"
     with plist_path.open("wb") as stream:
         plistlib.dump(plist, stream)
     sign_bundle(packaged_app, signing_identity)
@@ -385,7 +391,9 @@ def main():
         raise RuntimeError("Packaged app is missing the Atlas runtime")
     if not (resources_directory / "AtlasEngine.icns").is_file():
         raise RuntimeError("Packaged app is missing the legacy macOS icon")
-    if not (resources_directory / "Assets.car").is_file():
+    if args.release and modern_icon.exists():
+        raise RuntimeError("Packaged release contains an adaptive macOS icon")
+    if args.debug and not modern_icon.is_file():
         raise RuntimeError("Packaged app is missing the modern macOS icon")
 
     invalid_dependencies = macho_dependencies(packaged_app)

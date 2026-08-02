@@ -3888,6 +3888,16 @@ void Window::addPreludeObject(Renderable *obj) {
     this->ssaoUpdateCooldown = 0.0f;
 }
 
+void Window::removePreludeObject(Renderable *obj) {
+    this->firstRenderables.erase(std::remove(this->firstRenderables.begin(),
+                                             this->firstRenderables.end(), obj),
+                                 this->firstRenderables.end());
+    this->shadowMapsDirty = true;
+    this->shadowUpdateCooldown = 0.0f;
+    this->ssaoMapsDirty = true;
+    this->ssaoUpdateCooldown = 0.0f;
+}
+
 void Window::addUIObject(Renderable *obj) {
     if (obj == nullptr) {
         return;

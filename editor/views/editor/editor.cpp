@@ -870,9 +870,15 @@ void EditorWindow::setupWorkspaceBar() {
     identityLayout->setSpacing(9);
     auto *mark = new QLabel(identity);
     mark->setObjectName("workspaceMark");
-    mark->setPixmap(QPixmap(":/editor/assets/atlas_ball_bright.png")
+#ifdef ATLAS_DEBUG_BUILD
+    mark->setPixmap(QPixmap(":/editor/assets/Icon-iOS-Default-1024x1024@1x.png")
                         .scaled(24, 24, Qt::KeepAspectRatio,
                                 Qt::SmoothTransformation));
+#else
+    mark->setPixmap(QPixmap(":/editor/assets/iconFile-iOS-Dark-1024x1024@1x.png")
+                        .scaled(24, 24, Qt::KeepAspectRatio,
+                                Qt::SmoothTransformation));
+#endif
     auto *identityText = new QWidget(identity);
     identityText->setObjectName("workspaceIdentityText");
     auto *identityTextLayout = new QVBoxLayout(identityText);
@@ -2291,16 +2297,16 @@ void EditorWindow::scheduleLayoutSave() {
 
 void EditorWindow::updateWindowTitle(bool dirty) {
     const QString name = projectName + (dirty ? "*" : "");
-#ifdef ATLAS_DEBUG_BUILD
+#ifdef ATLAS_RELEASE_BUILD
+    setWindowTitle(QStringLiteral("%1 - Atlas Engine %2")
+                       .arg(name, QStringLiteral(ATLAS_VERSION)));
+#else
     const QString build = QStringLiteral(ATLAS_BUILD_STRING);
     setWindowTitle(
         build.isEmpty()
             ? QStringLiteral("%1 - Atlas Engine (Development)").arg(name)
             : QStringLiteral("%1 - Atlas Engine (Development) + %2")
                   .arg(name, build));
-#else
-    setWindowTitle(QStringLiteral("%1 - Atlas Engine %2")
-                       .arg(name, QStringLiteral(ATLAS_VERSION)));
 #endif
 }
 

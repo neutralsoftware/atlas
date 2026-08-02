@@ -55,11 +55,11 @@ SplashScreen::SplashScreen(QWidget *parent)
     QFont titleFont = title->font();
     titleFont.setLetterSpacing(QFont::AbsoluteSpacing, -0.3);
     titleFont.setKerning(true);
-#ifdef ATLAS_DEBUG_BUILD
+#ifdef ATLAS_RELEASE_BUILD
+    title->setText("Atlas Engine");
+#else
     title->setText("Atlas Engine (Development)");
     title->setFont(titleFont);
-#else
-    title->setText("Atlas Engine");
 #endif
     title->setWordWrap(false);
     title->setAlignment(Qt::AlignLeft | Qt::AlignVCenter);
@@ -67,12 +67,12 @@ SplashScreen::SplashScreen(QWidget *parent)
     auto *version = new QLabel(card);
     version->setObjectName("splashVersion");
     version->setGeometry(164, 86, 500, 28);
-#ifdef ATLAS_DEBUG_BUILD
+#ifdef ATLAS_RELEASE_BUILD
+    version->setText(QStringLiteral(ATLAS_VERSION));
+#else
     version->setText(QStringLiteral("%1 (build %2)")
                          .arg(QStringLiteral(ATLAS_VERSION),
                               QStringLiteral(ATLAS_BUILD_STRING)));
-#else
-    version->setText(QStringLiteral(ATLAS_VERSION));
 #endif
     version->setAlignment(Qt::AlignLeft | Qt::AlignVCenter);
 
@@ -92,7 +92,7 @@ SplashScreen::SplashScreen(QWidget *parent)
     progress->setRange(0, 0);
     progress->setTextVisible(false);
 
-#ifdef ATLAS_DEBUG_BUILD
+#ifndef ATLAS_RELEASE_BUILD
     auto *warning = new QLabel(
         "As this software is in its development version issues may be found "
         "with the experience. If you meant to use the traditional version "
