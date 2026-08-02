@@ -193,48 +193,51 @@ void Camera::update(Window &window) {
 void Camera::updateWithActions(Window &window, const std::string &moveAxis,
                                const std::string &lookAction,
                                const std::string &upAndDownAction) {
-    AxisPacket moveInput = window.getAxisActionValue(moveAxis);
-    AxisPacket lookInput = window.getAxisActionValue(lookAction);
-    AxisPacket upDownInput = window.getAxisActionValue(upAndDownAction);
+    AxisPacket moveInput = moveAxis.empty()
+                               ? AxisPacket{}
+                               : window.getAxisActionValue(moveAxis);
+    AxisPacket lookInput = lookAction.empty()
+                               ? AxisPacket{}
+                               : window.getAxisActionValue(lookAction);
+    AxisPacket upDownInput =
+        upAndDownAction.empty()
+            ? AxisPacket{}
+            : window.getAxisActionValue(upAndDownAction);
 
     float deltaTime = window.getDeltaTime();
-    float xoffset = lookInput.inputDeltaX * mouseSensitivity;
-    float yoffset = lookInput.inputDeltaY * mouseSensitivity;
+    if (!lookAction.empty()) {
+        float xoffset = lookInput.inputDeltaX * mouseSensitivity;
+        float yoffset = lookInput.inputDeltaY * mouseSensitivity;
 
-    if (lookInput.hasValueInput) {
-        glm::vec2 lookVector(lookInput.valueX, lookInput.valueY);
-        if (glm::length(lookVector) > 1.0f) {
-            lookVector = glm::normalize(lookVector);
+        if (lookInput.hasValueInput) {
+            glm::vec2 lookVector(lookInput.valueX, lookInput.valueY);
+            if (glm::length(lookVector) > 1.0f) {
+                lookVector = glm::normalize(lookVector);
+            }
+            xoffset +=
+                lookVector.x * controllerLookSensitivity * deltaTime;
+            yoffset +=
+                lookVector.y * controllerLookSensitivity * deltaTime;
         }
-        xoffset += lookVector.x * controllerLookSensitivity * deltaTime;
-        yoffset += lookVector.y * controllerLookSensitivity * deltaTime;
+
+        targetYaw += xoffset;
+        targetPitch += yoffset;
+
+        targetPitch = std::min(targetPitch, 89.0f);
+        targetPitch = std::max(targetPitch, -89.0f);
+
+        yaw += (targetYaw - yaw) * lookSmoothness;
+        pitch += (targetPitch - pitch) * lookSmoothness;
+
+        glm::vec3 front;
+        front.x = cos(glm::radians(yaw)) * cos(glm::radians(pitch));
+        front.y = sin(glm::radians(pitch));
+        front.z = sin(glm::radians(yaw)) * cos(glm::radians(pitch));
+        front = glm::normalize(front);
+
+        target = {position.x + front.x, position.y + front.y,
+                  position.z + front.z};
     }
-
-    glm::vec2 fallbackLook = sampleControllerAxisPair(
-        window, CONTROLLER_AXIS_RIGHT_X, CONTROLLER_AXIS_RIGHT_Y, true);
-    if (glm::length(fallbackLook) > 0.0f &&
-        glm::length(fallbackLook) >
-            glm::length(glm::vec2(lookInput.valueX, lookInput.valueY))) {
-        xoffset += fallbackLook.x * controllerLookSensitivity * deltaTime;
-        yoffset += fallbackLook.y * controllerLookSensitivity * deltaTime;
-    }
-
-    targetYaw += xoffset;
-    targetPitch += yoffset;
-
-    targetPitch = std::min(targetPitch, 89.0f);
-    targetPitch = std::max(targetPitch, -89.0f);
-
-    yaw += (targetYaw - yaw) * lookSmoothness;
-    pitch += (targetPitch - pitch) * lookSmoothness;
-
-    glm::vec3 front;
-    front.x = cos(glm::radians(yaw)) * cos(glm::radians(pitch));
-    front.y = sin(glm::radians(pitch));
-    front.z = sin(glm::radians(yaw)) * cos(glm::radians(pitch));
-    front = glm::normalize(front);
-
-    target = {position.x + front.x, position.y + front.y, position.z + front.z};
 
     glm::vec3 camPos = glm::vec3(position.x, position.y, position.z);
     glm::vec3 camFront =
@@ -244,11 +247,6 @@ void Camera::updateWithActions(Window &window, const std::string &moveAxis,
     glm::vec2 moveVector = moveInput.hasValueInput
                                ? glm::vec2(moveInput.valueX, moveInput.valueY)
                                : glm::vec2(moveInput.x, moveInput.y);
-    glm::vec2 fallbackMove = sampleControllerAxisPair(
-        window, CONTROLLER_AXIS_LEFT_X, CONTROLLER_AXIS_LEFT_Y, true);
-    if (glm::length(fallbackMove) > glm::length(moveVector)) {
-        moveVector = fallbackMove;
-    }
     if (glm::length(moveVector) > 1.0f) {
         moveVector = glm::normalize(moveVector);
     }

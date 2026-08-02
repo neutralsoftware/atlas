@@ -6867,13 +6867,14 @@ void RuntimeScene::update(Window &window) {
         return;
     }
 
-    if (runtimeContext->cameraActions.size() >= 3) {
-        runtimeContext->camera->updateWithActions(
-            window, runtimeContext->cameraActions[0],
-            runtimeContext->cameraActions[1], runtimeContext->cameraActions[2]);
-    } else {
-        runtimeContext->camera->update(window);
-    }
+    static const std::string emptyAction;
+    const auto actionAt = [&](std::size_t index) -> const std::string & {
+        return index < runtimeContext->cameraActions.size()
+                   ? runtimeContext->cameraActions[index]
+                   : emptyAction;
+    };
+    runtimeContext->camera->updateWithActions(window, actionAt(0), actionAt(1),
+                                              actionAt(2));
 
     if (runtimeContext->context != nullptr) {
         runtime::scripting::dispatchInteractiveFrame(
@@ -6897,13 +6898,6 @@ void RuntimeScene::onMouseMove(Window &window, Movement2d movement) {
             runtimeContext->context, runtimeContext->scriptHost, window, packet,
             window.getDeltaTime());
     }
-
-    if (runtimeContext == nullptr || runtimeContext->camera == nullptr ||
-        !runtimeContext->cameraAutomaticMoving ||
-        runtimeContext->cameraActions.size() >= 3) {
-        return;
-    }
-    runtimeContext->camera->updateLook(window, movement);
 }
 
 void RuntimeScene::onMouseScroll(Window &window, Movement2d offset) {
@@ -6914,13 +6908,6 @@ void RuntimeScene::onMouseScroll(Window &window, Movement2d offset) {
             runtimeContext->context, runtimeContext->scriptHost, packet,
             window.getDeltaTime());
     }
-
-    if (runtimeContext == nullptr || runtimeContext->camera == nullptr ||
-        !runtimeContext->cameraAutomaticMoving ||
-        runtimeContext->cameraActions.size() >= 3) {
-        return;
-    }
-    runtimeContext->camera->updateZoom(window, offset);
 }
 
 void Context::loadMainScene(Window &window) {
