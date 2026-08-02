@@ -45,6 +45,7 @@
 #include <QPlainTextEdit>
 #include <QProcess>
 #include <QProgressBar>
+#include <QPixmap>
 #include <QPushButton>
 #include <QRegularExpression>
 #include <QSaveFile>
@@ -695,11 +696,44 @@ void EditorWindow::setupDocks() {
          .area = EditorDockArea::Bottom,
          .icon = styling::icon(styling::Icon::FolderOpen, "#7E929C")});
 
+    runtimeErrors = new QPlainTextEdit(this);
+    runtimeErrors->setObjectName("runtimeErrors");
+    runtimeErrors->setReadOnly(true);
+    runtimeErrors->setLineWrapMode(QPlainTextEdit::NoWrap);
+    runtimeErrors->setPlaceholderText(
+        "Runtime and script errors will appear here.");
+    auto *errorDock = dockManager->addPanel(
+        {.id = "errors",
+         .title = "Errors",
+         .widget = runtimeErrors,
+         .area = EditorDockArea::Bottom,
+         .icon = styling::icon(styling::Icon::Warning, "#A17F7F")});
+    if (contentDock->dockAreaWidget() != nullptr) {
+        coreManager->addDockWidget(ads::CenterDockWidgetArea, errorDock,
+                                   contentDock->dockAreaWidget());
+    }
+    errorDock->toggleView(false);
+    connect(viewportPanel, &ViewportPanel::runtimeErrorOccurred, this,
+            [this, errorDock](const QString &message) {
+                const QString normalized = message.trimmed();
+                if (normalized.isEmpty())
+                    return;
+                runtimeErrors->appendPlainText(
+                    QStringLiteral("[%1] %2")
+                        .arg(QDateTime::currentDateTime().toString("HH:mm:ss"),
+                             normalized));
+                errorDock->toggleView(true);
+                errorDock->setAsCurrentTab();
+                errorDock->raise();
+                statusBar()->showMessage("Runtime error reported", 5000);
+            });
+
     workspaceDock->setAsCurrentTab();
     defaultDockState = coreManager->saveState(DockStateVersion);
 
     const QList<ads::CDockWidget *> managedDocks{workspaceDock, hierarchyDock,
-                                                 inspectorDock, contentDock};
+                                                 inspectorDock, contentDock,
+                                                 errorDock};
     for (ads::CDockWidget *dock : managedDocks) {
         connect(dock, &ads::CDockWidget::topLevelChanged, this,
                 [this](bool) { scheduleLayoutSave(); });
@@ -724,7 +758,8 @@ void EditorWindow::setupDocks() {
             {"Workspace", workspaceDock},
             {"Hierarchy", hierarchyDock},
             {"Inspector", inspectorDock},
-            {"Content Browser", contentDock}};
+            {"Content Browser", contentDock},
+            {"Errors", errorDock}};
         for (int index = 0; index < panels.size(); ++index) {
             const auto &[name, dock] = panels.at(index);
             auto *action = windowMenu->addAction(
@@ -835,7 +870,9 @@ void EditorWindow::setupWorkspaceBar() {
     identityLayout->setSpacing(9);
     auto *mark = new QLabel(identity);
     mark->setObjectName("workspaceMark");
-    mark->setPixmap(windowIcon().pixmap(24, 24));
+    mark->setPixmap(QPixmap(":/editor/assets/atlas_ball_bright.png")
+                        .scaled(24, 24, Qt::KeepAspectRatio,
+                                Qt::SmoothTransformation));
     auto *identityText = new QWidget(identity);
     identityText->setObjectName("workspaceIdentityText");
     auto *identityTextLayout = new QVBoxLayout(identityText);

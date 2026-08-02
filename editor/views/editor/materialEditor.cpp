@@ -25,6 +25,7 @@
 #include <QLineEdit>
 #include <QList>
 #include <QMessageBox>
+#include <QMouseEvent>
 #include <QPaintEngine>
 #include <QPixmap>
 #include <QPushButton>
@@ -174,6 +175,42 @@ class MaterialPreviewWidget : public QWidget {
         scheduleFrame();
     }
 
+    void mousePressEvent(QMouseEvent *event) override {
+        if (event->button() == Qt::LeftButton) {
+            rotating = true;
+            lastPointer = event->position();
+            setCursor(Qt::ClosedHandCursor);
+            event->accept();
+            return;
+        }
+        QWidget::mousePressEvent(event);
+    }
+
+    void mouseMoveEvent(QMouseEvent *event) override {
+        if (rotating && runtimeContext != nullptr) {
+            const QPointF delta = event->position() - lastPointer;
+            lastPointer = event->position();
+            if (runtimeContext->rotateMaterialPreview(
+                    static_cast<float>(delta.x() * 0.55),
+                    static_cast<float>(delta.y() * 0.55))) {
+                scheduleFrame();
+            }
+            event->accept();
+            return;
+        }
+        QWidget::mouseMoveEvent(event);
+    }
+
+    void mouseReleaseEvent(QMouseEvent *event) override {
+        if (event->button() == Qt::LeftButton && rotating) {
+            rotating = false;
+            unsetCursor();
+            event->accept();
+            return;
+        }
+        QWidget::mouseReleaseEvent(event);
+    }
+
   private:
     void scheduleFrame() {
         pendingFrames = std::max(pendingFrames, 2);
@@ -277,6 +314,8 @@ class MaterialPreviewWidget : public QWidget {
     int runtimeHeight = 0;
     int environmentMode = 0;
     int pendingFrames = 0;
+    QPointF lastPointer;
+    bool rotating = false;
 };
 
 MaterialEditorPanel::MaterialEditorPanel(ViewportPanel *viewport,

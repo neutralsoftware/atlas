@@ -8,6 +8,7 @@ class QLabel;
 class QTabBar;
 class QToolButton;
 class ViewportPanel;
+class ViewportHost;
 
 class ViewportTools : public QWidget {
     Q_OBJECT
@@ -36,6 +37,7 @@ class ViewportTools : public QWidget {
     QLabel *cameraLabel = nullptr;
     QLabel *shortcutHint = nullptr;
     QTabBar *sceneTabs = nullptr;
+    ViewportHost *viewportHost = nullptr;
     QString projectRoot;
     QStringList scenePaths;
     bool runtimeAvailable = false;

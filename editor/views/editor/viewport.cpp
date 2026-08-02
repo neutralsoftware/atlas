@@ -594,6 +594,7 @@ void ViewportPanel::startRuntime() {
     const std::string runtimeProjectFile = projectFile.toUtf8().toStdString();
     if (runtimeProjectFile.empty()) {
         qWarning() << "Atlas viewport runtime project file is not configured";
+        emit runtimeErrorOccurred("Runtime project file is not configured");
         emit runtimeStartupFinished(false,
                                     "Runtime project file is not configured");
         return;
@@ -602,6 +603,7 @@ void ViewportPanel::startRuntime() {
     void *metalView = reinterpret_cast<void *>(static_cast<quintptr>(winId()));
     if (metalView == nullptr) {
         qWarning() << "Atlas viewport could not resolve a native Metal view";
+        emit runtimeErrorOccurred("Viewport native surface is unavailable");
         emit runtimeStartupFinished(false,
                                     "Viewport native surface is unavailable");
         return;
@@ -613,6 +615,14 @@ void ViewportPanel::startRuntime() {
         QCoreApplication::processEvents(QEventLoop::ExcludeUserInputEvents);
         runtimeContext =
             runtime::makeContextForMetalView(runtimeProjectFile, metalView);
+        QPointer<ViewportPanel> runtimeOwner(this);
+        runtimeContext->errorReporter =
+            [runtimeOwner](const std::string &error) {
+                if (runtimeOwner != nullptr) {
+                    emit runtimeOwner->runtimeErrorOccurred(
+                        QString::fromUtf8(error.c_str()));
+                }
+            };
         runtimeContext->modelImportProgress = [this](
                                                   float value,
                                                   const std::string &status) {
@@ -653,6 +663,7 @@ void ViewportPanel::startRuntime() {
         emit runtimeLoadingStatusChanged("Preparing viewport...");
         QCoreApplication::processEvents(QEventLoop::ExcludeUserInputEvents);
         if (!stepRuntime()) {
+            emit runtimeErrorOccurred("The first viewport frame failed");
             emit runtimeLoadingFinished();
             emit runtimeStartupFinished(false,
                                         "The first viewport frame failed");
@@ -668,15 +679,18 @@ void ViewportPanel::startRuntime() {
             emit playbackStateChanged(playbackState);
         }
     } catch (const std::exception &error) {
+        const QString message = QString::fromUtf8(error.what());
         qWarning().noquote()
             << QStringLiteral("Failed to start Atlas viewport runtime: %1")
-                   .arg(QString::fromUtf8(error.what()));
+                   .arg(message);
+        emit runtimeErrorOccurred(message);
         runtimeContext.reset();
         playAfterRuntimeStart = false;
         emit runtimeLoadingFinished();
-        emit runtimeStartupFinished(false, QString::fromUtf8(error.what()));
+        emit runtimeStartupFinished(false, message);
     } catch (...) {
         qWarning() << "Failed to start Atlas viewport runtime";
+        emit runtimeErrorOccurred("Runtime initialization failed");
         runtimeContext.reset();
         playAfterRuntimeStart = false;
         emit runtimeLoadingFinished();
@@ -684,6 +698,7 @@ void ViewportPanel::startRuntime() {
     }
 #else
     qWarning() << "Atlas viewport runtime embedding requires the Metal backend";
+    emit runtimeErrorOccurred("Runtime embedding requires the Metal backend");
     emit runtimeStartupFinished(false,
                                 "Runtime embedding requires the Metal backend");
 #endif
@@ -724,6 +739,8 @@ bool ViewportPanel::stepRuntime() {
     }
     try {
         if (!runtimeContext->stepFrame()) {
+            emit runtimeErrorOccurred(
+                "The viewport runtime stopped unexpectedly");
             stopRuntime();
             return false;
         }
@@ -731,13 +748,16 @@ bool ViewportPanel::stepRuntime() {
         emit frameRateChanged(runtimeContext->frameRate());
         return true;
     } catch (const std::exception &error) {
+        const QString message = QString::fromUtf8(error.what());
         qWarning().noquote()
             << QStringLiteral("Atlas viewport runtime frame failed: %1")
-                   .arg(QString::fromUtf8(error.what()));
+                   .arg(message);
+        emit runtimeErrorOccurred(message);
         stopRuntime();
         return false;
     } catch (...) {
         qWarning() << "Atlas viewport runtime frame failed";
+        emit runtimeErrorOccurred("The viewport runtime frame failed");
         stopRuntime();
         return false;
     }
@@ -760,11 +780,14 @@ void ViewportPanel::resizeRuntime() {
         runtimeHeight = nextHeight;
         runtimeScale = nextScale;
     } catch (const std::exception &error) {
+        const QString message = QString::fromUtf8(error.what());
         qWarning().noquote()
             << QStringLiteral("Atlas viewport resize failed: %1")
-                   .arg(QString::fromUtf8(error.what()));
+                   .arg(message);
+        emit runtimeErrorOccurred(message);
     } catch (...) {
         qWarning() << "Atlas viewport resize failed";
+        emit runtimeErrorOccurred("The viewport runtime could not be resized");
     }
 }
 

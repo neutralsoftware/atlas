@@ -4765,6 +4765,19 @@ bool Context::resize(int width, int height, float scale) {
     }
     WindowActivationScope activeWindow(*window);
     window->resize(width, height, scale);
+    if (materialPreviewRuntime && camera != nullptr) {
+        const float aspect = static_cast<float>(std::max(1, width)) /
+                             static_cast<float>(std::max(1, height));
+        const float verticalHalfFov = glm::radians(camera->fov * 0.5f);
+        const float horizontalHalfFov =
+            std::atan(std::tan(verticalHalfFov) * aspect);
+        const float limitingHalfFov =
+            std::max(glm::radians(5.0f),
+                     std::min(verticalHalfFov, horizontalHalfFov));
+        const float distance = 0.82f / std::sin(limitingHalfFov);
+        camera->setPosition({0.0f, 0.0f, distance});
+        camera->lookAt(Position3d::zero());
+    }
     return true;
 }
 
@@ -5555,6 +5568,8 @@ bool Context::setObjectProperty(int id, const std::string &component,
     } catch (const std::exception &error) {
         RUNTIME_LOG("Component update is waiting for valid values: " +
                     std::string(error.what()));
+        if (errorReporter)
+            errorReporter(error.what());
     }
     applyPropertySyncs(*this, true);
     return true;
@@ -5573,11 +5588,44 @@ bool Context::setSceneProperty(const std::string &section, int index,
         return true;
     }
     if (normalizedSection == "environment") {
-        const bool changed =
-            setJsonProperty(editorEnvironmentData, propertyPath, value);
-        if (changed)
+        if (!setJsonProperty(editorEnvironmentData, propertyPath, value))
+            return false;
+        try {
+            WindowActivationScope activeWindow(*window);
+            RuntimeEnvironmentDefinition definition =
+                loadEnvironmentDefinition(
+                    json{{"environment", editorEnvironmentData}}, sceneDir);
+            scene->clearLights();
+            for (const auto &light : directionalLights)
+                scene->addDirectionalLight(light.get());
+            for (const auto &light : pointLights)
+                scene->addLight(light.get());
+            for (const auto &light : spotlights)
+                scene->addSpotlight(light.get());
+            for (const auto &light : areaLights)
+                scene->addAreaLight(light.get());
+            scene->setUseAtmosphereSkybox(false);
+            scene->setAtmosphereSkybox(nullptr);
+            scene->atmosphere.resetRuntimeState();
+            scene->setEnvironment(std::move(definition.environment));
+            scene->atmosphere = std::move(definition.atmosphere);
+            scene->setUseAtmosphereSkybox(definition.useAtmosphereSkybox);
+            scene->setAutomaticAmbient(definition.automaticAmbient);
+            if (definition.useGlobalLight) {
+                scene->atmosphere.useGlobalLight();
+                if (definition.atmosphereCastsShadows) {
+                    scene->atmosphere.castShadowsFromSunlight(
+                        definition.atmosphereShadowResolution);
+                }
+            }
+            scene->updateScene(0.0f);
             applyPropertySyncs(*this, true);
-        return changed;
+            return true;
+        } catch (const std::exception &error) {
+            if (errorReporter)
+                errorReporter(error.what());
+            return false;
+        }
     }
     if (normalizedSection == "target" || normalizedSection == "targets") {
         if (index < 0 && propertyPath.empty() && value.is_array()) {
@@ -5671,6 +5719,8 @@ bool Context::initializeMaterialPreview(const std::string &definition,
     camera->lookAt(Position3d::zero());
     camera->nearClip = 0.05f;
     camera->farClip = 50.0f;
+    materialPreviewYaw = 0.0f;
+    materialPreviewPitch = 0.0f;
     window->setCamera(camera.get());
     window->setEditorSceneCamera(nullptr);
     window->setEditorControlsEnabled(false);
@@ -5822,6 +5872,23 @@ bool Context::setMaterialPreviewEnvironment(int mode) {
     areaLights[1]->intensity = rimIntensity;
     window->setClearColor(background);
 
+    return true;
+}
+
+bool Context::rotateMaterialPreview(float yawDelta, float pitchDelta) {
+    if (window == nullptr || !materialPreviewRuntime || objects.empty()) {
+        return false;
+    }
+    auto *sphere = dynamic_cast<GameObject *>(objects.front().get());
+    if (sphere == nullptr) {
+        return false;
+    }
+    materialPreviewYaw = std::fmod(materialPreviewYaw + yawDelta, 360.0f);
+    materialPreviewPitch =
+        std::clamp(materialPreviewPitch + pitchDelta, -85.0f, 85.0f);
+    WindowActivationScope activeWindow(*window);
+    sphere->setRotation(
+        Rotation3d{materialPreviewPitch, materialPreviewYaw, 0.0f});
     return true;
 }
 

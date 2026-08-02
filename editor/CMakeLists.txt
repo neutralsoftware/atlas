@@ -137,6 +137,7 @@ qt_add_resources(AtlasEditor "atlas_editor_assets"
         FILES
         "${CMAKE_SOURCE_DIR}/editor/assets/Icon-iOS-Default-1024x1024@1x.png"
         "${CMAKE_SOURCE_DIR}/editor/assets/iconFile-iOS-Dark-1024x1024@1x.png"
+        "${CMAKE_SOURCE_DIR}/editor/assets/atlas_ball_bright.png"
         "${CMAKE_SOURCE_DIR}/editor/assets/Manrope-VariableFont_wght.ttf"
         "${CMAKE_SOURCE_DIR}/editor/assets/Phosphor.ttf"
         "${CMAKE_SOURCE_DIR}/editor/assets/PHOSPHOR_LICENSE.txt"

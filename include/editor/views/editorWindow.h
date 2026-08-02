@@ -37,6 +37,7 @@ class QTimer;
 class QFileSystemWatcher;
 class QEvent;
 class SplashScreen;
+class QPlainTextEdit;
 
 class EditorWindow : public QMainWindow {
     Q_OBJECT
@@ -93,6 +94,7 @@ class EditorWindow : public QMainWindow {
     QTimer *layoutSaveTimer = nullptr;
     SplashScreen *assetLoadingSplash = nullptr;
     QFileSystemWatcher *scriptWatcher = nullptr;
+    QPlainTextEdit *runtimeErrors = nullptr;
     QByteArray defaultDockState;
     QString projectFile;
     QString projectName;

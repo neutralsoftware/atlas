@@ -90,6 +90,9 @@ class Context {
     bool editorCameraFocused = false;
     bool editorRuntime = false;
     bool materialPreviewRuntime = false;
+    float materialPreviewYaw = 0.0f;
+    float materialPreviewPitch = 0.0f;
+    std::function<void(const std::string &)> errorReporter;
 
     std::unique_ptr<Window> window;
     std::vector<std::shared_ptr<Renderable>> objects;
@@ -167,6 +170,7 @@ class Context {
     bool setMaterialPreviewMaterial(const std::string &definition,
                                     const std::string &baseDir);
     bool setMaterialPreviewEnvironment(int mode);
+    bool rotateMaterialPreview(float yawDelta, float pitchDelta);
     int addObjectComponent(int id, const json &component);
     bool removeObjectComponent(int id, int componentIndex);
     bool controlObjectAudio(int id, int componentIndex,

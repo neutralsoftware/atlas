@@ -4,18 +4,69 @@
 #include <editor/styling/icons.h>
 
 #include <QActionGroup>
+#include <QColor>
 #include <QFile>
 #include <QFileInfo>
 #include <QHBoxLayout>
 #include <QLabel>
 #include <QKeySequence>
 #include <QList>
+#include <QPalette>
 #include <QRegularExpression>
+#include <QResizeEvent>
 #include <QSignalBlocker>
 #include <QStyle>
 #include <QTabBar>
 #include <QToolButton>
 #include <QVBoxLayout>
+
+class ViewportHost : public QWidget {
+  public:
+    ViewportHost(ViewportPanel *viewport, qreal cameraAspect, QWidget *parent)
+        : QWidget(parent), viewport(viewport), cameraAspect(cameraAspect) {
+        viewport->setParent(this);
+        setAutoFillBackground(true);
+        QPalette background = palette();
+        background.setColor(QPalette::Window, QColor("#08090B"));
+        setPalette(background);
+    }
+
+    void setCameraView(bool enabled) {
+        cameraView = enabled;
+        updateViewportGeometry();
+    }
+
+  protected:
+    void resizeEvent(QResizeEvent *event) override {
+        QWidget::resizeEvent(event);
+        updateViewportGeometry();
+    }
+
+  private:
+    void updateViewportGeometry() {
+        if (!cameraView || cameraAspect <= 0.0) {
+            viewport->setGeometry(rect());
+            return;
+        }
+        const qreal availableAspect =
+            height() > 0 ? static_cast<qreal>(width()) / height()
+                         : cameraAspect;
+        int targetWidth = width();
+        int targetHeight = height();
+        if (availableAspect > cameraAspect) {
+            targetWidth = qRound(targetHeight * cameraAspect);
+        } else {
+            targetHeight = qRound(targetWidth / cameraAspect);
+        }
+        viewport->setGeometry((width() - targetWidth) / 2,
+                              (height() - targetHeight) / 2, targetWidth,
+                              targetHeight);
+    }
+
+    ViewportPanel *viewport;
+    qreal cameraAspect;
+    bool cameraView = false;
+};
 
 ViewportTools::ViewportTools(ViewportPanel *viewport,
                              const QString &projectFile, QWidget *parent)
@@ -122,11 +173,22 @@ ViewportTools::ViewportTools(ViewportPanel *viewport,
 
     QFile manifest(projectFile);
     bool pathTracingProject = false;
+    qreal cameraAspect = 16.0 / 9.0;
     if (manifest.open(QIODevice::ReadOnly | QIODevice::Text)) {
         const QString contents = QString::fromUtf8(manifest.readAll());
         pathTracingProject = contents.contains(QRegularExpression(
             QStringLiteral(R"(default\s*=\s*["']path[\s_-]*tracing["'])"),
             QRegularExpression::CaseInsensitiveOption));
+        const auto dimensions = QRegularExpression(
+                                    QStringLiteral(
+                                        R"(dimensions\s*=\s*\[\s*(\d+)\s*,\s*(\d+)\s*\])"))
+                                    .match(contents);
+        if (dimensions.hasMatch()) {
+            const int width = dimensions.captured(1).toInt();
+            const int height = dimensions.captured(2).toInt();
+            if (width > 0 && height > 0)
+                cameraAspect = static_cast<qreal>(width) / height;
+        }
     }
 
     auto *shadingGroup = new QActionGroup(toolbar);
@@ -176,7 +238,8 @@ ViewportTools::ViewportTools(ViewportPanel *viewport,
     tools->addWidget(fpsLabel);
 
     layout->addWidget(toolbar);
-    layout->addWidget(viewport, 1);
+    viewportHost = new ViewportHost(viewport, cameraAspect, this);
+    layout->addWidget(viewportHost, 1);
     shortcutHint =
         new QLabel("Tab Frame · Num 0 Camera · Shift+Middle/Right Pan · "
                    "Middle/Right Orbit · G Move · R Rotate · S Scale · X "
@@ -225,6 +288,7 @@ ViewportTools::ViewportTools(ViewportPanel *viewport,
                         ? "Main Camera view active · Esc or Numpad 0 to exit"
                         : "Look through Main Camera · Numpad 0");
                 cameraLabel->setVisible(focused);
+                viewportHost->setCameraView(focused);
             });
     connect(viewport, &ViewportPanel::transformSpaceChanged, this,
             [this](bool local) {

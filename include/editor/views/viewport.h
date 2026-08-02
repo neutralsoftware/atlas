@@ -118,6 +118,7 @@ class ViewportPanel : public QWidget {
     void runtimeLoadingStarted();
     void runtimeLoadingStatusChanged(const QString &status);
     void runtimeLoadingFinished();
+    void runtimeErrorOccurred(const QString &message);
     void transformHintChanged(const QString &hint);
     void sceneOpened(const QString &path);
     void transformSpaceChanged(bool local);

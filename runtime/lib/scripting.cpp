@@ -14982,8 +14982,10 @@ JSValue jsSetRotationQuaternion(JSContext *ctx, JSValueConst, int argc,
 
 void runtime::scripting::dumpExecution(JSContext *ctx) {
     JSValue exceptionVal = JS_GetException(ctx);
+    std::string report;
     const char *exceptionStr = JS_ToCString(ctx, exceptionVal);
     if (exceptionStr) {
+        report = exceptionStr;
         std::cout << BOLD << RED << "Script execution failed: " << RESET
                   << YELLOW << exceptionStr << RESET << std::endl;
         JS_FreeCString(ctx, exceptionStr);
@@ -14993,9 +14995,17 @@ void runtime::scripting::dumpExecution(JSContext *ctx) {
     if (!JS_IsUndefined(stack)) {
         const char *stackStr = JS_ToCString(ctx, stack);
         if (stackStr) {
+            if (!report.empty())
+                report += '\n';
+            report += stackStr;
             std::cerr << stackStr << "\n";
             JS_FreeCString(ctx, stackStr);
         }
+    }
+
+    if (auto *host = getHost(ctx); host != nullptr && host->context != nullptr &&
+        host->context->errorReporter && !report.empty()) {
+        host->context->errorReporter(report);
     }
 
     JS_FreeValue(ctx, stack);
