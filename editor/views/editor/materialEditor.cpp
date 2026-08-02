@@ -445,7 +445,7 @@ void MaterialEditorPanel::showMaterial() {
     previewOptionsLayout->setContentsMargins(0, 0, 0, 0);
     auto *previewLabel = new QLabel("Preview Environment", previewOptions);
     auto *environment = new QComboBox(previewOptions);
-    environment->addItems({"Studio", "Sunset", "Open Sky"});
+    environment->addItems({"Studio", "Sky", "Empty"});
     previewOptionsLayout->addWidget(previewLabel);
     previewOptionsLayout->addStretch();
     previewOptionsLayout->addWidget(environment);

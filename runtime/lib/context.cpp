@@ -38,6 +38,7 @@
 #include <limits>
 #include <memory>
 #include <numbers>
+#include <random>
 #include <sstream>
 #include <stdexcept>
 #include <json.hpp>
@@ -5671,7 +5672,7 @@ bool Context::initializeMaterialPreview(const std::string &definition,
     window->setCamera(camera.get());
     window->setEditorSceneCamera(nullptr);
     window->setEditorControlsEnabled(false);
-    window->useDeferredRendering();
+    window->setScene(scene.get());
 
     auto sphere = std::make_shared<CoreObject>();
     *sphere = createSphere(0.72f, 64, 32, Color::white());
@@ -5703,7 +5704,6 @@ bool Context::initializeMaterialPreview(const std::string &definition,
     scene->addAreaLight(rimLight.get());
     areaLights.push_back(std::move(rimLight));
 
-    window->setScene(scene.get());
     return setMaterialPreviewEnvironment(environmentMode) &&
            setMaterialPreviewMaterial(definition, baseDir);
 }
@@ -5737,7 +5737,6 @@ bool Context::setMaterialPreviewEnvironment(int mode) {
     }
 
     WindowActivationScope activeWindow(*window);
-    std::array<Color, 6> colors;
     Color ambient;
     Color key;
     Color rim;
@@ -5746,42 +5745,58 @@ bool Context::setMaterialPreviewEnvironment(int mode) {
     float directionalIntensity = 0.0f;
     float keyIntensity = 0.0f;
     float rimIntensity = 0.0f;
+    if (const auto activeSkybox = scene->getSkybox(); activeSkybox != nullptr) {
+        activeSkybox->hide();
+    }
 
     if (mode == 1) {
-        colors = {Color{0.92f, 0.3f, 0.12f, 1.0f},
-                  Color{0.16f, 0.05f, 0.2f, 1.0f},
-                  Color{0.34f, 0.12f, 0.32f, 1.0f},
-                  Color{0.08f, 0.025f, 0.045f, 1.0f},
-                  Color{0.98f, 0.48f, 0.18f, 1.0f},
-                  Color{0.12f, 0.04f, 0.18f, 1.0f}};
-        ambient = {0.72f, 0.28f, 0.32f, 1.0f};
-        key = {1.0f, 0.42f, 0.18f, 1.0f};
-        rim = {0.42f, 0.16f, 0.72f, 1.0f};
-        background = {0.08f, 0.025f, 0.055f, 1.0f};
-        ambientIntensity = 0.7f;
-        directionalIntensity = 0.8f;
-        keyIntensity = 5.5f;
-        rimIntensity = 3.0f;
+        scene->atmosphere.enable();
+        scene->atmosphere.setTime(14.0f);
+        scene->setUseAtmosphereSkybox(true);
+        scene->updateScene(0.0f);
+        if (const auto skybox = scene->getSkybox(); skybox != nullptr) {
+            skybox->show();
+        }
+        ambient = scene->atmosphere.getLightColor();
+        key = scene->atmosphere.getLightColor();
+        rim = {0.48f, 0.68f, 1.0f, 1.0f};
+        background = {0.3f, 0.55f, 0.82f, 1.0f};
+        ambientIntensity = 0.35f;
+        directionalIntensity = scene->atmosphere.getLightIntensity();
+        keyIntensity = 3.5f;
+        rimIntensity = 1.8f;
     } else if (mode == 2) {
-        colors = {
-            Color{0.52f, 0.76f, 1.0f, 1.0f}, Color{0.42f, 0.68f, 0.96f, 1.0f},
-            Color{0.3f, 0.62f, 1.0f, 1.0f},  Color{0.72f, 0.78f, 0.82f, 1.0f},
-            Color{0.62f, 0.82f, 1.0f, 1.0f}, Color{0.46f, 0.72f, 0.98f, 1.0f}};
-        ambient = {0.58f, 0.74f, 1.0f, 1.0f};
-        key = {1.0f, 0.95f, 0.84f, 1.0f};
-        rim = {0.42f, 0.7f, 1.0f, 1.0f};
-        background = {0.28f, 0.5f, 0.76f, 1.0f};
-        ambientIntensity = 0.9f;
-        directionalIntensity = 1.15f;
-        keyIntensity = 4.0f;
-        rimIntensity = 2.2f;
+        scene->atmosphere.disable();
+        scene->setUseAtmosphereSkybox(false);
+        ambient = {0.18f, 0.18f, 0.18f, 1.0f};
+        key = {1.0f, 0.97f, 0.92f, 1.0f};
+        rim = {0.5f, 0.62f, 0.82f, 1.0f};
+        background = Color::black();
+        ambientIntensity = 0.18f;
+        directionalIntensity = 0.65f;
+        keyIntensity = 4.5f;
+        rimIntensity = 2.0f;
     } else {
-        colors = {Color{0.9f, 0.9f, 0.88f, 1.0f},
-                  Color{0.035f, 0.04f, 0.05f, 1.0f},
-                  Color{0.7f, 0.74f, 0.8f, 1.0f},
-                  Color{0.025f, 0.025f, 0.03f, 1.0f},
-                  Color{0.38f, 0.4f, 0.44f, 1.0f},
-                  Color{0.07f, 0.075f, 0.085f, 1.0f}};
+        static std::mt19937 generator(std::random_device{}());
+        std::uniform_real_distribution<float> tint(0.82f, 1.0f);
+        const float warm = tint(generator);
+        const float cool = tint(generator);
+        const std::array<Color, 6> colors = {
+            Color{warm, warm * 0.96f, warm * 0.88f, 1.0f},
+            Color{0.025f, 0.03f, 0.04f, 1.0f},
+            Color{cool * 0.72f, cool * 0.8f, cool, 1.0f},
+            Color{0.018f, 0.02f, 0.026f, 1.0f},
+            Color{warm * 0.42f, warm * 0.44f, warm * 0.48f, 1.0f},
+            Color{cool * 0.06f, cool * 0.072f, cool * 0.09f, 1.0f}};
+        scene->atmosphere.disable();
+        scene->setUseAtmosphereSkybox(false);
+        if (const auto skybox = scene->getSkybox(); skybox != nullptr) {
+            skybox->cubemap.updateWithColors(colors);
+            skybox->show();
+        } else {
+            scene->setSkybox(
+                Skybox::create(Cubemap::fromColors(colors, 64), *window));
+        }
         ambient = {0.82f, 0.84f, 0.88f, 1.0f};
         key = {1.0f, 0.97f, 0.9f, 1.0f};
         rim = {0.52f, 0.65f, 0.88f, 1.0f};
@@ -5805,12 +5820,6 @@ bool Context::setMaterialPreviewEnvironment(int mode) {
     areaLights[1]->intensity = rimIntensity;
     window->setClearColor(background);
 
-    if (auto skybox = scene->getSkybox(); skybox != nullptr) {
-        skybox->cubemap.updateWithColors(colors);
-    } else {
-        scene->setSkybox(
-            Skybox::create(Cubemap::fromColors(colors, 32), *window));
-    }
     return true;
 }
 
