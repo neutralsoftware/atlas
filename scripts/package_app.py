@@ -28,8 +28,7 @@ def require(name, override=None):
     return Path(candidate)
 
 
-def compile_icon(config, artwork, output_directory, work_directory,
-                 deployment_target):
+def compile_icon(config, artwork, output_directory, work_directory, deployment_target):
     source = work_directory / "AtlasEngine.icon"
     if source.exists():
         shutil.rmtree(source)
@@ -40,21 +39,23 @@ def compile_icon(config, artwork, output_directory, work_directory,
         shutil.rmtree(output_directory)
     output_directory.mkdir(parents=True)
     partial_plist = output_directory / "icon-info.plist"
-    run([
-        "/usr/bin/xcrun",
-        "actool",
-        "--compile",
-        output_directory,
-        "--platform",
-        "macosx",
-        "--minimum-deployment-target",
-        deployment_target,
-        "--app-icon",
-        "AtlasEngine",
-        "--output-partial-info-plist",
-        partial_plist,
-        source,
-    ])
+    run(
+        [
+            "/usr/bin/xcrun",
+            "actool",
+            "--compile",
+            output_directory,
+            "--platform",
+            "macosx",
+            "--minimum-deployment-target",
+            deployment_target,
+            "--app-icon",
+            "AtlasEngine",
+            "--output-partial-info-plist",
+            partial_plist,
+            source,
+        ]
+    )
     icon = output_directory / "AtlasEngine.icns"
     assets = output_directory / "Assets.car"
     if not icon.is_file() or not assets.is_file():
@@ -75,7 +76,9 @@ def locate_macdeployqt():
         candidate = Path(result.stdout.strip()) / "macdeployqt"
         if candidate.is_file():
             return candidate
-    raise RuntimeError("macdeployqt was not found. Install Qt 6 or set ATLAS_MACDEPLOYQT.")
+    raise RuntimeError(
+        "macdeployqt was not found. Install Qt 6 or set ATLAS_MACDEPLOYQT."
+    )
 
 
 def macho_dependencies(bundle):
@@ -130,15 +133,17 @@ def sign_bundle(bundle, identity):
 def archive_bundle(bundle, archive):
     if archive.exists():
         archive.unlink()
-    run([
-        "/usr/bin/ditto",
-        "-c",
-        "-k",
-        "--sequesterRsrc",
-        "--keepParent",
-        bundle,
-        archive,
-    ])
+    run(
+        [
+            "/usr/bin/ditto",
+            "-c",
+            "-k",
+            "--sequesterRsrc",
+            "--keepParent",
+            bundle,
+            archive,
+        ]
+    )
 
 
 def create_dmg(bundle, dmg, staging_directory):
@@ -149,31 +154,35 @@ def create_dmg(bundle, dmg, staging_directory):
     os.symlink("/Applications", staging_directory / "Applications")
     if dmg.exists():
         dmg.unlink()
-    run([
-        "/usr/bin/hdiutil",
-        "create",
-        "-volname",
-        "Atlas Engine",
-        "-srcfolder",
-        staging_directory,
-        "-format",
-        "UDZO",
-        "-ov",
-        dmg,
-    ])
+    run(
+        [
+            "/usr/bin/hdiutil",
+            "create",
+            "-volname",
+            "Atlas Engine",
+            "-srcfolder",
+            staging_directory,
+            "-format",
+            "UDZO",
+            "-ov",
+            dmg,
+        ]
+    )
 
 
 def sign_dmg(dmg, identity):
     if identity == "-":
         return
-    run([
-        "/usr/bin/codesign",
-        "--force",
-        "--timestamp",
-        "--sign",
-        identity,
-        dmg,
-    ])
+    run(
+        [
+            "/usr/bin/codesign",
+            "--force",
+            "--timestamp",
+            "--sign",
+            identity,
+            dmg,
+        ]
+    )
     run(["/usr/bin/codesign", "--verify", "--verbose=2", dmg])
 
 
@@ -193,15 +202,17 @@ def validate_release_identity(identity):
 
 
 def notarize(artifact, profile):
-    run([
-        "/usr/bin/xcrun",
-        "notarytool",
-        "submit",
-        artifact,
-        "--keychain-profile",
-        profile,
-        "--wait",
-    ])
+    run(
+        [
+            "/usr/bin/xcrun",
+            "notarytool",
+            "submit",
+            artifact,
+            "--keychain-profile",
+            profile,
+            "--wait",
+        ]
+    )
     run(["/usr/bin/xcrun", "stapler", "staple", artifact])
     run(["/usr/bin/xcrun", "stapler", "validate", artifact])
 
@@ -210,29 +221,33 @@ def validate_dmg(dmg, mountpoint):
     if mountpoint.exists():
         shutil.rmtree(mountpoint)
     mountpoint.mkdir(parents=True)
-    run([
-        "/usr/bin/hdiutil",
-        "attach",
-        "-readonly",
-        "-nobrowse",
-        "-mountpoint",
-        mountpoint,
-        dmg,
-    ])
+    run(
+        [
+            "/usr/bin/hdiutil",
+            "attach",
+            "-readonly",
+            "-nobrowse",
+            "-mountpoint",
+            mountpoint,
+            dmg,
+        ]
+    )
     try:
         mounted_app = mountpoint / "Atlas Engine.app"
         if not mounted_app.is_dir():
             raise RuntimeError("DMG does not contain Atlas Engine.app")
         if not (mountpoint / "Applications").is_symlink():
             raise RuntimeError("DMG does not contain the Applications link")
-        run([
-            "/usr/bin/codesign",
-            "--verify",
-            "--deep",
-            "--strict",
-            "--verbose=2",
-            mounted_app,
-        ])
+        run(
+            [
+                "/usr/bin/codesign",
+                "--verify",
+                "--deep",
+                "--strict",
+                "--verbose=2",
+                mounted_app,
+            ]
+        )
     finally:
         run(["/usr/bin/hdiutil", "detach", mountpoint])
 
@@ -277,8 +292,11 @@ def main():
     app_name = "Atlas Engine.app"
     built_app = build_directory / "bin" / app_name
     packaged_app = dist_directory / app_name
-    icon_config = root / "editor" / "assets" / (
-        "AtlasEngine.icon.json" if args.release else "AtlasEngineDev.icon.json"
+    icon_config = (
+        root
+        / "editor"
+        / "assets"
+        / ("AtlasEngine.icon.json" if args.release else "AtlasEngineDev.icon.json")
     )
     icon_artwork = root / "editor" / "assets" / "atlas_ball_bright.png"
 
@@ -292,29 +310,33 @@ def main():
         deployment_target,
     )
 
-    run([
-        require("cmake"),
-        "-S",
-        root,
-        "-B",
-        build_directory,
-        "-G",
-        "Ninja",
-        f"-DCMAKE_BUILD_TYPE={configuration}",
-        "-DBACKEND=METAL",
-        f"-DCMAKE_OSX_ARCHITECTURES={architectures}",
-        f"-DCMAKE_OSX_DEPLOYMENT_TARGET={deployment_target}",
-        f"-DATLAS_APP_ICON={icon}",
-    ])
-    run([
-        require("cmake"),
-        "--build",
-        build_directory,
-        "--target",
-        "AtlasEditor",
-        "--parallel",
-        str(os.cpu_count() or 4),
-    ])
+    run(
+        [
+            require("cmake"),
+            "-S",
+            root,
+            "-B",
+            build_directory,
+            "-G",
+            "Ninja",
+            f"-DCMAKE_BUILD_TYPE={configuration}",
+            "-DBACKEND=METAL",
+            f"-DCMAKE_OSX_ARCHITECTURES={architectures}",
+            f"-DCMAKE_OSX_DEPLOYMENT_TARGET={deployment_target}",
+            f"-DATLAS_APP_ICON={icon}",
+        ]
+    )
+    run(
+        [
+            require("cmake"),
+            "--build",
+            build_directory,
+            "--target",
+            "AtlasEditor",
+            "--parallel",
+            str(os.cpu_count() or 4),
+        ]
+    )
     if not built_app.is_dir():
         raise RuntimeError(f"Atlas Engine app bundle was not produced at {built_app}")
 
@@ -333,11 +355,13 @@ def main():
     elif notary_profile:
         deploy.append(f"-sign-for-notarization={signing_identity}")
     else:
-        deploy.extend([
-            f"-codesign={signing_identity}",
-            "-hardened-runtime",
-            "-timestamp",
-        ])
+        deploy.extend(
+            [
+                f"-codesign={signing_identity}",
+                "-hardened-runtime",
+                "-timestamp",
+            ]
+        )
     run(deploy)
 
     plist_path = packaged_app / "Contents" / "Info.plist"
@@ -373,14 +397,14 @@ def main():
         raise RuntimeError(f"The app contains non-portable library paths:\n{details}")
 
     archive = dist_directory / (
-        f"Atlas-Engine-alpha9-macOS-{architecture_tag}-{mode}.zip"
+        f"Atlas-Engine-beat1rc-macOS-{architecture_tag}-{mode}.zip"
     )
     archive_bundle(packaged_app, archive)
     dmg_suffix = ""
     if args.release and allow_unnotarized and not notary_profile:
         dmg_suffix = "-UNNOTARIZED"
     dmg = dist_directory / (
-        f"Atlas-Engine-alpha9-macOS-{architecture_tag}-{mode}{dmg_suffix}.dmg"
+        f"Atlas-Engine-beta1rc-macOS-{architecture_tag}-{mode}{dmg_suffix}.dmg"
     )
     create_dmg(packaged_app, dmg, build_directory / "dmg-root")
     sign_dmg(dmg, signing_identity)
@@ -388,16 +412,18 @@ def main():
         if signing_identity == "-":
             raise RuntimeError("ATLAS_NOTARY_PROFILE requires ATLAS_SIGNING_IDENTITY")
         notarize(dmg, notary_profile)
-        run([
-            "/usr/sbin/spctl",
-            "--assess",
-            "--type",
-            "open",
-            "--context",
-            "context:primary-signature",
-            "--verbose=2",
-            dmg,
-        ])
+        run(
+            [
+                "/usr/sbin/spctl",
+                "--assess",
+                "--type",
+                "open",
+                "--context",
+                "context:primary-signature",
+                "--verbose=2",
+                dmg,
+            ]
+        )
     validate_dmg(dmg, build_directory / "dmg-mount")
     signature = "ad-hoc development signature"
     if notary_profile:

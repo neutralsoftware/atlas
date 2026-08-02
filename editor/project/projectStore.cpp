@@ -13,7 +13,7 @@
 #include <algorithm>
 
 namespace {
-QString normalizedProjectPath(const QString& projectFile) {
+QString normalizedProjectPath(const QString &projectFile) {
     QFileInfo info(projectFile);
     const QString canonical = info.canonicalFilePath();
     return canonical.isEmpty() ? info.absoluteFilePath() : canonical;
@@ -26,8 +26,8 @@ QString tomlString(QString value) {
     return value;
 }
 
-bool writeFile(const QString& path, const QByteArray& contents,
-               QString* errorMessage) {
+bool writeFile(const QString &path, const QByteArray &contents,
+               QString *errorMessage) {
     QSaveFile file(path);
     if (!file.open(QIODevice::WriteOnly)) {
         if (errorMessage != nullptr) {
@@ -44,7 +44,7 @@ bool writeFile(const QString& path, const QByteArray& contents,
     return true;
 }
 
-QString projectConfig(const QString& name,
+QString projectConfig(const QString &name,
                       AtlasProjectTemplate projectTemplate) {
     QString renderer = "deferred";
     const bool globalIllumination =
@@ -56,7 +56,7 @@ QString projectConfig(const QString& name,
     QString config;
     QTextStream stream(&config);
     stream << "app_name = \"" << tomlString(name) << "\"\n";
-    stream << "atlas_version = \"alpha9\"\n";
+    stream << "atlas_version = \"beta1rc\"\n";
     stream << "backend = \"AUTO\"\n";
     stream << "name = \"" << tomlString(name) << "\"\n";
     stream << "platform = \"DESKTOP\"\n\n";
@@ -146,20 +146,20 @@ QByteArray starterScene(AtlasProjectTemplate projectTemplate) {
     return scene;
 }
 
-QString capture(const QString& contents, const QString& pattern) {
-    const QRegularExpression expression(
-        pattern, QRegularExpression::MultilineOption);
+QString capture(const QString &contents, const QString &pattern) {
+    const QRegularExpression expression(pattern,
+                                        QRegularExpression::MultilineOption);
     const QRegularExpressionMatch match = expression.match(contents);
     return match.hasMatch() ? match.captured(1) : QString();
 }
-}
+} // namespace
 
 QList<AtlasProjectInfo> ProjectStore::recentProjects() {
     QSettings settings("Neutral Software", "Atlas Engine");
     const QStringList recent =
         settings.value("projects/recentFiles").toStringList();
     QList<AtlasProjectInfo> projects;
-    for (const QString& path : recent) {
+    for (const QString &path : recent) {
         const auto info = projectInfo(path);
         if (info.has_value()) {
             projects.append(*info);
@@ -168,8 +168,8 @@ QList<AtlasProjectInfo> ProjectStore::recentProjects() {
     return projects;
 }
 
-std::optional<AtlasProjectInfo> ProjectStore::projectInfo(
-    const QString& projectFile) {
+std::optional<AtlasProjectInfo>
+ProjectStore::projectInfo(const QString &projectFile) {
     if (projectFile.trimmed().isEmpty()) {
         return std::nullopt;
     }
@@ -198,15 +198,15 @@ std::optional<AtlasProjectInfo> ProjectStore::projectInfo(
         result.name = configuredName;
     }
 
-    const QString renderer = capture(
-        contents, QStringLiteral("^default\\s*=\\s*\"([^\"]+)\""));
-    const bool ddgi = QRegularExpression(
-                          QStringLiteral(
-                              "^global_illumination\\s*=\\s*true\\s*$"),
-                          QRegularExpression::MultilineOption |
-                              QRegularExpression::CaseInsensitiveOption)
-                          .match(contents)
-                          .hasMatch();
+    const QString renderer =
+        capture(contents, QStringLiteral("^default\\s*=\\s*\"([^\"]+)\""));
+    const bool ddgi =
+        QRegularExpression(
+            QStringLiteral("^global_illumination\\s*=\\s*true\\s*$"),
+            QRegularExpression::MultilineOption |
+                QRegularExpression::CaseInsensitiveOption)
+            .match(contents)
+            .hasMatch();
     if (renderer.compare("pathtracing", Qt::CaseInsensitive) == 0) {
         result.renderer = "Path Tracing";
     } else if (ddgi) {
@@ -217,10 +217,10 @@ std::optional<AtlasProjectInfo> ProjectStore::projectInfo(
     return result;
 }
 
-QString ProjectStore::createProject(const QString& name,
-                                    const QString& parentDirectory,
+QString ProjectStore::createProject(const QString &name,
+                                    const QString &parentDirectory,
                                     AtlasProjectTemplate projectTemplate,
-                                    QString* errorMessage) {
+                                    QString *errorMessage) {
     const QString trimmedName = name.trimmed();
     if (trimmedName.isEmpty()) {
         if (errorMessage != nullptr) {
@@ -228,8 +228,8 @@ QString ProjectStore::createProject(const QString& name,
         }
         return QString();
     }
-    if (trimmedName.contains(QRegularExpression(QStringLiteral(
-            R"([/\\:*?"<>|]))")))) {
+    if (trimmedName.contains(
+            QRegularExpression(QStringLiteral(R"([/\\:*?"<>|]))")))) {
         if (errorMessage != nullptr) {
             *errorMessage = "The project name contains unsupported characters.";
         }
@@ -262,9 +262,9 @@ QString ProjectStore::createProject(const QString& name,
 
     const QString projectFile = projectDirectory + "/project.atlas";
     QString writeError;
-    const bool wroteProject =
-        writeFile(projectFile, projectConfig(trimmedName, projectTemplate).toUtf8(),
-                  &writeError);
+    const bool wroteProject = writeFile(
+        projectFile, projectConfig(trimmedName, projectTemplate).toUtf8(),
+        &writeError);
     const bool wroteScene =
         wroteProject && writeFile(projectDirectory + "/main.ascene",
                                   starterScene(projectTemplate), &writeError);
@@ -283,9 +283,10 @@ QString ProjectStore::createProject(const QString& name,
                                  &initializationError)) {
         QDir(projectDirectory).removeRecursively();
         if (errorMessage != nullptr) {
-            *errorMessage = initializationError.isEmpty()
-                                ? "Atlas could not initialize project scripting."
-                                : initializationError;
+            *errorMessage =
+                initializationError.isEmpty()
+                    ? "Atlas could not initialize project scripting."
+                    : initializationError;
         }
         return QString();
     }
@@ -294,13 +295,13 @@ QString ProjectStore::createProject(const QString& name,
     return normalizedProjectPath(projectFile);
 }
 
-bool ProjectStore::isProjectFile(const QString& projectFile) {
+bool ProjectStore::isProjectFile(const QString &projectFile) {
     const QFileInfo info(projectFile);
     return info.exists() && info.isFile() && info.isReadable() &&
            info.suffix().compare("atlas", Qt::CaseInsensitive) == 0;
 }
 
-void ProjectStore::addRecentProject(const QString& projectFile) {
+void ProjectStore::addRecentProject(const QString &projectFile) {
     const QString normalized = normalizedProjectPath(projectFile);
     if (normalized.isEmpty()) {
         return;
@@ -315,7 +316,7 @@ void ProjectStore::addRecentProject(const QString& projectFile) {
     settings.setValue("projects/recentFiles", recent);
 }
 
-void ProjectStore::removeRecentProject(const QString& projectFile) {
+void ProjectStore::removeRecentProject(const QString &projectFile) {
     const QString normalized = normalizedProjectPath(projectFile);
     QSettings settings("Neutral Software", "Atlas Engine");
     QStringList recent = settings.value("projects/recentFiles").toStringList();
