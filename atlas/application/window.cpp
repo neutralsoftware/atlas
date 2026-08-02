@@ -1463,9 +1463,13 @@ bool Window::stepFrame() {
     constexpr float MAX_DELTA_TIME = 1.0f / 30.0f;
 
     currentFrame++;
-    this->relativeMousePos = {.x = 0.0f, .y = 0.0f};
-    this->keysPressedThisFrame.fill(false);
-    this->mouseButtonsPressedThisFrame.fill(false);
+    this->relativeMousePos = this->editorRuntimeRelativeMousePending;
+    this->editorRuntimeRelativeMousePending = {.x = 0.0f, .y = 0.0f};
+    this->keysPressedThisFrame = this->editorRuntimeKeysPressedPending;
+    this->editorRuntimeKeysPressedPending.fill(false);
+    this->mouseButtonsPressedThisFrame =
+        this->editorRuntimeMouseButtonsPressedPending;
+    this->editorRuntimeMouseButtonsPressedPending.fill(false);
     this->textInputBuffer.clear();
     this->pollEvents();
 
@@ -2118,6 +2122,8 @@ void Window::setEditorCameraFocused(bool focused) {
 
 void Window::setEditorSimulationEnabled(bool enabled) {
     editorSimulationEnabled = enabled;
+    if (!enabled)
+        clearEditorRuntimeInput();
     editorDragging = false;
     editorKeyboardTransform = false;
     editorActiveGizmoAxis = 0;
@@ -2471,6 +2477,52 @@ void Window::editorKeyEvent(int key, bool pressed) {
         return;
     }
     editorCameraKeys[static_cast<std::size_t>(key)] = pressed;
+}
+
+void Window::editorRuntimeKeyEvent(int key, bool pressed) {
+    if (key < 0 || key >= static_cast<int>(editorRuntimeKeysActive.size()))
+        return;
+    const std::size_t index = static_cast<std::size_t>(key);
+    if (pressed && !editorRuntimeKeysActive[index])
+        editorRuntimeKeysPressedPending[index] = true;
+    editorRuntimeKeysActive[index] = pressed;
+}
+
+void Window::editorRuntimeMouseMove(float x, float y, float deltaX,
+                                    float deltaY) {
+    editorRuntimeRelativeMousePending.x += deltaX;
+    editorRuntimeRelativeMousePending.y += deltaY;
+    lastMouseX = x;
+    lastMouseY = y;
+    if (editorSimulationEnabled && currentScene != nullptr)
+        currentScene->onMouseMove(*this, {.x = deltaX, .y = deltaY});
+}
+
+void Window::editorRuntimeMouseButtonEvent(int action, int button) {
+    if (button <= 0 ||
+        button >= static_cast<int>(editorRuntimeMouseButtonsActive.size()))
+        return;
+    const std::size_t index = static_cast<std::size_t>(button);
+    if (action == 0) {
+        if (!editorRuntimeMouseButtonsActive[index])
+            editorRuntimeMouseButtonsPressedPending[index] = true;
+        editorRuntimeMouseButtonsActive[index] = true;
+    } else if (action == 2) {
+        editorRuntimeMouseButtonsActive[index] = false;
+    }
+}
+
+void Window::editorRuntimeScrollEvent(float x, float y) {
+    if (editorSimulationEnabled && currentScene != nullptr)
+        currentScene->onMouseScroll(*this, {.x = x, .y = y});
+}
+
+void Window::clearEditorRuntimeInput() {
+    editorRuntimeKeysActive.fill(false);
+    editorRuntimeKeysPressedPending.fill(false);
+    editorRuntimeMouseButtonsActive.fill(false);
+    editorRuntimeMouseButtonsPressedPending.fill(false);
+    editorRuntimeRelativeMousePending = {.x = 0.0f, .y = 0.0f};
 }
 
 void Window::selectEditorObjectAt(float x, float y, float scale) {
@@ -4187,8 +4239,12 @@ bool Window::isKeyActive(Key key) {
     int keyCount = 0;
     const bool *state = SDL_GetKeyboardState(&keyCount);
     const int scancode = static_cast<int>(key);
-    return state != nullptr && scancode >= 0 && scancode < keyCount &&
-           state[scancode];
+    const bool editorActive =
+        scancode >= 0 &&
+        scancode < static_cast<int>(editorRuntimeKeysActive.size()) &&
+        editorRuntimeKeysActive[static_cast<std::size_t>(scancode)];
+    return editorActive || (state != nullptr && scancode >= 0 &&
+                            scancode < keyCount && state[scancode]);
 }
 
 bool Window::isKeyPressed(Key key) {
@@ -4200,7 +4256,12 @@ bool Window::isKeyPressed(Key key) {
 
 bool Window::isMouseButtonActive(MouseButton button) {
     const SDL_MouseButtonFlags state = SDL_GetMouseState(nullptr, nullptr);
-    return (state & SDL_BUTTON_MASK(static_cast<int>(button))) != 0;
+    const int index = static_cast<int>(button);
+    const bool editorActive =
+        index >= 0 &&
+        index < static_cast<int>(editorRuntimeMouseButtonsActive.size()) &&
+        editorRuntimeMouseButtonsActive[static_cast<std::size_t>(index)];
+    return editorActive || (state & SDL_BUTTON_MASK(index)) != 0;
 }
 
 bool Window::isMouseButtonPressed(MouseButton button) {

@@ -453,6 +453,11 @@ class Window {
                             float scale = 1.0f);
     void editorScrollEvent(float delta, float scale = 1.0f);
     void editorKeyEvent(int key, bool pressed);
+    void editorRuntimeKeyEvent(int key, bool pressed);
+    void editorRuntimeMouseMove(float x, float y, float deltaX, float deltaY);
+    void editorRuntimeMouseButtonEvent(int action, int button);
+    void editorRuntimeScrollEvent(float x, float y);
+    void clearEditorRuntimeInput();
     bool beginEditorKeyboardTransform(EditorControlMode mode, float x, float y,
                                       float scale = 1.0f);
     void setEditorKeyboardTransformAxes(int axes);
@@ -851,6 +856,11 @@ class Window {
     std::vector<std::shared_ptr<InputAction>> inputActions;
     std::array<bool, SDL_SCANCODE_COUNT> keysPressedThisFrame{};
     std::array<bool, 9> mouseButtonsPressedThisFrame{};
+    std::array<bool, SDL_SCANCODE_COUNT> editorRuntimeKeysActive{};
+    std::array<bool, SDL_SCANCODE_COUNT> editorRuntimeKeysPressedPending{};
+    std::array<bool, 9> editorRuntimeMouseButtonsActive{};
+    std::array<bool, 9> editorRuntimeMouseButtonsPressedPending{};
+    Position2d editorRuntimeRelativeMousePending{};
     std::string textInputBuffer;
     bool textInputActive = false;
     std::shared_ptr<opal::CommandBuffer> activeCommandBuffer = nullptr;

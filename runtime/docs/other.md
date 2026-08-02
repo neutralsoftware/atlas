@@ -236,14 +236,15 @@ If both a manual directional light and `environment.atmosphere.globalLight` are 
 
 ## Input Actions
 
-Input Actions are defined in a separate file that can be referenced by the camera or other objects in the scene. They are defined as an array of input action objects, where each input action object has a `name` property that specifies the name of the input action, and an `inputs` property that defines the inputs for that action. These files are structured as following:
+Input Actions are defined in the project-wide `input-actions.json` file and can be referenced by the camera, scripts, or other objects in the scene.
 
 * `name`: The name of the input action, which is a string that can be used to identify the input action.
-* `triggerButtons`: An array of strings that specify the buttons that trigger the input action. These can be standard button names (e.g., "W", "A", "S", "D", "Space", etc.) or custom button names defined by the user.
-* `triggerAxes`: An array of strings that specify the axes that trigger the input action. These axes are:
-  * `"type": "mouse"`: for mouse movement
-  * `"type": "controller"`: for controller stick movement but only for the controller id with field `id` and axis index for `index`
-  * `"type": "custom"`: for keyboard input, where the `triggers` property defines the keys that trigger the input action (e.g., "W", "A", "S", "D", etc.)
+* `triggerButtons`: An array of keyboard names, mouse button objects, or controller button objects. Controller buttons accept readable names such as `A`, `Left Bumper`, or `D-Pad Up`, as well as legacy numeric indexes.
+* `triggerAxes`: An array containing any combination of mouse movement, keyboard directions, and controller axes. An action may use only one source, such as mouse movement without keyboard bindings.
+  * `"mouse"` or `{"type": "mouse"}`: mouse movement.
+  * `{"type": "controller", "id": -1, "index": "Left Stick X"}`: a named 1D controller axis.
+  * `{"type": "controller", "id": -1, "indexes": ["Left Stick X", "Left Stick Y"]}`: a named 2D controller axis pair.
+  * `{"type": "custom", ...}`: keyboard or mouse-button directions.
 
 
 ## Terrain Generator Settings

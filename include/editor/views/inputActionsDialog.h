@@ -5,6 +5,7 @@
 #include <QJsonValue>
 #include <QList>
 #include <QString>
+#include <QStringList>
 
 class QCheckBox;
 class QComboBox;
@@ -19,18 +20,25 @@ class QStackedWidget;
 class QTableWidget;
 
 class InputActionsDialog : public QDialog {
+    Q_OBJECT
+
   public:
     enum class ActionKind { Button, Axis1D, Axis2D };
 
     explicit InputActionsDialog(const QString &projectFile,
                                 QWidget *parent = nullptr);
+    static QString actionsFileForProject(const QString &projectFile);
+    static QStringList actionNamesForProject(const QString &projectFile);
+
+  signals:
+    void actionsSaved();
 
   private:
     struct ButtonBinding {
         QString source = "Keyboard";
         QString value = "Space";
         int controllerId = -1;
-        int controllerButton = 0;
+        QString controllerButton = "A";
     };
 
     struct ActionDefinition {
@@ -41,11 +49,12 @@ class InputActionsDialog : public QDialog {
         QString negativeX = "A";
         QString positiveY = "W";
         QString negativeY = "S";
+        bool keyboardAxis = true;
         bool mouseAxis = false;
         bool controllerAxis = false;
         int controllerId = -1;
-        int controllerAxisX = 0;
-        int controllerAxisY = 1;
+        QString controllerAxisX = "Left Stick X";
+        QString controllerAxisY = "Left Stick Y";
         double deadzone = 0.2;
         double scaleX = 1.0;
         double scaleY = 1.0;
@@ -92,11 +101,12 @@ class InputActionsDialog : public QDialog {
     QComboBox *negativeYField = nullptr;
     QLabel *positiveYLabel = nullptr;
     QLabel *negativeYLabel = nullptr;
+    QCheckBox *keyboardAxisField = nullptr;
     QCheckBox *mouseAxisField = nullptr;
     QCheckBox *controllerAxisField = nullptr;
     QSpinBox *controllerIdField = nullptr;
-    QSpinBox *controllerAxisXField = nullptr;
-    QSpinBox *controllerAxisYField = nullptr;
+    QComboBox *controllerAxisXField = nullptr;
+    QComboBox *controllerAxisYField = nullptr;
     QLabel *controllerAxisYLabel = nullptr;
     QDoubleSpinBox *deadzoneField = nullptr;
     QDoubleSpinBox *scaleXField = nullptr;

@@ -115,6 +115,197 @@ int editorCameraKey(int key) {
     }
 }
 
+int runtimeKey(const QKeyEvent *event) {
+    const int key = event->key();
+    if (event->modifiers().testFlag(Qt::KeypadModifier)) {
+        switch (key) {
+        case Qt::Key_0:
+            return static_cast<int>(Key::KP0);
+        case Qt::Key_1:
+            return static_cast<int>(Key::KP1);
+        case Qt::Key_2:
+            return static_cast<int>(Key::KP2);
+        case Qt::Key_3:
+            return static_cast<int>(Key::KP3);
+        case Qt::Key_4:
+            return static_cast<int>(Key::KP4);
+        case Qt::Key_5:
+            return static_cast<int>(Key::KP5);
+        case Qt::Key_6:
+            return static_cast<int>(Key::KP6);
+        case Qt::Key_7:
+            return static_cast<int>(Key::KP7);
+        case Qt::Key_8:
+            return static_cast<int>(Key::KP8);
+        case Qt::Key_9:
+            return static_cast<int>(Key::KP9);
+        case Qt::Key_Period:
+        case Qt::Key_Comma:
+            return static_cast<int>(Key::KPDecimal);
+        case Qt::Key_Slash:
+            return static_cast<int>(Key::KPDivide);
+        case Qt::Key_Asterisk:
+            return static_cast<int>(Key::KPMultiply);
+        case Qt::Key_Minus:
+            return static_cast<int>(Key::KPSubtract);
+        case Qt::Key_Plus:
+            return static_cast<int>(Key::KPAdd);
+        case Qt::Key_Equal:
+            return static_cast<int>(Key::KPEqual);
+        default:
+            break;
+        }
+    }
+    if (key >= Qt::Key_A && key <= Qt::Key_Z)
+        return static_cast<int>(Key::A) + key - Qt::Key_A;
+    switch (key) {
+    case Qt::Key_0:
+    case Qt::Key_ParenRight:
+        return static_cast<int>(Key::Key0);
+    case Qt::Key_1:
+    case Qt::Key_Exclam:
+        return static_cast<int>(Key::Key1);
+    case Qt::Key_2:
+    case Qt::Key_At:
+        return static_cast<int>(Key::Key2);
+    case Qt::Key_3:
+    case Qt::Key_NumberSign:
+        return static_cast<int>(Key::Key3);
+    case Qt::Key_4:
+    case Qt::Key_Dollar:
+        return static_cast<int>(Key::Key4);
+    case Qt::Key_5:
+    case Qt::Key_Percent:
+        return static_cast<int>(Key::Key5);
+    case Qt::Key_6:
+    case Qt::Key_AsciiCircum:
+        return static_cast<int>(Key::Key6);
+    case Qt::Key_7:
+    case Qt::Key_Ampersand:
+        return static_cast<int>(Key::Key7);
+    case Qt::Key_8:
+    case Qt::Key_Asterisk:
+        return static_cast<int>(Key::Key8);
+    case Qt::Key_9:
+    case Qt::Key_ParenLeft:
+        return static_cast<int>(Key::Key9);
+    case Qt::Key_Space:
+        return static_cast<int>(Key::Space);
+    case Qt::Key_Apostrophe:
+    case Qt::Key_QuoteDbl:
+        return static_cast<int>(Key::Apostrophe);
+    case Qt::Key_Comma:
+    case Qt::Key_Less:
+        return static_cast<int>(Key::Comma);
+    case Qt::Key_Minus:
+    case Qt::Key_Underscore:
+        return static_cast<int>(Key::Minus);
+    case Qt::Key_Period:
+    case Qt::Key_Greater:
+        return static_cast<int>(Key::Period);
+    case Qt::Key_Slash:
+    case Qt::Key_Question:
+        return static_cast<int>(Key::Slash);
+    case Qt::Key_Semicolon:
+    case Qt::Key_Colon:
+        return static_cast<int>(Key::Semicolon);
+    case Qt::Key_Equal:
+    case Qt::Key_Plus:
+        return static_cast<int>(Key::Equal);
+    case Qt::Key_BracketLeft:
+    case Qt::Key_BraceLeft:
+        return static_cast<int>(Key::LeftBracket);
+    case Qt::Key_Backslash:
+    case Qt::Key_Bar:
+        return static_cast<int>(Key::Backslash);
+    case Qt::Key_BracketRight:
+    case Qt::Key_BraceRight:
+        return static_cast<int>(Key::RightBracket);
+    case Qt::Key_QuoteLeft:
+    case Qt::Key_AsciiTilde:
+        return static_cast<int>(Key::GraveAccent);
+    case Qt::Key_Return:
+    case Qt::Key_Enter:
+        return event->modifiers().testFlag(Qt::KeypadModifier)
+                   ? static_cast<int>(Key::KPEnter)
+                   : static_cast<int>(Key::Enter);
+    case Qt::Key_Tab:
+    case Qt::Key_Backtab:
+        return static_cast<int>(Key::Tab);
+    case Qt::Key_Backspace:
+        return static_cast<int>(Key::Backspace);
+    case Qt::Key_Insert:
+        return static_cast<int>(Key::Insert);
+    case Qt::Key_Delete:
+        return static_cast<int>(Key::Delete);
+    case Qt::Key_Right:
+        return static_cast<int>(Key::Right);
+    case Qt::Key_Left:
+        return static_cast<int>(Key::Left);
+    case Qt::Key_Down:
+        return static_cast<int>(Key::Down);
+    case Qt::Key_Up:
+        return static_cast<int>(Key::Up);
+    case Qt::Key_PageUp:
+        return static_cast<int>(Key::PageUp);
+    case Qt::Key_PageDown:
+        return static_cast<int>(Key::PageDown);
+    case Qt::Key_Home:
+        return static_cast<int>(Key::Home);
+    case Qt::Key_End:
+        return static_cast<int>(Key::End);
+    case Qt::Key_CapsLock:
+        return static_cast<int>(Key::CapsLock);
+    case Qt::Key_ScrollLock:
+        return static_cast<int>(Key::ScrollLock);
+    case Qt::Key_NumLock:
+        return static_cast<int>(Key::NumLock);
+    case Qt::Key_Print:
+        return static_cast<int>(Key::PrintScreen);
+    case Qt::Key_Pause:
+        return static_cast<int>(Key::Pause);
+    case Qt::Key_Shift:
+#ifdef Q_OS_MACOS
+        return event->nativeScanCode() == 60 ? static_cast<int>(Key::RightShift)
+                                             : static_cast<int>(Key::LeftShift);
+#else
+        return static_cast<int>(Key::LeftShift);
+#endif
+    case Qt::Key_Control:
+#ifdef Q_OS_MACOS
+        return event->nativeScanCode() == 62
+                   ? static_cast<int>(Key::RightControl)
+                   : static_cast<int>(Key::LeftControl);
+#else
+        return static_cast<int>(Key::LeftControl);
+#endif
+    case Qt::Key_Alt:
+#ifdef Q_OS_MACOS
+        return event->nativeScanCode() == 61 ? static_cast<int>(Key::RightAlt)
+                                             : static_cast<int>(Key::LeftAlt);
+#else
+        return static_cast<int>(Key::LeftAlt);
+#endif
+    case Qt::Key_Meta:
+#ifdef Q_OS_MACOS
+        return event->nativeScanCode() == 54
+                   ? static_cast<int>(Key::RightSuper)
+                   : static_cast<int>(Key::LeftSuper);
+#else
+        return static_cast<int>(Key::LeftSuper);
+#endif
+    case Qt::Key_Menu:
+        return static_cast<int>(Key::Menu);
+    default:
+        break;
+    }
+    if (key >= Qt::Key_F1 && key <= Qt::Key_F12)
+        return static_cast<int>(Key::F1) + key - Qt::Key_F1;
+    if (key >= Qt::Key_F13 && key <= Qt::Key_F24)
+        return static_cast<int>(Key::F13) + key - Qt::Key_F13;
+    return -1;
+}
+
 float widgetScale(QWidget *widget) {
     const qreal scale = widget != nullptr ? widget->devicePixelRatioF() : 1.0;
     return scale > 0.0 ? static_cast<float>(scale) : 1.0f;
@@ -284,6 +475,14 @@ ViewportPanel::ViewportPanel(const QString &projectFile, QWidget *parent)
     }
 }
 
+bool ViewportPanel::event(QEvent *event) {
+    if (playbackState == 1 && event->type() == QEvent::ShortcutOverride) {
+        event->accept();
+        return true;
+    }
+    return QWidget::event(event);
+}
+
 ViewportPanel::~ViewportPanel() { shutdownRuntime(); }
 
 QSize ViewportPanel::sizeHint() const { return QSize(640, 360); }
@@ -300,6 +499,8 @@ void ViewportPanel::setRuntimeStartupEnabled(bool enabled) {
 
 void ViewportPanel::showEvent(QShowEvent *event) {
     QWidget::showEvent(event);
+    if (playbackState == 1)
+        captureRuntimeInput();
     if (runtimeContext != nullptr) {
         frameTimer->start(RuntimeFrameIntervalMs);
         return;
@@ -309,6 +510,7 @@ void ViewportPanel::showEvent(QShowEvent *event) {
 }
 
 void ViewportPanel::hideEvent(QHideEvent *event) {
+    releaseRuntimeInput();
     frameTimer->stop();
     QWidget::hideEvent(event);
 }
@@ -399,6 +601,12 @@ void ViewportPanel::shutdownRuntime() {
 
 void ViewportPanel::mousePressEvent(QMouseEvent *event) {
     setFocus(Qt::MouseFocusReason);
+    if (playbackState == 1 && runtimeContext != nullptr) {
+        runtimeContext->editorRuntimeMouseButtonEvent(
+            0, runtimeMouseButton(event->button()));
+        event->accept();
+        return;
+    }
     if (keyboardTransformActive && (event->button() == Qt::LeftButton ||
                                     event->button() == Qt::RightButton)) {
         finishKeyboardTransform(event->button() == Qt::LeftButton);
@@ -436,6 +644,20 @@ void ViewportPanel::mousePressEvent(QMouseEvent *event) {
 }
 
 void ViewportPanel::mouseMoveEvent(QMouseEvent *event) {
+    if (playbackState == 1 && runtimeContext != nullptr) {
+        const QPoint center(width() / 2, height() / 2);
+        const QPointF delta = event->position() - QPointF(center);
+        if (!qFuzzyIsNull(delta.x()) || !qFuzzyIsNull(delta.y())) {
+            runtimeContext->editorRuntimeMouseMove(
+                static_cast<float>(event->position().x()),
+                static_cast<float>(height() - event->position().y()),
+                static_cast<float>(delta.x()),
+                static_cast<float>(-delta.y()));
+            QCursor::setPos(mapToGlobal(center));
+        }
+        event->accept();
+        return;
+    }
     if (event->buttons().testFlag(Qt::LeftButton))
         leftPointerMoved = true;
     sendPointerEvent(1, static_cast<float>(event->position().x()),
@@ -468,6 +690,12 @@ void ViewportPanel::mouseMoveEvent(QMouseEvent *event) {
 }
 
 void ViewportPanel::mouseReleaseEvent(QMouseEvent *event) {
+    if (playbackState == 1 && runtimeContext != nullptr) {
+        runtimeContext->editorRuntimeMouseButtonEvent(
+            2, runtimeMouseButton(event->button()));
+        event->accept();
+        return;
+    }
     const int pointerButton = event->button() == Qt::RightButton
                                   ? rightDragRuntimeButton
                               : event->button() == Qt::MiddleButton
@@ -498,7 +726,13 @@ void ViewportPanel::wheelEvent(QWheelEvent *event) {
         QWidget::wheelEvent(event);
         return;
     }
+    const float deltaX = static_cast<float>(event->angleDelta().x()) / 120.0f;
     const float delta = static_cast<float>(event->angleDelta().y()) / 120.0f;
+    if (playbackState == 1) {
+        runtimeContext->editorRuntimeScrollEvent(deltaX, delta);
+        event->accept();
+        return;
+    }
     if (std::abs(delta) > 0.0f) {
         runtimeContext->editorScrollEvent(delta, widgetScale(this));
     }
@@ -506,6 +740,18 @@ void ViewportPanel::wheelEvent(QWheelEvent *event) {
 }
 
 void ViewportPanel::keyPressEvent(QKeyEvent *event) {
+    if (playbackState == 1 && runtimeContext != nullptr) {
+        if (event->key() == Qt::Key_Escape && !event->isAutoRepeat()) {
+            stopRuntimePlayback();
+            event->accept();
+            return;
+        }
+        const int key = runtimeKey(event);
+        if (key >= 0 && !event->isAutoRepeat())
+            runtimeContext->editorRuntimeKeyEvent(key, true);
+        event->accept();
+        return;
+    }
     if (!event->isAutoRepeat() && runtimeContext != nullptr &&
         playbackState == 0) {
         if (event->key() == Qt::Key_0 &&
@@ -571,6 +817,13 @@ void ViewportPanel::keyPressEvent(QKeyEvent *event) {
 }
 
 void ViewportPanel::keyReleaseEvent(QKeyEvent *event) {
+    if (playbackState == 1 && runtimeContext != nullptr) {
+        const int key = runtimeKey(event);
+        if (key >= 0 && !event->isAutoRepeat())
+            runtimeContext->editorRuntimeKeyEvent(key, false);
+        event->accept();
+        return;
+    }
     const int key = editorCameraKey(event->key());
     if (event->isAutoRepeat()) {
         if (key >= 0) {
@@ -680,6 +933,7 @@ void ViewportPanel::startRuntime() {
             runtimeContext->setEditorSimulationEnabled(true);
             playbackState = 1;
             emit playbackStateChanged(playbackState);
+            captureRuntimeInput();
         }
     } catch (const std::exception &error) {
         const QString message = QString::fromUtf8(error.what());
@@ -708,6 +962,7 @@ void ViewportPanel::startRuntime() {
 }
 
 void ViewportPanel::stopRuntime() {
+    releaseRuntimeInput();
     if (frameTimer != nullptr) {
         frameTimer->stop();
     }
@@ -1376,6 +1631,7 @@ void ViewportPanel::pauseRuntime() {
         return;
     }
     runtimeContext->setEditorSimulationEnabled(false);
+    releaseRuntimeInput();
     refreshSceneSnapshot();
     playbackState = 2;
     emit playbackStateChanged(playbackState);
@@ -1400,6 +1656,28 @@ void ViewportPanel::stopRuntimePlayback() {
         return;
     }
     reloadRuntime();
+}
+
+void ViewportPanel::captureRuntimeInput() {
+    if (runtimeInputCaptured || playbackState != 1 || !isVisible())
+        return;
+    setFocus(Qt::OtherFocusReason);
+    grabKeyboard();
+    grabMouse();
+    setCursor(Qt::BlankCursor);
+    runtimeInputCaptured = true;
+    QCursor::setPos(mapToGlobal(QPoint(width() / 2, height() / 2)));
+}
+
+void ViewportPanel::releaseRuntimeInput() {
+    if (runtimeContext != nullptr)
+        runtimeContext->clearEditorRuntimeInput();
+    if (!runtimeInputCaptured)
+        return;
+    releaseKeyboard();
+    releaseMouse();
+    unsetCursor();
+    runtimeInputCaptured = false;
 }
 
 void ViewportPanel::reloadRuntime() {
