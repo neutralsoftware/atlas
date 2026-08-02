@@ -1304,6 +1304,7 @@ void Window::initializeRunLoop() {
 
 void Window::pollEvents() {
     if (this->renderToExternalMetalView) {
+        SDL_PumpEvents();
         return;
     }
     SDL_Event event;

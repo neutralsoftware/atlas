@@ -202,6 +202,7 @@ if (APPLE)
             "-framework QuartzCore"
             "-framework Foundation"
             "-framework Cocoa"
+            "-framework CoreGraphics"
             "-framework IOKit"
     )
 endif ()
