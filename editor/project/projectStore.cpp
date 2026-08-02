@@ -56,7 +56,7 @@ QString projectConfig(const QString &name,
     QString config;
     QTextStream stream(&config);
     stream << "app_name = \"" << tomlString(name) << "\"\n";
-    stream << "atlas_version = \"beta1rc\"\n";
+    stream << "atlas_version = \"beta1\"\n";
     stream << "backend = \"AUTO\"\n";
     stream << "name = \"" << tomlString(name) << "\"\n";
     stream << "platform = \"DESKTOP\"\n\n";

@@ -16,7 +16,7 @@ message(STATUS "Using Compiler: ${CMAKE_CXX_COMPILER_ID} ${CMAKE_CXX_COMPILER_VE
 message(STATUS "Compiler at path:" ${CMAKE_CXX_COMPILER})
 
 add_compile_definitions(
-        ATLAS_VERSION="Release Candidate for Beta 1"
+        ATLAS_VERSION="Beta 1"
         OPAL_VERSION="3 Tetrahedron"
 )
 

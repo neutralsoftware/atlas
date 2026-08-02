@@ -404,7 +404,7 @@ def main():
     if args.release and allow_unnotarized and not notary_profile:
         dmg_suffix = "-UNNOTARIZED"
     dmg = dist_directory / (
-        f"Atlas-Engine-beta1rc-macOS-{architecture_tag}-{mode}{dmg_suffix}.dmg"
+        f"Atlas-Engine-beta1-macOS-{architecture_tag}-{mode}{dmg_suffix}.dmg"
     )
     create_dmg(packaged_app, dmg, build_directory / "dmg-root")
     sign_dmg(dmg, signing_identity)
