@@ -350,6 +350,8 @@ class Scene {
      */
     void setEnvironment(Environment newEnv) { environment = std::move(newEnv); }
 
+    const Environment &getEnvironment() const { return environment; }
+
     /**
      * @brief Internal update hook used by the renderer to advance scene-wide
      * effects.
