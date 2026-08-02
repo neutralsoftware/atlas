@@ -10,7 +10,7 @@
         "lookSmoothness": 0.15000000596046448,
         "mouseSensitivity": 0.10000000149011612,
         "movementSpeed": 2.0,
-        "nearClip": 0.1,
+        "nearClip": 0.10000000149011612,
         "orthoSize": 5.0,
         "orthographic": false,
         "position": [
@@ -45,9 +45,21 @@
             "id": 157052340,
             "material": "assets/materials/BoxWhite.amat",
             "name": "Floor",
-            "position": [0.0, -0.05, 1.0],
-            "rotation": [0.0, 0.0, 0.0],
-            "scale": [5.5, 0.1, 5.5],
+            "position": [
+                0.0,
+                -0.05000000074505806,
+                1.0
+            ],
+            "rotation": [
+                0.0,
+                0.0,
+                0.0
+            ],
+            "scale": [
+                5.5,
+                0.10000000149011612,
+                5.5
+            ],
             "solid_type": "cube",
             "type": "solid"
         },
@@ -56,9 +68,21 @@
             "id": 157052341,
             "material": "assets/materials/BoxWhite.amat",
             "name": "Ceiling",
-            "position": [0.0, 5.05, 1.0],
-            "rotation": [0.0, 0.0, 0.0],
-            "scale": [5.5, 0.1, 5.5],
+            "position": [
+                0.0,
+                5.050000190734863,
+                1.0
+            ],
+            "rotation": [
+                0.0,
+                0.0,
+                0.0
+            ],
+            "scale": [
+                5.5,
+                0.10000000149011612,
+                5.5
+            ],
             "solid_type": "cube",
             "type": "solid"
         },
@@ -67,9 +91,21 @@
             "id": 157052342,
             "material": "assets/materials/BoxWhite.amat",
             "name": "Back Wall",
-            "position": [0.0, 2.5, 3.75],
-            "rotation": [0.0, 0.0, 0.0],
-            "scale": [5.5, 5.0, 0.1],
+            "position": [
+                0.0,
+                2.5,
+                3.75
+            ],
+            "rotation": [
+                0.0,
+                0.0,
+                0.0
+            ],
+            "scale": [
+                5.5,
+                5.0,
+                0.10000000149011612
+            ],
             "solid_type": "cube",
             "type": "solid"
         },
@@ -78,9 +114,21 @@
             "id": 157052343,
             "material": "assets/materials/BoxGreen.amat",
             "name": "Left Wall",
-            "position": [-2.75, 2.5, 1.0],
-            "rotation": [0.0, 0.0, 0.0],
-            "scale": [0.1, 5.0, 5.5],
+            "position": [
+                -2.75,
+                2.5,
+                1.0
+            ],
+            "rotation": [
+                0.0,
+                0.0,
+                0.0
+            ],
+            "scale": [
+                0.10000000149011612,
+                5.0,
+                5.5
+            ],
             "solid_type": "cube",
             "type": "solid"
         },
@@ -89,20 +137,21 @@
             "id": 157052344,
             "material": "assets/materials/BoxRed.amat",
             "name": "Right Wall",
-            "position": [2.75, 2.5, 1.0],
-            "rotation": [0.0, 0.0, 0.0],
-            "scale": [0.1, 5.0, 5.5],
-            "solid_type": "cube",
-            "type": "solid"
-        },
-        {
-            "components": [],
-            "id": 157052345,
-            "material": "assets/materials/BoxWhite.amat",
-            "name": "Short Box",
-            "position": [-1.15, 0.75, 2.0],
-            "rotation": [0.0, -18.0, 0.0],
-            "scale": [1.5, 1.5, 1.5],
+            "position": [
+                2.75,
+                2.5,
+                1.0
+            ],
+            "rotation": [
+                0.0,
+                0.0,
+                0.0
+            ],
+            "scale": [
+                0.10000000149011612,
+                5.0,
+                5.5
+            ],
             "solid_type": "cube",
             "type": "solid"
         },
@@ -111,9 +160,21 @@
             "id": 157052346,
             "material": "assets/materials/BoxWhite.amat",
             "name": "Tall Box",
-            "position": [1.0, 1.4, 1.65],
-            "rotation": [0.0, 15.0, 0.0],
-            "scale": [1.4, 2.8, 1.4],
+            "position": [
+                1.0,
+                1.5808521509170532,
+                1.649999976158142
+            ],
+            "rotation": [
+                0.0,
+                15.0,
+                0.0
+            ],
+            "scale": [
+                1.7824022769927979,
+                3.1824023723602295,
+                1.7824022769927979
+            ],
             "solid_type": "cube",
             "type": "solid"
         },
@@ -122,9 +183,21 @@
             "id": 6739391,
             "material": "assets/materials/Glass.amat",
             "name": "Glass Sphere",
-            "position": [-0.7, 1.0, 0.05],
-            "rotation": [0.0, 0.0, 0.0],
-            "scale": [1.1, 1.1, 1.1],
+            "position": [
+                -1.1136409044265747,
+                1.508070468902588,
+                -0.5597862005233765
+            ],
+            "rotation": [
+                0.0,
+                0.0,
+                0.0
+            ],
+            "scale": [
+                1.9675586223602295,
+                1.9675586223602295,
+                1.9675586223602295
+            ],
             "solid_type": "sphere",
             "type": "solid"
         },
@@ -133,9 +206,21 @@
             "id": 2097299432,
             "material": "assets/materials/Emissive Ball.amat",
             "name": "Ceiling Light",
-            "position": [0.0, 4.92, 1.0],
-            "rotation": [90.0, 0.0, 0.0],
-            "scale": [2.0, 1.5, 1.0],
+            "position": [
+                0.0,
+                4.920000076293945,
+                1.0
+            ],
+            "rotation": [
+                90.0,
+                0.0,
+                0.0
+            ],
+            "scale": [
+                2.0,
+                1.5,
+                1.0
+            ],
             "solid_type": "plane",
             "type": "solid"
         }
