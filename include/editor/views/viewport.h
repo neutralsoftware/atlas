@@ -13,6 +13,7 @@
 #include <memory>
 
 #include <QByteArray>
+#include <QElapsedTimer>
 #include <QJsonObject>
 #include <QList>
 #include <QString>
@@ -169,6 +170,8 @@ class ViewportPanel : public QWidget {
     QString selectionToRestore;
     QByteArray objectClipboard;
     QJsonObject transformUndoBefore;
+    QElapsedTimer snapshotTimer;
+    QElapsedTimer frameRateTimer;
     bool runtimeStartQueued = false;
     bool runtimeStartupEnabled = false;
     bool shuttingDown = false;

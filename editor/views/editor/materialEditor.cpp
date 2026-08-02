@@ -48,6 +48,9 @@
 #include <utility>
 
 namespace {
+constexpr int MaterialPreviewPathTracingFrames = 24;
+constexpr int MaterialPreviewPathTracingIntervalMs = 50;
+
 QColor jsonColor(const QJsonValue &value, const QColor &fallback) {
     const QJsonArray array = value.toArray();
     if (array.size() < 3) {
@@ -213,8 +216,13 @@ class MaterialPreviewWidget : public QWidget {
 
   private:
     void scheduleFrame() {
-        pendingFrames = std::max(pendingFrames, 2);
-        if (isVisible() && frameTimer != nullptr) {
+        const int requestedFrames =
+            runtimeContext != nullptr &&
+                    runtimeContext->materialPreviewUsesPathTracing()
+                ? MaterialPreviewPathTracingFrames
+                : 2;
+        pendingFrames = std::max(pendingFrames, requestedFrames);
+        if (isVisible() && frameTimer != nullptr && !frameTimer->isActive()) {
             frameTimer->start(0);
         }
     }
@@ -237,6 +245,10 @@ class MaterialPreviewWidget : public QWidget {
                 return;
             }
             resizeRuntime();
+            if (runtimeContext->materialPreviewUsesPathTracing()) {
+                pendingFrames =
+                    std::max(pendingFrames, MaterialPreviewPathTracingFrames);
+            }
         } catch (const std::exception &error) {
             qWarning().noquote()
                 << QStringLiteral("Failed to start runtime material preview: %1")
@@ -278,10 +290,12 @@ class MaterialPreviewWidget : public QWidget {
                 return;
             }
             pendingFrames = std::max(0, pendingFrames - 1);
-            if (isVisible() && runtimeContext->materialPreviewUsesPathTracing())
-                frameTimer->start(1);
-            else if (pendingFrames > 0 && isVisible())
-                frameTimer->start(1);
+            if (pendingFrames > 0 && isVisible()) {
+                frameTimer->start(
+                    runtimeContext->materialPreviewUsesPathTracing()
+                        ? MaterialPreviewPathTracingIntervalMs
+                        : 1);
+            }
         } catch (const std::exception &error) {
             qWarning().noquote()
                 << QStringLiteral("Runtime material preview frame failed: %1")

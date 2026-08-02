@@ -60,6 +60,9 @@ constexpr int RuntimeEditorCameraKeyLeft = 2;
 constexpr int RuntimeEditorCameraKeyRight = 3;
 constexpr int RuntimeEditorCameraKeyUp = 4;
 constexpr int RuntimeEditorCameraKeyDown = 5;
+constexpr int RuntimeFrameIntervalMs = 16;
+constexpr int RuntimeSnapshotIntervalMs = 50;
+constexpr int RuntimeFrameRateIntervalMs = 250;
 
 int runtimeMouseButton(Qt::MouseButton button) {
     switch (button) {
@@ -272,7 +275,7 @@ ViewportPanel::ViewportPanel(const QString &projectFile, QWidget *parent)
     resizeTimer->setInterval(0);
     connect(frameTimer, &QTimer::timeout, this, [this] {
         if (stepRuntime() && isVisible())
-            frameTimer->start(pbrPreview ? 16 : 1);
+            frameTimer->start(RuntimeFrameIntervalMs);
     });
     connect(resizeTimer, &QTimer::timeout, this, [this] { resizeRuntime(); });
     if (auto *app = QCoreApplication::instance()) {
@@ -298,7 +301,7 @@ void ViewportPanel::setRuntimeStartupEnabled(bool enabled) {
 void ViewportPanel::showEvent(QShowEvent *event) {
     QWidget::showEvent(event);
     if (runtimeContext != nullptr) {
-        frameTimer->start(pbrPreview ? 16 : 1);
+        frameTimer->start(RuntimeFrameIntervalMs);
         return;
     }
     if (runtimeStartupEnabled)
@@ -669,7 +672,7 @@ void ViewportPanel::startRuntime() {
                                         "The first viewport frame failed");
             return;
         }
-        frameTimer->start(pbrPreview ? 16 : 1);
+        frameTimer->start(RuntimeFrameIntervalMs);
         emit runtimeLoadingFinished();
         emit runtimeStartupFinished(true, {});
         if (playAfterRuntimeStart) {
@@ -731,6 +734,8 @@ void ViewportPanel::stopRuntime() {
     runtimeWidth = 0;
     runtimeHeight = 0;
     runtimeScale = 0.0f;
+    snapshotTimer.invalidate();
+    frameRateTimer.invalidate();
 }
 
 bool ViewportPanel::stepRuntime() {
@@ -744,8 +749,16 @@ bool ViewportPanel::stepRuntime() {
             stopRuntime();
             return false;
         }
-        refreshSceneSnapshot();
-        emit frameRateChanged(runtimeContext->frameRate());
+        if (playbackState == 1 &&
+            (!snapshotTimer.isValid() ||
+             snapshotTimer.elapsed() >= RuntimeSnapshotIntervalMs)) {
+            refreshSceneSnapshot();
+        }
+        if (!frameRateTimer.isValid() ||
+            frameRateTimer.elapsed() >= RuntimeFrameRateIntervalMs) {
+            emit frameRateChanged(runtimeContext->frameRate());
+            frameRateTimer.restart();
+        }
         return true;
     } catch (const std::exception &error) {
         const QString message = QString::fromUtf8(error.what());
@@ -1376,6 +1389,7 @@ void ViewportPanel::stepRuntimeOnce() {
     stepRuntime();
     if (runtimeContext != nullptr) {
         runtimeContext->setEditorSimulationEnabled(false);
+        refreshSceneSnapshot();
         playbackState = 2;
         emit playbackStateChanged(playbackState);
     }
@@ -1433,7 +1447,7 @@ void ViewportPanel::setPathTracingPreview(bool enabled) {
     frameTimer->stop();
     const bool frameReady = stepRuntime();
     if (frameReady && isVisible())
-        frameTimer->start(pbrPreview ? 16 : 1);
+        frameTimer->start(RuntimeFrameIntervalMs);
     emit runtimeLoadingFinished();
     if (!enabled && runtimeContext != nullptr) {
         const std::string error = runtimeContext->getPathTracingError();
@@ -1456,7 +1470,7 @@ bool ViewportPanel::applyPathTracingSettings(
         internalScale);
     const bool frameReady = applied && stepRuntime();
     if (frameReady && isVisible()) {
-        frameTimer->start(pbrPreview ? 16 : 1);
+        frameTimer->start(RuntimeFrameIntervalMs);
     }
     return applied;
 }
@@ -1608,6 +1622,7 @@ void ViewportPanel::refreshSceneSnapshot() {
     }
     const QString snapshot =
         QString::fromStdString(runtimeContext->sceneObjectsJson());
+    snapshotTimer.restart();
     if (snapshot == lastSceneSnapshot) {
         return;
     }
