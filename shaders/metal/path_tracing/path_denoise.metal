@@ -3,6 +3,7 @@ using namespace metal;
 
 struct DenoiseParameters {
     int stepWidth;
+    float bloomThreshold;
 };
 
 kernel void main0(texture2d<float, access::read> inputTexture [[texture(0)]],
@@ -111,12 +112,11 @@ kernel void main0(texture2d<float, access::read> inputTexture [[texture(0)]],
     }
     float3 result = mix(center, spatialResult, filterStrength);
     float brightness = dot(result, float3(0.2126, 0.7152, 0.0722));
-    constexpr float bloomThreshold = 0.8;
     constexpr float bloomKnee = 0.35;
-    float soft = clamp(brightness - bloomThreshold + bloomKnee, 0.0,
+    float soft = clamp(brightness - parameters.bloomThreshold + bloomKnee, 0.0,
                        bloomKnee * 2.0);
     soft = soft * soft / max(bloomKnee * 4.0, 0.00001);
-    float contribution = max(brightness - bloomThreshold, soft) /
+    float contribution = max(brightness - parameters.bloomThreshold, soft) /
                          max(brightness, 0.00001);
     outputTexture.write(float4(result, 1.0), gid);
     brightTexture.write(float4(result * contribution, 1.0), gid);

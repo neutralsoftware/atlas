@@ -158,6 +158,7 @@ struct UBO {
 struct Environment {
     float rimLightIntensity;
     float3 rimLightColor;
+    float bloomThreshold;
 };
 
 struct PushConstants {
@@ -1534,7 +1535,7 @@ fragment main0_out main0(
         dot(out.FragColor.xyz,
             float3(0.2125999927520751953125, 0.715200006961822509765625,
                    0.072200000286102294921875));
-    if (brightness > 0.75) {
+    if (brightness > environment.bloomThreshold) {
         out.BrightColor = float4(out.FragColor.xyz, 1.0);
     } else {
         out.BrightColor = float4(0.0, 0.0, 0.0, 1.0);

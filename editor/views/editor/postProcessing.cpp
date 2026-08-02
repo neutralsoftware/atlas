@@ -169,10 +169,13 @@ void PostProcessingPanel::applySceneSnapshot(const QString &snapshot) {
     const QJsonDocument document = QJsonDocument::fromJson(snapshot.toUtf8());
     if (!document.isObject())
         return;
-    const QJsonArray nextTargets = document.object().value("targets").toArray();
-    if (nextTargets == targets)
+    const QJsonObject root = document.object();
+    const QJsonArray nextTargets = root.value("targets").toArray();
+    const QJsonObject nextEnvironment = root.value("environment").toObject();
+    if (nextTargets == targets && nextEnvironment == environment)
         return;
     targets = nextTargets;
+    environment = nextEnvironment;
     if (!applying) {
         rebuildTargetList();
     }
@@ -204,6 +207,19 @@ void PostProcessingPanel::rebuildEditor() {
             item->widget()->deleteLater();
         delete item;
     }
+
+    const QJsonObject lightBloom = environment.value("lightBloom").toObject();
+    auto *bloom = new QGroupBox("Bloom", body);
+    auto *bloomForm = new QFormLayout(bloom);
+    auto *threshold =
+        effectNumber(lightBloom.value("threshold").toDouble(0.8), bloom);
+    threshold->setRange(0.0, 10000.0);
+    threshold->setSingleStep(0.05);
+    bloomForm->addRow("Threshold", threshold);
+    bodyLayout->addWidget(bloom);
+    connect(threshold, &QDoubleSpinBox::valueChanged, this,
+            [this](double value) { setBloomThreshold(value); });
+
     if (targetIndex < 0 || targetIndex >= targets.size()) {
         auto *empty = new QLabel(
             "Create a render target to build a post-processing stack.", body);
@@ -455,6 +471,19 @@ void PostProcessingPanel::setEffectValue(int effectIndex, const QString &key,
     target.insert("effects", effects);
     targets.replace(targetIndex, target);
     setTargetValue("/effects", effects);
+}
+
+void PostProcessingPanel::setBloomThreshold(double value) {
+    if (viewport == nullptr)
+        return;
+    QJsonObject lightBloom = environment.value("lightBloom").toObject();
+    lightBloom.insert("threshold", value);
+    environment.insert("lightBloom", lightBloom);
+    applying = true;
+    viewport->setRuntimeSceneProperty("environment", -1,
+                                      "/lightBloom/threshold", value);
+    applying = false;
+    statusLabel->setText("Saved · return to Scene to update preview");
 }
 
 void PostProcessingPanel::replaceTargets() {

@@ -13,7 +13,7 @@
             0.2377660721540451,
             1
         ],
-        "emissiveIntensity": 30,
+        "emissiveIntensity": 10,
         "ior": 1.45,
         "metallic": 0,
         "normalMapStrength": 1,

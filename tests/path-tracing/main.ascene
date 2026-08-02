@@ -229,7 +229,12 @@
     "targets": [
         {
             "display": true,
-            "effects": [],
+            "effects": [
+                {
+                    "amount": 1,
+                    "type": "film_grain"
+                }
+            ],
             "name": "Main Target",
             "render": true,
             "type": "scene"

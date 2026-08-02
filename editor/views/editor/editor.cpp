@@ -1034,7 +1034,10 @@ void EditorWindow::activateWorkspace(int index) {
     if (workspaceStack == nullptr || index < 0 ||
         index >= workspaceStack->count())
         return;
+    const int previousIndex = workspaceStack->currentIndex();
     workspaceStack->setCurrentIndex(index);
+    if (index == 0 && previousIndex != 0 && viewportPanel != nullptr)
+        viewportPanel->reloadRuntime();
     if (workspaceModeGroup != nullptr) {
         if (auto *button = workspaceModeGroup->button(index)) {
             button->setChecked(true);

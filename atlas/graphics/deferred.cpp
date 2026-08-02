@@ -1012,6 +1012,9 @@ void Window::deferredRendering(
         Window::mainWindow->currentScene->environment.rimLight.color.r,
         Window::mainWindow->currentScene->environment.rimLight.color.g,
         Window::mainWindow->currentScene->environment.rimLight.color.b);
+    lightPipeline->setUniform1f(
+        "environment.bloomThreshold",
+        Window::mainWindow->currentScene->environment.lightBloom.threshold);
 
     commandBuffer->bindDrawingState(quadState);
     commandBuffer->bindPipeline(lightPipeline);

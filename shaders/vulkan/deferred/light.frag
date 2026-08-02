@@ -95,6 +95,7 @@ struct ShadowParameters {
 layout(set = 1, binding = 1) uniform Environment {
     float rimLightIntensity;
     vec3 rimLightColor;
+    float bloomThreshold;
 } environment;
 
 layout(set = 4, binding = 0) buffer DirectionalLights {
@@ -527,7 +528,7 @@ void main() {
     FragColor = vec4(finalColor, 1.0);
 
     float brightness = dot(FragColor.rgb, vec3(0.2126, 0.7152, 0.0722));
-    if (brightness > 1.0) {
+    if (brightness > environment.bloomThreshold) {
         BrightColor = vec4(FragColor.rgb, 1.0);
     } else {
         BrightColor = vec4(0.0, 0.0, 0.0, 1.0);

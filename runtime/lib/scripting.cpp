@@ -1036,6 +1036,10 @@ bool parseEnvironmentValue(JSContext *ctx, ScriptHost &host, JSValueConst value,
     prop = JS_GetPropertyStr(ctx, value, "lightBloom");
     if (!JS_IsException(prop) && !JS_IsUndefined(prop) && JS_IsObject(prop) &&
         !JS_IsNull(prop)) {
+        double threshold = out.lightBloom.threshold;
+        readNumberProperty(ctx, prop, "threshold", threshold);
+        out.lightBloom.threshold = static_cast<float>(threshold);
+
         double radius = out.lightBloom.radius;
         readNumberProperty(ctx, prop, "radius", radius);
         out.lightBloom.radius = static_cast<float>(radius);

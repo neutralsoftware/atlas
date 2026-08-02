@@ -897,6 +897,8 @@ loadEnvironmentDefinition(const json &sceneData, const std::string &baseDir) {
             throw std::runtime_error("Environment light bloom must be an "
                                      "object");
         }
+        tryReadFloatAny(*bloomNode, {"threshold"},
+                        loaded.environment.lightBloom.threshold);
         tryReadFloatAny(*bloomNode, {"radius"},
                         loaded.environment.lightBloom.radius);
         tryReadIntAny(*bloomNode, {"maxSamples"},
