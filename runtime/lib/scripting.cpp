@@ -8807,6 +8807,11 @@ JSValue jsCreateCheckerboardTexture(JSContext *ctx, JSValueConst, int argc,
             ctx, "Expected texture, width, height, check size, and two colors");
     }
 
+    if (host->context != nullptr && host->context->window != nullptr &&
+        state->texture->object != nullptr) {
+        host->context->window->removePreferencedObject(
+            state->texture->object.get());
+    }
     *state->texture = Texture::createCheckerboard(
         static_cast<int>(width), static_cast<int>(height),
         static_cast<int>(checkSize), color1, color2);
@@ -8847,6 +8852,11 @@ JSValue jsCreateDoubleCheckerboardTexture(JSContext *ctx, JSValueConst,
                                       "check sizes, and three colors");
     }
 
+    if (host->context != nullptr && host->context->window != nullptr &&
+        state->texture->object != nullptr) {
+        host->context->window->removePreferencedObject(
+            state->texture->object.get());
+    }
     *state->texture = Texture::createDoubleCheckerboard(
         static_cast<int>(width), static_cast<int>(height),
         static_cast<int>(checkSizeBig), static_cast<int>(checkSizeSmall),
@@ -15082,6 +15092,11 @@ void runtime::scripting::clearSceneBindings(JSContext *ctx, ScriptHost &host) {
     host.springJoints.clear();
 
     for (auto &[_, state] : host.textures) {
+        if (host.context != nullptr && host.context->window != nullptr &&
+            state.texture != nullptr && state.texture->object != nullptr) {
+            host.context->window->removePreferencedObject(
+                state.texture->object.get());
+        }
         JS_FreeValue(ctx, state.value);
     }
     host.textures.clear();
@@ -15097,6 +15112,12 @@ void runtime::scripting::clearSceneBindings(JSContext *ctx, ScriptHost &host) {
     host.skyboxes.clear();
 
     for (auto &[_, state] : host.renderTargets) {
+        if (host.context != nullptr && host.context->window != nullptr &&
+            state.renderTarget != nullptr) {
+            host.context->window->removeRenderTarget(state.renderTarget.get());
+            host.context->window->removePreferencedObject(
+                state.renderTarget.get());
+        }
         JS_FreeValue(ctx, state.value);
     }
     host.renderTargets.clear();

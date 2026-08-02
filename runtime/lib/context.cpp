@@ -115,6 +115,18 @@ class WindowActivationScope {
     opal::Device *previousDevice;
 };
 
+void clearRenderTargets(
+    Window *window,
+    std::map<std::string, std::unique_ptr<RenderTarget>> &renderTargets) {
+    if (window != nullptr) {
+        for (auto &[_, target] : renderTargets) {
+            window->removeRenderTarget(target.get());
+            window->removePreferencedObject(target.get());
+        }
+    }
+    renderTargets.clear();
+}
+
 struct PendingComponent {
     GameObject *object = nullptr;
     std::string objectType;
@@ -6630,11 +6642,11 @@ Context::~Context() {
         end();
     } catch (...) {
     }
+    clearRenderTargets(window.get(), renderTargets);
     if (context != nullptr) {
         runtime::scripting::clearSceneBindings(context, scriptHost);
         editorRuntimeComponents.clear();
         objects.clear();
-        renderTargets.clear();
         directionalLights.clear();
         pointLights.clear();
         spotlights.clear();
@@ -6899,7 +6911,7 @@ void Context::loadScene(Window &window, const json &sceneData) {
     editorDirectionalLights.clear();
     editorLightSourceData.clear();
     deletedObjectReferences.clear();
-    renderTargets.clear();
+    clearRenderTargets(&window, renderTargets);
     directionalLights.clear();
     pointLights.clear();
     spotlights.clear();
@@ -6945,6 +6957,12 @@ void Context::loadScene(Window &window, const json &sceneData) {
                 continue;
             }
 
+            std::string name;
+            JSON_READ_STRING(targetData, "name", name);
+            if (name.empty()) {
+                continue;
+            }
+
             std::unique_ptr<RenderTarget> target;
             const std::string normalizedType = normalizeToken(type);
             if (normalizedType == "multisampled") {
@@ -6982,10 +7000,10 @@ void Context::loadScene(Window &window, const json &sceneData) {
                 target->display(window);
             }
 
-            std::string name;
-            JSON_READ_STRING(targetData, "name", name);
-            if (name.empty()) {
-                continue;
+            if (auto existing = renderTargets.find(name);
+                existing != renderTargets.end()) {
+                window.removeRenderTarget(existing->second.get());
+                window.removePreferencedObject(existing->second.get());
             }
             renderTargets[name] = std::move(target);
         }

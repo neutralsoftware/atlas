@@ -535,6 +535,7 @@ class Window {
      * property is a good idea.
      */
     void addPreferencedObject(Renderable *object);
+    void removePreferencedObject(Renderable *object);
     /**
      * @brief Adds a renderable object to be rendered first.
      *

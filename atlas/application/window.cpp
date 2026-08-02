@@ -3859,6 +3859,13 @@ void Window::addPreferencedObject(Renderable *obj) {
     }
 }
 
+void Window::removePreferencedObject(Renderable *obj) {
+    this->preferenceRenderables.erase(
+        std::remove(this->preferenceRenderables.begin(),
+                    this->preferenceRenderables.end(), obj),
+        this->preferenceRenderables.end());
+}
+
 void Window::addPreludeObject(Renderable *obj) {
     if (obj == nullptr) {
         return;
