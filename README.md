@@ -12,6 +12,7 @@ It is built with C++ and uses OpenGL, Vulkan and Metal for rendering. It also ha
 an environment system and a debugging system with more to come.
 
 ![Atlas Screenshot](example.png)
+![Editor Screenshot](editorExample.png)
 
 ## Features
 
