@@ -890,9 +890,7 @@ void EditorWindow::setupWorkspaceBar() {
     identityLayout->setSpacing(9);
     auto *mark = new QLabel(identity);
     mark->setObjectName("workspaceMark");
-    mark->setPixmap(QPixmap(":/editor/assets/atlas-star.png")
-                        .scaled(24, 24, Qt::KeepAspectRatio,
-                                Qt::SmoothTransformation));
+    mark->setPixmap(styling::brandMark(QSize(24, 24)));
 
     auto *identityText = new QWidget(identity);
     identityText->setObjectName("workspaceIdentityText");
@@ -1107,6 +1105,28 @@ void EditorWindow::activateWorkspace(int index) {
         index >= workspaceStack->count())
         return;
     const int previousIndex = workspaceStack->currentIndex();
+    if (previousIndex != index && coreManager != nullptr) {
+        QSettings settings("Neutral Software", "Atlas Engine");
+        const auto layoutKey = [](int mode) {
+            return QStringLiteral("workspace/layout/v11/%1").arg(mode);
+        };
+        if (!restoringLayout)
+            settings.setValue(layoutKey(previousIndex),
+                              coreManager->saveState(DockStateVersion));
+        const QByteArray state = settings.value(layoutKey(index)).toByteArray();
+        if (state.isEmpty() || !coreManager->restoreState(state, DockStateVersion)) {
+            if (index == 0) {
+                coreManager->restoreState(defaultDockState, DockStateVersion);
+            } else {
+                for (const QString &id : {QStringLiteral("hierarchy"),
+                                          QStringLiteral("inspector")}) {
+                    if (auto *dock = dockManager->panel(id))
+                        dock->toggleView(false);
+                }
+            }
+        }
+        configureDockSplitters();
+    }
     if (index == 0 && previousIndex == 1 && materialEditorPanel != nullptr)
         materialEditorPanel->flushPendingSave();
     if (index == 0 && previousIndex == 3 && graphiteEditorPanel != nullptr)
@@ -2288,6 +2308,10 @@ void EditorWindow::saveLayout() {
 
     settings.setValue("window/geometry", saveGeometry());
     settings.setValue(DockStateKey, coreManager->saveState(DockStateVersion));
+    if (workspaceStack != nullptr)
+        settings.setValue(
+            QStringLiteral("workspace/layout/v11/%1").arg(workspaceStack->currentIndex()),
+            coreManager->saveState(DockStateVersion));
     if (workspaceStack != nullptr)
         settings.setValue("workspace/mode", workspaceStack->currentIndex());
     settings.sync();

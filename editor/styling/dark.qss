@@ -1482,6 +1482,9 @@ QRadioButton::indicator {
 }
 
 QRadioButton::indicator:checked {
+    width: 8px;
+    height: 8px;
+    border-radius: 8px;
     background-color: #E4D9FA;
     border: 4px solid #7560AB;
 }
@@ -1586,4 +1589,22 @@ QStatusBar::item {
 
 QLabel[muted="true"] {
     color: #A3A29B;
+}
+
+QComboBox::down-arrow,
+QAbstractSpinBox::down-arrow {
+    image: url(:/editor/assets/chevron-down.svg);
+    width: 12px;
+    height: 12px;
+}
+
+QAbstractSpinBox::up-arrow {
+    image: url(:/editor/assets/chevron-up.svg);
+    width: 12px;
+    height: 12px;
+}
+
+QCheckBox,
+QRadioButton {
+    background: transparent;
 }

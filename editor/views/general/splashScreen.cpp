@@ -1,4 +1,5 @@
 #include <editor/views/splashScreen.h>
+#include <editor/styling/icons.h>
 
 #include <QColor>
 #include <QFont>
@@ -37,9 +38,7 @@ SplashScreen::SplashScreen(QWidget *parent)
     auto *icon = new QLabel(card);
     icon->setObjectName("splashIcon");
     icon->setGeometry(30, 44, 104, 104);
-    icon->setPixmap(QPixmap(":/editor/assets/atlas-star.png")
-                        .scaled(icon->size(), Qt::KeepAspectRatio,
-                                Qt::SmoothTransformation));
+    icon->setPixmap(styling::brandMark(icon->size()));
 
     auto *title = new QLabel(card);
     title->setObjectName("splashTitle");

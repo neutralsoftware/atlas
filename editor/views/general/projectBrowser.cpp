@@ -335,10 +335,7 @@ void ProjectBrowser::setupUi() {
     brandLayout->setSpacing(11);
     auto *brandIcon = new QLabel(sidebar);
     brandIcon->setFixedSize(38, 38);
-    brandIcon->setPixmap(
-        QPixmap(":/editor/assets/atlas-star.png")
-            .scaled(brandIcon->size(), Qt::KeepAspectRatio,
-                    Qt::SmoothTransformation));
+    brandIcon->setPixmap(styling::brandMark(brandIcon->size()));
 
     brandLayout->addWidget(brandIcon);
     auto *brandCopy = new QVBoxLayout();
