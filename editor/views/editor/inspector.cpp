@@ -681,6 +681,7 @@ QDoubleSpinBox *numberField(double value, QWidget *parent) {
     field->setObjectName("inspectorNumberField");
     field->setRange(-1000000000.0, 1000000000.0);
     field->setDecimals(4);
+    field->setMinimumHeight(34);
     field->setSingleStep(0.1);
     field->setButtonSymbols(QAbstractSpinBox::NoButtons);
     field->setValue(value);
@@ -746,8 +747,7 @@ void addSyncPicker(QHBoxLayout *layout, const QString &path,
                    QWidget *parent) {
     auto *button = new styling::ToolButton(parent);
     button->setObjectName("inspectorSyncButton");
-    button->setIcon(
-        styling::icon(styling::Icon::ArrowCounterClockwise, "#849589"));
+    button->setIcon(QIcon(":/editor/assets/link.svg"));
     button->setToolTip("Match this value with another property");
     button->setPopupMode(QToolButton::InstantPopup);
     auto showMatch = [button, valueEditor](const QString &name) {
@@ -862,12 +862,12 @@ QWidget *vectorField(const QJsonArray &value, const PropertyChanged &changed,
     auto *field = new QFrame(parent);
     field->setObjectName("inspectorVectorField");
     auto *layout = new QHBoxLayout(field);
-    layout->setContentsMargins(3, 0, 3, 0);
+    layout->setContentsMargins(0, 0, 0, 0);
     layout->setSpacing(2);
     auto *valueEditor = new QWidget(field);
     auto *valueLayout = new QHBoxLayout(valueEditor);
     valueLayout->setContentsMargins(0, 0, 0, 0);
-    valueLayout->setSpacing(2);
+    valueLayout->setSpacing(6);
     layout->addWidget(valueEditor, 1);
     auto values = value;
     const int dimensions = std::clamp(static_cast<int>(value.size()), 2, 3);
@@ -876,15 +876,22 @@ QWidget *vectorField(const QJsonArray &value, const PropertyChanged &changed,
     const QStringList axes{"X", "Y", "Z"};
     QList<QDoubleSpinBox *> boxes;
     for (int index = 0; index < dimensions; ++index) {
-        auto *axis = new QLabel(axes.at(index), valueEditor);
+        auto *axisField = new QFrame(valueEditor);
+        axisField->setObjectName("inspectorAxisField");
+        auto *axisLayout = new QHBoxLayout(axisField);
+        axisLayout->setContentsMargins(7, 0, 4, 0);
+        axisLayout->setSpacing(4);
+        auto *axis = new QLabel(axes.at(index), axisField);
         axis->setObjectName("inspectorAxis" + axes.at(index));
-        auto *box = numberField(values.at(index).toDouble(), valueEditor);
+        axis->setFixedWidth(12);
+        auto *box = numberField(values.at(index).toDouble(), axisField);
         box->setButtonSymbols(QAbstractSpinBox::NoButtons);
-        box->setMinimumWidth(44);
+        box->setMinimumWidth(58);
         tagEditor(box, path, "vector", index);
         boxes.append(box);
-        valueLayout->addWidget(axis);
-        valueLayout->addWidget(box, 1);
+        axisLayout->addWidget(axis);
+        axisLayout->addWidget(box, 1);
+        valueLayout->addWidget(axisField, 1);
     }
     auto commit = [boxes, changed, path] {
         QJsonArray result;
@@ -1056,15 +1063,20 @@ QWidget *primitiveField(const QString &name, const QString &path,
 QFrame *propertyRow(const QString &label, QWidget *editor, QWidget *parent) {
     auto *row = new QFrame(parent);
     row->setObjectName("inspectorPropertyRow");
-    auto *layout = new QHBoxLayout(row);
-    layout->setContentsMargins(0, 3, 0, 3);
-    layout->setSpacing(8);
+    const bool wide = editor->objectName() == "inspectorVectorField" ||
+                      editor->objectName() == "inspectorColorField";
+    QBoxLayout *layout = wide ? static_cast<QBoxLayout *>(new QVBoxLayout(row))
+                             : static_cast<QBoxLayout *>(new QHBoxLayout(row));
+    layout->setContentsMargins(0, 5, 0, 5);
+    layout->setSpacing(wide ? 7 : 12);
     auto *name = new styling::ElidedLabel(label, row);
     name->setObjectName("inspectorPropertyLabel");
-    name->setMinimumWidth(82);
-    name->setMaximumWidth(108);
+    if (!wide) {
+        name->setMinimumWidth(90);
+        name->setMaximumWidth(112);
+    }
     layout->addWidget(name);
-    layout->addWidget(editor, 1);
+    layout->addWidget(editor, wide ? 0 : 1);
     return row;
 }
 
@@ -1303,7 +1315,7 @@ QFrame *componentCard(const QString &title, const QJsonObject &properties,
     if (remove) {
         auto *removeButton = new styling::ToolButton(headerRow);
         removeButton->setObjectName("inspectorComponentRemoveButton");
-        removeButton->setIcon(styling::icon(styling::Icon::Trash, "#A17F7F"));
+        removeButton->setIcon(QIcon(":/editor/assets/close.svg"));
         removeButton->setToolTip(QStringLiteral("Remove %1").arg(title));
         headerLayout->addWidget(removeButton);
         QObject::connect(removeButton, &QToolButton::clicked, card, remove);

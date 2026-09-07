@@ -1011,3 +1011,60 @@ QPushButton:default {
 #projectRow[available="false"] #projectName {
     color: #82827B;
 }
+
+QAbstractSpinBox QLineEdit {
+    background: transparent;
+    border: none;
+    padding: 0;
+    min-height: 0;
+}
+
+#inspectorVectorField {
+    background: transparent;
+    border: none;
+}
+
+#inspectorAxisField {
+    background: #252524;
+    border: 1px solid transparent;
+    border-radius: 6px;
+}
+
+#inspectorAxisField:hover {
+    background: #2C2C29;
+    border-color: #44443F;
+}
+
+#inspectorAxisField QDoubleSpinBox {
+    background: transparent;
+    border: none;
+    padding: 5px 2px;
+    min-height: 24px;
+}
+
+#inspectorNumberField,
+#inspectorNameField,
+#inspectorColorText {
+    min-height: 26px;
+}
+
+#inspectorAxisX,
+#inspectorAxisY,
+#inspectorAxisZ {
+    padding: 0;
+    font-size: 11px;
+}
+
+QTabBar::close-button {
+    image: url(:/editor/assets/close.svg);
+    width: 14px;
+    height: 14px;
+    padding: 5px;
+    border-radius: 5px;
+}
+
+QTabBar::close-button:hover,
+#tabCloseButton:hover,
+#dockAreaCloseButton:hover {
+    background: #343431;
+}

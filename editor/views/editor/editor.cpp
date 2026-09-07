@@ -81,6 +81,7 @@
 
 #include "DockManager.h"
 #include "DockAreaWidget.h"
+#include "IconProvider.h"
 #include "editor/debug.h"
 #include "editor/styling/icons.h"
 #include "editor/views/fileExplorer.h"
@@ -303,6 +304,14 @@ void EditorWindow::setupWindow() {
     ads::CDockManager::setConfigFlag(ads::CDockManager::DockAreaHasCloseButton,
                                      false);
 
+    auto &dockIcons = ads::CDockManager::iconProvider();
+    const QIcon closeIcon(":/editor/assets/close.svg");
+    dockIcons.registerCustomIcon(ads::TabCloseIcon, closeIcon);
+    dockIcons.registerCustomIcon(ads::DockAreaCloseIcon, closeIcon);
+    dockIcons.registerCustomIcon(ads::DockAreaUndockIcon,
+                                 styling::icon(styling::Icon::ArrowsOutCardinal));
+    dockIcons.registerCustomIcon(ads::DockAreaMenuIcon,
+                                 styling::icon(styling::Icon::CaretDown));
     coreManager = new ads::CDockManager(this);
     auto *workspaceFrame = new QWidget(this);
     workspaceFrame->setObjectName("editorFrame");

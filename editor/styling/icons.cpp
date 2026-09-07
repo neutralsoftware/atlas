@@ -197,6 +197,8 @@ bool styling::loadIconFont() {
 }
 
 QIcon styling::icon(Icon icon, const QColor &color) {
+    if (icon == Icon::Close)
+        return QIcon(":/editor/assets/close.svg");
     loadIconFont();
     if (iconFamily.isEmpty())
         return {};
