@@ -85,7 +85,7 @@ enum class Icon {
 };
 
 bool loadIconFont();
-QIcon icon(Icon icon, const QColor &color = QColor("#AAB4C4"));
+QIcon icon(Icon icon, const QColor &color = QColor("#B4B3AB"));
 QIcon colorSwatch(const QColor &color, const QSize &size = QSize(18, 18));
 
 }

@@ -89,8 +89,8 @@ ViewportTools::ViewportTools(ViewportPanel *viewport,
     auto *toolbar = new QWidget(this);
     toolbar->setObjectName("viewportToolbar");
     auto *tools = new QHBoxLayout(toolbar);
-    tools->setContentsMargins(5, 3, 5, 3);
-    tools->setSpacing(2);
+    tools->setContentsMargins(8, 4, 8, 4);
+    tools->setSpacing(3);
 
     playButton = new QToolButton(toolbar);
     playButton->setObjectName("viewportPlaybackButton");
@@ -123,8 +123,8 @@ ViewportTools::ViewportTools(ViewportPanel *viewport,
     const QList<styling::Icon> transformIcons{
         styling::Icon::CursorClick, styling::Icon::ArrowsOutCardinal,
         styling::Icon::ArrowClockwise, styling::Icon::BoundingBox};
-    const QList<QColor> transformColors{QColor("#7E929C"), QColor("#849589"),
-                                        QColor("#A1957D"), QColor("#71889A")};
+    const QList<QColor> transformColors{QColor("#C8C7BF"), QColor("#C8C7BF"),
+                                        QColor("#C8C7BF"), QColor("#C8C7BF")};
     for (int index = 0; index < transformNames.size(); ++index) {
         auto *button = new QToolButton(toolbar);
         button->setObjectName("viewportModeButton");

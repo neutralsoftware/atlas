@@ -200,7 +200,7 @@ QIcon styling::icon(Icon icon, const QColor &color) {
     if (iconFamily.isEmpty())
         return {};
     QIcon result;
-    const QColor disabled("#566174");
+    const QColor disabled("#74746D");
     const QColor active = color.lighter(118);
     for (const int size : {16, 20, 24, 32, 48}) {
         result.addPixmap(renderIcon(icon, color, size), QIcon::Normal,

@@ -136,6 +136,7 @@ qt_add_resources(AtlasEditor "atlas_editor_assets"
         FILES
         "${CMAKE_SOURCE_DIR}/editor/assets/atlas-app-dev.png"
         "${CMAKE_SOURCE_DIR}/editor/assets/atlas-star.png"
+        "${CMAKE_SOURCE_DIR}/editor/assets/check.svg"
         "${CMAKE_SOURCE_DIR}/editor/assets/atlas-app.png"
         "${CMAKE_SOURCE_DIR}/editor/assets/Manrope-VariableFont_wght.ttf"
         "${CMAKE_SOURCE_DIR}/editor/assets/Phosphor.ttf"

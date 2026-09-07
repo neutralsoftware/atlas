@@ -215,7 +215,7 @@ ContentBrowserPanel::ContentBrowserPanel(const QString &projectFile,
     }
 
     auto *layout = new QVBoxLayout(this);
-    layout->setContentsMargins(4, 4, 4, 4);
+    layout->setContentsMargins(6, 6, 6, 6);
     layout->setSpacing(4);
 
     auto *toolbar = new QWidget(this);
@@ -245,7 +245,7 @@ ContentBrowserPanel::ContentBrowserPanel(const QString &projectFile,
 
     searchField = new QLineEdit(toolbar);
     searchField->setObjectName("contentSearchField");
-    searchField->setPlaceholderText("Search");
+    searchField->setPlaceholderText("Filter assets…");
     searchField->setClearButtonEnabled(true);
     searchField->setMaximumWidth(180);
 
@@ -301,10 +301,10 @@ ContentBrowserPanel::ContentBrowserPanel(const QString &projectFile,
     gridView->setWrapping(true);
     gridView->setResizeMode(QListView::Adjust);
     gridView->setMovement(QListView::Static);
-    gridView->setGridSize(QSize(154, 118));
-    gridView->setIconSize(QSize(50, 50));
+    gridView->setGridSize(QSize(128, 106));
+    gridView->setIconSize(QSize(42, 42));
     gridView->setWordWrap(true);
-    gridView->setTextElideMode(Qt::ElideNone);
+    gridView->setTextElideMode(Qt::ElideMiddle);
     gridView->setSelectionMode(QAbstractItemView::ExtendedSelection);
     gridView->setDragEnabled(true);
     gridView->setDragDropMode(QAbstractItemView::DragOnly);

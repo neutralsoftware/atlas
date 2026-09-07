@@ -345,7 +345,7 @@ MaterialEditorPanel::MaterialEditorPanel(ViewportPanel *viewport,
     auto *header = new QWidget(this);
     header->setObjectName("materialEditorHeader");
     auto *headerLayout = new QHBoxLayout(header);
-    headerLayout->setContentsMargins(8, 4, 8, 4);
+    headerLayout->setContentsMargins(12, 6, 12, 6);
     titleLabel = new QLabel("Material Editor", header);
     titleLabel->setObjectName("materialEditorTitle");
     statusLabel = new QLabel(header);
@@ -370,7 +370,7 @@ MaterialEditorPanel::MaterialEditorPanel(ViewportPanel *viewport,
     body->setObjectName("materialEditorBody");
     bodyLayout = new QVBoxLayout(body);
     bodyLayout->setContentsMargins(10, 10, 10, 12);
-    bodyLayout->setSpacing(9);
+    bodyLayout->setSpacing(12);
     scroll->setWidget(body);
     layout->addWidget(scroll, 1);
 

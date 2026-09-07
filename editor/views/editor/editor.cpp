@@ -90,8 +90,8 @@
 #include "editor/views/splashScreen.h"
 
 namespace {
-constexpr int DockStateVersion = 10;
-constexpr auto DockStateKey = "docking/state/v10";
+constexpr int DockStateVersion = 11;
+constexpr auto DockStateKey = "docking/state/v11";
 
 QIcon commandIcon(const QString &name) {
     const QString command = name.toLower();
@@ -281,7 +281,7 @@ void EditorWindow::setupWindow() {
         project.has_value() ? project->name : QStringLiteral("Project");
     updateWindowTitle(false);
     setMinimumSize(1100, 700);
-    resize(1440, 900);
+    resize(1512, 940);
     menuBar()->setNativeMenuBar(true);
     menuBar()->setObjectName("atlasMenuBar");
 
@@ -299,7 +299,13 @@ void EditorWindow::setupWindow() {
                                      false);
 
     coreManager = new ads::CDockManager(this);
-    setCentralWidget(coreManager);
+    auto *workspaceFrame = new QWidget(this);
+    workspaceFrame->setObjectName("editorFrame");
+    auto *workspaceLayout = new QVBoxLayout(workspaceFrame);
+    workspaceLayout->setContentsMargins(8, 0, 8, 0);
+    workspaceLayout->setSpacing(0);
+    workspaceLayout->addWidget(coreManager);
+    setCentralWidget(workspaceFrame);
     dockManager = new EditorDockManager(coreManager);
     layoutSaveTimer = new QTimer(this);
     scriptWatcher = new QFileSystemWatcher(this);
@@ -687,9 +693,9 @@ void EditorWindow::setupDocks() {
     hierarchyPanel = new HierarchyPanel(viewportPanel);
     auto *hierarchyDock = dockManager->addPanel(
         {.id = "hierarchy",
-         .title = "Scene",
+         .title = "Scene Collection",
          .widget = hierarchyPanel,
-         .area = EditorDockArea::Right,
+         .area = EditorDockArea::Left,
          .icon = styling::icon(styling::Icon::TreeStructure, "#8498A8")});
 
     inspectorPanel = new InspectorPanel(viewportPanel, projectFile);
@@ -699,10 +705,6 @@ void EditorWindow::setupDocks() {
          .widget = inspectorPanel,
          .area = EditorDockArea::Right,
          .icon = styling::icon(styling::Icon::SlidersHorizontal, "#A1957D")});
-    if (hierarchyDock->dockAreaWidget() != nullptr) {
-        coreManager->addDockWidget(ads::BottomDockWidgetArea, inspectorDock,
-                                   hierarchyDock->dockAreaWidget());
-    }
 
     contentBrowser = new ContentBrowserPanel(projectFile);
     auto *contentDock = dockManager->addPanel(
@@ -745,6 +747,8 @@ void EditorWindow::setupDocks() {
             });
 
     workspaceDock->setAsCurrentTab();
+    coreManager->setSplitterSizes(workspaceDock->dockAreaWidget(), {250, 870, 360});
+    coreManager->setSplitterSizes(contentDock->dockAreaWidget(), {650, 240});
     defaultDockState = coreManager->saveState(DockStateVersion);
 
     const QList<ads::CDockWidget *> managedDocks{workspaceDock, hierarchyDock,
@@ -882,7 +886,7 @@ void EditorWindow::setupWorkspaceBar() {
     auto *identity = new QWidget(bar);
     identity->setObjectName("workspaceIdentity");
     auto *identityLayout = new QHBoxLayout(identity);
-    identityLayout->setContentsMargins(10, 2, 16, 2);
+    identityLayout->setContentsMargins(4, 0, 18, 0);
     identityLayout->setSpacing(9);
     auto *mark = new QLabel(identity);
     mark->setObjectName("workspaceMark");
@@ -895,10 +899,13 @@ void EditorWindow::setupWorkspaceBar() {
     auto *identityTextLayout = new QVBoxLayout(identityText);
     identityTextLayout->setContentsMargins(0, 0, 0, 0);
     identityTextLayout->setSpacing(0);
-    auto *brand = new QLabel("ATLAS ENGINE", identityText);
+    auto *brand = new QLabel("Atlas Engine", identityText);
     brand->setObjectName("workspaceBrand");
     auto *project = new QLabel(projectName, identityText);
     project->setObjectName("workspaceProject");
+    project->setToolTip(projectName);
+    project->setMaximumWidth(190);
+    project->setText(project->fontMetrics().elidedText(projectName, Qt::ElideRight, 190));
     identityTextLayout->addWidget(brand);
     identityTextLayout->addWidget(project);
     identityLayout->addWidget(mark);
@@ -971,8 +978,8 @@ void EditorWindow::setupWorkspaceBar() {
     };
     addMode("Scene", styling::Icon::CubeFocus, "#7E929C", 0, true);
     addMode("Shading", styling::Icon::Material, "#A1957D", 1);
-    addMode("Post-Processing", styling::Icon::FilmStrip, "#849589", 2);
-    addMode("Graphite", styling::Icon::Palette, "#849589", 3);
+    addMode("Effects", styling::Icon::FilmStrip, "#849589", 2);
+    addMode("Interface", styling::Icon::Palette, "#849589", 3);
 
     auto *spacer = new QWidget(bar);
     spacer->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Preferred);
@@ -981,8 +988,10 @@ void EditorWindow::setupWorkspaceBar() {
     auto *commands = new QToolButton(bar);
     commands->setObjectName("workspaceCommandButton");
     commands->setIcon(styling::icon(styling::Icon::MagnifyingGlass, "#7E929C"));
-    commands->setText("Commands");
-    commands->setToolTip("Command Palette · Command Shift P");
+    commands->setText("Search commands");
+    commands->setToolButtonStyle(Qt::ToolButtonTextBesideIcon);
+    commands->setToolTip("Command Palette · " +
+                         QKeySequence("Ctrl+Shift+P").toString(QKeySequence::NativeText));
     bar->addWidget(commands);
     connect(commands, &QToolButton::clicked, this,
             &EditorWindow::showCommandPalette);
@@ -1013,8 +1022,9 @@ void EditorWindow::setupWorkspaceBar() {
 
     auto *launch = new QToolButton(bar);
     launch->setObjectName("workspaceLaunchButton");
-    launch->setIcon(styling::icon(styling::Icon::RocketLaunch, "#849589"));
+    launch->setIcon(styling::icon(styling::Icon::Play, "#E4D9FA"));
     launch->setText("Run");
+    launch->setToolButtonStyle(Qt::ToolButtonTextBesideIcon);
     launch->setToolTip("Run Project");
     bar->addWidget(launch);
     connect(launch, &QToolButton::clicked, this,
@@ -1035,7 +1045,9 @@ void EditorWindow::setupWorkspaceBar() {
         button->setText(text);
         button->setIcon(styling::icon(icon, "#8490A4"));
         button->setCheckable(true);
-        button->setChecked(dock->isVisible());
+        button->setChecked(!dock->isClosed());
+        button->setToolTip(text);
+        button->setToolButtonStyle(Qt::ToolButtonTextBesideIcon);
         contextBar->addWidget(button);
         connect(button, &QToolButton::toggled, dock,
                 [dock](bool visible) { dock->toggleView(visible); });
@@ -1832,15 +1844,22 @@ void EditorWindow::showCommandPalette() {
     dialog.setObjectName("commandPaletteDialog");
     dialog.setWindowTitle("Command Palette");
     dialog.setWindowFlags(dialog.windowFlags() | Qt::FramelessWindowHint);
-    dialog.resize(620, 430);
+    dialog.resize(720, 470);
     auto *layout = new QVBoxLayout(&dialog);
+    layout->setContentsMargins(8, 8, 8, 8);
+    layout->setSpacing(4);
     auto *search = new QLineEdit(&dialog);
     search->setObjectName("commandPaletteSearch");
+    search->setClearButtonEnabled(true);
+    search->addAction(styling::icon(styling::Icon::MagnifyingGlass), QLineEdit::LeadingPosition);
     search->setPlaceholderText("Type a command…");
     auto *commands = new QListWidget(&dialog);
     commands->setObjectName("commandPaletteList");
     layout->addWidget(search);
     layout->addWidget(commands, 1);
+    auto *hint = new QLabel("↑ ↓  Navigate     Return  Open     Esc  Dismiss", &dialog);
+    hint->setObjectName("paletteHint");
+    layout->addWidget(hint);
     const QList<QAction *> actions = findChildren<QAction *>();
     for (QAction *action : actions) {
         if (action->text().isEmpty() || action->isSeparator() ||
@@ -1931,15 +1950,22 @@ void EditorWindow::showGlobalSearch() {
     dialog.setObjectName("globalSearchDialog");
     dialog.setWindowTitle("Search Atlas Project");
     dialog.setWindowFlags(dialog.windowFlags() | Qt::FramelessWindowHint);
-    dialog.resize(680, 460);
+    dialog.resize(760, 500);
     auto *layout = new QVBoxLayout(&dialog);
+    layout->setContentsMargins(8, 8, 8, 8);
+    layout->setSpacing(4);
     auto *search = new QLineEdit(&dialog);
     search->setObjectName("globalSearchField");
+    search->setClearButtonEnabled(true);
+    search->addAction(styling::icon(styling::Icon::MagnifyingGlass), QLineEdit::LeadingPosition);
     search->setPlaceholderText("Search scenes, assets, and commands…");
     auto *results = new QListWidget(&dialog);
     results->setObjectName("globalSearchResults");
     layout->addWidget(search);
     layout->addWidget(results, 1);
+    auto *hint = new QLabel("↑ ↓  Navigate     Return  Open     Esc  Dismiss", &dialog);
+    hint->setObjectName("paletteHint");
+    layout->addWidget(hint);
     constexpr int SearchKindRole = Qt::UserRole + 1;
     constexpr int SearchValueRole = Qt::UserRole + 2;
     QDirIterator iterator(QFileInfo(projectFile).absolutePath(), QDir::Files,
@@ -2293,7 +2319,7 @@ void EditorWindow::configureDockSplitters() {
     if (coreManager == nullptr)
         return;
     for (QSplitter *splitter : coreManager->findChildren<QSplitter *>()) {
-        splitter->setHandleWidth(4);
+        splitter->setHandleWidth(6);
         splitter->setOpaqueResize(true);
         splitter->setChildrenCollapsible(false);
         if (!splitter->property("atlasLayoutTracking").toBool()) {

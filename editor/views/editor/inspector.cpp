@@ -1479,7 +1479,7 @@ InspectorPanel::InspectorPanel(ViewportPanel *viewport,
                                const QString &projectFile, QWidget *parent)
     : QWidget(parent), viewport(viewport), projectFile(projectFile) {
     setObjectName("inspectorPanel");
-    setMinimumWidth(400);
+    setMinimumWidth(360);
     setAcceptDrops(true);
     const QFileInfo projectInfo(projectFile);
     projectRoot = projectInfo.absoluteDir().absolutePath();
@@ -1492,8 +1492,8 @@ InspectorPanel::InspectorPanel(ViewportPanel *viewport,
     content = new QWidget(scrollArea);
     content->setObjectName("inspectorContent");
     contentLayout = new QVBoxLayout(content);
-    contentLayout->setContentsMargins(8, 8, 8, 10);
-    contentLayout->setSpacing(8);
+    contentLayout->setContentsMargins(10, 8, 10, 12);
+    contentLayout->setSpacing(10);
     scrollArea->setWidget(content);
     layout->addWidget(scrollArea);
     if (viewport != nullptr) {

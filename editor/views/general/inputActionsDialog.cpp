@@ -178,6 +178,7 @@ void InputActionsDialog::setupUi() {
     root->setSpacing(12);
 
     auto *heading = new QLabel("Controller Actions", this);
+    heading->setObjectName("dialogHeroTitle");
     QFont headingFont = heading->font();
     headingFont.setPointSizeF(18);
     headingFont.setWeight(QFont::DemiBold);

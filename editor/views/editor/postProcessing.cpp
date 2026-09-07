@@ -97,9 +97,9 @@ PostProcessingPanel::PostProcessingPanel(ViewportPanel *viewport,
     auto *toolbar = new QWidget(this);
     toolbar->setObjectName("postProcessingToolbar");
     auto *toolbarLayout = new QHBoxLayout(toolbar);
-    toolbarLayout->setContentsMargins(8, 4, 8, 4);
+    toolbarLayout->setContentsMargins(12, 6, 12, 6);
     toolbarLayout->setSpacing(4);
-    auto *title = new QLabel("Post Processing", toolbar);
+    auto *title = new QLabel("Effects", toolbar);
     title->setObjectName("postProcessingTitle");
     targetSelector = new QComboBox(toolbar);
     targetSelector->setMinimumWidth(180);
@@ -130,7 +130,7 @@ PostProcessingPanel::PostProcessingPanel(ViewportPanel *viewport,
     body->setObjectName("postProcessingBody");
     bodyLayout = new QVBoxLayout(body);
     bodyLayout->setContentsMargins(12, 12, 12, 14);
-    bodyLayout->setSpacing(9);
+    bodyLayout->setSpacing(12);
     scroll->setWidget(body);
     layout->addWidget(scroll, 1);
 

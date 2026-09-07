@@ -130,7 +130,7 @@ HierarchyPanel::HierarchyPanel(ViewportPanel *viewport, QWidget *parent)
     : QWidget(parent), viewport(viewport) {
     setObjectName("hierarchyPanel");
     auto *layout = new QVBoxLayout(this);
-    layout->setContentsMargins(4, 4, 4, 4);
+    layout->setContentsMargins(6, 6, 6, 6);
     layout->setSpacing(4);
 
     auto *toolbar = new QWidget(this);
@@ -157,7 +157,8 @@ HierarchyPanel::HierarchyPanel(ViewportPanel *viewport, QWidget *parent)
     searchField = new QLineEdit(toolbar);
     searchField->setPlaceholderText("Search hierarchy");
     searchField->setClearButtonEnabled(true);
-    searchField->setMaximumWidth(180);
+    searchField->setMinimumWidth(80);
+    searchField->setObjectName("hierarchySearch");
     toolbarLayout->addWidget(searchField, 1);
     toolbarLayout->addWidget(moreButton);
     layout->addWidget(toolbar);
@@ -171,7 +172,7 @@ HierarchyPanel::HierarchyPanel(ViewportPanel *viewport, QWidget *parent)
     treeView->setEditTriggers(QAbstractItemView::NoEditTriggers);
     treeView->setSelectionMode(QAbstractItemView::ExtendedSelection);
     treeView->setSelectionBehavior(QAbstractItemView::SelectRows);
-    treeView->setIndentation(16);
+    treeView->setIndentation(18);
     treeView->setIconSize(QSize(18, 18));
     treeView->setContextMenuPolicy(Qt::CustomContextMenu);
     treeView->setUniformRowHeights(true);

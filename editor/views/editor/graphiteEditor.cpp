@@ -236,7 +236,7 @@ class GraphiteCanvas : public QWidget {
     void paintEvent(QPaintEvent *) override {
         QPainter painter(this);
         painter.setRenderHint(QPainter::Antialiasing);
-        painter.fillRect(rect(), QColor("#17191D"));
+        painter.fillRect(rect(), QColor("#171716"));
         const QJsonObject canvas = document.value("canvas").toObject();
         const double width = std::max(1.0, canvas.value("width").toDouble(1280));
         const double height =
@@ -410,7 +410,7 @@ class GraphiteCanvas : public QWidget {
         }
         if (path == selected) {
             painter.setBrush(Qt::NoBrush);
-            painter.setPen(QPen(QColor("#E39758"), 2.0 / canvasScale));
+            painter.setPen(QPen(QColor("#B7A4ED"), 2.0 / canvasScale));
             painter.drawRect(frame.adjusted(-2, -2, 2, 2));
         }
         if (!element.value("components").toArray().isEmpty()) {

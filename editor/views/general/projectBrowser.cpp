@@ -14,6 +14,8 @@
 #include <QFrame>
 #include <QHBoxLayout>
 #include <QLabel>
+#include <QShortcut>
+#include <QKeySequence>
 #include <QLineEdit>
 #include <QListWidget>
 #include <QMenu>
@@ -319,14 +321,14 @@ void ProjectBrowser::setupUi() {
     root->setObjectName("projectBrowserRoot");
     setCentralWidget(root);
     auto *rootLayout = new QHBoxLayout(root);
-    rootLayout->setContentsMargins(0, 0, 0, 0);
-    rootLayout->setSpacing(0);
+    rootLayout->setContentsMargins(10, 10, 10, 10);
+    rootLayout->setSpacing(10);
 
     auto *sidebar = new QFrame(root);
     sidebar->setObjectName("projectSidebar");
-    sidebar->setFixedWidth(224);
+    sidebar->setFixedWidth(232);
     auto *sidebarLayout = new QVBoxLayout(sidebar);
-    sidebarLayout->setContentsMargins(22, 26, 22, 22);
+    sidebarLayout->setContentsMargins(20, 24, 20, 20);
     sidebarLayout->setSpacing(18);
 
     auto *brandLayout = new QHBoxLayout();
@@ -357,13 +359,17 @@ void ProjectBrowser::setupUi() {
     projectsNav->setEnabled(false);
     sidebarLayout->addWidget(projectsNav);
     sidebarLayout->addStretch();
+    auto *sidebarCaption = new QLabel("A space to build worlds.", sidebar);
+    sidebarCaption->setObjectName("projectSidebarCaption");
+    sidebarCaption->setWordWrap(true);
+    sidebarLayout->addWidget(sidebarCaption);
 
     rootLayout->addWidget(sidebar);
 
     auto *content = new QWidget(root);
     content->setObjectName("projectBrowserContent");
     auto *contentLayout = new QVBoxLayout(content);
-    contentLayout->setContentsMargins(34, 30, 34, 30);
+    contentLayout->setContentsMargins(28, 26, 28, 24);
     contentLayout->setSpacing(20);
 
     auto *headingLayout = new QHBoxLayout();
@@ -420,6 +426,9 @@ void ProjectBrowser::setupUi() {
     emptyLayout->addStretch();
     projectStack->addWidget(empty);
     contentLayout->addWidget(projectStack, 1);
+    auto *listHint = new QLabel("Double-click a project to open it · Return to continue", content);
+    listHint->setObjectName("projectListHint");
+    contentLayout->addWidget(listHint);
     rootLayout->addWidget(content, 1);
 
     connect(createButton, &QPushButton::clicked, this,
@@ -428,6 +437,23 @@ void ProjectBrowser::setupUi() {
             &ProjectBrowser::openExistingProject);
     connect(searchField, &QLineEdit::textChanged, this,
             &ProjectBrowser::filterProjects);
+    connect(projectList, &QListWidget::currentItemChanged, this,
+            [this](QListWidgetItem *current, QListWidgetItem *previous) {
+                for (auto *item : {previous, current}) {
+                    if (item == nullptr)
+                        continue;
+                    auto *row = projectList->itemWidget(item);
+                    if (row == nullptr)
+                        continue;
+                    row->setProperty("selected", item == current);
+                    row->style()->unpolish(row);
+                    row->style()->polish(row);
+                    row->update();
+                }
+            });
+    auto *openShortcut = new QShortcut(QKeySequence(Qt::Key_Return), projectList);
+    openShortcut->setContext(Qt::WidgetWithChildrenShortcut);
+    connect(openShortcut, &QShortcut::activated, this, &ProjectBrowser::openSelectedProject);
     connect(projectList, &QListWidget::itemDoubleClicked, this,
             [this] { openSelectedProject(); });
     connect(projectList, &QListWidget::customContextMenuRequested, this,
