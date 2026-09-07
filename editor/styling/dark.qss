@@ -986,3 +986,28 @@ QPushButton:default {
     background: #E5E5E1;
     color: #191918;
 }
+
+#projectSectionLabel {
+    color: #82827B;
+    font-size: 12px;
+    padding: 3px 10px;
+}
+
+#searchPreviewPane {
+    background: #171716;
+    border: none;
+    border-left: 1px solid #30302C;
+}
+
+#searchPreviewText {
+    background: transparent;
+    border: none;
+    padding: 0;
+    font-family: "SF Mono", "Menlo", "Consolas";
+    font-size: 12px;
+    color: #B6B6AF;
+}
+
+#projectRow[available="false"] #projectName {
+    color: #82827B;
+}

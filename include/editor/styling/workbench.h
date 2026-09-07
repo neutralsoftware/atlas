@@ -1,6 +1,7 @@
 #pragma once
 
 #include <QPushButton>
+#include <QLabel>
 #include <QStyledItemDelegate>
 #include <QStackedWidget>
 #include <QToolButton>
@@ -9,6 +10,8 @@
 class QApplication;
 
 namespace styling {
+
+inline constexpr int SecondaryTextRole = Qt::UserRole + 42;
 
 class Button : public QPushButton {
 public:
@@ -41,6 +44,15 @@ public:
 protected:
     void drawBranches(QPainter *painter, const QRect &rect,
                       const QModelIndex &index) const override;
+};
+
+class ElidedLabel : public QLabel {
+public:
+    explicit ElidedLabel(const QString &text, QWidget *parent = nullptr);
+    QSize minimumSizeHint() const override;
+    QSize sizeHint() const override;
+protected:
+    void paintEvent(QPaintEvent *) override;
 };
 
 class WorkspaceStack : public QStackedWidget {

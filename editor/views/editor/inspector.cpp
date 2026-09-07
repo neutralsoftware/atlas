@@ -880,7 +880,7 @@ QWidget *vectorField(const QJsonArray &value, const PropertyChanged &changed,
         axis->setObjectName("inspectorAxis" + axes.at(index));
         auto *box = numberField(values.at(index).toDouble(), valueEditor);
         box->setButtonSymbols(QAbstractSpinBox::NoButtons);
-        box->setMinimumWidth(52);
+        box->setMinimumWidth(44);
         tagEditor(box, path, "vector", index);
         boxes.append(box);
         valueLayout->addWidget(axis);
@@ -1059,7 +1059,7 @@ QFrame *propertyRow(const QString &label, QWidget *editor, QWidget *parent) {
     auto *layout = new QHBoxLayout(row);
     layout->setContentsMargins(0, 3, 0, 3);
     layout->setSpacing(8);
-    auto *name = new QLabel(label, row);
+    auto *name = new styling::ElidedLabel(label, row);
     name->setObjectName("inspectorPropertyLabel");
     name->setMinimumWidth(82);
     name->setMaximumWidth(108);

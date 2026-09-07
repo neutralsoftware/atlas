@@ -71,6 +71,7 @@
 #include <QHBoxLayout>
 #include <QGridLayout>
 #include <QInputDialog>
+#include <QImageReader>
 #include <QSizePolicy>
 #include <QVBoxLayout>
 #include <QUrl>
@@ -79,6 +80,7 @@
 #include <limits>
 
 #include "DockManager.h"
+#include "DockAreaWidget.h"
 #include "editor/debug.h"
 #include "editor/styling/icons.h"
 #include "editor/views/fileExplorer.h"
@@ -731,6 +733,8 @@ void EditorWindow::setupDocks() {
          .area = EditorDockArea::Center,
          .icon = styling::icon(styling::Icon::CubeFocus, "#7E929C")});
     workspaceDock->setFeature(ads::CDockWidget::NoTab, true);
+    if (auto *area = workspaceDock->dockAreaWidget())
+        area->setDockAreaFlag(ads::CDockAreaWidget::HideSingleWidgetTitleBar, true);
 
     hierarchyPanel = new HierarchyPanel(viewportPanel);
     auto *hierarchyDock = dockManager->addPanel(
@@ -1025,7 +1029,7 @@ void EditorWindow::setupWorkspaceBar() {
     bar->addWidget(chrome);
 
     statusBar()->setObjectName("atlasStatusBar");
-    statusBar()->showMessage("Ready");
+    statusBar()->showMessage("Scene workspace");
     auto *runtimeStatus = new QWidget(statusBar());
     runtimeStatus->setObjectName("statusRuntime");
     auto *runtimeLayout = new QHBoxLayout(runtimeStatus);
@@ -1934,7 +1938,7 @@ void EditorWindow::showGlobalSearch() {
     dialog.setObjectName("globalSearchDialog");
     dialog.setWindowTitle("Search Atlas Project");
     dialog.setWindowFlags(dialog.windowFlags() | Qt::FramelessWindowHint);
-    dialog.resize(760, 500);
+    dialog.resize(960, 560);
     auto *layout = new QVBoxLayout(&dialog);
     layout->setContentsMargins(8, 8, 8, 8);
     layout->setSpacing(4);
@@ -1946,12 +1950,84 @@ void EditorWindow::showGlobalSearch() {
     auto *results = new QListWidget(&dialog);
     results->setObjectName("globalSearchResults");
     layout->addWidget(search);
-    layout->addWidget(results, 1);
+    auto *splitter = new QSplitter(Qt::Horizontal, &dialog);
+    splitter->setChildrenCollapsible(false);
+    splitter->setHandleWidth(1);
+    splitter->addWidget(results);
+    auto *previewPane = new QWidget(splitter);
+    previewPane->setObjectName("searchPreviewPane");
+    auto *previewLayout = new QVBoxLayout(previewPane);
+    previewLayout->setContentsMargins(16, 14, 12, 10);
+    previewLayout->setSpacing(10);
+    auto *previewTitle = new styling::ElidedLabel("Preview", previewPane);
+    previewTitle->setObjectName("workspaceTitle");
+    previewLayout->addWidget(previewTitle);
+    auto *previewStack = new QStackedWidget(previewPane);
+    auto *previewText = new QPlainTextEdit(previewStack);
+    previewText->setObjectName("searchPreviewText");
+    previewText->setReadOnly(true);
+    previewText->setLineWrapMode(QPlainTextEdit::NoWrap);
+    previewText->setPlaceholderText("Select a result to preview it.");
+    auto *previewImage = new QLabel(previewStack);
+    previewImage->setAlignment(Qt::AlignCenter);
+    previewStack->addWidget(previewText);
+    previewStack->addWidget(previewImage);
+    previewLayout->addWidget(previewStack, 1);
+    splitter->addWidget(previewPane);
+    splitter->setSizes({480, 440});
+    layout->addWidget(splitter, 1);
     auto *hint = new QLabel("↑ ↓  Navigate     Return  Open     Esc  Dismiss", &dialog);
     hint->setObjectName("paletteHint");
     layout->addWidget(hint);
     constexpr int SearchKindRole = Qt::UserRole + 1;
     constexpr int SearchValueRole = Qt::UserRole + 2;
+    connect(results, &QListWidget::currentItemChanged, &dialog,
+            [previewTitle, previewText, previewStack, previewImage](QListWidgetItem *item) {
+                previewStack->setCurrentIndex(0);
+                previewText->clear();
+                previewImage->clear();
+                if (item == nullptr || item->data(SearchKindRole).toInt() == 3) {
+                    previewTitle->setText("Preview");
+                    return;
+                }
+                previewTitle->setText(item->text());
+                previewTitle->setToolTip(item->toolTip());
+                if (item->data(SearchKindRole).toInt() != 0) {
+                    previewText->setPlainText(item->data(styling::SecondaryTextRole).toString());
+                    return;
+                }
+                const QString path = item->data(SearchValueRole).toString();
+                const QFileInfo info(path);
+                const QStringList textTypes{"ts", "js", "json", "atlas", "ascene", "aui",
+                                            "amat", "toml", "txt", "md", "glsl", "vert", "frag"};
+                if (textTypes.contains(info.suffix().toLower())) {
+                    QFile file(path);
+                    if (file.open(QIODevice::ReadOnly)) {
+                        QByteArray data = file.read(65536);
+                        QString text = QString::fromUtf8(data);
+                        if (!file.atEnd())
+                            text += "\n\n… Preview limited to 64 KB";
+                        previewText->setPlainText(text);
+                        return;
+                    }
+                }
+                QImageReader reader(path);
+                const QSize dimensions = reader.size();
+                if (dimensions.isValid() && dimensions.width() <= 16384 &&
+                    dimensions.height() <= 16384) {
+                    reader.setAutoTransform(true);
+                    reader.setScaledSize(dimensions.scaled(QSize(360, 300), Qt::KeepAspectRatio));
+                    const QImage image = reader.read();
+                    if (!image.isNull()) {
+                        previewImage->setPixmap(QPixmap::fromImage(image));
+                        previewStack->setCurrentIndex(1);
+                        return;
+                    }
+                }
+                previewText->setPlainText(QStringLiteral("%1\n\n%2\n%3 KB")
+                    .arg(info.fileName(), item->data(styling::SecondaryTextRole).toString())
+                    .arg(info.size() / 1024.0, 0, 'f', 1));
+            });
     QDirIterator iterator(QFileInfo(projectFile).absolutePath(), QDir::Files,
                           QDirIterator::Subdirectories);
     while (iterator.hasNext()) {
@@ -1959,12 +2035,14 @@ void EditorWindow::showGlobalSearch() {
         const QString relative =
             QDir(QFileInfo(projectFile).absolutePath()).relativeFilePath(path);
         if (relative.startsWith(".git/") || relative.startsWith("build/") ||
-            relative.startsWith("dist/"))
+            relative.startsWith("dist/") || relative.startsWith(".jj/") ||
+            relative.startsWith("node_modules/") || relative.startsWith("target/"))
             continue;
         auto *item = new QListWidgetItem(
-            QStringLiteral("Asset  %1").arg(relative), results);
+            QFileInfo(path).fileName(), results);
         item->setIcon(styling::icon(styling::Icon::File, "#7E929C"));
         item->setToolTip(path);
+        item->setData(styling::SecondaryTextRole, "Asset · " + QFileInfo(relative).path());
         item->setData(SearchKindRole, 0);
         item->setData(SearchValueRole, path);
     }
@@ -1981,9 +2059,10 @@ void EditorWindow::showGlobalSearch() {
             const int id = object.value("id").toInt(-1);
             if (!name.isEmpty() && id >= 0) {
                 auto *item = new QListWidgetItem(
-                    QStringLiteral("Object  %1").arg(name), results);
+                    name, results);
                 item->setIcon(styling::icon(styling::Icon::Cube, "#8498A8"));
                 item->setToolTip(object.value("type").toString());
+                item->setData(styling::SecondaryTextRole, "Scene object · " + item->toolTip());
                 item->setData(SearchKindRole, 1);
                 item->setData(SearchValueRole, id);
             }
@@ -1997,10 +2076,11 @@ void EditorWindow::showGlobalSearch() {
             !action->isEnabled())
             continue;
         auto *item = new QListWidgetItem(
-            QStringLiteral("Command  %1").arg(action->text().remove('&')),
+            action->text().remove('&'),
             results);
         item->setIcon(action->icon());
         item->setData(SearchKindRole, 2);
+        item->setData(styling::SecondaryTextRole, "Command · " + action->shortcut().toString(QKeySequence::NativeText));
         item->setData(SearchValueRole, QVariant::fromValue<quintptr>(
                                            reinterpret_cast<quintptr>(action)));
     }
@@ -2306,6 +2386,12 @@ void EditorWindow::restoreLayout() {
 void EditorWindow::configureDockSplitters() {
     if (coreManager == nullptr)
         return;
+    if (dockManager != nullptr) {
+        if (auto *workspace = dockManager->panel("workspace")) {
+            if (auto *area = workspace->dockAreaWidget())
+                area->setDockAreaFlag(ads::CDockAreaWidget::HideSingleWidgetTitleBar, true);
+        }
+    }
     for (QSplitter *splitter : coreManager->findChildren<QSplitter *>()) {
         splitter->setHandleWidth(10);
         splitter->setOpaqueResize(true);

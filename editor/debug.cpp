@@ -8,6 +8,8 @@
 */
 
 #include <editor/debug.h>
+#include <editor/styling/workbench.h>
+#include <editor/styling/icons.h>
 #include <editor/widgets/scrubbableSpinBox.h>
 #include <QCheckBox>
 #include <QComboBox>
@@ -98,18 +100,18 @@ QWidget* DebugComponentsView::createBasicControlsSection() {
     layout->setContentsMargins(0, 0, 0, 0);
     layout->setSpacing(8);
 
-    auto* normalButton = new QPushButton("Normal", container);
-    auto* defaultButton = new QPushButton("Default", container);
+    auto* normalButton = new styling::Button("Normal", container);
+    auto* defaultButton = new styling::Button("Default", container);
     defaultButton->setDefault(true);
 
-    auto* disabledButton = new QPushButton("Disabled", container);
+    auto* disabledButton = new styling::Button("Disabled", container);
     disabledButton->setEnabled(false);
 
-    auto* checkableButton = new QPushButton("Checkable", container);
+    auto* checkableButton = new styling::Button("Checkable", container);
     checkableButton->setCheckable(true);
     checkableButton->setChecked(true);
 
-    auto* toolButton = new QToolButton(container);
+    auto* toolButton = new styling::ToolButton(container);
     toolButton->setText("Tool");
 
     layout->addWidget(normalButton);
@@ -354,13 +356,13 @@ QWidget* DebugComponentsView::createCollapsibleSection() {
     layout->setContentsMargins(0, 0, 0, 0);
     layout->setSpacing(4);
 
-    auto* header = new QToolButton(section);
+    auto* header = new styling::ToolButton(section);
     header->setObjectName("collapsibleHeader");
     header->setText("Transform");
     header->setCheckable(true);
     header->setChecked(true);
     header->setToolButtonStyle(Qt::ToolButtonTextBesideIcon);
-    header->setArrowType(Qt::DownArrow);
+    header->setIcon(styling::icon(styling::Icon::CaretDown));
 
     auto* body = new QWidget(section);
     body->setObjectName("collapsibleBody");
@@ -390,7 +392,7 @@ QWidget* DebugComponentsView::createCollapsibleSection() {
     form->addRow("Visibility", visible);
 
     QObject::connect(header, &QToolButton::toggled, section, [header, body, section](bool checked) {
-        header->setArrowType(checked ? Qt::DownArrow : Qt::RightArrow);
+        header->setIcon(styling::icon(checked ? styling::Icon::CaretDown : styling::Icon::CaretRight));
         body->setVisible(checked);
         body->updateGeometry();
         section->updateGeometry();

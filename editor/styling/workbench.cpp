@@ -28,12 +28,15 @@ void paintButton(QAbstractButton *button, bool showText, bool vertical,
     const bool enabled = button->isEnabled();
     const bool hover = enabled && button->underMouse();
     const bool header = button->objectName() == "inspectorComponentHeader";
-    const bool selected = button->isChecked() && !header;
+    const bool selected = (button->isChecked() && !header) ||
+                          button->property("matched").toBool();
     const bool primary = prominent(button);
     const QRectF bounds = QRectF(button->rect()).adjusted(0.5, 0.5, -0.5, -0.5);
     QColor background(Qt::transparent);
     if (primary)
-        background = enabled ? QColor("#E5E5E1") : QColor("#282827");
+        background = !enabled ? QColor("#282827")
+                     : button->isDown() ? QColor("#C6C6BF")
+                     : hover ? QColor("#F4F4EE") : QColor("#E5E5E1");
     else if (button->isDown())
         background = QColor("#333331");
     else if (selected)
@@ -55,7 +58,11 @@ void paintButton(QAbstractButton *button, bool showText, bool vertical,
                                : selected || hover || header ? QColor("#ECECE7")
                                : QColor("#B6B6AF");
     QRect content = button->rect().adjusted(10, 0, -10, 0);
-    const int iconSize = 18;
+    const bool preserveIconColor = button->property("preserveIconColor").toBool() ||
+                                   button->objectName() == "materialColorButton" ||
+                                   button->objectName() == "inspectorColorSwatch";
+    const int iconSize = preserveIconColor ? button->iconSize().width() : 18;
+    const int iconHeight = preserveIconColor ? button->iconSize().height() : 18;
     const bool hasIcon = !button->icon().isNull();
     if (hasMenu)
         content.adjust(0, 0, -13, 0);
@@ -63,16 +70,15 @@ void paintButton(QAbstractButton *button, bool showText, bool vertical,
         QRect iconRect;
         if (!showText)
             iconRect = QRect((button->width() - iconSize) / 2,
-                             (button->height() - iconSize) / 2, iconSize, iconSize);
+                             (button->height() - iconHeight) / 2, iconSize, iconHeight);
         else if (vertical)
-            iconRect = QRect((button->width() - iconSize) / 2, 8, iconSize, iconSize);
+            iconRect = QRect((button->width() - iconSize) / 2, 8, iconSize, iconHeight);
         else
-            iconRect = QRect(content.left(), (button->height() - iconSize) / 2,
-                             iconSize, iconSize);
-        QPixmap glyph = button->icon().pixmap(QSize(iconSize, iconSize),
+            iconRect = QRect(content.left(), (button->height() - iconHeight) / 2,
+                             iconSize, iconHeight);
+        QPixmap glyph = button->icon().pixmap(QSize(iconSize, iconHeight),
                                                button->devicePixelRatioF());
-        if (button->objectName() != "materialColorButton" &&
-            button->objectName() != "inspectorColorSwatch") {
+        if (!preserveIconColor) {
             QPainter tint(&glyph);
             tint.setCompositionMode(QPainter::CompositionMode_SourceIn);
             tint.fillRect(glyph.rect(), foreground);
@@ -148,6 +154,7 @@ void styling::Button::paintEvent(QPaintEvent *) {
 
 styling::ToolButton::ToolButton(QWidget *parent) : QToolButton(parent) {
     setCursor(Qt::PointingHandCursor);
+    setFocusPolicy(Qt::StrongFocus);
     setAutoRaise(true);
     setIconSize(QSize(18, 18));
 }
@@ -213,6 +220,23 @@ void styling::ItemDelegate::paint(QPainter *painter,
     painter->setFont(font);
     painter->setPen(!enabled ? QColor("#666660")
                             : selected ? QColor("#F0F0EA") : QColor("#BDBDB6"));
+    const QString secondary = index.data(styling::SecondaryTextRole).toString();
+    if (!secondary.isEmpty() && !grid) {
+        QRect secondaryRect = textRect;
+        secondaryRect.setTop(bounds.top() + 27);
+        secondaryRect.setBottom(bounds.bottom() - 3);
+        QFont secondaryFont = font;
+        secondaryFont.setPixelSize(11);
+        painter->setFont(secondaryFont);
+        painter->setPen(QColor("#92928B"));
+        painter->drawText(secondaryRect, Qt::AlignLeft | Qt::AlignVCenter,
+                         painter->fontMetrics().elidedText(secondary, Qt::ElideMiddle,
+                                                          secondaryRect.width()));
+        textRect.setTop(bounds.top() + 3);
+        textRect.setBottom(bounds.top() + 25);
+        painter->setFont(font);
+        painter->setPen(selected ? QColor("#F0F0EA") : QColor("#BDBDB6"));
+    }
     QString text = item.text;
     const int shortcutAt = text.indexOf('\t');
     if (shortcutAt >= 0) {
@@ -238,7 +262,7 @@ QSize styling::ItemDelegate::sizeHint(const QStyleOptionViewItem &option,
     if (list != nullptr && list->viewMode() == QListView::IconMode)
         return QSize(120, 102);
     QSize size = QStyledItemDelegate::sizeHint(option, index);
-    size.setHeight(34);
+    size.setHeight(index.data(styling::SecondaryTextRole).toString().isEmpty() ? 34 : 52);
     return size;
 }
 
@@ -275,4 +299,27 @@ QSize styling::WorkspaceStack::minimumSizeHint() const {
 
 QSize styling::WorkspaceStack::sizeHint() const {
     return currentWidget() != nullptr ? currentWidget()->sizeHint() : QSize(640, 480);
+}
+
+styling::ElidedLabel::ElidedLabel(const QString &text, QWidget *parent)
+    : QLabel(text, parent) {
+    setToolTip(text);
+    setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Preferred);
+}
+
+QSize styling::ElidedLabel::minimumSizeHint() const {
+    return QSize(0, fontMetrics().height());
+}
+
+QSize styling::ElidedLabel::sizeHint() const {
+    return QSize(std::min(320, fontMetrics().horizontalAdvance(text())), fontMetrics().height());
+}
+
+void styling::ElidedLabel::paintEvent(QPaintEvent *) {
+    QPainter painter(this);
+    painter.setFont(font());
+    painter.setPen(palette().color(isEnabled() ? QPalette::Active : QPalette::Disabled,
+                                   QPalette::WindowText));
+    painter.drawText(contentsRect(), Qt::AlignLeft | Qt::AlignVCenter,
+                     fontMetrics().elidedText(text(), Qt::ElideMiddle, contentsRect().width()));
 }

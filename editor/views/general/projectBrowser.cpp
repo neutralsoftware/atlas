@@ -273,12 +273,12 @@ class ProjectRow : public QFrame {
 
         auto *copy = new QVBoxLayout();
         copy->setSpacing(3);
-        auto *title = new QLabel(project.name, this);
+        auto *title = new styling::ElidedLabel(project.name, this);
         title->setObjectName("projectName");
         copy->addWidget(title);
-        auto *path = new QLabel(project.directory, this);
+        auto *path = new styling::ElidedLabel(project.directory, this);
         path->setObjectName("projectPath");
-        path->setTextInteractionFlags(Qt::TextSelectableByMouse);
+
         copy->addWidget(path);
         layout->addLayout(copy, 1);
 
@@ -287,7 +287,7 @@ class ProjectRow : public QFrame {
         layout->addWidget(renderer);
 
         auto *date =
-            new QLabel(project.lastModified.isValid()
+            new QLabel(project.available && project.lastModified.isValid()
                            ? project.lastModified.toString("d MMM yyyy")
                            : QStringLiteral("Unavailable"),
                        this);
@@ -322,15 +322,15 @@ void ProjectBrowser::setupUi() {
     auto *root = new QWidget(this);
     root->setObjectName("projectBrowserRoot");
     setCentralWidget(root);
-    auto *rootLayout = new QHBoxLayout(root);
+    auto *rootLayout = new QVBoxLayout(root);
     rootLayout->setContentsMargins(10, 10, 10, 10);
     rootLayout->setSpacing(10);
 
     auto *sidebar = new QFrame(root);
     sidebar->setObjectName("projectSidebar");
-    sidebar->setFixedWidth(232);
-    auto *sidebarLayout = new QVBoxLayout(sidebar);
-    sidebarLayout->setContentsMargins(20, 24, 20, 20);
+    sidebar->setFixedHeight(70);
+    auto *sidebarLayout = new QHBoxLayout(sidebar);
+    sidebarLayout->setContentsMargins(18, 8, 18, 8);
     sidebarLayout->setSpacing(18);
 
     auto *brandLayout = new QHBoxLayout();
@@ -352,15 +352,9 @@ void ProjectBrowser::setupUi() {
     brandLayout->addStretch();
     sidebarLayout->addLayout(brandLayout);
 
-    auto *projectsNav = new styling::Button("Projects", sidebar);
-    projectsNav->setObjectName("projectNavSelected");
-    projectsNav->setIcon(styling::icon(styling::Icon::SquaresFour, "#8498A8"));
-    projectsNav->setEnabled(false);
-    sidebarLayout->addWidget(projectsNav);
     sidebarLayout->addStretch();
-    auto *sidebarCaption = new QLabel("A space to build worlds.", sidebar);
+    auto *sidebarCaption = new QLabel("Your next world starts here.", sidebar);
     sidebarCaption->setObjectName("projectSidebarCaption");
-    sidebarCaption->setWordWrap(true);
     sidebarLayout->addWidget(sidebarCaption);
 
     rootLayout->addWidget(sidebar);
@@ -368,7 +362,7 @@ void ProjectBrowser::setupUi() {
     auto *content = new QWidget(root);
     content->setObjectName("projectBrowserContent");
     auto *contentLayout = new QVBoxLayout(content);
-    contentLayout->setContentsMargins(28, 26, 28, 24);
+    contentLayout->setContentsMargins(38, 32, 38, 24);
     contentLayout->setSpacing(20);
 
     auto *headingLayout = new QHBoxLayout();
@@ -397,12 +391,16 @@ void ProjectBrowser::setupUi() {
     searchField->setObjectName("projectSearch");
     searchField->setPlaceholderText("Search projects");
     searchField->setClearButtonEnabled(true);
+    searchField->addAction(styling::icon(styling::Icon::MagnifyingGlass), QLineEdit::LeadingPosition);
     contentLayout->addWidget(searchField);
+    auto *sectionLabel = new QLabel("Recent projects", content);
+    sectionLabel->setObjectName("projectSectionLabel");
+    contentLayout->addWidget(sectionLabel);
 
     projectStack = new QStackedWidget(content);
     projectList = new QListWidget(projectStack);
     projectList->setObjectName("projectList");
-    projectList->setSpacing(8);
+    projectList->setSpacing(3);
     projectList->setSelectionMode(QAbstractItemView::SingleSelection);
     projectList->setContextMenuPolicy(Qt::CustomContextMenu);
     projectList->setHorizontalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
@@ -466,7 +464,7 @@ void ProjectBrowser::reloadProjects() {
         auto *item = new QListWidgetItem(projectList);
         item->setData(ProjectPathRole, project.projectFile);
         item->setData(ProjectAvailableRole, project.available);
-        item->setSizeHint(QSize(0, 76));
+        item->setSizeHint(QSize(0, 82));
         auto *row = new ProjectRow(project, projectList);
         projectList->setItemWidget(item, row);
         connect(row->optionsButton(), &QToolButton::clicked, this,

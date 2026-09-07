@@ -1138,9 +1138,11 @@ void GraphiteEditorPanel::rebuildInspector() {
                   jsonColor(fallbackNormal.value("foreground"),
                             QColor("#F5F6F8")));
     auto *backgroundButton = new styling::Button(appearance);
+    backgroundButton->setProperty("preserveIconColor", true);
     backgroundButton->setIcon(styling::colorSwatch(background));
     backgroundButton->setText(background.name(QColor::HexArgb));
     auto *foregroundButton = new styling::Button(appearance);
+    foregroundButton->setProperty("preserveIconColor", true);
     foregroundButton->setIcon(styling::colorSwatch(foreground));
     foregroundButton->setText(foreground.name(QColor::HexArgb));
     auto *radius =
