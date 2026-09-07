@@ -25,6 +25,7 @@
 #include "editor/debug.h"
 #include "editor/application/toolchainInstaller.h"
 #include "editor/styling/icons.h"
+#include "editor/styling/workbench.h"
 #include "editor/views/editorWindow.h"
 #include "editor/views/projectBrowser.h"
 #include "editor/views/splashScreen.h"
@@ -64,6 +65,7 @@ int main(int argc, char **argv) {
 
     app.setStyle("Fusion");
     styling::applyTheme(app);
+    styling::installWorkbench(app);
     ToolchainInstaller::ensureInstalled();
 
     auto *startupSplash = new SplashScreen();

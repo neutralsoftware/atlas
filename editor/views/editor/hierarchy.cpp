@@ -1,3 +1,5 @@
+#include "editor/styling/workbench.h"
+
 /*
  * hierarchy.cpp
  * As part of the Atlas project
@@ -130,7 +132,7 @@ HierarchyPanel::HierarchyPanel(ViewportPanel *viewport, QWidget *parent)
     : QWidget(parent), viewport(viewport) {
     setObjectName("hierarchyPanel");
     auto *layout = new QVBoxLayout(this);
-    layout->setContentsMargins(6, 6, 6, 6);
+    layout->setContentsMargins(10, 0, 10, 10);
     layout->setSpacing(4);
 
     auto *toolbar = new QWidget(this);
@@ -139,31 +141,32 @@ HierarchyPanel::HierarchyPanel(ViewportPanel *viewport, QWidget *parent)
     toolbarLayout->setContentsMargins(0, 0, 0, 0);
     toolbarLayout->setSpacing(4);
 
-    addButton = new QToolButton(toolbar);
+    addButton = new styling::ToolButton(toolbar);
     addButton->setObjectName("panelAddButton");
     addButton->setIcon(styling::icon(styling::Icon::Plus, "#8498A8"));
     addButton->setText("Add");
-    addButton->setToolButtonStyle(Qt::ToolButtonTextBesideIcon);
+    addButton->setToolButtonStyle(Qt::ToolButtonIconOnly);
     addButton->setPopupMode(QToolButton::InstantPopup);
     addButton->setToolTip("Add Object");
 
-    moreButton = new QToolButton(toolbar);
+    moreButton = new styling::ToolButton(toolbar);
     moreButton->setObjectName("panelMoreButton");
     moreButton->setIcon(styling::icon(styling::Icon::DotsVertical, "#8490A4"));
     moreButton->setPopupMode(QToolButton::InstantPopup);
     moreButton->setToolTip("Hierarchy actions");
 
-    toolbarLayout->addWidget(addButton);
+
     searchField = new QLineEdit(toolbar);
     searchField->setPlaceholderText("Search hierarchy");
     searchField->setClearButtonEnabled(true);
     searchField->setMinimumWidth(80);
     searchField->setObjectName("hierarchySearch");
     toolbarLayout->addWidget(searchField, 1);
+    toolbarLayout->addWidget(addButton);
     toolbarLayout->addWidget(moreButton);
     layout->addWidget(toolbar);
 
-    treeView = new QTreeView(this);
+    treeView = new styling::TreeView(this);
     treeView->setObjectName("hierarchyTree");
     model = new QStandardItemModel(this);
     treeView->setModel(model);
@@ -172,7 +175,7 @@ HierarchyPanel::HierarchyPanel(ViewportPanel *viewport, QWidget *parent)
     treeView->setEditTriggers(QAbstractItemView::NoEditTriggers);
     treeView->setSelectionMode(QAbstractItemView::ExtendedSelection);
     treeView->setSelectionBehavior(QAbstractItemView::SelectRows);
-    treeView->setIndentation(18);
+    treeView->setIndentation(20);
     treeView->setIconSize(QSize(18, 18));
     treeView->setContextMenuPolicy(Qt::CustomContextMenu);
     treeView->setUniformRowHeights(true);

@@ -1,3 +1,5 @@
+#include "editor/styling/workbench.h"
+
 #include "editor/views/graphiteEditor.h"
 
 #include "editor/styling/icons.h"
@@ -452,11 +454,11 @@ GraphiteEditorPanel::GraphiteEditorPanel(ViewportPanel *viewport,
     titleLabel->setObjectName("materialEditorTitle");
     statusLabel = new QLabel(header);
     statusLabel->setObjectName("materialEditorStatus");
-    auto *attach = new QPushButton("Attach to Scene", header);
+    auto *attach = new styling::Button("Attach to Scene", header);
     attach->setIcon(styling::icon(styling::Icon::Assign, "#9E897D"));
-    auto *preview = new QPushButton("Preview Camera", header);
+    auto *preview = new styling::Button("Preview Camera", header);
     preview->setIcon(styling::icon(styling::Icon::MonitorPlay, "#849589"));
-    auto *save = new QPushButton("Save", header);
+    auto *save = new styling::Button("Save", header);
     save->setIcon(styling::icon(styling::Icon::FloppyDisk, "#A1957D"));
     headerLayout->addWidget(titleLabel, 1);
     headerLayout->addWidget(statusLabel);
@@ -473,7 +475,7 @@ GraphiteEditorPanel::GraphiteEditorPanel(ViewportPanel *viewport,
     auto *outlineLayout = new QVBoxLayout(outline);
     outlineLayout->setContentsMargins(8, 8, 4, 8);
     auto *outlineToolbar = new QHBoxLayout();
-    auto *add = new QToolButton(outline);
+    auto *add = new styling::ToolButton(outline);
     add->setText("Add");
     add->setIcon(styling::icon(styling::Icon::Plus, "#8498A8"));
     add->setToolButtonStyle(Qt::ToolButtonTextBesideIcon);
@@ -490,10 +492,10 @@ GraphiteEditorPanel::GraphiteEditorPanel(ViewportPanel *viewport,
     for (const auto &[label, type] : types)
         addMenu->addAction(label, this, [this, type] { addElement(type); });
     add->setMenu(addMenu);
-    auto *duplicate = new QToolButton(outline);
+    auto *duplicate = new styling::ToolButton(outline);
     duplicate->setIcon(styling::icon(styling::Icon::SquaresFour, "#7E929C"));
     duplicate->setToolTip("Duplicate selected element");
-    auto *remove = new QToolButton(outline);
+    auto *remove = new styling::ToolButton(outline);
     remove->setIcon(styling::icon(styling::Icon::Trash, "#A17F7F"));
     remove->setToolTip("Delete selected element");
     outlineToolbar->addWidget(add);
@@ -925,7 +927,7 @@ void GraphiteEditorPanel::rebuildInspector() {
         QJsonObject fontData = document.value("defaultFont").toObject();
         auto *fontPath =
             new QLineEdit(fontData.value("source").toString(), fontGroup);
-        auto *chooseFont = new QPushButton("Choose…", fontGroup);
+        auto *chooseFont = new styling::Button("Choose…", fontGroup);
         auto *fontRow = new QWidget(fontGroup);
         auto *fontRowLayout = new QHBoxLayout(fontRow);
         fontRowLayout->setContentsMargins(0, 0, 0, 0);
@@ -1074,7 +1076,7 @@ void GraphiteEditorPanel::rebuildInspector() {
         } else {
             auto *source = new QLineEdit(element.value("source").toString(),
                                          contentGroup);
-            auto *choose = new QPushButton("Choose…", contentGroup);
+            auto *choose = new styling::Button("Choose…", contentGroup);
             auto *row = new QWidget(contentGroup);
             auto *rowLayout = new QHBoxLayout(row);
             rowLayout->setContentsMargins(0, 0, 0, 0);
@@ -1135,10 +1137,10 @@ void GraphiteEditorPanel::rebuildInspector() {
         jsonColor(normal.value("foreground"),
                   jsonColor(fallbackNormal.value("foreground"),
                             QColor("#F5F6F8")));
-    auto *backgroundButton = new QPushButton(appearance);
+    auto *backgroundButton = new styling::Button(appearance);
     backgroundButton->setIcon(styling::colorSwatch(background));
     backgroundButton->setText(background.name(QColor::HexArgb));
-    auto *foregroundButton = new QPushButton(appearance);
+    auto *foregroundButton = new styling::Button(appearance);
     foregroundButton->setIcon(styling::colorSwatch(foreground));
     foregroundButton->setText(foreground.name(QColor::HexArgb));
     auto *radius =
@@ -1197,8 +1199,8 @@ void GraphiteEditorPanel::rebuildInspector() {
         item->setToolTip(component.value("source").toString());
     }
     auto *componentButtons = new QHBoxLayout();
-    auto *addScript = new QPushButton("Add Script…", components);
-    auto *removeScript = new QPushButton("Remove", components);
+    auto *addScript = new styling::Button("Add Script…", components);
+    auto *removeScript = new styling::Button("Remove", components);
     componentButtons->addWidget(addScript);
     componentButtons->addWidget(removeScript);
     componentsLayout->addWidget(componentList);
@@ -1209,7 +1211,7 @@ void GraphiteEditorPanel::rebuildInspector() {
     auto *componentVariables = new QPlainTextEdit(components);
     componentVariables->setPlaceholderText("{}");
     componentVariables->setMaximumHeight(92);
-    auto *applyComponent = new QPushButton("Apply Component", components);
+    auto *applyComponent = new styling::Button("Apply Component", components);
     componentForm->addRow("Class", componentClass);
     componentForm->addRow("Source", componentSource);
     componentForm->addRow("Variables", componentVariables);

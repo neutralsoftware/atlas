@@ -1,3 +1,5 @@
+#include "editor/styling/workbench.h"
+
 #include <editor/views/projectBrowser.h>
 
 #include <editor/project/projectStore.h>
@@ -175,7 +177,7 @@ class CreateProjectDialog : public QDialog {
         }
         locationField->setText(defaultLocation);
         locationLayout->addWidget(locationField, 1);
-        auto *browse = new QPushButton("Browse…", this);
+        auto *browse = new styling::Button("Browse…", this);
         browse->setProperty("secondary", true);
         browse->setIcon(styling::icon(styling::Icon::FolderOpen, "#7E929C"));
         locationLayout->addWidget(browse);
@@ -190,10 +192,10 @@ class CreateProjectDialog : public QDialog {
 
         auto *actions = new QHBoxLayout();
         actions->addStretch();
-        auto *cancel = new QPushButton("Cancel", this);
+        auto *cancel = new styling::Button("Cancel", this);
         cancel->setProperty("secondary", true);
         actions->addWidget(cancel);
-        createButton = new QPushButton("Create project", this);
+        createButton = new styling::Button("Create project", this);
         createButton->setObjectName("primaryAction");
         createButton->setIcon(
             styling::icon(styling::Icon::RocketLaunch, "#FFFFFF"));
@@ -293,7 +295,7 @@ class ProjectRow : public QFrame {
         date->setMinimumWidth(90);
         layout->addWidget(date);
 
-        moreButton = new QToolButton(this);
+        moreButton = new styling::ToolButton(this);
         moreButton->setObjectName("projectMoreButton");
         moreButton->setIcon(
             styling::icon(styling::Icon::DotsVertical, "#8490A4"));
@@ -350,7 +352,7 @@ void ProjectBrowser::setupUi() {
     brandLayout->addStretch();
     sidebarLayout->addLayout(brandLayout);
 
-    auto *projectsNav = new QPushButton("Projects", sidebar);
+    auto *projectsNav = new styling::Button("Projects", sidebar);
     projectsNav->setObjectName("projectNavSelected");
     projectsNav->setIcon(styling::icon(styling::Icon::SquaresFour, "#8498A8"));
     projectsNav->setEnabled(false);
@@ -381,11 +383,11 @@ void ProjectBrowser::setupUi() {
     headingCopy->addWidget(subtitle);
     headingLayout->addLayout(headingCopy, 1);
 
-    auto *openButton = new QPushButton("Open existing", content);
+    auto *openButton = new styling::Button("Open existing", content);
     openButton->setProperty("secondary", true);
     openButton->setIcon(styling::icon(styling::Icon::FolderOpen, "#7E929C"));
     headingLayout->addWidget(openButton);
-    auto *createButton = new QPushButton("New project", content);
+    auto *createButton = new styling::Button("New project", content);
     createButton->setObjectName("primaryAction");
     createButton->setIcon(styling::icon(styling::Icon::Plus, "#FFFFFF"));
     headingLayout->addWidget(createButton);

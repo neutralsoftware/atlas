@@ -1,3 +1,5 @@
+#include "editor/styling/workbench.h"
+
 #include <editor/views/viewportTools.h>
 
 #include <editor/views/viewport.h>
@@ -92,23 +94,23 @@ ViewportTools::ViewportTools(ViewportPanel *viewport,
     tools->setContentsMargins(8, 4, 8, 4);
     tools->setSpacing(3);
 
-    playButton = new QToolButton(toolbar);
+    playButton = new styling::ToolButton(toolbar);
     playButton->setObjectName("viewportPlaybackButton");
     playButton->setIcon(styling::icon(styling::Icon::Play, "#849589"));
     playButton->setToolTip("Play");
-    pauseButton = new QToolButton(toolbar);
+    pauseButton = new styling::ToolButton(toolbar);
     pauseButton->setObjectName("viewportPlaybackButton");
     pauseButton->setIcon(styling::icon(styling::Icon::Pause, "#A1957D"));
     pauseButton->setToolTip("Pause");
-    stepButton = new QToolButton(toolbar);
+    stepButton = new styling::ToolButton(toolbar);
     stepButton->setObjectName("viewportPlaybackButton");
     stepButton->setIcon(styling::icon(styling::Icon::SkipForward, "#7E929C"));
     stepButton->setToolTip("Step one frame");
-    stopButton = new QToolButton(toolbar);
+    stopButton = new styling::ToolButton(toolbar);
     stopButton->setObjectName("viewportPlaybackButton");
     stopButton->setIcon(styling::icon(styling::Icon::Stop, "#A17F7F"));
     stopButton->setToolTip("Stop and restore the scene");
-    reloadButton = new QToolButton(toolbar);
+    reloadButton = new styling::ToolButton(toolbar);
     reloadButton->setObjectName("viewportPlaybackButton");
     reloadButton->setIcon(
         styling::icon(styling::Icon::ArrowCounterClockwise, "#71889A"));
@@ -126,7 +128,7 @@ ViewportTools::ViewportTools(ViewportPanel *viewport,
     const QList<QColor> transformColors{QColor("#C8C7BF"), QColor("#C8C7BF"),
                                         QColor("#C8C7BF"), QColor("#C8C7BF")};
     for (int index = 0; index < transformNames.size(); ++index) {
-        auto *button = new QToolButton(toolbar);
+        auto *button = new styling::ToolButton(toolbar);
         button->setObjectName("viewportModeButton");
         button->setToolButtonStyle(Qt::ToolButtonIconOnly);
         button->setCheckable(true);
@@ -145,13 +147,13 @@ ViewportTools::ViewportTools(ViewportPanel *viewport,
     }
 
     tools->addSpacing(10);
-    spaceButton = new QToolButton(toolbar);
+    spaceButton = new styling::ToolButton(toolbar);
     spaceButton->setObjectName("viewportOptionButton");
     spaceButton->setIcon(styling::icon(styling::Icon::Globe, "#7E929C"));
     spaceButton->setToolTip("World transform space · Shift+T");
     tools->addWidget(spaceButton);
 
-    cameraButton = new QToolButton(toolbar);
+    cameraButton = new styling::ToolButton(toolbar);
     cameraButton->setObjectName("viewportOptionButton");
     cameraButton->setIcon(styling::icon(styling::Icon::Camera, "#9E897D"));
     cameraButton->setCheckable(true);
@@ -204,7 +206,7 @@ ViewportTools::ViewportTools(ViewportPanel *viewport,
                                    styling::Icon::CubeTransparent,
                                    styling::Icon::DotsNine};
     for (int index = 0; index < shadingNames.size(); ++index) {
-        auto *button = new QToolButton(toolbar);
+        auto *button = new styling::ToolButton(toolbar);
         button->setObjectName("viewportShadingButton");
         button->setToolButtonStyle(pathTracingProject
                                        ? Qt::ToolButtonTextBesideIcon
@@ -225,7 +227,7 @@ ViewportTools::ViewportTools(ViewportPanel *viewport,
         }
     }
 
-    auto *fpsButton = new QToolButton(toolbar);
+    auto *fpsButton = new styling::ToolButton(toolbar);
     fpsButton->setObjectName("viewportOptionButton");
     fpsButton->setIcon(styling::icon(styling::Icon::Monitor, "#849589"));
     fpsButton->setCheckable(true);
@@ -241,12 +243,12 @@ ViewportTools::ViewportTools(ViewportPanel *viewport,
     viewportHost = new ViewportHost(viewport, cameraAspect, this);
     layout->addWidget(viewportHost, 1);
     shortcutHint =
-        new QLabel("Tab Frame · Num 0 Camera · Shift+Middle/Right Pan · "
-                   "Middle/Right Orbit · G Move · R Rotate · S Scale · X "
-                   "Delete",
-                   this);
+        new QLabel("Orbit  Middle drag     Pan  Shift + drag     Frame  Tab", this);
     shortcutHint->setObjectName("viewportShortcutHint");
     shortcutHint->setTextInteractionFlags(Qt::NoTextInteraction);
+    shortcutHint->setContentsMargins(12, 5, 12, 5);
+    shortcutHint->setToolTip("Tab Frame · Num 0 Camera · Shift+Middle/Right Pan · "
+                             "Middle/Right Orbit · G Move · R Rotate · S Scale · X Delete");
     layout->addWidget(shortcutHint);
 
     connect(playButton, &QToolButton::clicked, viewport,

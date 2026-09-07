@@ -1,3 +1,5 @@
+#include "editor/styling/workbench.h"
+
 /*
  * contentBrowser.cpp
  * As part of the Atlas project
@@ -224,17 +226,17 @@ ContentBrowserPanel::ContentBrowserPanel(const QString &projectFile,
     toolbarLayout->setContentsMargins(0, 0, 0, 0);
     toolbarLayout->setSpacing(4);
 
-    backButton = new QToolButton(toolbar);
+    backButton = new styling::ToolButton(toolbar);
     backButton->setObjectName("browserNavigationButton");
     backButton->setIcon(
         styling::icon(styling::Icon::ArrowLeft, "#AAB4C4"));
     backButton->setToolTip("Back");
-    forwardButton = new QToolButton(toolbar);
+    forwardButton = new styling::ToolButton(toolbar);
     forwardButton->setObjectName("browserNavigationButton");
     forwardButton->setIcon(
         styling::icon(styling::Icon::ArrowRight, "#AAB4C4"));
     forwardButton->setToolTip("Forward");
-    upButton = new QToolButton(toolbar);
+    upButton = new styling::ToolButton(toolbar);
     upButton->setObjectName("browserNavigationButton");
     upButton->setIcon(styling::icon(styling::Icon::ArrowUp, "#AAB4C4"));
     upButton->setToolTip("Parent Folder");
@@ -249,20 +251,20 @@ ContentBrowserPanel::ContentBrowserPanel(const QString &projectFile,
     searchField->setClearButtonEnabled(true);
     searchField->setMaximumWidth(180);
 
-    createButton = new QToolButton(toolbar);
+    createButton = new styling::ToolButton(toolbar);
     createButton->setObjectName("panelAddButton");
     createButton->setIcon(styling::icon(styling::Icon::Plus, "#8498A8"));
     createButton->setText("Create");
     createButton->setToolButtonStyle(Qt::ToolButtonTextBesideIcon);
     createButton->setPopupMode(QToolButton::InstantPopup);
 
-    revealButton = new QToolButton(toolbar);
+    revealButton = new styling::ToolButton(toolbar);
     revealButton->setObjectName("browserRevealButton");
     revealButton->setIcon(
         styling::icon(styling::Icon::FolderOpen, "#7E929C"));
     revealButton->setToolTip("Reveal in Finder");
 
-    moreButton = new QToolButton(toolbar);
+    moreButton = new styling::ToolButton(toolbar);
     moreButton->setObjectName("panelMoreButton");
     moreButton->setIcon(
         styling::icon(styling::Icon::DotsVertical, "#8490A4"));

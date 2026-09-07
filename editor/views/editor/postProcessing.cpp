@@ -1,3 +1,5 @@
+#include "editor/styling/workbench.h"
+
 #include <editor/views/postProcessing.h>
 #include <editor/widgets/scrubbableSpinBox.h>
 #include <editor/styling/icons.h>
@@ -103,12 +105,12 @@ PostProcessingPanel::PostProcessingPanel(ViewportPanel *viewport,
     title->setObjectName("postProcessingTitle");
     targetSelector = new QComboBox(toolbar);
     targetSelector->setMinimumWidth(180);
-    auto *addTargetButton = new QToolButton(toolbar);
+    auto *addTargetButton = new styling::ToolButton(toolbar);
     addTargetButton->setIcon(
         styling::icon(styling::Icon::Plus, "#8498A8"));
     addTargetButton->setText("Target");
     addTargetButton->setToolButtonStyle(Qt::ToolButtonTextBesideIcon);
-    removeTargetButton = new QToolButton(toolbar);
+    removeTargetButton = new styling::ToolButton(toolbar);
     removeTargetButton->setText("Remove");
     removeTargetButton->setIcon(
         styling::icon(styling::Icon::Trash, "#A17F7F"));
@@ -249,7 +251,7 @@ void PostProcessingPanel::rebuildEditor() {
     effectsHeadingLayout->setContentsMargins(0, 4, 0, 0);
     auto *effectsTitle = new QLabel("Effect Stack", effectsHeading);
     effectsTitle->setObjectName("postProcessingSectionTitle");
-    auto *addEffectButton = new QToolButton(effectsHeading);
+    auto *addEffectButton = new styling::ToolButton(effectsHeading);
     addEffectButton->setIcon(
         styling::icon(styling::Icon::Plus, "#8498A8"));
     addEffectButton->setText("Add Effect");
@@ -333,19 +335,19 @@ void PostProcessingPanel::rebuildEditor() {
         auto *actionsLayout = new QHBoxLayout(actions);
         actionsLayout->setContentsMargins(0, 0, 0, 0);
         actionsLayout->setSpacing(4);
-        auto *moveUp = new QToolButton(actions);
+        auto *moveUp = new styling::ToolButton(actions);
         moveUp->setText("Move Up");
         moveUp->setIcon(
             styling::icon(styling::Icon::CaretUp, "#7E929C"));
         moveUp->setToolButtonStyle(Qt::ToolButtonTextBesideIcon);
         moveUp->setEnabled(effectIndex > 0);
-        auto *moveDown = new QToolButton(actions);
+        auto *moveDown = new styling::ToolButton(actions);
         moveDown->setText("Move Down");
         moveDown->setIcon(
             styling::icon(styling::Icon::CaretDown, "#7E929C"));
         moveDown->setToolButtonStyle(Qt::ToolButtonTextBesideIcon);
         moveDown->setEnabled(effectIndex + 1 < effectStack.size());
-        auto *remove = new QToolButton(actions);
+        auto *remove = new styling::ToolButton(actions);
         remove->setText("Remove Effect");
         remove->setIcon(
             styling::icon(styling::Icon::Trash, "#A17F7F"));

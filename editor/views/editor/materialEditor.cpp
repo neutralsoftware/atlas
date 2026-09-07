@@ -1,3 +1,5 @@
+#include "editor/styling/workbench.h"
+
 #include <editor/views/materialEditor.h>
 #include <editor/widgets/scrubbableSpinBox.h>
 #include <editor/styling/icons.h>
@@ -350,10 +352,10 @@ MaterialEditorPanel::MaterialEditorPanel(ViewportPanel *viewport,
     titleLabel->setObjectName("materialEditorTitle");
     statusLabel = new QLabel(header);
     statusLabel->setObjectName("materialEditorStatus");
-    auto *saveButton = new QPushButton("Save", header);
+    auto *saveButton = new styling::Button("Save", header);
     saveButton->setObjectName("materialSaveButton");
     saveButton->setIcon(styling::icon(styling::Icon::FloppyDisk, "#A1957D"));
-    auto *assignButton = new QPushButton("Assign to Selected", header);
+    auto *assignButton = new styling::Button("Assign to Selected", header);
     assignButton->setObjectName("materialAssignButton");
     assignButton->setIcon(styling::icon(styling::Icon::Assign, "#9E897D"));
     headerLayout->addWidget(titleLabel, 1);
@@ -556,7 +558,7 @@ void MaterialEditorPanel::showMaterial() {
 
     auto *surface = new QGroupBox("Surface", properties);
     auto *surfaceForm = new QFormLayout(surface);
-    albedoButton = new QPushButton(surface);
+    albedoButton = new styling::Button(surface);
     displayColor(albedoButton,
                  jsonColor(material.value("albedo"), QColor(204, 204, 204)));
     metallicField = scalarField(0.0, 1.0, 0.01, surface);
@@ -576,7 +578,7 @@ void MaterialEditorPanel::showMaterial() {
 
     auto *emission = new QGroupBox("Emission", properties);
     auto *emissionForm = new QFormLayout(emission);
-    emissiveButton = new QPushButton(emission);
+    emissiveButton = new styling::Button(emission);
     displayColor(emissiveButton,
                  jsonColor(material.value("emissiveColor"), Qt::black));
     emissiveIntensityField = scalarField(0.0, 100.0, 0.1, emission);
@@ -651,11 +653,11 @@ void MaterialEditorPanel::showMaterial() {
         field->setObjectName("materialTexturePath");
         field->setReadOnly(true);
         field->setPlaceholderText("No image");
-        auto *choose = new QToolButton(row);
+        auto *choose = new styling::ToolButton(row);
         choose->setText("Choose…");
         choose->setIcon(styling::icon(styling::Icon::FolderOpen, "#7E929C"));
         choose->setToolButtonStyle(Qt::ToolButtonTextBesideIcon);
-        auto *clear = new QToolButton(row);
+        auto *clear = new styling::ToolButton(row);
         clear->setIcon(styling::icon(styling::Icon::Close, "#A17F7F"));
         clear->setToolTip("Remove texture");
         auto *identity = new QWidget(row);
