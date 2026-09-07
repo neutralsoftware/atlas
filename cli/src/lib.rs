@@ -1,5 +1,6 @@
 pub mod create;
 pub mod pack;
+pub mod register;
 pub mod run;
 pub mod script;
 use clap::{Subcommand, ValueEnum};
@@ -39,6 +40,13 @@ pub enum Commands {
     },
     Run {
         path: Option<String>,
+    },
+    Register {
+        version: String,
+        #[arg(long)]
+        atlas: String,
+        #[arg(long = "runtime-lib")]
+        runtime_lib: String,
     },
     Clangd {
         #[arg(long)]

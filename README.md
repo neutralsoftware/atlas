@@ -176,6 +176,7 @@ The main commands are:
 | `atlas build` | Configure and build the current project |
 | `atlas run` | Build and launch the current project |
 | `atlas pack` | Create a distributable app or executable under `dist/` |
+| `atlas register <version> --atlas <path> --runtime-lib <path>` | Register an Atlas CLI and runtime library in `~/.atlas/config.json` |
 | `atlas clangd` | Generate and expose `compile_commands.json` for editor tooling |
 | `atlas script init` | Initialize TypeScript support in a project |
 | `atlas script compile` | Compile the project's TypeScript bundle |

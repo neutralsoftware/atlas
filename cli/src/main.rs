@@ -25,6 +25,7 @@ fn main() {
         Commands::Pack { .. } => {
             pack::pack(cli.command);
         }
+        Commands::Register { .. } => register::register(cli.command),
         Commands::Run { .. } => run::run(cli.command),
         Commands::Clangd { .. } => pack::clangd(cli.command),
         Commands::Script { .. } => {
