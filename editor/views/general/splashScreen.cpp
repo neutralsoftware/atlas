@@ -37,16 +37,10 @@ SplashScreen::SplashScreen(QWidget *parent)
     auto *icon = new QLabel(card);
     icon->setObjectName("splashIcon");
     icon->setGeometry(30, 38, 108, 108);
-#ifdef ATLAS_DEBUG_BUILD
-    icon->setPixmap(QPixmap(":/editor/assets/Icon-iOS-Default-1024x1024@1x.png")
+    icon->setPixmap(QPixmap(":/editor/assets/atlas-star.png")
                         .scaled(icon->size(), Qt::KeepAspectRatio,
                                 Qt::SmoothTransformation));
-#else
-    icon->setPixmap(
-        QPixmap(":/editor/assets/iconFile-iOS-Dark-1024x1024@1x.png")
-            .scaled(icon->size(), Qt::KeepAspectRatio,
-                    Qt::SmoothTransformation));
-#endif
+
 
     auto *title = new QLabel(card);
     title->setObjectName("splashTitle");

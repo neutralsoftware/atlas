@@ -51,10 +51,10 @@ int main(int argc, char **argv) {
 #ifndef Q_OS_MACOS
 #ifdef ATLAS_DEBUG_BUILD
     app.setWindowIcon(
-        QIcon(":/editor/assets/Icon-iOS-Default-1024x1024@1x.png"));
+        QIcon(":/editor/assets/atlas-app-dev.png"));
 #else
     app.setWindowIcon(
-        QIcon(":/editor/assets/iconFile-iOS-Dark-1024x1024@1x.png"));
+        QIcon(":/editor/assets/atlas-app.png"));
 #endif
 #endif
 

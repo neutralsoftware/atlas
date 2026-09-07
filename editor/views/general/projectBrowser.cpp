@@ -333,17 +333,11 @@ void ProjectBrowser::setupUi() {
     brandLayout->setSpacing(11);
     auto *brandIcon = new QLabel(sidebar);
     brandIcon->setFixedSize(38, 38);
-#ifdef ATLAS_DEBUG_BUILD
     brandIcon->setPixmap(
-        QPixmap(":/editor/assets/Icon-iOS-Default-1024x1024@1x.png")
+        QPixmap(":/editor/assets/atlas-star.png")
             .scaled(brandIcon->size(), Qt::KeepAspectRatio,
                     Qt::SmoothTransformation));
-#else
-    brandIcon->setPixmap(
-        QPixmap(":/editor/assets/iconFile-iOS-Dark-1024x1024@1x.png")
-            .scaled(brandIcon->size(), Qt::KeepAspectRatio,
-                    Qt::SmoothTransformation));
-#endif
+
     brandLayout->addWidget(brandIcon);
     auto *brandCopy = new QVBoxLayout();
     brandCopy->setSpacing(0);

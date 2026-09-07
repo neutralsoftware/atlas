@@ -6,8 +6,16 @@
     {
       "layers": [
         {
-          "image-name": "atlas_ball_bright.png",
-          "name": "atlas_ball_bright"
+          "fill": "system-light",
+          "image-name": "atlasStar.svg",
+          "name": "atlasStar",
+          "position": {
+            "scale": 1.34,
+            "translation-in-points": [
+              0,
+              0
+            ]
+          }
         }
       ],
       "shadow": {

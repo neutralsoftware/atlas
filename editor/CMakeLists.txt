@@ -84,8 +84,7 @@ add_subdirectory(
 
 if (APPLE)
     set(ATLAS_APP_ICON
-            "${CMAKE_SOURCE_DIR}/editor/assets/iconFile-iOS-Dark-1024x1024@1x.png"
-            CACHE FILEPATH "Atlas Engine macOS bundle icon"
+                CACHE FILEPATH "Atlas Engine macOS bundle icon"
     )
     get_filename_component(ATLAS_APP_ICON_NAME "${ATLAS_APP_ICON}" NAME)
     set_source_files_properties("${ATLAS_APP_ICON}" PROPERTIES
@@ -135,9 +134,9 @@ qt_add_resources(AtlasEditor "atlas_editor_assets"
         PREFIX "/editor"
         BASE "${CMAKE_SOURCE_DIR}/editor"
         FILES
-        "${CMAKE_SOURCE_DIR}/editor/assets/Icon-iOS-Default-1024x1024@1x.png"
-        "${CMAKE_SOURCE_DIR}/editor/assets/iconFile-iOS-Dark-1024x1024@1x.png"
-        "${CMAKE_SOURCE_DIR}/editor/assets/atlas_ball_bright.png"
+        "${CMAKE_SOURCE_DIR}/editor/assets/atlas-app-dev.png"
+        "${CMAKE_SOURCE_DIR}/editor/assets/atlas-star.png"
+        "${CMAKE_SOURCE_DIR}/editor/assets/atlas-app.png"
         "${CMAKE_SOURCE_DIR}/editor/assets/Manrope-VariableFont_wght.ttf"
         "${CMAKE_SOURCE_DIR}/editor/assets/Phosphor.ttf"
         "${CMAKE_SOURCE_DIR}/editor/assets/PHOSPHOR_LICENSE.txt"

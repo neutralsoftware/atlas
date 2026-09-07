@@ -886,15 +886,10 @@ void EditorWindow::setupWorkspaceBar() {
     identityLayout->setSpacing(9);
     auto *mark = new QLabel(identity);
     mark->setObjectName("workspaceMark");
-#ifdef ATLAS_DEBUG_BUILD
-    mark->setPixmap(QPixmap(":/editor/assets/Icon-iOS-Default-1024x1024@1x.png")
+    mark->setPixmap(QPixmap(":/editor/assets/atlas-star.png")
                         .scaled(24, 24, Qt::KeepAspectRatio,
                                 Qt::SmoothTransformation));
-#else
-    mark->setPixmap(QPixmap(":/editor/assets/iconFile-iOS-Dark-1024x1024@1x.png")
-                        .scaled(24, 24, Qt::KeepAspectRatio,
-                                Qt::SmoothTransformation));
-#endif
+
     auto *identityText = new QWidget(identity);
     identityText->setObjectName("workspaceIdentityText");
     auto *identityTextLayout = new QVBoxLayout(identityText);
