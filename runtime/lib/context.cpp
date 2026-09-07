@@ -4927,6 +4927,7 @@ bool Context::setEditorShadingMode(int mode) {
 }
 
 bool Context::setEditorPathTracingPreview(bool enabled) {
+    editorPathTracingPreview = enabled;
     if (window == nullptr || !editorRuntime) {
         return false;
     }

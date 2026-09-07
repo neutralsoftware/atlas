@@ -813,6 +813,8 @@ void ViewportPanel::showEvent(QShowEvent *event) {
     if (playbackState == 1)
         captureRuntimeInput();
     if (runtimeContext != nullptr) {
+        runtimeContext->setEditorPathTracingPreview(pbrPreview);
+        runtimeContext->setEditorShadingMode(shadingMode);
         frameTimer->start(RuntimeFrameIntervalMs);
         return;
     }

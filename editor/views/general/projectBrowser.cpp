@@ -1,3 +1,5 @@
+#include "editor/styling/workbench.h"
+
 #include <editor/views/projectBrowser.h>
 
 #include <editor/project/projectStore.h>
@@ -14,6 +16,8 @@
 #include <QFrame>
 #include <QHBoxLayout>
 #include <QLabel>
+#include <QShortcut>
+#include <QKeySequence>
 #include <QLineEdit>
 #include <QListWidget>
 #include <QMenu>
@@ -173,7 +177,7 @@ class CreateProjectDialog : public QDialog {
         }
         locationField->setText(defaultLocation);
         locationLayout->addWidget(locationField, 1);
-        auto *browse = new QPushButton("Browse…", this);
+        auto *browse = new styling::Button("Browse…", this);
         browse->setProperty("secondary", true);
         browse->setIcon(styling::icon(styling::Icon::FolderOpen, "#7E929C"));
         locationLayout->addWidget(browse);
@@ -188,10 +192,10 @@ class CreateProjectDialog : public QDialog {
 
         auto *actions = new QHBoxLayout();
         actions->addStretch();
-        auto *cancel = new QPushButton("Cancel", this);
+        auto *cancel = new styling::Button("Cancel", this);
         cancel->setProperty("secondary", true);
         actions->addWidget(cancel);
-        createButton = new QPushButton("Create project", this);
+        createButton = new styling::Button("Create project", this);
         createButton->setObjectName("primaryAction");
         createButton->setIcon(
             styling::icon(styling::Icon::RocketLaunch, "#FFFFFF"));
@@ -269,12 +273,12 @@ class ProjectRow : public QFrame {
 
         auto *copy = new QVBoxLayout();
         copy->setSpacing(3);
-        auto *title = new QLabel(project.name, this);
+        auto *title = new styling::ElidedLabel(project.name, this);
         title->setObjectName("projectName");
         copy->addWidget(title);
-        auto *path = new QLabel(project.directory, this);
+        auto *path = new styling::ElidedLabel(project.directory, this);
         path->setObjectName("projectPath");
-        path->setTextInteractionFlags(Qt::TextSelectableByMouse);
+
         copy->addWidget(path);
         layout->addLayout(copy, 1);
 
@@ -283,7 +287,7 @@ class ProjectRow : public QFrame {
         layout->addWidget(renderer);
 
         auto *date =
-            new QLabel(project.lastModified.isValid()
+            new QLabel(project.available && project.lastModified.isValid()
                            ? project.lastModified.toString("d MMM yyyy")
                            : QStringLiteral("Unavailable"),
                        this);
@@ -291,7 +295,7 @@ class ProjectRow : public QFrame {
         date->setMinimumWidth(90);
         layout->addWidget(date);
 
-        moreButton = new QToolButton(this);
+        moreButton = new styling::ToolButton(this);
         moreButton->setObjectName("projectMoreButton");
         moreButton->setIcon(
             styling::icon(styling::Icon::DotsVertical, "#8490A4"));
@@ -318,32 +322,23 @@ void ProjectBrowser::setupUi() {
     auto *root = new QWidget(this);
     root->setObjectName("projectBrowserRoot");
     setCentralWidget(root);
-    auto *rootLayout = new QHBoxLayout(root);
-    rootLayout->setContentsMargins(0, 0, 0, 0);
-    rootLayout->setSpacing(0);
+    auto *rootLayout = new QVBoxLayout(root);
+    rootLayout->setContentsMargins(10, 10, 10, 10);
+    rootLayout->setSpacing(10);
 
     auto *sidebar = new QFrame(root);
     sidebar->setObjectName("projectSidebar");
-    sidebar->setFixedWidth(224);
-    auto *sidebarLayout = new QVBoxLayout(sidebar);
-    sidebarLayout->setContentsMargins(22, 26, 22, 22);
+    sidebar->setFixedHeight(70);
+    auto *sidebarLayout = new QHBoxLayout(sidebar);
+    sidebarLayout->setContentsMargins(18, 8, 18, 8);
     sidebarLayout->setSpacing(18);
 
     auto *brandLayout = new QHBoxLayout();
     brandLayout->setSpacing(11);
     auto *brandIcon = new QLabel(sidebar);
     brandIcon->setFixedSize(38, 38);
-#ifdef ATLAS_DEBUG_BUILD
-    brandIcon->setPixmap(
-        QPixmap(":/editor/assets/Icon-iOS-Default-1024x1024@1x.png")
-            .scaled(brandIcon->size(), Qt::KeepAspectRatio,
-                    Qt::SmoothTransformation));
-#else
-    brandIcon->setPixmap(
-        QPixmap(":/editor/assets/iconFile-iOS-Dark-1024x1024@1x.png")
-            .scaled(brandIcon->size(), Qt::KeepAspectRatio,
-                    Qt::SmoothTransformation));
-#endif
+    brandIcon->setPixmap(styling::brandMark(brandIcon->size()));
+
     brandLayout->addWidget(brandIcon);
     auto *brandCopy = new QVBoxLayout();
     brandCopy->setSpacing(0);
@@ -357,19 +352,17 @@ void ProjectBrowser::setupUi() {
     brandLayout->addStretch();
     sidebarLayout->addLayout(brandLayout);
 
-    auto *projectsNav = new QPushButton("Projects", sidebar);
-    projectsNav->setObjectName("projectNavSelected");
-    projectsNav->setIcon(styling::icon(styling::Icon::SquaresFour, "#8498A8"));
-    projectsNav->setEnabled(false);
-    sidebarLayout->addWidget(projectsNav);
     sidebarLayout->addStretch();
+    auto *sidebarCaption = new QLabel("Your next world starts here.", sidebar);
+    sidebarCaption->setObjectName("projectSidebarCaption");
+    sidebarLayout->addWidget(sidebarCaption);
 
     rootLayout->addWidget(sidebar);
 
     auto *content = new QWidget(root);
     content->setObjectName("projectBrowserContent");
     auto *contentLayout = new QVBoxLayout(content);
-    contentLayout->setContentsMargins(34, 30, 34, 30);
+    contentLayout->setContentsMargins(38, 32, 38, 24);
     contentLayout->setSpacing(20);
 
     auto *headingLayout = new QHBoxLayout();
@@ -384,11 +377,11 @@ void ProjectBrowser::setupUi() {
     headingCopy->addWidget(subtitle);
     headingLayout->addLayout(headingCopy, 1);
 
-    auto *openButton = new QPushButton("Open existing", content);
+    auto *openButton = new styling::Button("Open existing", content);
     openButton->setProperty("secondary", true);
     openButton->setIcon(styling::icon(styling::Icon::FolderOpen, "#7E929C"));
     headingLayout->addWidget(openButton);
-    auto *createButton = new QPushButton("New project", content);
+    auto *createButton = new styling::Button("New project", content);
     createButton->setObjectName("primaryAction");
     createButton->setIcon(styling::icon(styling::Icon::Plus, "#FFFFFF"));
     headingLayout->addWidget(createButton);
@@ -398,12 +391,16 @@ void ProjectBrowser::setupUi() {
     searchField->setObjectName("projectSearch");
     searchField->setPlaceholderText("Search projects");
     searchField->setClearButtonEnabled(true);
+    searchField->addAction(styling::icon(styling::Icon::MagnifyingGlass), QLineEdit::LeadingPosition);
     contentLayout->addWidget(searchField);
+    auto *sectionLabel = new QLabel("Recent projects", content);
+    sectionLabel->setObjectName("projectSectionLabel");
+    contentLayout->addWidget(sectionLabel);
 
     projectStack = new QStackedWidget(content);
     projectList = new QListWidget(projectStack);
     projectList->setObjectName("projectList");
-    projectList->setSpacing(8);
+    projectList->setSpacing(3);
     projectList->setSelectionMode(QAbstractItemView::SingleSelection);
     projectList->setContextMenuPolicy(Qt::CustomContextMenu);
     projectList->setHorizontalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
@@ -426,6 +423,9 @@ void ProjectBrowser::setupUi() {
     emptyLayout->addStretch();
     projectStack->addWidget(empty);
     contentLayout->addWidget(projectStack, 1);
+    auto *listHint = new QLabel("Double-click a project to open it · Return to continue", content);
+    listHint->setObjectName("projectListHint");
+    contentLayout->addWidget(listHint);
     rootLayout->addWidget(content, 1);
 
     connect(createButton, &QPushButton::clicked, this,
@@ -434,6 +434,23 @@ void ProjectBrowser::setupUi() {
             &ProjectBrowser::openExistingProject);
     connect(searchField, &QLineEdit::textChanged, this,
             &ProjectBrowser::filterProjects);
+    connect(projectList, &QListWidget::currentItemChanged, this,
+            [this](QListWidgetItem *current, QListWidgetItem *previous) {
+                for (auto *item : {previous, current}) {
+                    if (item == nullptr)
+                        continue;
+                    auto *row = projectList->itemWidget(item);
+                    if (row == nullptr)
+                        continue;
+                    row->setProperty("selected", item == current);
+                    row->style()->unpolish(row);
+                    row->style()->polish(row);
+                    row->update();
+                }
+            });
+    auto *openShortcut = new QShortcut(QKeySequence(Qt::Key_Return), projectList);
+    openShortcut->setContext(Qt::WidgetWithChildrenShortcut);
+    connect(openShortcut, &QShortcut::activated, this, &ProjectBrowser::openSelectedProject);
     connect(projectList, &QListWidget::itemDoubleClicked, this,
             [this] { openSelectedProject(); });
     connect(projectList, &QListWidget::customContextMenuRequested, this,
@@ -447,7 +464,7 @@ void ProjectBrowser::reloadProjects() {
         auto *item = new QListWidgetItem(projectList);
         item->setData(ProjectPathRole, project.projectFile);
         item->setData(ProjectAvailableRole, project.available);
-        item->setSizeHint(QSize(0, 76));
+        item->setSizeHint(QSize(0, 82));
         auto *row = new ProjectRow(project, projectList);
         projectList->setItemWidget(item, row);
         connect(row->optionsButton(), &QToolButton::clicked, this,

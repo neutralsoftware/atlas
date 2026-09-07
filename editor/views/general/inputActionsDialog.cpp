@@ -1,3 +1,5 @@
+#include "editor/styling/workbench.h"
+
 #include <editor/views/inputActionsDialog.h>
 
 #include <QAbstractItemView>
@@ -178,6 +180,7 @@ void InputActionsDialog::setupUi() {
     root->setSpacing(12);
 
     auto *heading = new QLabel("Controller Actions", this);
+    heading->setObjectName("dialogHeroTitle");
     QFont headingFont = heading->font();
     headingFont.setPointSizeF(18);
     headingFont.setWeight(QFont::DemiBold);
@@ -207,7 +210,7 @@ void InputActionsDialog::setupUi() {
     sidebarLayout->addWidget(actionList, 1);
 
     auto *sidebarButtons = new QHBoxLayout();
-    auto *addButton = new QPushButton("Add", sidebar);
+    auto *addButton = new styling::Button("Add", sidebar);
     auto *addMenu = new QMenu(addButton);
     addMenu->addAction("Button", this,
                        [this] { addAction(ActionKind::Button); });
@@ -216,8 +219,8 @@ void InputActionsDialog::setupUi() {
     addMenu->addAction("2D Axis", this,
                        [this] { addAction(ActionKind::Axis2D); });
     addButton->setMenu(addMenu);
-    duplicateButton = new QPushButton("Duplicate", sidebar);
-    removeButton = new QPushButton("Remove", sidebar);
+    duplicateButton = new styling::Button("Duplicate", sidebar);
+    removeButton = new styling::Button("Remove", sidebar);
     sidebarButtons->addWidget(addButton);
     sidebarButtons->addWidget(duplicateButton);
     sidebarButtons->addWidget(removeButton);
@@ -261,8 +264,8 @@ void InputActionsDialog::setupUi() {
     buttonBindings->setSelectionMode(QAbstractItemView::SingleSelection);
     buttonLayout->addWidget(buttonBindings);
     auto *bindingButtons = new QHBoxLayout();
-    auto *addBindingButton = new QPushButton("Add Binding", buttonPage);
-    auto *removeBindingButton = new QPushButton("Remove Binding", buttonPage);
+    auto *addBindingButton = new styling::Button("Add Binding", buttonPage);
+    auto *removeBindingButton = new styling::Button("Remove Binding", buttonPage);
     bindingButtons->addWidget(addBindingButton);
     bindingButtons->addWidget(removeBindingButton);
     bindingButtons->addStretch();

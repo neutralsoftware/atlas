@@ -16,6 +16,19 @@ class FlexibleDoubleSpinBox : public QDoubleSpinBox {
         : QDoubleSpinBox(parent) {}
 
   protected:
+    QString textFromValue(double value) const override {
+        QString text = QDoubleSpinBox::textFromValue(value);
+        const QString decimal = locale().decimalPoint();
+        if (text.contains(decimal)) {
+            const QChar zero = locale().zeroDigit().at(0);
+            while (text.endsWith(zero))
+                text.chop(1);
+            if (text.endsWith(decimal))
+                text.chop(decimal.size());
+        }
+        return text;
+    }
+
     double valueFromText(const QString &text) const override {
         return QDoubleSpinBox::valueFromText(normalizedText(text));
     }

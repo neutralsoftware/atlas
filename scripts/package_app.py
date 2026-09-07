@@ -28,13 +28,11 @@ def require(name, override=None):
     return Path(candidate)
 
 
-def compile_icon(config, artwork, output_directory, work_directory, deployment_target):
+def compile_icon(icon_source, output_directory, work_directory, deployment_target):
     source = work_directory / "AtlasEngine.icon"
     if source.exists():
         shutil.rmtree(source)
-    (source / "Assets").mkdir(parents=True)
-    shutil.copy2(config, source / "icon.json")
-    shutil.copy2(artwork, source / "Assets" / "atlas_ball_bright.png")
+    shutil.copytree(icon_source, source)
     if output_directory.exists():
         shutil.rmtree(output_directory)
     output_directory.mkdir(parents=True)
@@ -292,19 +290,17 @@ def main():
     app_name = "Atlas Engine.app"
     built_app = build_directory / "bin" / app_name
     packaged_app = dist_directory / app_name
-    icon_config = (
+    icon_source = (
         root
         / "editor"
         / "assets"
-        / ("AtlasEngine.icon.json" if args.release else "AtlasEngineDev.icon.json")
+        / ("AtlasEngine.icon" if args.release else "AtlasEngineDev.icon")
     )
-    icon_artwork = root / "editor" / "assets" / "atlas_ball_bright.png"
 
     assets_directory.mkdir(parents=True, exist_ok=True)
     dist_directory.mkdir(parents=True, exist_ok=True)
     icon, icon_assets = compile_icon(
-        icon_config,
-        icon_artwork,
+        icon_source,
         assets_directory / "compiled-icon",
         assets_directory,
         deployment_target,

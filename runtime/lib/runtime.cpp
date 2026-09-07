@@ -63,4 +63,10 @@ void RuntimeScene::initialize(Window &window) {
     }
 
     runtimeContext->loadMainScene(window);
+#ifdef METAL
+    if (runtimeContext->editorRuntime &&
+        runtimeContext->config.renderer == "pathtracing") {
+        window.setEditorPathTracingPreview(runtimeContext->editorPathTracingPreview);
+    }
+#endif
 }

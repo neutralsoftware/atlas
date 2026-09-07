@@ -166,7 +166,8 @@ ushort codepoint(styling::Icon icon) {
 }
 
 QPixmap renderIcon(styling::Icon icon, const QColor &color, int size) {
-    QPixmap pixmap(size, size);
+    QPixmap pixmap(size * 2, size * 2);
+    pixmap.setDevicePixelRatio(2.0);
     pixmap.fill(Qt::transparent);
     QPainter painter(&pixmap);
     painter.setRenderHint(QPainter::Antialiasing);
@@ -176,7 +177,7 @@ QPixmap renderIcon(styling::Icon icon, const QColor &color, int size) {
     font.setPixelSize(qRound(size * 0.82));
     font.setStyleStrategy(QFont::PreferAntialias);
     painter.setFont(font);
-    painter.drawText(pixmap.rect(), Qt::AlignCenter,
+    painter.drawText(QRect(0, 0, size, size), Qt::AlignCenter,
                      QString(QChar(codepoint(icon))));
     return pixmap;
 }
@@ -196,11 +197,13 @@ bool styling::loadIconFont() {
 }
 
 QIcon styling::icon(Icon icon, const QColor &color) {
+    if (icon == Icon::Close)
+        return QIcon(":/editor/assets/close.svg");
     loadIconFont();
     if (iconFamily.isEmpty())
         return {};
     QIcon result;
-    const QColor disabled("#566174");
+    const QColor disabled("#74746D");
     const QColor active = color.lighter(118);
     for (const int size : {16, 20, 24, 32, 48}) {
         result.addPixmap(renderIcon(icon, color, size), QIcon::Normal,
@@ -239,4 +242,11 @@ QIcon styling::colorSwatch(const QColor &color, const QSize &size) {
     painter.setPen(QColor("#5B5D60"));
     painter.drawRoundedRect(bounds, 4.0, 4.0);
     return QIcon(pixmap);
+}
+
+QPixmap styling::brandMark(const QSize &size) {
+    QPixmap mark(":/editor/assets/atlas-star.png");
+    mark = mark.scaled(size * 2, Qt::KeepAspectRatio, Qt::SmoothTransformation);
+    mark.setDevicePixelRatio(2.0);
+    return mark;
 }

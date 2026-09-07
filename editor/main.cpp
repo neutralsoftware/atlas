@@ -25,6 +25,7 @@
 #include "editor/debug.h"
 #include "editor/application/toolchainInstaller.h"
 #include "editor/styling/icons.h"
+#include "editor/styling/workbench.h"
 #include "editor/views/editorWindow.h"
 #include "editor/views/projectBrowser.h"
 #include "editor/views/splashScreen.h"
@@ -51,10 +52,10 @@ int main(int argc, char **argv) {
 #ifndef Q_OS_MACOS
 #ifdef ATLAS_DEBUG_BUILD
     app.setWindowIcon(
-        QIcon(":/editor/assets/Icon-iOS-Default-1024x1024@1x.png"));
+        QIcon(":/editor/assets/atlas-app-dev.png"));
 #else
     app.setWindowIcon(
-        QIcon(":/editor/assets/iconFile-iOS-Dark-1024x1024@1x.png"));
+        QIcon(":/editor/assets/atlas-app.png"));
 #endif
 #endif
 
@@ -64,6 +65,7 @@ int main(int argc, char **argv) {
 
     app.setStyle("Fusion");
     styling::applyTheme(app);
+    styling::installWorkbench(app);
     ToolchainInstaller::ensureInstalled();
 
     auto *startupSplash = new SplashScreen();
