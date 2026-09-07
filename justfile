@@ -66,11 +66,11 @@ copy-cli:
     cargo build --release
     cp target/release/atlas /usr/local/bin/atlas 
 
-package-debug-macos:
-    ./scripts/package_app.py --debug --macOS
+package-debug-macos args="":
+    ATLAS_ALLOW_UNNOTARIZED_RELEASE=1 ./scripts/package_app.py --debug --macOS 
 
 package-release-macos:
-    ./scripts/package_app.py --release --macOS
+    ATLAS_ALLOW_UNNOTARIZED_RELEASE=1 ./scripts/package_app.py --release --macOS
 
 release-metal:
     rm -rf build/release-metal

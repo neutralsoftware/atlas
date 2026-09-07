@@ -290,21 +290,18 @@ def main():
     app_name = "Atlas Engine.app"
     built_app = build_directory / "bin" / app_name
     packaged_app = dist_directory / app_name
-    icon_source = (
-        root
-        / "editor"
-        / "assets"
-        / ("AtlasEngine.icon" if args.release else "AtlasEngineDev.icon")
-    )
-
     assets_directory.mkdir(parents=True, exist_ok=True)
     dist_directory.mkdir(parents=True, exist_ok=True)
-    icon, icon_assets = compile_icon(
-        icon_source,
-        assets_directory / "compiled-icon",
-        assets_directory,
-        deployment_target,
-    )
+    if args.release:
+        icon = root / "editor" / "assets" / "atlas-app.icns"
+        icon_assets = None
+    else:
+        icon, icon_assets = compile_icon(
+            root / "editor" / "assets" / "AtlasEngineDev.icon",
+            assets_directory / "compiled-icon",
+            assets_directory,
+            deployment_target,
+        )
 
     run(
         [
@@ -365,12 +362,17 @@ def main():
     modern_icon = resources_directory / "Assets.car"
     with plist_path.open("rb") as stream:
         plist = plistlib.load(stream)
-    plist["CFBundleIconFile"] = "AtlasEngine"
+    for bundled_icon in resources_directory.glob("*.icns"):
+        if bundled_icon.name != icon.name:
+            bundled_icon.unlink()
+    plist["CFBundleIconFile"] = icon.stem
     if args.release:
         plist.pop("CFBundleIconName", None)
         if modern_icon.exists():
             modern_icon.unlink()
     else:
+        if icon_assets is None:
+            raise RuntimeError("The development icon assets were not compiled")
         shutil.copy2(icon_assets, modern_icon)
         plist["CFBundleIconName"] = "AtlasEngine"
     with plist_path.open("wb") as stream:
@@ -385,7 +387,7 @@ def main():
         raise RuntimeError("Packaged app is missing the Atlas CLI")
     if not (packaged_app / "Contents" / "Frameworks" / "runtime.dylib").is_file():
         raise RuntimeError("Packaged app is missing the Atlas runtime")
-    if not (resources_directory / "AtlasEngine.icns").is_file():
+    if not (resources_directory / icon.name).is_file():
         raise RuntimeError("Packaged app is missing the legacy macOS icon")
     if args.release and modern_icon.exists():
         raise RuntimeError("Packaged release contains an adaptive macOS icon")

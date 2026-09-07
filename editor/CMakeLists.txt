@@ -83,8 +83,17 @@ add_subdirectory(
 )
 
 if (APPLE)
-    set(ATLAS_APP_ICON
-                CACHE FILEPATH "Atlas Engine macOS bundle icon"
+    if (CMAKE_BUILD_TYPE STREQUAL "Debug")
+        set(ATLAS_DEFAULT_APP_ICON
+                "${CMAKE_SOURCE_DIR}/editor/assets/AtlasEngineDev.icon"
+        )
+    else ()
+        set(ATLAS_DEFAULT_APP_ICON
+                "${CMAKE_SOURCE_DIR}/editor/assets/atlas-app.icns"
+        )
+    endif ()
+    set(ATLAS_APP_ICON "${ATLAS_DEFAULT_APP_ICON}"
+            CACHE FILEPATH "Atlas Engine macOS bundle icon"
     )
     get_filename_component(ATLAS_APP_ICON_NAME "${ATLAS_APP_ICON}" NAME)
     set_source_files_properties("${ATLAS_APP_ICON}" PROPERTIES
