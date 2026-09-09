@@ -1,27 +1,26 @@
 {
-  "fill" : {
-    "linear-gradient" : [
-      "srgb:1.00000,0.95276,0.98370,1.00000",
-      "srgb:0.69138,0.67074,0.76447,1.00000"
-    ],
-    "orientation" : {
-      "start" : {
-        "x" : 0.5,
-        "y" : 0
-      },
-      "stop" : {
-        "x" : 0.5,
-        "y" : 0.7
-      }
-    }
-  },
+  "fill" : "system-dark",
   "groups" : [
     {
       "layers" : [
+
+      ],
+      "shadow" : {
+        "kind" : "neutral",
+        "opacity" : 0.5
+      },
+      "translucency" : {
+        "enabled" : true,
+        "value" : 0.3
+      }
+    },
+    {
+      "blur-material" : null,
+      "layers" : [
         {
-          "fill" : "none",
-          "image-name" : "atlasStarGradient.svg",
-          "name" : "atlasStarGradient",
+          "glass" : true,
+          "image-name" : "atlasStarGradient 2.svg",
+          "name" : "atlasStarGradient 2",
           "position" : {
             "scale" : 1.34,
             "translation-in-points" : [
@@ -31,13 +30,20 @@
           }
         }
       ],
+      "lighting" : "individual",
+      "refractivity" : {
+        "depth" : 0.1276953125,
+        "enabled" : false,
+        "strength" : 0.288359375
+      },
       "shadow" : {
         "kind" : "neutral",
         "opacity" : 0.5
       },
+      "specular" : true,
       "translucency" : {
         "enabled" : true,
-        "value" : 0.3
+        "value" : 0
       }
     }
   ],
