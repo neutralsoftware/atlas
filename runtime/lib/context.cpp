@@ -2262,6 +2262,11 @@ std::shared_ptr<CoreObject> createEditorLightProxy(const std::string &type,
     object->material.albedo = color;
     object->material.emissiveColor = color;
     object->material.emissiveIntensity = 1.5f;
+    object->attachProgram(ShaderProgram::fromDefaultShaders(
+        AtlasVertexShader::Color, AtlasFragmentShader::Color));
+    object->renderOnlyColor();
+    object->useDeferredRendering = false;
+    object->renderLateForward = true;
     object->castsShadows = false;
     object->editorOnly = true;
     return object;

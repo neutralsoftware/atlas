@@ -2300,7 +2300,9 @@ bool EditorWindow::eventFilter(QObject *watched, QEvent *event) {
         } else if (auto *dialog = qobject_cast<QDialog *>(watched);
                    dialog != nullptr &&
                    dialog->windowFlags().testFlag(Qt::FramelessWindowHint)) {
-            dialog->setAttribute(Qt::WA_TranslucentBackground);
+            dialog->setAttribute(Qt::WA_TranslucentBackground, false);
+            dialog->setAttribute(Qt::WA_StyledBackground);
+            dialog->setAutoFillBackground(true);
         }
     }
     if (viewportPanel != nullptr &&

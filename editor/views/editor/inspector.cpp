@@ -1521,7 +1521,8 @@ InspectorPanel::InspectorPanel(ViewportPanel *viewport,
     }
     connect(qApp, &QApplication::focusChanged, this,
             [this](QWidget *previous, QWidget *current) {
-                if (previous == nullptr || !isAncestorOf(previous) ||
+                if (rebuilding || previous == nullptr ||
+                    !isAncestorOf(previous) ||
                     previous == current || fileTarget || cameraTarget ||
                     environmentTarget || inspectedObjectId < 0) {
                     return;
@@ -1628,6 +1629,16 @@ void InspectorPanel::applySceneSnapshot(const QString &snapshot) {
             updated.value("type") != inspectedObject.value("type") ||
             jsonShape(updated.value("properties")) !=
                 jsonShape(inspectedObject.value("properties")) ||
+            updated.value("properties")
+                    .toObject()
+                    .value("material")
+                    .toString()
+                    .isEmpty() !=
+                inspectedObject.value("properties")
+                    .toObject()
+                    .value("material")
+                    .toString()
+                    .isEmpty() ||
             componentShape(updated.value("components").toArray()) !=
                 componentShape(inspectedObject.value("components").toArray());
         inspectedObject = updated;
@@ -2414,7 +2425,7 @@ void InspectorPanel::rebuildBody() {
     iconLabel = nullptr;
     typeLabel = nullptr;
     nameField = nullptr;
-    rebuilding = false;
+    QTimer::singleShot(0, this, [this] { rebuilding = false; });
 }
 
 void InspectorPanel::commitHeaderName() {

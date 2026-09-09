@@ -89,7 +89,7 @@ if (APPLE)
         )
     else ()
         set(ATLAS_DEFAULT_APP_ICON
-                "${CMAKE_SOURCE_DIR}/editor/assets/atlas-app.icns"
+                "${CMAKE_SOURCE_DIR}/editor/assets/AtlasEngine.icon"
         )
     endif ()
     set(ATLAS_APP_ICON "${ATLAS_DEFAULT_APP_ICON}"

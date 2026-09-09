@@ -292,16 +292,18 @@ def main():
     packaged_app = dist_directory / app_name
     assets_directory.mkdir(parents=True, exist_ok=True)
     dist_directory.mkdir(parents=True, exist_ok=True)
-    if args.release:
-        icon = root / "editor" / "assets" / "atlas-app.icns"
-        icon_assets = None
-    else:
-        icon, icon_assets = compile_icon(
-            root / "editor" / "assets" / "AtlasEngineDev.icon",
-            assets_directory / "compiled-icon",
-            assets_directory,
-            deployment_target,
-        )
+    icon_source = (
+        root
+        / "editor"
+        / "assets"
+        / ("AtlasEngine.icon" if args.release else "AtlasEngineDev.icon")
+    )
+    icon, icon_assets = compile_icon(
+        icon_source,
+        assets_directory / "compiled-icon",
+        assets_directory,
+        deployment_target,
+    )
 
     run(
         [
@@ -366,15 +368,8 @@ def main():
         if bundled_icon.name != icon.name:
             bundled_icon.unlink()
     plist["CFBundleIconFile"] = icon.stem
-    if args.release:
-        plist.pop("CFBundleIconName", None)
-        if modern_icon.exists():
-            modern_icon.unlink()
-    else:
-        if icon_assets is None:
-            raise RuntimeError("The development icon assets were not compiled")
-        shutil.copy2(icon_assets, modern_icon)
-        plist["CFBundleIconName"] = "AtlasEngine"
+    shutil.copy2(icon_assets, modern_icon)
+    plist["CFBundleIconName"] = "AtlasEngine"
     with plist_path.open("wb") as stream:
         plistlib.dump(plist, stream)
     sign_bundle(packaged_app, signing_identity)
@@ -389,9 +384,7 @@ def main():
         raise RuntimeError("Packaged app is missing the Atlas runtime")
     if not (resources_directory / icon.name).is_file():
         raise RuntimeError("Packaged app is missing the legacy macOS icon")
-    if args.release and modern_icon.exists():
-        raise RuntimeError("Packaged release contains an adaptive macOS icon")
-    if args.debug and not modern_icon.is_file():
+    if not modern_icon.is_file():
         raise RuntimeError("Packaged app is missing the modern macOS icon")
 
     invalid_dependencies = macho_dependencies(packaged_app)

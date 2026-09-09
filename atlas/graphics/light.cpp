@@ -23,18 +23,17 @@
 #include <glm/gtx/string_cast.hpp>
 
 void Light::createDebugObject() {
-    CoreObject sphere = createSphere(0.05f, 36, 18, this->color);
+    CoreObject sphere = createSphere(0.12f, 36, 18, this->color);
     sphere.setPosition(this->position);
     sphere.material.albedo = this->color;
     sphere.material.emissiveColor = this->color;
     sphere.material.emissiveIntensity =
         std::clamp(this->intensity * 0.2f, 1.0f, 8.0f);
-    FragmentShader shader =
-        FragmentShader::fromDefaultShader(AtlasFragmentShader::Color);
-    VertexShader vShader =
-        VertexShader::fromDefaultShader(AtlasVertexShader::Color);
-
-    sphere.createAndAttachProgram(vShader, shader);
+    sphere.attachProgram(ShaderProgram::fromDefaultShaders(
+        AtlasVertexShader::Color, AtlasFragmentShader::Color));
+    sphere.renderOnlyColor();
+    sphere.useDeferredRendering = false;
+    sphere.renderLateForward = true;
     this->debugObject = std::make_shared<CoreObject>(sphere);
     this->debugObject->castsShadows = false;
     this->debugObject->editorOnly = true;
@@ -147,19 +146,18 @@ PointLightConstants Light::calculateConstants() const {
 }
 
 void Spotlight::createDebugObject() {
-    CoreObject pyramid = createPyramid({0.1f, 0.1f, 0.1f}, this->color);
+    CoreObject pyramid = createPyramid({0.18f, 0.18f, 0.18f}, this->color);
     pyramid.setPosition(this->position);
     pyramid.lookAt(this->position + this->direction);
     pyramid.material.albedo = this->color;
     pyramid.material.emissiveColor = this->color;
     pyramid.material.emissiveIntensity =
         std::clamp(this->intensity * 0.2f, 1.0f, 8.0f);
-    FragmentShader shader =
-        FragmentShader::fromDefaultShader(AtlasFragmentShader::Color);
-    VertexShader vShader =
-        VertexShader::fromDefaultShader(AtlasVertexShader::Color);
-
-    pyramid.createAndAttachProgram(vShader, shader);
+    pyramid.attachProgram(ShaderProgram::fromDefaultShaders(
+        AtlasVertexShader::Color, AtlasFragmentShader::Color));
+    pyramid.renderOnlyColor();
+    pyramid.useDeferredRendering = false;
+    pyramid.renderLateForward = true;
     this->debugObject = std::make_shared<CoreObject>(pyramid);
     this->debugObject->castsShadows = false;
     this->debugObject->editorOnly = true;
@@ -516,14 +514,11 @@ void AreaLight::createDebugObject() {
     plane.lookAt(Position3d::fromGlm(center + desiredNormal),
                  Position3d::fromGlm(desiredUp));
 
-    FragmentShader shader =
-        FragmentShader::fromDefaultShader(AtlasFragmentShader::Color);
-    VertexShader vShader =
-        VertexShader::fromDefaultShader(AtlasVertexShader::Color);
-    plane.createAndAttachProgram(vShader, shader);
-    if (Window::mainWindow->usesDeferred) {
-        plane.useDeferredRendering = false;
-    }
+    plane.attachProgram(ShaderProgram::fromDefaultShaders(
+        AtlasVertexShader::Color, AtlasFragmentShader::Color));
+    plane.renderOnlyColor();
+    plane.useDeferredRendering = false;
+    plane.renderLateForward = true;
 
     this->debugObject = std::make_shared<CoreObject>(plane);
     this->debugObject->castsShadows = false;
