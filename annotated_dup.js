@@ -72,6 +72,14 @@ var annotated_dup =
       [ "PathTracing", "classphoton_1_1_path_tracing.html", null ],
       [ "GlobalIllumination", "classphoton_1_1_global_illumination.html", null ]
     ] ],
+    [ "styling", "namespacestyling.html", [
+      [ "Button", "classstyling_1_1_button.html", "classstyling_1_1_button" ],
+      [ "ToolButton", "classstyling_1_1_tool_button.html", "classstyling_1_1_tool_button" ],
+      [ "ItemDelegate", "classstyling_1_1_item_delegate.html", "classstyling_1_1_item_delegate" ],
+      [ "TreeView", "classstyling_1_1_tree_view.html", "classstyling_1_1_tree_view" ],
+      [ "ElidedLabel", "classstyling_1_1_elided_label.html", "classstyling_1_1_elided_label" ],
+      [ "WorkspaceStack", "classstyling_1_1_workspace_stack.html", "classstyling_1_1_workspace_stack" ]
+    ] ],
     [ "AllocationPacket", "struct_allocation_packet.html", "struct_allocation_packet" ],
     [ "AmbientLight", "struct_ambient_light.html", "struct_ambient_light" ],
     [ "AngleLimits", "struct_angle_limits.html", "struct_angle_limits" ],
@@ -143,6 +151,7 @@ var annotated_dup =
     [ "FilmGrain", "class_film_grain.html", "class_film_grain" ],
     [ "FilmGrainParameters", "struct_film_grain_parameters.html", "struct_film_grain_parameters" ],
     [ "FixedJoint", "class_fixed_joint.html", "class_fixed_joint" ],
+    [ "FlexibleDoubleSpinBox", "class_flexible_double_spin_box.html", "class_flexible_double_spin_box" ],
     [ "Fluid", "struct_fluid.html", "struct_fluid" ],
     [ "Fog", "struct_fog.html", "struct_fog" ],
     [ "Font", "struct_font.html", "struct_font" ],
@@ -161,6 +170,7 @@ var annotated_dup =
     [ "GPUPointLight", "struct_g_p_u_point_light.html", "struct_g_p_u_point_light" ],
     [ "GPUShadowParams", "struct_g_p_u_shadow_params.html", "struct_g_p_u_shadow_params" ],
     [ "GPUSpotLight", "struct_g_p_u_spot_light.html", "struct_g_p_u_spot_light" ],
+    [ "GraphiteEditorPanel", "class_graphite_editor_panel.html", "class_graphite_editor_panel" ],
     [ "Grayscale", "class_grayscale.html", "class_grayscale" ],
     [ "HierarchyPanel", "class_hierarchy_panel.html", "class_hierarchy_panel" ],
     [ "HillGenerator", "class_hill_generator.html", "class_hill_generator" ],

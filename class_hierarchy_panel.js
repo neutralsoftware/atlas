@@ -9,6 +9,7 @@ var class_hierarchy_panel =
     [ "eventFilter", "class_hierarchy_panel.html#ac1270fe5189097a2f40343b20a290db0", null ],
     [ "focusSearch", "class_hierarchy_panel.html#a477d50bbbb1bb425286618a3320dbae2", null ],
     [ "focusSelectedObject", "class_hierarchy_panel.html#aa2a3eed4bf2e10f0fe7ac4620bfad4ac", null ],
+    [ "graphiteActivated", "class_hierarchy_panel.html#ab51583d4b2d85a354e17beb1dca23006", null ],
     [ "moveSelectedObjectToRoot", "class_hierarchy_panel.html#a4d7fe01addb4ade8573ef1ad64302d9d", null ],
     [ "objectActivated", "class_hierarchy_panel.html#a8696fd61c69faed5d537fba6782c44c1", null ],
     [ "renameSelectedObject", "class_hierarchy_panel.html#a15550e82c8f15a624940153195c74a77", null ],

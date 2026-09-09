@@ -22,6 +22,7 @@ var classopal_1_1_texture =
     [ "Pipeline", "classopal_1_1_texture.html#af9f0f1adbd5baee7830839447205af8d", null ],
     [ "format", "classopal_1_1_texture.html#ad258267aa8414631584803e0ca6501f6", null ],
     [ "height", "classopal_1_1_texture.html#ae87dd8aa1d3271d7873cc39d29ce190e", null ],
+    [ "mipLevels", "classopal_1_1_texture.html#a7b1b3cacfa333fd57c83ecfdc68588b9", null ],
     [ "samples", "classopal_1_1_texture.html#af3b0bc90e9a9a18c0e30cedb2198aaf1", null ],
     [ "textureID", "classopal_1_1_texture.html#afe195c564aebdd8695a8b0ec211f419d", null ],
     [ "type", "classopal_1_1_texture.html#a66d2d88db98c9d3da5115a5f0ffb86d9", null ],

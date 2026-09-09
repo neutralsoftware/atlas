@@ -12,7 +12,8 @@ var shader_8h =
     [ "AtlasComputeShader", "shader_8h.html#a3f2f7cad5661081d348cc7c6f09f0908", [
       [ "DDGI", "shader_8h.html#a3f2f7cad5661081d348cc7c6f09f0908afff287a54a6d46004ac11efb8d31e594", null ],
       [ "DDGI_WRITE", "shader_8h.html#a3f2f7cad5661081d348cc7c6f09f0908a135ae7e90bbf12b00cf8b7c12dd8f2ff", null ],
-      [ "PathTracer", "shader_8h.html#a3f2f7cad5661081d348cc7c6f09f0908a92e4428abedcf75ee19c2b4068a4e34e", null ]
+      [ "PathTracer", "shader_8h.html#a3f2f7cad5661081d348cc7c6f09f0908a92e4428abedcf75ee19c2b4068a4e34e", null ],
+      [ "PathDenoiser", "shader_8h.html#a3f2f7cad5661081d348cc7c6f09f0908a61f3483c14107b67306f6d46d730e6a5", null ]
     ] ],
     [ "AtlasFragmentShader", "shader_8h.html#ae4b5ffebe5841702defe3060ebbe08d0", [
       [ "Debug", "shader_8h.html#ae4b5ffebe5841702defe3060ebbe08d0aa603905470e2a5b8c13e96b579ef0dba", null ],

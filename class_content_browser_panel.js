@@ -4,6 +4,7 @@ var class_content_browser_panel =
     [ "assetActivated", "class_content_browser_panel.html#a8e84df48c667f9ad66944e948642d08e", null ],
     [ "clearSelection", "class_content_browser_panel.html#a491a589be095738b556232f09ac28d5f", null ],
     [ "copySelection", "class_content_browser_panel.html#a2abc4c07162e055229a5ba33e0f5a6e1", null ],
+    [ "createUI", "class_content_browser_panel.html#a050a86d8e471eeca1236d73ae9449dee", null ],
     [ "cutSelection", "class_content_browser_panel.html#af46f0af20512b2819a56d396331bdd13", null ],
     [ "deleteSelection", "class_content_browser_panel.html#aea95b826df2df464f88f1c27b3d0dfde", null ],
     [ "duplicateSelection", "class_content_browser_panel.html#ae9f661d779eb8ad35f4e5706852fbf16", null ],
@@ -15,5 +16,6 @@ var class_content_browser_panel =
     [ "selectAllAssets", "class_content_browser_panel.html#a50daf3047d5e753942a888668bedb072", null ],
     [ "selectedPath", "class_content_browser_panel.html#a7e0cdf7223798fbb86eac5cddd5e7f76", null ],
     [ "selectionChanged", "class_content_browser_panel.html#aa6457d8effe2df49b51e98c13a3c0b31", null ],
-    [ "setRootPath", "class_content_browser_panel.html#a3c445304f921fccf1f030fb2e48ed615", null ]
+    [ "setRootPath", "class_content_browser_panel.html#a3c445304f921fccf1f030fb2e48ed615", null ],
+    [ "uiActivated", "class_content_browser_panel.html#a1becff8564dbcfb2b62ab22283049701", null ]
 ];

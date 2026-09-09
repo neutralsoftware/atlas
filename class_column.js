@@ -5,6 +5,7 @@ var class_column =
     [ "addChild", "class_column.html#a0ad1c97b8d0e3c50498145122144fdcd", null ],
     [ "getScreenPosition", "class_column.html#ac67f89ae123c6dce30dc8b6ce288742c", null ],
     [ "getSize", "class_column.html#a8fd9606005c5eb96ae78e9b8dfba1e84", null ],
+    [ "initialize", "class_column.html#a16ba1f36d2520cbe35c7798a9b5dd678", null ],
     [ "render", "class_column.html#a386058aa4ea936aba1ca4a65fbdc84c3", null ],
     [ "setChildren", "class_column.html#adf259a670f24f57f0c02b73fadf57c99", null ],
     [ "setProjectionMatrix", "class_column.html#a0a42d3b13a8f9af644bdf9c331d2fb2b", null ],

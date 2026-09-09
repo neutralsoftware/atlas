@@ -37,7 +37,7 @@ var searchData=
   ['ssao_34',['SSAO',['../shader_8h.html#ae4b5ffebe5841702defe3060ebbe08d0ab07a387949b981d5726a46c61db885e9',1,'SSAO:&#160;shader.h'],['../texture_8h.html#a579bf435a05d45b75f553d37ebbb3225ab07a387949b981d5726a46c61db885e9',1,'SSAO:&#160;texture.h'],['../texture_8h.html#a639c740f69368f9fe25a4f7409a16384ab07a387949b981d5726a46c61db885e9',1,'SSAO:&#160;texture.h']]],
   ['ssaoblur_35',['SSAOBlur',['../shader_8h.html#ae4b5ffebe5841702defe3060ebbe08d0a0cbd177f5587f49172adca66ce3041ce',1,'SSAOBlur:&#160;shader.h'],['../texture_8h.html#a639c740f69368f9fe25a4f7409a16384a0cbd177f5587f49172adca66ce3041ce',1,'SSAOBlur:&#160;texture.h']]],
   ['ssaonoise_36',['SSAONoise',['../texture_8h.html#a579bf435a05d45b75f553d37ebbb3225a74cd2b14850061d58e3fc9da302c4efe',1,'texture.h']]],
-  ['ssr_37',['SSR',['../shader_8h.html#ae4b5ffebe5841702defe3060ebbe08d0a1c16e694abe7b18f52484174b0aa3c87',1,'shader.h']]],
+  ['ssr_37',['SSR',['../shader_8h.html#ae4b5ffebe5841702defe3060ebbe08d0a1c16e694abe7b18f52484174b0aa3c87',1,'SSR:&#160;shader.h'],['../texture_8h.html#a639c740f69368f9fe25a4f7409a16384a1c16e694abe7b18f52484174b0aa3c87',1,'SSR:&#160;texture.h']]],
   ['stack_38',['Stack',['../namespacestyling.html#a4b308b968a97c6ac3d474a885472bab6a2187e1021a911b3807cc1bea2eb1a9ca',1,'styling']]],
   ['start_39',['Start',['../window_8h.html#adca58a5ba3eec80877cfa5456518671caa6122a65eaa676f700ae68d393054a37',1,'window.h']]],
   ['static_40',['Static',['../namespacebezel.html#ab5ff10e4624750d570c4ad4af8061a24a84a8921b25f505d0d2077aeb5db4bc16',1,'bezel']]],

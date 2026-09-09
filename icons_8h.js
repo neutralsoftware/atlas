@@ -76,7 +76,8 @@ var icons_8h =
       [ "styling::Icon::Waveform", "namespacestyling.html#a4b308b968a97c6ac3d474a885472bab6a70588cbb4058e97a020c6057aeefa3ea", null ],
       [ "styling::Icon::Wrench", "namespacestyling.html#a4b308b968a97c6ac3d474a885472bab6ad0e410ca11db8103b87c4f66e2659067", null ]
     ] ],
+    [ "styling::brandMark", "namespacestyling.html#a8fee1d4c4a8937aa6b6061ae9cd4aeb6", null ],
     [ "styling::colorSwatch", "namespacestyling.html#a163de172a57f30b7903ee1cdb75cabb4", null ],
-    [ "styling::icon", "namespacestyling.html#a901922865baa40d2caa29e131323d042", null ],
+    [ "styling::icon", "namespacestyling.html#aaaecc423bbd575a672e45d2634dc3e93", null ],
     [ "styling::loadIconFont", "namespacestyling.html#a3f97979ac447275ce1d5040e4069a70e", null ]
 ];

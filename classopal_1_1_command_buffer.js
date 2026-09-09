@@ -15,11 +15,13 @@ var classopal_1_1_command_buffer =
     [ "drawIndexed", "classopal_1_1_command_buffer.html#a30dea764877b491dd37d8def9cadd6cb", null ],
     [ "drawPatches", "classopal_1_1_command_buffer.html#a824bc79433e4b41d4f718ba696dddc8e", null ],
     [ "endPass", "classopal_1_1_command_buffer.html#a5b8329dd7cc72a2a809124360a4a3b8b", null ],
+    [ "generateMipmaps", "classopal_1_1_command_buffer.html#ad23c8f2cc63292259e1e208b2aa3bd5f", null ],
     [ "getAndResetDrawCallCount", "classopal_1_1_command_buffer.html#a45f44e25e6f2c001530cb28ed141e414", null ],
     [ "performResolve", "classopal_1_1_command_buffer.html#ac77da83bec874d27ca8b1eea50236e9e", null ],
     [ "performSpatialUpscale", "classopal_1_1_command_buffer.html#ae07150bd6207c68defe69e4124c88d20", null ],
     [ "start", "classopal_1_1_command_buffer.html#a8ce7981e2db34a4cd0a6518b2d20c593", null ],
     [ "unbindDrawingState", "classopal_1_1_command_buffer.html#a372dc7010438bfc9d684ac07548849bb", null ],
     [ "unbindPipeline", "classopal_1_1_command_buffer.html#a8dcbd2f8de727ad007cb5ab94d6c3c99", null ],
+    [ "waitForSubmittedWork", "classopal_1_1_command_buffer.html#aa5ed31385ba24fe218c4e7c907796986", null ],
     [ "Device", "classopal_1_1_command_buffer.html#a520fa05e0bf58785da428f7a0241eee2", null ]
 ];

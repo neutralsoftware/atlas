@@ -1,5 +1,6 @@
 var hierarchy =
 [
+    [ "Trigger::[union].__unnamed0__", "union_trigger_1_1_0funion_0e_8____unnamed0____.html", null ],
     [ "AllocationPacket", "struct_allocation_packet.html", null ],
     [ "AmbientLight", "struct_ambient_light.html", null ],
     [ "AngleLimits", "struct_angle_limits.html", null ],
@@ -184,20 +185,41 @@ var hierarchy =
       [ "SplashScreen", "class_splash_screen.html", null ]
     ] ],
     [ "QDoubleSpinBox", null, [
-      [ "ScrubbableSpinBoxBase< QDoubleSpinBox >", "class_scrubbable_spin_box_base.html", null ]
+      [ "FlexibleDoubleSpinBox", "class_flexible_double_spin_box.html", [
+        [ "ScrubbableSpinBoxBase< FlexibleDoubleSpinBox >", "class_scrubbable_spin_box_base.html", null ]
+      ] ]
+    ] ],
+    [ "QLabel", null, [
+      [ "styling::ElidedLabel", "classstyling_1_1_elided_label.html", null ]
     ] ],
     [ "QMainWindow", null, [
       [ "EditorWindow", "class_editor_window.html", null ],
       [ "ProjectBrowser", "class_project_browser.html", null ]
     ] ],
+    [ "QPushButton", null, [
+      [ "styling::Button", "classstyling_1_1_button.html", null ]
+    ] ],
     [ "QSpinBox", null, [
       [ "ScrubbableSpinBoxBase< QSpinBox >", "class_scrubbable_spin_box_base.html", null ]
+    ] ],
+    [ "QStackedWidget", null, [
+      [ "styling::WorkspaceStack", "classstyling_1_1_workspace_stack.html", null ]
+    ] ],
+    [ "QStyledItemDelegate", null, [
+      [ "styling::ItemDelegate", "classstyling_1_1_item_delegate.html", null ]
+    ] ],
+    [ "QToolButton", null, [
+      [ "styling::ToolButton", "classstyling_1_1_tool_button.html", null ]
+    ] ],
+    [ "QTreeView", null, [
+      [ "styling::TreeView", "classstyling_1_1_tree_view.html", null ]
     ] ],
     [ "Quaternion", "struct_quaternion.html", null ],
     [ "QueryResult", "struct_query_result.html", null ],
     [ "QWidget", null, [
       [ "ContentBrowserPanel", "class_content_browser_panel.html", null ],
       [ "DebugComponentsView", "class_debug_components_view.html", null ],
+      [ "GraphiteEditorPanel", "class_graphite_editor_panel.html", null ],
       [ "HierarchyPanel", "class_hierarchy_panel.html", null ],
       [ "InspectorPanel", "class_inspector_panel.html", null ],
       [ "MaterialEditorPanel", "class_material_editor_panel.html", null ],

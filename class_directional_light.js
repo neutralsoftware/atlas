@@ -1,7 +1,7 @@
 var class_directional_light =
 [
     [ "DirectionalLight", "class_directional_light.html#ad1e8276be630a866658af3af8780f03c", null ],
-    [ "castShadows", "class_directional_light.html#ab28ef4b78b070c467ae7f1d598f985d4", null ],
+    [ "castShadows", "class_directional_light.html#ac3545ce4619f11a9d8f181ac50642148", null ],
     [ "setColor", "class_directional_light.html#a64de3d48b64d3d3dc3ceba88551fde9b", null ],
     [ "CoreObject", "class_directional_light.html#ac9dbe2a378024e3a3c417b4cb50adbb3", null ],
     [ "Terrain", "class_directional_light.html#a8a16a8def173094d17ed062879646b6b", null ],

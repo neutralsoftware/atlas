@@ -70,7 +70,7 @@ var searchData=
   ['controller_5faxis_5fright_5fx_67',['CONTROLLER_AXIS_RIGHT_X',['../atlas_2input_8h.html#a25ec3e3147d8fbe808b2ba15ad776389',1,'input.h']]],
   ['controller_5faxis_5fright_5fy_68',['CONTROLLER_AXIS_RIGHT_Y',['../atlas_2input_8h.html#a3733ea55f5d3effeb4563b8228a1a600',1,'input.h']]],
   ['controlleraxissingle_69',['controllerAxisSingle',['../struct_axis_trigger.html#a345ff337caabbd170231f3dfae16fa35',1,'AxisTrigger']]],
-  ['controllerbutton_70',['controllerButton',['../struct_trigger.html#abf084185edaa21765ca0e2dd97f40c84',1,'Trigger']]],
+  ['controllerbutton_70',['controllerButton',['../union_trigger_1_1_0funion_0e_8____unnamed0____.html#a1ba7e534d5d00d05dc04653d939a47d8',1,'Trigger::[union].__unnamed0__']]],
   ['controllerdeadzone_71',['controllerDeadzone',['../class_input_action.html#a12e07167e80b0c3e6d5234827a39fdcd',1,'InputAction']]],
   ['controllerid_72',['controllerID',['../struct_controller_button_trigger.html#a8f66bef6254f525db24f50705152c152',1,'ControllerButtonTrigger::controllerID'],['../struct_axis_trigger.html#aa39c57e11d033d52f9b14470ae1ff1e4',1,'AxisTrigger::controllerID'],['../struct_gamepad.html#a9290cd0208184baa021fc28413b171cf',1,'Gamepad::controllerID']]],
   ['controllerlooksensitivity_73',['controllerLookSensitivity',['../class_camera.html#aaa536c7571a040b2bcfb05f736a1a87c',1,'Camera']]],

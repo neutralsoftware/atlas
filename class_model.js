@@ -5,6 +5,7 @@ var class_model =
     [ "canCastShadows", "class_model.html#ad6da4e22fd6e4fa8e5332c584f61756e", null ],
     [ "canUseDeferredRendering", "class_model.html#a5de7005f4cc2280b14e942aa64506195", null ],
     [ "fromResource", "class_model.html#a2703e648303a35bd1f35c23f4da7600b", null ],
+    [ "fromResource", "class_model.html#a42157e2730833a6693ad52e7598dec3c", null ],
     [ "getObjects", "class_model.html#a2e9f3d9230b1726b893c6699aa2cc0f6", null ],
     [ "getObjects", "class_model.html#a81cd511e7055ff464f7b8efd6a8c25e3", null ],
     [ "getPipeline", "class_model.html#a93840117d6b7bb02f947a40bdab42dda", null ],

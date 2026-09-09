@@ -1,4 +1,4 @@
 var searchData=
 [
-  ['hierarchypanel_2eh_0',['hierarchyPanel.h',['../hierarchy_panel_8h.html',1,'']]]
+  ['graphiteeditor_2eh_0',['graphiteEditor.h',['../graphite_editor_8h.html',1,'']]]
 ];

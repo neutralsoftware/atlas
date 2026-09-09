@@ -2,6 +2,7 @@ var dir_bf54ed3a8883b663f86a751796c03f21 =
 [
     [ "editorWindow.h", "editor_window_8h.html", "editor_window_8h" ],
     [ "fileExplorer.h", "file_explorer_8h.html", "file_explorer_8h" ],
+    [ "graphiteEditor.h", "graphite_editor_8h.html", "graphite_editor_8h" ],
     [ "hierarchyPanel.h", "hierarchy_panel_8h.html", "hierarchy_panel_8h" ],
     [ "inputActionsDialog.h", "input_actions_dialog_8h.html", "input_actions_dialog_8h" ],
     [ "inspectorView.h", "inspector_view_8h.html", "inspector_view_8h" ],

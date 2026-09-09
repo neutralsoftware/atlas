@@ -25,5 +25,6 @@ var namespaceruntime =
     [ "makeContextForMetalView", "namespaceruntime.html#aa65b2e4f2d02340211d1fad6ccc4644f", null ],
     [ "makeContextForMetalViewNonBlocking", "namespaceruntime.html#a638db34bafe27a2070765847d8526d5c", null ],
     [ "makeHiddenContext", "namespaceruntime.html#a84ab2f5a5e8951f8095f6d342a8660a9", null ],
+    [ "makeMaterialPreviewContextForMetalView", "namespaceruntime.html#a417fe739913bf1623cad1b42f378dc5c", null ],
     [ "runProjectInMetalView", "namespaceruntime.html#ab2240f5e05bdc0da335bb3772f2b9d5f", null ]
 ];

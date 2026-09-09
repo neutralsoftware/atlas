@@ -12,6 +12,7 @@ var class_render_target =
     [ "getWidth", "class_render_target.html#ada77bd874308782eaeea700dbcdc1024", null ],
     [ "hide", "class_render_target.html#afc4e81b5ef815ae5df8710f158f4f9f8", null ],
     [ "render", "class_render_target.html#a05293c8c5affe4c05694cbf05d32344b", null ],
+    [ "resize", "class_render_target.html#a346b2bf575c6dcb2c9cb6c14a6b8e299", null ],
     [ "resolve", "class_render_target.html#a1ef0cea2d52d86d72bf8be6d44cf1497", null ],
     [ "show", "class_render_target.html#a29b94b1e04454f7273a30de6b7c4878d", null ],
     [ "unbind", "class_render_target.html#ad4d1aef1f70af83ac53935253eb16c9e", null ],

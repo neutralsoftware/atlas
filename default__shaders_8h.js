@@ -47,6 +47,8 @@ var default__shaders_8h =
     [ "PARTICLE_VERT", "default__shaders_8h.html#ac9bc7abfd0cc46bcc15c85d89cd03660", null ],
     [ "PARTICLE_VERT_PARTS", "default__shaders_8h.html#ab97566158ac44e4e7e1612ad7b84fa90", null ],
     [ "PATH", "default__shaders_8h.html#a0d78f790a6e912c553b07a1e7f28cc88", null ],
+    [ "PATH_DENOISE", "default__shaders_8h.html#a842183d57aaf54875deb59c40739cc34", null ],
+    [ "PATH_DENOISE_PARTS", "default__shaders_8h.html#aef7ce31afca56e99075936e5e31597d1", null ],
     [ "PATH_PARTS", "default__shaders_8h.html#ac701a9d060f46489f672651c0932a332", null ],
     [ "POINT_DEPTH_FRAG", "default__shaders_8h.html#ad648f8a13ce4a21c31e59835339a36a1", null ],
     [ "POINT_DEPTH_FRAG_PARTS", "default__shaders_8h.html#a2b29245137ad6d49ea8aa02d22598b5c", null ],

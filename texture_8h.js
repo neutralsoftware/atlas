@@ -16,7 +16,8 @@ var texture_8h =
       [ "CubeShadow", "texture_8h.html#a639c740f69368f9fe25a4f7409a16384a2da82a3c0f89c3328ed03785fbb6f3e8", null ],
       [ "GBuffer", "texture_8h.html#a639c740f69368f9fe25a4f7409a16384a628adbb6c98e56748110061187f57243", null ],
       [ "SSAO", "texture_8h.html#a639c740f69368f9fe25a4f7409a16384ab07a387949b981d5726a46c61db885e9", null ],
-      [ "SSAOBlur", "texture_8h.html#a639c740f69368f9fe25a4f7409a16384a0cbd177f5587f49172adca66ce3041ce", null ]
+      [ "SSAOBlur", "texture_8h.html#a639c740f69368f9fe25a4f7409a16384a0cbd177f5587f49172adca66ce3041ce", null ],
+      [ "SSR", "texture_8h.html#a639c740f69368f9fe25a4f7409a16384a1c16e694abe7b18f52484174b0aa3c87", null ]
     ] ],
     [ "TextureFilteringMode", "texture_8h.html#a1c9c9d9944566343118d0de8faa720f3", [
       [ "Nearest", "texture_8h.html#a1c9c9d9944566343118d0de8faa720f3a60494f02d440f316319dd0fad40ad007", null ],
@@ -36,7 +37,8 @@ var texture_8h =
       [ "Roughness", "texture_8h.html#a579bf435a05d45b75f553d37ebbb3225a767078b82d60bc9dfaec29326b0b7c06", null ],
       [ "AO", "texture_8h.html#a579bf435a05d45b75f553d37ebbb3225a2c64c5cf613d8b9f4f7f3980d29aca10", null ],
       [ "Opacity", "texture_8h.html#a579bf435a05d45b75f553d37ebbb3225abad6a5dd8c28e6b14f8e986615e3dc98", null ],
-      [ "HDR", "texture_8h.html#a579bf435a05d45b75f553d37ebbb3225a6cad826248cd3f4e93da71e7b49928e3", null ]
+      [ "HDR", "texture_8h.html#a579bf435a05d45b75f553d37ebbb3225a6cad826248cd3f4e93da71e7b49928e3", null ],
+      [ "PBRPack", "texture_8h.html#a579bf435a05d45b75f553d37ebbb3225a07c14a22f0a585e8b0c28cc43501d1dd", null ]
     ] ],
     [ "TextureWrappingMode", "texture_8h.html#a2b9a75ec8d4f3f3f2e9150d48d065141", [
       [ "Repeat", "texture_8h.html#a2b9a75ec8d4f3f3f2e9150d48d065141a7020426cfb0a204051be4b3053d2acc8", null ],

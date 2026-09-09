@@ -5,6 +5,7 @@ var class_stack =
     [ "addChild", "class_stack.html#a725a6bd35feddca12d19a6d6b630ff0d", null ],
     [ "getScreenPosition", "class_stack.html#a35771685dec4618d709b0c7e573f487c", null ],
     [ "getSize", "class_stack.html#adafd7063b754a575feee75199b2776ef", null ],
+    [ "initialize", "class_stack.html#af6cdde1bae9b4545bdb453ce98ef4002", null ],
     [ "render", "class_stack.html#a2ff80baf86cd999b75077e5aadfee862", null ],
     [ "setChildren", "class_stack.html#a06eac0a12368ddd67be67a653eda715a", null ],
     [ "setProjectionMatrix", "class_stack.html#aba68fd8fe8fc26997046f0eed044ffd6", null ],

@@ -32,12 +32,13 @@ var searchData=
   ['bounds_29',['Bounds',['../class_bounds.html#a3f908e79a6439be486f967f838655163',1,'Bounds::Bounds()'],['../class_bounds.html#acc45b5ad09d22f0aa1f2594bf426f700',1,'Bounds::Bounds(const Bounds &amp;rhs)']]],
   ['box_30',['Box',['../class_box.html#a0ccb856b61ba6fa6b884a0bb786b9049',1,'Box']]],
   ['boxcollider_31',['BoxCollider',['../classbezel_1_1_box_collider.html#a938f0706cd64d6b9799064a3822a7c57',1,'bezel::BoxCollider']]],
-  ['breakjoint_32',['breakJoint',['../class_joint.html#ab88085c7a95174398e7544a901f82369',1,'Joint::breakJoint()'],['../class_fixed_joint.html#ae89db599ce3c1429e5f32ce0c68176a6',1,'FixedJoint::breakJoint()'],['../class_hinge_joint.html#a33e8d8318746d75a5126696f9c128632',1,'HingeJoint::breakJoint()'],['../class_spring_joint.html#a3e763eeff556451af48db7a9647fb1ee',1,'SpringJoint::breakJoint()'],['../classbezel_1_1_joint.html#a5bb90f794fb31116579569051900fb91',1,'bezel::Joint::breakJoint()']]],
-  ['broadphase_33',['broadPhase',['../namespacebezel.html#a11ee629e2162c4f0df27daf0d32fe12b',1,'bezel']]],
-  ['broadphaselayerimpl_34',['BroadPhaseLayerImpl',['../classbezel__jolt_1_1_broad_phase_layer_impl.html#aebfaa58d5d7b75b62d8e893106ced96d',1,'bezel_jolt::BroadPhaseLayerImpl']]],
-  ['brown_35',['brown',['../struct_color.html#a6a255dcde5999c35e40291f8a9c54adc',1,'Color']]],
-  ['build_36',['build',['../class_shape.html#a8da566a2cbb6b5f1f43f5fbbd900cb7b',1,'Shape::build()'],['../class_box.html#ad59b073186a324e24ec1973d7e9e9cf5',1,'Box::build()'],['../class_convex.html#ab648963a6756e18801f68437033e2a55',1,'Convex::build()'],['../classopal_1_1_pipeline.html#a42e38e706429814a9b8f558bbe030ec3',1,'opal::Pipeline::build()']]],
-  ['buildconvexhull_37',['buildConvexHull',['../namespacebezel.html#ab716e4b07c46b4f407eb175be389e381',1,'bezel']]],
-  ['buildpairs_38',['buildPairs',['../namespacebezel.html#ad66c3fef1f803accf3ec7ec3b144d450',1,'bezel']]],
-  ['button_39',['Button',['../class_button.html#a29d67b81d803e588ebf4c4c2075262bf',1,'Button::Button()=default'],['../class_button.html#a1ed75f0b99d70166057c944ee16dba2a',1,'Button::Button(Font font, std::string label, Position2d position={.x=0.0f,.y=0.0f})']]]
+  ['brandmark_32',['brandMark',['../namespacestyling.html#a8fee1d4c4a8937aa6b6061ae9cd4aeb6',1,'styling']]],
+  ['breakjoint_33',['breakJoint',['../class_joint.html#ab88085c7a95174398e7544a901f82369',1,'Joint::breakJoint()'],['../class_fixed_joint.html#ae89db599ce3c1429e5f32ce0c68176a6',1,'FixedJoint::breakJoint()'],['../class_hinge_joint.html#a33e8d8318746d75a5126696f9c128632',1,'HingeJoint::breakJoint()'],['../class_spring_joint.html#a3e763eeff556451af48db7a9647fb1ee',1,'SpringJoint::breakJoint()'],['../classbezel_1_1_joint.html#a5bb90f794fb31116579569051900fb91',1,'bezel::Joint::breakJoint()']]],
+  ['broadphase_34',['broadPhase',['../namespacebezel.html#a11ee629e2162c4f0df27daf0d32fe12b',1,'bezel']]],
+  ['broadphaselayerimpl_35',['BroadPhaseLayerImpl',['../classbezel__jolt_1_1_broad_phase_layer_impl.html#aebfaa58d5d7b75b62d8e893106ced96d',1,'bezel_jolt::BroadPhaseLayerImpl']]],
+  ['brown_36',['brown',['../struct_color.html#a6a255dcde5999c35e40291f8a9c54adc',1,'Color']]],
+  ['build_37',['build',['../class_shape.html#a8da566a2cbb6b5f1f43f5fbbd900cb7b',1,'Shape::build()'],['../class_box.html#ad59b073186a324e24ec1973d7e9e9cf5',1,'Box::build()'],['../class_convex.html#ab648963a6756e18801f68437033e2a55',1,'Convex::build()'],['../classopal_1_1_pipeline.html#a42e38e706429814a9b8f558bbe030ec3',1,'opal::Pipeline::build()']]],
+  ['buildconvexhull_38',['buildConvexHull',['../namespacebezel.html#ab716e4b07c46b4f407eb175be389e381',1,'bezel']]],
+  ['buildpairs_39',['buildPairs',['../namespacebezel.html#ad66c3fef1f803accf3ec7ec3b144d450',1,'bezel']]],
+  ['button_40',['Button',['../class_button.html#a29d67b81d803e588ebf4c4c2075262bf',1,'Button::Button()=default'],['../class_button.html#a1ed75f0b99d70166057c944ee16dba2a',1,'Button::Button(Font font, std::string label, Position2d position={.x=0.0f,.y=0.0f})']]]
 ];
