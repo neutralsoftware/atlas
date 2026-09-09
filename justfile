@@ -72,6 +72,10 @@ package-debug-macos args="":
 package-release-macos:
     ATLAS_ALLOW_UNNOTARIZED_RELEASE=1 ./scripts/package_app.py --release --macOS
 
+release-macos:
+    ATLAS_ALLOW_UNNOTARIZED_RELEASE=1 ./scripts/package_app.py --release --macOS
+    ./scripts/sign_macos_local.py
+
 release-metal:
     rm -rf build/release-metal
     mkdir -p build/release-metal dist/release

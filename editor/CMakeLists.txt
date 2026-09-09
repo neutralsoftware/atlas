@@ -95,11 +95,81 @@ if (APPLE)
     set(ATLAS_APP_ICON "${ATLAS_DEFAULT_APP_ICON}"
             CACHE FILEPATH "Atlas Engine macOS bundle icon"
     )
-    get_filename_component(ATLAS_APP_ICON_NAME "${ATLAS_APP_ICON}" NAME)
-    set_source_files_properties("${ATLAS_APP_ICON}" PROPERTIES
-            MACOSX_PACKAGE_LOCATION "Resources"
+    if (IS_DIRECTORY "${ATLAS_APP_ICON}")
+        find_program(ATLAS_XCRUN_EXECUTABLE xcrun REQUIRED)
+        file(GLOB_RECURSE ATLAS_APP_ICON_SOURCES
+                CONFIGURE_DEPENDS
+                "${ATLAS_APP_ICON}/*"
+        )
+        set(ATLAS_APP_ICON_BUILD_DIR
+                "${CMAKE_BINARY_DIR}/generated/atlas-app-icon"
+        )
+        set(ATLAS_APP_ICON_STAGE_DIR
+                "${CMAKE_BINARY_DIR}/generated/atlas-app-icon-source"
+        )
+        set(ATLAS_APP_ICON_STAGE
+                "${ATLAS_APP_ICON_STAGE_DIR}/AtlasEngine.icon"
+        )
+        set(ATLAS_APP_ICON_BUNDLE
+                "${ATLAS_APP_ICON_BUILD_DIR}/AtlasEngine.icns"
+        )
+        set(ATLAS_APP_ICON_ASSETS
+                "${ATLAS_APP_ICON_BUILD_DIR}/Assets.car"
+        )
+        if (CMAKE_OSX_DEPLOYMENT_TARGET)
+            set(ATLAS_APP_ICON_DEPLOYMENT_TARGET
+                    "${CMAKE_OSX_DEPLOYMENT_TARGET}"
+            )
+        else ()
+            set(ATLAS_APP_ICON_DEPLOYMENT_TARGET "14.0")
+        endif ()
+        add_custom_command(
+                OUTPUT
+                "${ATLAS_APP_ICON_BUNDLE}"
+                "${ATLAS_APP_ICON_ASSETS}"
+                COMMAND "${CMAKE_COMMAND}" -E remove_directory
+                "${ATLAS_APP_ICON_BUILD_DIR}"
+                COMMAND "${CMAKE_COMMAND}" -E remove_directory
+                "${ATLAS_APP_ICON_STAGE_DIR}"
+                COMMAND "${CMAKE_COMMAND}" -E make_directory
+                "${ATLAS_APP_ICON_BUILD_DIR}"
+                COMMAND "${CMAKE_COMMAND}" -E make_directory
+                "${ATLAS_APP_ICON_STAGE_DIR}"
+                COMMAND "${CMAKE_COMMAND}" -E copy_directory
+                "${ATLAS_APP_ICON}" "${ATLAS_APP_ICON_STAGE}"
+                COMMAND "${ATLAS_XCRUN_EXECUTABLE}" actool
+                --compile "${ATLAS_APP_ICON_BUILD_DIR}"
+                --platform macosx
+                --minimum-deployment-target
+                "${ATLAS_APP_ICON_DEPLOYMENT_TARGET}"
+                --app-icon AtlasEngine
+                --output-partial-info-plist
+                "${ATLAS_APP_ICON_BUILD_DIR}/icon-info.plist"
+                "${ATLAS_APP_ICON_STAGE}"
+                DEPENDS ${ATLAS_APP_ICON_SOURCES}
+                VERBATIM
+        )
+        set_source_files_properties(
+                "${ATLAS_APP_ICON_BUNDLE}"
+                "${ATLAS_APP_ICON_ASSETS}"
+                PROPERTIES
+                GENERATED TRUE
+                MACOSX_PACKAGE_LOCATION "Resources"
+        )
+        list(APPEND EDITOR_FILES
+                "${ATLAS_APP_ICON_BUNDLE}"
+                "${ATLAS_APP_ICON_ASSETS}"
+        )
+    else ()
+        set(ATLAS_APP_ICON_BUNDLE "${ATLAS_APP_ICON}")
+        set_source_files_properties("${ATLAS_APP_ICON_BUNDLE}" PROPERTIES
+                MACOSX_PACKAGE_LOCATION "Resources"
+        )
+        list(APPEND EDITOR_FILES "${ATLAS_APP_ICON_BUNDLE}")
+    endif ()
+    get_filename_component(ATLAS_APP_ICON_NAME
+            "${ATLAS_APP_ICON_BUNDLE}" NAME
     )
-    list(APPEND EDITOR_FILES "${ATLAS_APP_ICON}")
 endif ()
 
 qt_add_executable(AtlasEditor ${EDITOR_FILES})

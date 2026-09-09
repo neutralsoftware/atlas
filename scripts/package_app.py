@@ -7,6 +7,7 @@ import plistlib
 import shutil
 import subprocess
 import sys
+from datetime import datetime, timezone
 from pathlib import Path
 
 
@@ -272,6 +273,9 @@ def main():
     architectures = os.environ.get("ATLAS_MACOS_ARCHITECTURES", platform.machine())
     architecture_tag = "universal" if ";" in architectures else architectures
     deployment_target = os.environ.get("ATLAS_MACOS_DEPLOYMENT_TARGET", "14.0")
+    build_number = os.environ.get(
+        "ATLAS_BUILD_NUMBER", datetime.now(timezone.utc).strftime("%Y%m%d%H%M%S")
+    )
     signing_identity = os.environ.get("ATLAS_SIGNING_IDENTITY", "-")
     notary_profile = os.environ.get("ATLAS_NOTARY_PROFILE")
     allow_unnotarized = os.environ.get("ATLAS_ALLOW_UNNOTARIZED_RELEASE") == "1"
@@ -370,6 +374,7 @@ def main():
     plist["CFBundleIconFile"] = icon.stem
     shutil.copy2(icon_assets, modern_icon)
     plist["CFBundleIconName"] = "AtlasEngine"
+    plist["CFBundleVersion"] = build_number
     with plist_path.open("wb") as stream:
         plistlib.dump(plist, stream)
     sign_bundle(packaged_app, signing_identity)
