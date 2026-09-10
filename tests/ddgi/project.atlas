@@ -1,5 +1,5 @@
 app_name = "ddgi"
-atlas_version = "alpha9"
+atlas_version = "beta1"
 backend = "AUTO"
 name = "ddgi"
 platform = "DESKTOP"

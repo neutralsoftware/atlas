@@ -48,6 +48,7 @@ clangd backend="AUTO" bezel_native="OFF":
         -DCMAKE_CXX_COMPILER_LAUNCHER= \
         ..
     ln -sf build/compile_commands.json compile_commands.json
+    ln -sf ../build/compile_commands.json opal/compile_commands.json
 
 lint:
     run-clang-tidy -p build -quiet -warnings-as-errors='*'
