@@ -15,7 +15,6 @@
 #include "atlas/window.h"
 #include "opal/opal.h"
 #include <algorithm>
-#include <glad/glad.h>
 #include <limits>
 #include <memory>
 #include <string>

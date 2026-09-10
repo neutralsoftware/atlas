@@ -12,7 +12,6 @@
 #include "atlas/object.h"
 #include "atlas/tracer/log.h"
 #include "opal/opal.h"
-#include <glad/glad.h>
 #include <map>
 #include <memory>
 #include <string>

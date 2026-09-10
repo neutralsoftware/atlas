@@ -7,7 +7,6 @@
  Copyright (c) 2025 maxvdec
 */
 
-#include <glad/glad.h>
 #include <algorithm>
 #include <cmath>
 #include <iostream>

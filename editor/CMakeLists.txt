@@ -255,7 +255,7 @@ target_link_libraries(AtlasEditor
         PRIVATE
         runtime_lib
         atlas
-        opal
+        Opal::Opal
         bezel
         finewave
         photon
@@ -279,10 +279,6 @@ endif ()
 if (APPLE)
     target_link_libraries(AtlasEditor
             PUBLIC
-            "-framework Metal"
-            "-framework MetalKit"
-            "-framework MetalFX"
-            "-framework QuartzCore"
             "-framework Foundation"
             "-framework Cocoa"
             "-framework CoreGraphics"

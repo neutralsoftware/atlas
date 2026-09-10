@@ -17,7 +17,6 @@ message(STATUS "Compiler at path:" ${CMAKE_CXX_COMPILER})
 
 add_compile_definitions(
         ATLAS_VERSION="Beta 1 Vela"
-        OPAL_VERSION="3 Tetrahedron"
 )
 
 set(CMAKE_INTERPROCEDURAL_OPTIMIZATION OFF)
@@ -364,8 +363,7 @@ endif ()
 file(GLOB_RECURSE FINEWAVE_SOURCES CONFIGURE_DEPENDS finewave/*.cpp)
 file(GLOB_RECURSE AURORA_SOURCES CONFIGURE_DEPENDS aurora/*.cpp)
 file(GLOB_RECURSE HYDRA_SOURCES CONFIGURE_DEPENDS hydra/*.cpp)
-file(GLOB_RECURSE ATLAS_SOURCES CONFIGURE_DEPENDS atlas/*.cpp extern/glad/*.c)
-file(GLOB_RECURSE OPAL_SOURCES CONFIGURE_DEPENDS opal/*.cpp)
+file(GLOB_RECURSE ATLAS_SOURCES CONFIGURE_DEPENDS atlas/*.cpp)
 file(GLOB_RECURSE PHOTON_SOURCES CONFIGURE_DEPENDS photon/*.cpp)
 file(GLOB_RECURSE GRAPHITE_SOURCES CONFIGURE_DEPENDS graphite/*.cpp)
 file(GLOB_RECURSE RUNTIME_LIB_SOURCES CONFIGURE_DEPENDS runtime/lib/*.cpp)
@@ -463,22 +461,12 @@ target_link_libraries(finewave PRIVATE
         fmt::fmt
 )
 
-# ─── opal ────────────────────────────────────────────────────────────────────
-add_library(opal STATIC ${OPAL_SOURCES})
-target_include_directories(opal PRIVATE ${ATLAS_DEP_INCLUDE_DIRS})
-target_link_libraries(opal PRIVATE ${ATLAS_GLM_TARGET} ${ATLAS_SDL_TARGET})
-add_dependencies(opal generate_shaders)
-
-if (BACKEND_OPENGL)
-    target_link_libraries(opal PRIVATE OpenGL::GL)
-elseif (BACKEND_VULKAN)
-    target_link_libraries(opal PRIVATE Vulkan::Vulkan spirv-cross-core spirv-cross-glsl spirv-cross-reflect)
-    target_compile_definitions(opal PRIVATE VULKAN)
-endif ()
+set(OPAL_BACKEND "${BACKEND}" CACHE STRING "Opal rendering backend" FORCE)
+add_subdirectory(opal)
 
 # ─── photon ──────────────────────────────────────────────────────────────────
 add_library(photon STATIC ${PHOTON_SOURCES})
-target_link_libraries(photon PRIVATE opal ${ATLAS_GLM_TARGET})
+target_link_libraries(photon PRIVATE Opal::Opal ${ATLAS_GLM_TARGET})
 target_include_directories(photon PRIVATE ${ATLAS_DEP_INCLUDE_DIRS})
 add_dependencies(photon generate_shaders)
 
@@ -529,7 +517,7 @@ target_link_libraries(atlas
         finewave
         aurora
         hydra
-        opal
+        Opal::Opal
         ${ATLAS_FREETYPE_TARGET}
         ${ATLAS_ASSIMP_TARGET}
         photon
@@ -567,15 +555,6 @@ elseif (APPLE)
         )
     elseif (BACKEND_VULKAN)
         target_link_libraries(atlas PRIVATE
-                "-framework Cocoa"
-                "-framework IOKit"
-                "-framework QuartzCore"
-        )
-    elseif (BACKEND_METAL)
-        target_link_libraries(atlas PRIVATE
-                "-framework Metal"
-                "-framework MetalKit"
-                "-framework MetalFX"
                 "-framework Cocoa"
                 "-framework IOKit"
                 "-framework QuartzCore"

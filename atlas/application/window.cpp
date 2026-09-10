@@ -56,6 +56,94 @@
 Window *Window::mainWindow = nullptr;
 
 namespace {
+DebugResourceType atlasResourceType(opal::ResourceType type) {
+    switch (type) {
+    case opal::ResourceType::Texture:
+        return DebugResourceType::Texture;
+    case opal::ResourceType::Buffer:
+        return DebugResourceType::Buffer;
+    case opal::ResourceType::Shader:
+        return DebugResourceType::Shader;
+    case opal::ResourceType::Mesh:
+        return DebugResourceType::Mesh;
+    }
+    return DebugResourceType::Mesh;
+}
+
+DebugResourceOperation
+atlasResourceOperation(opal::ResourceOperation operation) {
+    switch (operation) {
+    case opal::ResourceOperation::Created:
+        return DebugResourceOperation::Created;
+    case opal::ResourceOperation::Loaded:
+        return DebugResourceOperation::Loaded;
+    case opal::ResourceOperation::Unloaded:
+        return DebugResourceOperation::Unloaded;
+    }
+    return DebugResourceOperation::Loaded;
+}
+
+DrawCallType atlasDrawType(opal::DrawType type) {
+    switch (type) {
+    case opal::DrawType::Draw:
+        return DrawCallType::Draw;
+    case opal::DrawType::Indexed:
+        return DrawCallType::Indexed;
+    case opal::DrawType::Patch:
+        return DrawCallType::Patch;
+    }
+    return DrawCallType::Draw;
+}
+
+void receiveOpalLog(opal::LogLevel level, const char *message) {
+    const std::string value = message != nullptr ? message : "";
+    switch (level) {
+    case opal::LogLevel::Info:
+        Logger::getInstance().log(value, __FILE__, __LINE__);
+        break;
+    case opal::LogLevel::Warning:
+        Logger::getInstance().warning(value, __FILE__, __LINE__);
+        break;
+    case opal::LogLevel::Error:
+        Logger::getInstance().error(value, __FILE__, __LINE__);
+        break;
+    }
+}
+
+void receiveOpalResource(const opal::ResourceEvent &event) {
+    if (!TracerServices::getInstance().isOk()) {
+        return;
+    }
+    ResourceEventInfo info;
+    info.callerObject = event.callerObject;
+    info.resourceType = atlasResourceType(event.type);
+    info.operation = atlasResourceOperation(event.operation);
+    info.frameNumber = event.frameNumber;
+    info.sizeMb = event.sizeMb;
+    info.send();
+}
+
+void receiveOpalDraw(const opal::DrawEvent &event) {
+    if (!TracerServices::getInstance().isOk()) {
+        return;
+    }
+    DrawCallInfo info;
+    info.callerObject = event.callerObject;
+    info.type = atlasDrawType(event.type);
+    info.frameNumber = event.frameNumber;
+    info.send();
+}
+
+void installOpalDiagnostics() {
+    static const bool installed = [] {
+        opal::setLogCallback(receiveOpalLog);
+        opal::setResourceCallback(receiveOpalResource);
+        opal::setDrawCallback(receiveOpalDraw);
+        return true;
+    }();
+    (void)installed;
+}
+
 enum EditorCameraKey {
     EditorCameraKeyForward = 0,
     EditorCameraKeyBackward = 1,
@@ -975,6 +1063,7 @@ class RenderingContextScope {
 
 Window::Window(const WindowConfiguration &config)
     : title(config.title), width(config.width), height(config.height) {
+    installOpalDiagnostics();
     atlas_log("Initializing window: " + config.title);
 #ifdef METAL
     this->externalMetalView = config.metalTargetView;
