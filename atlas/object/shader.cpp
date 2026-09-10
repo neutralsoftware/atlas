@@ -909,7 +909,7 @@ std::shared_ptr<opal::Pipeline> ShaderProgram::requestPipeline(
     std::vector<LayoutDescriptor> layoutDescriptors =
         CoreVertex::getLayoutDescriptors();
 
-    std::vector<GLuint> activeLocations = this->desiredAttributes;
+    std::vector<uint32_t> activeLocations = this->desiredAttributes;
     if (activeLocations.empty()) {
         for (const auto &attr : layoutDescriptors) {
             activeLocations.push_back(attr.layoutPos);

@@ -437,8 +437,14 @@ else ()
 endif ()
 
 # ─── bezel ───────────────────────────────────────────────────────────────────
+set(OPAL_BACKEND "${BACKEND}" CACHE STRING "Opal rendering backend" FORCE)
+add_subdirectory(opal)
+
 add_library(bezel STATIC ${BEZEL_SOURCES})
-target_link_libraries(bezel PRIVATE ${ATLAS_SDL_TARGET} ${ATLAS_GLM_TARGET})
+target_link_libraries(bezel
+        PUBLIC Opal::Opal
+        PRIVATE ${ATLAS_SDL_TARGET} ${ATLAS_GLM_TARGET}
+)
 target_include_directories(bezel PRIVATE ${ATLAS_DEP_INCLUDE_DIRS})
 
 if (BEZEL_NATIVE)
@@ -461,9 +467,6 @@ target_link_libraries(finewave PRIVATE
         fmt::fmt
 )
 
-set(OPAL_BACKEND "${BACKEND}" CACHE STRING "Opal rendering backend" FORCE)
-add_subdirectory(opal)
-
 # ─── photon ──────────────────────────────────────────────────────────────────
 add_library(photon STATIC ${PHOTON_SOURCES})
 target_link_libraries(photon PRIVATE Opal::Opal ${ATLAS_GLM_TARGET})
@@ -472,7 +475,10 @@ add_dependencies(photon generate_shaders)
 
 # ─── aurora ──────────────────────────────────────────────────────────────────
 add_library(aurora STATIC ${AURORA_SOURCES})
-target_link_libraries(aurora PRIVATE ${ATLAS_GLM_TARGET} ${ATLAS_SDL_TARGET} bezel)
+target_link_libraries(aurora
+        PUBLIC Opal::Opal
+        PRIVATE ${ATLAS_GLM_TARGET} ${ATLAS_SDL_TARGET} bezel
+)
 target_include_directories(aurora PRIVATE ${ATLAS_DEP_INCLUDE_DIRS})
 add_dependencies(aurora generate_shaders)
 
@@ -484,7 +490,10 @@ endif ()
 
 # ─── hydra ───────────────────────────────────────────────────────────────────
 add_library(hydra STATIC ${HYDRA_SOURCES})
-target_link_libraries(hydra PRIVATE ${ATLAS_GLM_TARGET} ${ATLAS_SDL_TARGET} bezel)
+target_link_libraries(hydra
+        PUBLIC Opal::Opal
+        PRIVATE ${ATLAS_GLM_TARGET} ${ATLAS_SDL_TARGET} bezel
+)
 target_include_directories(hydra PRIVATE ${ATLAS_DEP_INCLUDE_DIRS})
 add_dependencies(hydra generate_shaders)
 
@@ -502,6 +511,7 @@ target_link_libraries(graphite PRIVATE
         ${ATLAS_FREETYPE_TARGET}
         ${ATLAS_ASSIMP_TARGET}
 )
+target_link_libraries(graphite PUBLIC Opal::Opal)
 target_include_directories(graphite PRIVATE ${ATLAS_DEP_INCLUDE_DIRS})
 add_dependencies(graphite generate_shaders)
 
@@ -566,7 +576,10 @@ endif ()
 
 # ─── runtime_lib ─────────────────────────────────────────────────────────────
 add_library(runtime_lib SHARED ${RUNTIME_LIB_SOURCES})
-target_link_libraries(runtime_lib PRIVATE atlas quickjs fmt::fmt)
+target_link_libraries(runtime_lib
+        PUBLIC atlas
+        PRIVATE quickjs fmt::fmt
+)
 target_compile_definitions(runtime_lib PRIVATE
         RUNTIME_LIB
         JPH_PROFILE_ENABLED=1

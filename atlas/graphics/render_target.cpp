@@ -46,8 +46,8 @@ RenderTarget::RenderTarget(Window &window, RenderTargetType type,
 
     int scaledWidth = std::max(1, static_cast<int>(fbWidth * targetScale));
     int scaledHeight = std::max(1, static_cast<int>(fbHeight * targetScale));
-    const auto width = static_cast<GLsizei>(scaledWidth);
-    const auto height = static_cast<GLsizei>(scaledHeight);
+    const auto width = scaledWidth;
+    const auto height = scaledHeight;
     this->type = type;
 
     if (type == RenderTargetType::Scene || type == RenderTargetType::SSR) {
