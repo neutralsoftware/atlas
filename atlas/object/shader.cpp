@@ -55,18 +55,8 @@ VertexShader VertexShader::fromDefaultShader(AtlasVertexShader shader) {
         VertexShader::vertexShaderCache[shader] = vertexShader;
         break;
     }
-    case AtlasVertexShader::Main: {
-        vertexShader = VertexShader::fromSource(MAIN_VERT);
-        vertexShader.desiredAttributes = {0, 1, 2, 3, 4, 5};
-        vertexShader.capabilities = {
-            ShaderCapability::Lighting,  ShaderCapability::Textures,
-            ShaderCapability::Shadows,   ShaderCapability::EnvironmentMapping,
-            ShaderCapability::IBL,       ShaderCapability::Material,
-            ShaderCapability::Instances, ShaderCapability::Environment};
-        vertexShader.fromDefaultShaderType = shader;
-        VertexShader::vertexShaderCache[shader] = vertexShader;
-        break;
-    }
+    case AtlasVertexShader::Main:
+        return VertexShader::fromDefaultShader(AtlasVertexShader::Deferred);
     case AtlasVertexShader::Texture: {
         vertexShader = VertexShader::fromSource(TEXTURE_VERT);
         vertexShader.desiredAttributes = {0, 1, 2};
@@ -115,20 +105,10 @@ VertexShader VertexShader::fromDefaultShader(AtlasVertexShader shader) {
         VertexShader::vertexShaderCache[shader] = vertexShader;
         break;
     }
-    case AtlasVertexShader::PointLightShadow: {
-        vertexShader = VertexShader::fromSource(POINT_DEPTH_VERT);
-        vertexShader.desiredAttributes = {0};
-        vertexShader.capabilities = {ShaderCapability::Instances};
-        vertexShader.fromDefaultShaderType = shader;
-        VertexShader::vertexShaderCache[shader] = vertexShader;
-        break;
-    }
+    case AtlasVertexShader::PointLightShadow:
+        return VertexShader::fromDefaultShader(AtlasVertexShader::PointLightShadowNoGeom);
     case AtlasVertexShader::PointLightShadowNoGeom: {
-#ifdef VULKAN
         vertexShader = VertexShader::fromSource(POINT_DEPTH_NOGEOM_VERT);
-#else
-        vertexShader = VertexShader::fromSource(POINT_DEPTH_VERT);
-#endif
         vertexShader.desiredAttributes = {0};
         vertexShader.capabilities = {ShaderCapability::Instances};
         vertexShader.fromDefaultShaderType = shader;
@@ -156,14 +136,8 @@ VertexShader VertexShader::fromDefaultShader(AtlasVertexShader shader) {
         VertexShader::vertexShaderCache[shader] = vertexShader;
         break;
     }
-    case AtlasVertexShader::Terrain: {
-        vertexShader = VertexShader::fromSource(TERRAIN_VERT);
-        vertexShader.desiredAttributes = {};
-        vertexShader.capabilities = {};
-        vertexShader.fromDefaultShaderType = shader;
-        VertexShader::vertexShaderCache[shader] = vertexShader;
-        break;
-    }
+    case AtlasVertexShader::Terrain:
+        throw std::runtime_error("Legacy tessellated terrain shaders were removed");
     case AtlasVertexShader::Volumetric: {
         vertexShader = VertexShader::fromSource(VOLUMETRIC_VERT);
         vertexShader.desiredAttributes = {0, 2};
@@ -234,48 +208,43 @@ ComputeShader ComputeShader::fromDefaultShader(AtlasComputeShader shader) {
     ComputeShader computeShader;
     switch (shader) {
     case AtlasComputeShader::DDGI: {
-#ifdef METAL
+#if ATLAS_HAS_PHOTON
         computeShader = ComputeShader::fromSource(DDGI);
         computeShader.fromDefaultShaderType = shader;
         ComputeShader::computeShaderCache[shader] = computeShader;
         break;
 #else
         throw std::runtime_error(
-            "AtlasComputeShader::DDGI is only supported on Metal");
+            "AtlasComputeShader::DDGI requires native Photon shaders for the selected backend");
 #endif
     }
     case AtlasComputeShader::DDGI_WRITE: {
-#ifdef METAL
+#if ATLAS_HAS_PHOTON
         computeShader = ComputeShader::fromSource(DDGI_WRITE);
         computeShader.fromDefaultShaderType = shader;
         ComputeShader::computeShaderCache[shader] = computeShader;
         break;
 #else
         throw std::runtime_error(
-            "AtlasComputeShader::DDGI_WRITE is only supported on Metal");
+            "AtlasComputeShader::DDGI_WRITE requires native Photon shaders for the selected backend");
 #endif
     }
     case AtlasComputeShader::PathTracer: {
-#ifdef METAL
+#if ATLAS_HAS_PHOTON
         computeShader = ComputeShader::fromSource(PATH);
         computeShader.fromDefaultShaderType = shader;
         ComputeShader::computeShaderCache[shader] = computeShader;
         break;
 #else
         throw std::runtime_error(
-            "AtlasComputeShader::PathTracer is only supported on Metal");
+            "AtlasComputeShader::PathTracer requires native Photon shaders for the selected backend");
 #endif
     }
     case AtlasComputeShader::PathDenoiser: {
-#ifdef METAL
         computeShader = ComputeShader::fromSource(PATH_DENOISE);
         computeShader.fromDefaultShaderType = shader;
         ComputeShader::computeShaderCache[shader] = computeShader;
         break;
-#else
-        throw std::runtime_error(
-            "AtlasComputeShader::PathDenoiser is only supported on Metal");
-#endif
     }
     default:
         throw std::runtime_error("Unknown default compute shader");
@@ -339,12 +308,8 @@ FragmentShader FragmentShader::fromDefaultShader(AtlasFragmentShader shader) {
         fragmentShaderCache[shader] = fragmentShader;
         break;
     }
-    case AtlasFragmentShader::Main: {
-        fragmentShader = FragmentShader::fromSource(MAIN_FRAG);
-        fragmentShader.fromDefaultShaderType = shader;
-        fragmentShaderCache[shader] = fragmentShader;
-        break;
-    }
+    case AtlasFragmentShader::Main:
+        return FragmentShader::fromDefaultShader(AtlasFragmentShader::Deferred);
     case AtlasFragmentShader::GaussianBlur: {
         fragmentShader = FragmentShader::fromSource(GAUSSIAN_FRAG);
         fragmentShader.fromDefaultShaderType = shader;
@@ -387,17 +352,13 @@ FragmentShader FragmentShader::fromDefaultShader(AtlasFragmentShader shader) {
         fragmentShaderCache[shader] = fragmentShader;
         break;
     }
-    case AtlasFragmentShader::PointLightShadow: {
-        fragmentShader = FragmentShader::fromSource(POINT_DEPTH_FRAG);
-        fragmentShader.fromDefaultShaderType = shader;
-        fragmentShaderCache[shader] = fragmentShader;
-        break;
-    }
+    case AtlasFragmentShader::PointLightShadow:
+        return FragmentShader::fromDefaultShader(AtlasFragmentShader::PointLightShadowNoGeom);
     case AtlasFragmentShader::PointLightShadowNoGeom: {
 #ifdef OPENGL
         fragmentShader = FragmentShader::fromSource(EMPTY_FRAG);
 #elif defined(VULKAN) || defined(METAL)
-        fragmentShader = FragmentShader::fromSource(POINT_DEPTH_FRAG);
+        fragmentShader = FragmentShader::fromSource(POINT_DEPTH_NOGEOM_FRAG);
 #endif
         fragmentShader.fromDefaultShaderType = shader;
         fragmentShaderCache[shader] = fragmentShader;
@@ -427,12 +388,8 @@ FragmentShader FragmentShader::fromDefaultShader(AtlasFragmentShader shader) {
         fragmentShaderCache[shader] = fragmentShader;
         break;
     }
-    case AtlasFragmentShader::Terrain: {
-        fragmentShader = FragmentShader::fromSource(TERRAIN_FRAG);
-        fragmentShader.fromDefaultShaderType = shader;
-        fragmentShaderCache[shader] = fragmentShader;
-        break;
-    }
+    case AtlasFragmentShader::Terrain:
+        throw std::runtime_error("Legacy tessellated terrain shaders were removed");
     case AtlasFragmentShader::Volumetric: {
         fragmentShader = FragmentShader::fromSource(VOLUMETRIC_FRAG);
         fragmentShader.fromDefaultShaderType = shader;
@@ -509,7 +466,7 @@ void FragmentShader::compile() {
 GeometryShader GeometryShader::fromDefaultShader(AtlasGeometryShader shader) {
     switch (shader) {
     case AtlasGeometryShader::PointLightShadow:
-        return GeometryShader::fromSource(POINT_DEPTH_GEOM);
+        throw std::runtime_error("Point-light shadows use six vertex passes");
     default:
         throw std::runtime_error("Unknown default geometry shader");
     }
@@ -556,11 +513,9 @@ TessellationShader
 TessellationShader::fromDefaultShader(AtlasTessellationShader shader) {
     switch (shader) {
     case AtlasTessellationShader::TerrainControl:
-        return TessellationShader::fromSource(TERRAIN_CONTROL_TESC,
-                                              TessellationShaderType::Control);
+        throw std::runtime_error("Legacy tessellated terrain shaders were removed");
     case AtlasTessellationShader::TerrainEvaluation:
-        return TessellationShader::fromSource(
-            TERRAIN_EVAL_TESE, TessellationShaderType::Evaluation);
+        throw std::runtime_error("Legacy tessellated terrain shaders were removed");
     default:
         throw std::runtime_error("Unknown default tessellation shader");
     }

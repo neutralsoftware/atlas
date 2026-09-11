@@ -852,76 +852,7 @@ void RenderTarget::render(float dt,
             "environment.fogColor", scene->environment.fog.color.r,
             scene->environment.fog.color.g, scene->environment.fog.color.b);
 
-        if (scene->atmosphere.clouds) {
-            const Clouds &cloudSettings = *scene->atmosphere.clouds;
 
-            const glm::vec3 cloudSize = cloudSettings.size.toGlm();
-            const glm::vec3 cloudPos = cloudSettings.position.toGlm();
-
-            glm::vec3 sunDir = scene->atmosphere.getSunAngle().toGlm();
-            float sunLength = glm::length(sunDir);
-            if (sunLength > 1e-3f) {
-                sunDir /= sunLength;
-            } else {
-                sunDir = glm::vec3(0.0f, 1.0f, 0.0f);
-            }
-
-            const Color &sunColor = scene->atmosphere.sunColor;
-            const float sunIntensity = scene->atmosphere.getLightIntensity();
-            const Color ambientColor = scene->getAmbientColor();
-            const float ambientIntensity = scene->getAmbientIntensity();
-            glm::vec3 ambient = glm::vec3(static_cast<float>(ambientColor.r),
-                                          static_cast<float>(ambientColor.g),
-                                          static_cast<float>(ambientColor.b)) *
-                                ambientIntensity;
-
-            renderTargetPipeline->bindTexture3D(
-                "cloudsTexture", cloudSettings.getCloudTexture(128), 15,
-                obj->id);
-            renderTargetPipeline->setUniform3f("cloudSize", cloudSize.x,
-                                               cloudSize.y, cloudSize.z);
-            renderTargetPipeline->setUniform3f("cloudPosition", cloudPos.x,
-                                               cloudPos.y, cloudPos.z);
-            renderTargetPipeline->setUniform1f("cloudScale",
-                                               cloudSettings.scale);
-            renderTargetPipeline->setUniform3f(
-                "cloudOffset", cloudSettings.offset.x, cloudSettings.offset.y,
-                cloudSettings.offset.z);
-            renderTargetPipeline->setUniform1f("cloudDensityThreshold",
-                                               cloudSettings.density);
-            renderTargetPipeline->setUniform1f("cloudDensityMultiplier",
-                                               cloudSettings.densityMultiplier);
-            renderTargetPipeline->setUniform1f("cloudAbsorption",
-                                               cloudSettings.absorption);
-            renderTargetPipeline->setUniform1f("cloudScattering",
-                                               cloudSettings.scattering);
-            renderTargetPipeline->setUniform1f("cloudPhaseG",
-                                               cloudSettings.phase);
-            renderTargetPipeline->setUniform1f("cloudClusterStrength",
-                                               cloudSettings.clusterStrength);
-            renderTargetPipeline->setUniform1i(
-                "cloudPrimarySteps",
-                std::max(1, cloudSettings.primaryStepCount));
-            renderTargetPipeline->setUniform1i(
-                "cloudLightSteps", std::max(1, cloudSettings.lightStepCount));
-            renderTargetPipeline->setUniform1f(
-                "cloudLightStepMultiplier", cloudSettings.lightStepMultiplier);
-            renderTargetPipeline->setUniform1f("cloudMinStepLength",
-                                               cloudSettings.minStepLength);
-            renderTargetPipeline->setUniform3f("sunDirection", sunDir.x,
-                                               sunDir.y, sunDir.z);
-            renderTargetPipeline->setUniform3f(
-                "sunColor", static_cast<float>(sunColor.r),
-                static_cast<float>(sunColor.g), static_cast<float>(sunColor.b));
-            renderTargetPipeline->setUniform1f("sunIntensity", sunIntensity);
-            renderTargetPipeline->setUniform3f("cloudAmbientColor", ambient.x,
-                                               ambient.y, ambient.z);
-            renderTargetPipeline->setUniform1i("hasClouds", 1);
-        } else {
-            renderTargetPipeline->bindTexture3D("cloudsTexture", 0, 15,
-                                                obj->id);
-            renderTargetPipeline->setUniform1i("hasClouds", 0);
-        }
     }
 
     renderTargetPipeline->setUniform1i("TextureType",

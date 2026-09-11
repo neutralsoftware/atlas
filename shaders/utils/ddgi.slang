@@ -54,7 +54,7 @@ float2 ddgiAtlasUV(uint probeIndex, float3 dirWS,
     return (innerPx + 0.5f) / float2((float)atlasW, (float)atlasH);
 }
 
-float4 sampleDDGITextureBilinear(Sampler2D tex,
+float4 sampleDDGITextureBilinear(Texture2D<float4> tex,
                                                float2 uv) {
     uint w = textureSize(tex).x;
     uint h = textureSize(tex).y;
@@ -86,15 +86,15 @@ float4 sampleDDGITextureBilinear(Sampler2D tex,
 }
 
 float4
-sampleProbeDirectionalRadiance(Sampler2D ddgiTexture,
+sampleProbeDirectionalRadiance(Texture2D<float4> ddgiTexture,
                                ProbeSpace ps, uint probeIndex,
                                uint atlasW, uint atlasH, float3 dirWS) {
     float2 uv = ddgiAtlasUV(probeIndex, dirWS, ps, atlasW, atlasH);
     return sampleDDGITextureBilinear(ddgiTexture, uv);
 }
 
-float3 sampleDDGIIrradiance(Sampler2D ddgiTexture,
-                                          Sampler2D ddgiDistance,
+float3 sampleDDGIIrradiance(Texture2D<float4> ddgiTexture,
+                                          Texture2D<float4> ddgiDistance,
                                           ProbeSpace ps, float3 posWS,
                                           float3 normalWS) {
     uint3 counts = uint3((uint)ps.probeCount.x, (uint)ps.probeCount.y,

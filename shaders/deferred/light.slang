@@ -207,8 +207,8 @@ struct FragmentInput {
 [[vk::binding(2, 2)]] Sampler2D gAlbedoSpec;
 [[vk::binding(3, 2)]] Sampler2D gMaterial;
 [[vk::binding(4, 2)]] Sampler2D ssao;
-[[vk::binding(16, 6)]] Sampler2D irradianceMap;
-[[vk::binding(17, 6)]] Sampler2D ddgiDistanceMap;
+[[vk::binding(16, 6)]] Texture2D<float4> irradianceMap;
+[[vk::binding(17, 6)]] Texture2D<float4> ddgiDistanceMap;
 [shader("fragment")]
 FragmentOutput fragmentMain(FragmentInput input) {
     FragmentOutput output = {};
