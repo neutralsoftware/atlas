@@ -2,6 +2,8 @@ import os
 import sys
 import subprocess
 import tempfile
+import re
+from pathlib import Path
 
 if len(sys.argv) < 3:
     print("Usage: python pack_shaders.py <input_dir> <output_file> [opengl|vulkan|metal]")
@@ -130,6 +132,16 @@ def shader_priority(relative_path, backend):
     return 0
 
 
+def read_source(path, stack=()):
+    path = Path(path).resolve()
+    if path in stack:
+        raise ValueError(f"Cyclic shader include: {path}")
+    source = path.read_text()
+    return re.sub(r'^\s*#include "([^"\n]+)"\n',
+                  lambda match: read_source(path.parent / match[1], (*stack, path)),
+                  source, flags=re.MULTILINE)
+
+
 def write_chunks(out, var_name, contents):
     """Write shader source as chunk arrays to avoid oversized string literals"""
     out.write(f'static const char* const {var_name}_PARTS[] = {{\n')
@@ -177,6 +189,8 @@ with open(output_file, "w") as out:
     for root, _, files in os.walk(input_dir):
         for filename in files:
             path = os.path.join(root, filename)
+            if "/path_tracing/path/" in path.replace("\\", "/"):
+                continue
             if not os.path.isfile(path):
                 continue
             ext = os.path.splitext(filename)[1].lower()
@@ -204,8 +218,7 @@ with open(output_file, "w") as out:
 
     ordered_entries = sorted(chosen_files.items(), key=lambda item: item[0])
     for var_name, (_, rel, path, filename) in ordered_entries:
-        with open(path, "r") as f:
-            contents = f.read()
+        contents = read_source(path)
 
         if should_compile_file(path, backend):
             if contents.strip() == "":
