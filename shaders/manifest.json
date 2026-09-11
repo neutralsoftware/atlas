@@ -191,6 +191,12 @@
       "stage": "fragment",
       "entry": "fragmentMain",
       "symbol": "VOLUMETRIC_FRAG"
+    },
+    {
+      "source": "photon/path_denoise.slang",
+      "stage": "compute",
+      "entry": "computeMain",
+      "symbol": "PATH_DENOISE"
     }
   ]
 }
