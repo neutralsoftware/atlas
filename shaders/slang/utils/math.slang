@@ -30,3 +30,22 @@ public float3x3 inverse3x3(float3x3 m) {
                     b21 * invDet, (-a21 * a00 + a01 * a20) * invDet,
                     (a11 * a00 - a01 * a10) * invDet);
 }
+
+float3 reconstructViewPos(float2 uv, float depth, float4x4 invProjection) {
+    float z = depth * 2.0 - 1.0;
+    float4 clipPos = float4(uv * 2.0 - 1.0, z, 1.0);
+    float4 viewPos = mul(invProjection, clipPos);
+    viewPos /= viewPos.w;
+    return viewPos.xyz;
+}
+
+float linearizeDepth(float depth, float nearPlane, float farPlane) {
+    float z = depth * 2.0 - 1.0;
+    float linear = (2.0 * nearPlane * farPlane) /
+                   (farPlane + nearPlane - z * (farPlane - nearPlane));
+    return linear / farPlane;
+}
+
+float hashNoise(float3 p) {
+    return fract(sin(dot(p, float3(12.9898, 78.233, 37.719))) * 43758.5453);
+}

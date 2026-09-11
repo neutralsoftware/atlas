@@ -18,3 +18,23 @@ VertexOut vertexMain(VertexIn input) {
     output.texCoord = input.texCoord;
     return output;
 }
+
+Texture2D<float4> inputTexture : register(t0);
+Texture2D<float4> brightTexture : reigster(t1);
+Texture2D<float4> depthTexture : register(t2);
+Texture2D<float4> volumetricLightTexture : register(t3);
+Texture2D<float4> LUTTexture : register(t4);
+Texture2D<float4> SSRTexture : register(t5);
+
+SamplerState samplerState : register(s0);
+
+struct Flags {
+    int hasBrightTexture;
+    int hasDepthTexture;
+    int hasVolumetricLightTexture;
+    int hasLUTTexture;
+    int hasSSRTexture;
+}
+
+ConstantBuffer<Flags> flags : register(b0);
+
