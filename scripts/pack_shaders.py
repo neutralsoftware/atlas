@@ -137,7 +137,7 @@ def read_source(path, stack=()):
     if path in stack:
         raise ValueError(f"Cyclic shader include: {path}")
     source = path.read_text()
-    return re.sub(r'^\s*#include "([^"\n]+)"\n',
+    return re.sub(r'^[ \t]*#include "([^"\n]+)"\n',
                   lambda match: read_source(path.parent / match[1], (*stack, path)),
                   source, flags=re.MULTILINE)
 
