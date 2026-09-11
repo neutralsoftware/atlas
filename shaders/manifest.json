@@ -1,0 +1,196 @@
+{
+  "shaders": [
+    {
+      "source": "ui/text.slang",
+      "stage": "vertex",
+      "entry": "vertexMain",
+      "symbol": "TEXT_VERT"
+    },
+    {
+      "source": "ui/text.slang",
+      "stage": "fragment",
+      "entry": "fragmentMain",
+      "symbol": "TEXT_FRAG"
+    },
+    {
+      "source": "simple/color.slang",
+      "stage": "vertex",
+      "entry": "vertexMain",
+      "symbol": "COLOR_VERT"
+    },
+    {
+      "source": "simple/color.slang",
+      "stage": "fragment",
+      "entry": "fragmentMain",
+      "symbol": "COLOR_FRAG"
+    },
+    {
+      "source": "simple/debug.slang",
+      "stage": "vertex",
+      "entry": "vertexMain",
+      "symbol": "DEBUG_VERT"
+    },
+    {
+      "source": "simple/debug.slang",
+      "stage": "fragment",
+      "entry": "fragmentMain",
+      "symbol": "DEBUG_FRAG"
+    },
+    {
+      "source": "simple/texture.slang",
+      "stage": "vertex",
+      "entry": "vertexMain",
+      "symbol": "TEXTURE_VERT"
+    },
+    {
+      "source": "simple/texture.slang",
+      "stage": "fragment",
+      "entry": "fragmentMain",
+      "symbol": "TEXTURE_FRAG"
+    },
+    {
+      "source": "effects/downsample.slang",
+      "stage": "fragment",
+      "entry": "fragmentMain",
+      "symbol": "DOWNSAMPLE_FRAG"
+    },
+    {
+      "source": "effects/gaussian.slang",
+      "stage": "fragment",
+      "entry": "fragmentMain",
+      "symbol": "GAUSSIAN_FRAG"
+    },
+    {
+      "source": "effects/particle.slang",
+      "stage": "vertex",
+      "entry": "vertexMain",
+      "symbol": "PARTICLE_VERT"
+    },
+    {
+      "source": "effects/particle.slang",
+      "stage": "fragment",
+      "entry": "fragmentMain",
+      "symbol": "PARTICLE_FRAG"
+    },
+    {
+      "source": "effects/skybox.slang",
+      "stage": "vertex",
+      "entry": "vertexMain",
+      "symbol": "SKYBOX_VERT"
+    },
+    {
+      "source": "effects/skybox.slang",
+      "stage": "fragment",
+      "entry": "fragmentMain",
+      "symbol": "SKYBOX_FRAG"
+    },
+    {
+      "source": "effects/ssr.slang",
+      "stage": "fragment",
+      "entry": "fragmentMain",
+      "symbol": "SSR_FRAG"
+    },
+    {
+      "source": "effects/upsample.slang",
+      "stage": "fragment",
+      "entry": "fragmentMain",
+      "symbol": "UPSAMPLE_FRAG"
+    },
+    {
+      "source": "shadows/depth.slang",
+      "stage": "vertex",
+      "entry": "vertexMain",
+      "symbol": "DEPTH_VERT"
+    },
+    {
+      "source": "shadows/empty.slang",
+      "stage": "fragment",
+      "entry": "fragmentMain",
+      "symbol": "EMPTY_FRAG"
+    },
+    {
+      "source": "shadows/point_depth_nogeom.slang",
+      "stage": "vertex",
+      "entry": "vertexMain",
+      "symbol": "POINT_DEPTH_NOGEOM_VERT"
+    },
+    {
+      "source": "shadows/point_depth_nogeom.slang",
+      "stage": "fragment",
+      "entry": "fragmentMain",
+      "symbol": "POINT_DEPTH_NOGEOM_FRAG"
+    },
+    {
+      "source": "shadows/ssao.slang",
+      "stage": "fragment",
+      "entry": "fragmentMain",
+      "symbol": "SSAO_FRAG"
+    },
+    {
+      "source": "shadows/ssao_blur.slang",
+      "stage": "fragment",
+      "entry": "fragmentMain",
+      "symbol": "SSAO_BLUR_FRAG"
+    },
+    {
+      "source": "deferred/deferred.slang",
+      "stage": "vertex",
+      "entry": "vertexMain",
+      "symbol": "DEFERRED_VERT"
+    },
+    {
+      "source": "deferred/deferred.slang",
+      "stage": "fragment",
+      "entry": "fragmentMain",
+      "symbol": "DEFERRED_FRAG"
+    },
+    {
+      "source": "deferred/light.slang",
+      "stage": "vertex",
+      "entry": "screenVertexMain",
+      "symbol": "LIGHT_VERT"
+    },
+    {
+      "source": "deferred/light.slang",
+      "stage": "fragment",
+      "entry": "fragmentMain",
+      "symbol": "LIGHT_FRAG"
+    },
+    {
+      "source": "fullscreen.slang",
+      "stage": "vertex",
+      "entry": "vertexMain",
+      "symbol": "FULLSCREEN_VERT"
+    },
+    {
+      "source": "fullscreen.slang",
+      "stage": "fragment",
+      "entry": "fragmentMain",
+      "symbol": "FULLSCREEN_FRAG"
+    },
+    {
+      "source": "fluid/fluid.slang",
+      "stage": "vertex",
+      "entry": "vertexMain",
+      "symbol": "FLUID_VERT"
+    },
+    {
+      "source": "fluid/fluid.slang",
+      "stage": "fragment",
+      "entry": "fragmentMain",
+      "symbol": "FLUID_FRAG"
+    },
+    {
+      "source": "volumetric/volumetric.slang",
+      "stage": "vertex",
+      "entry": "screenVertexMain",
+      "symbol": "VOLUMETRIC_VERT"
+    },
+    {
+      "source": "volumetric/volumetric.slang",
+      "stage": "fragment",
+      "entry": "fragmentMain",
+      "symbol": "VOLUMETRIC_FRAG"
+    }
+  ]
+}
