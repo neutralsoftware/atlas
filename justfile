@@ -28,7 +28,6 @@ target target backend="AUTO" bezel_native="OFF":
 
 
 run test="" backend="AUTO" bezel_native="OFF":
-    just build
     test_dir="{{ test }}"; if [ -z "$test_dir" ]; then test_dir="$(tr -d '\n' < tests/default.txt)"; fi; cd "tests/$test_dir" && atlas script compile && cd "../.."; MTL_HUD_ENABLED=0 ./build/bin/atlasrun "tests/$test_dir/project.atlas"
 
 addTest name:
