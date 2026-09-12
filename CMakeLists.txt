@@ -57,8 +57,8 @@ set(CMAKE_LIBRARY_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/lib)
 set(CMAKE_ARCHIVE_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/lib)
 
 # ─── Rendering Backend ───────────────────────────────────────────────────────
-set(BACKEND "AUTO" CACHE STRING "Rendering backend: AUTO, VULKAN, METAL, OPENGL")
-set_property(CACHE BACKEND PROPERTY STRINGS AUTO VULKAN METAL OPENGL)
+set(BACKEND "AUTO" CACHE STRING "Rendering backend: AUTO, VULKAN, METAL")
+set_property(CACHE BACKEND PROPERTY STRINGS AUTO VULKAN METAL)
 string(TOUPPER "${BACKEND}" BACKEND)
 
 if (BACKEND STREQUAL "AUTO")
@@ -69,18 +69,15 @@ if (BACKEND STREQUAL "AUTO")
     endif ()
 endif ()
 
-set(BACKEND_OPENGL OFF)
 set(BACKEND_VULKAN OFF)
 set(BACKEND_METAL OFF)
 
-if (BACKEND STREQUAL "OPENGL")
-    set(BACKEND_OPENGL ON)
-elseif (BACKEND STREQUAL "VULKAN")
+if (BACKEND STREQUAL "VULKAN")
     set(BACKEND_VULKAN ON)
 elseif (BACKEND STREQUAL "METAL")
     set(BACKEND_METAL ON)
 else ()
-    message(FATAL_ERROR "Invalid BACKEND='${BACKEND}'. Valid values are: AUTO, VULKAN, METAL, OPENGL")
+    message(FATAL_ERROR "Invalid BACKEND='${BACKEND}'. Valid values are: AUTO, VULKAN, METAL")
 endif ()
 
 message(STATUS "Selected backend: ${BACKEND}")
@@ -216,10 +213,7 @@ if (NOT BEZEL_NATIVE)
 endif ()
 
 # ─── Backend Definitions ─────────────────────────────────────────────────────
-if (BACKEND_OPENGL)
-    add_compile_definitions(OPENGL)
-    message(STATUS "Building using OpenGL backend")
-elseif (BACKEND_VULKAN)
+if (BACKEND_VULKAN)
     add_compile_definitions(VULKAN GLM_FORCE_DEPTH_ZERO_TO_ONE)
     message(STATUS "Building using Vulkan backend")
 elseif (BACKEND_METAL)
@@ -228,55 +222,7 @@ elseif (BACKEND_METAL)
 endif ()
 
 # ─── Shader Generation ───────────────────────────────────────────────────────
-if (BACKEND_OPENGL)
-    set(SHADER_INPUT_DIR "${CMAKE_SOURCE_DIR}/shaders/opengl")
-elseif (BACKEND_VULKAN)
-    set(SHADER_INPUT_DIR "${CMAKE_SOURCE_DIR}/shaders/vulkan")
-elseif (BACKEND_METAL)
-    set(SHADER_INPUT_DIR "${CMAKE_SOURCE_DIR}/shaders/metal")
-endif ()
-
-set(SHADER_OUTPUT_FILE "${CMAKE_SOURCE_DIR}/include/atlas/core/default_shaders.h")
-set(RUNTIME_SCRIPT_INPUT_DIR "${CMAKE_SOURCE_DIR}/runtime/scripts")
-set(RUNTIME_SCRIPT_OUTPUT_FILE "${CMAKE_SOURCE_DIR}/include/atlas/runtime/atlasScripts.h")
-
-find_package(Python3 COMPONENTS Interpreter REQUIRED)
-
-file(GLOB_RECURSE SHADER_SOURCES
-        ${SHADER_INPUT_DIR}/*.vert
-        ${SHADER_INPUT_DIR}/*.frag
-        ${SHADER_INPUT_DIR}/*.glsl
-        ${SHADER_INPUT_DIR}/*.geom
-        ${SHADER_INPUT_DIR}/*.tesc
-        ${SHADER_INPUT_DIR}/*.tese
-        ${SHADER_INPUT_DIR}/*.metal
-)
-
-file(GLOB_RECURSE RUNTIME_SCRIPT_SOURCES CONFIGURE_DEPENDS
-        ${RUNTIME_SCRIPT_INPUT_DIR}/*.js
-        ${RUNTIME_SCRIPT_INPUT_DIR}/*.mjs
-)
-
-if (BACKEND_OPENGL)
-    set(SHADER_BACKEND_ARG "opengl")
-elseif (BACKEND_VULKAN)
-    set(SHADER_BACKEND_ARG "vulkan")
-elseif (BACKEND_METAL)
-    set(SHADER_BACKEND_ARG "metal")
-endif ()
-
-message(STATUS "Packing shaders for ${BACKEND} backend")
-add_custom_command(
-        OUTPUT ${SHADER_OUTPUT_FILE}
-        COMMAND ${CMAKE_COMMAND} -E make_directory ${CMAKE_SOURCE_DIR}/include/atlas/core
-        COMMAND ${Python3_EXECUTABLE} ${CMAKE_SOURCE_DIR}/scripts/pack_shaders.py
-        ${SHADER_INPUT_DIR} ${SHADER_OUTPUT_FILE} ${SHADER_BACKEND_ARG}
-        DEPENDS ${SHADER_SOURCES}
-        COMMENT "Packing shaders into default_shaders.h"
-        VERBATIM
-)
-
-add_custom_target(generate_shaders DEPENDS ${SHADER_OUTPUT_FILE})
+include(cmake/AtlasShaders.cmake)
 
 add_custom_command(
         OUTPUT ${RUNTIME_SCRIPT_OUTPUT_FILE}
@@ -321,9 +267,7 @@ else ()
 endif ()
 
 # ─── Platform Packages ───────────────────────────────────────────────────────
-if (BACKEND_OPENGL)
-    find_package(OpenGL REQUIRED)
-elseif (BACKEND_VULKAN)
+if (BACKEND_VULKAN)
     find_package(Vulkan REQUIRED)
     message(STATUS "Found Vulkan SDK at ${Vulkan_LIBRARY}")
     message(STATUS "Found Vulkan include dirs at ${Vulkan_INCLUDE_DIRS}")
@@ -441,6 +385,7 @@ set(OPAL_BACKEND "${BACKEND}" CACHE STRING "Opal rendering backend" FORCE)
 add_subdirectory(opal)
 
 add_library(bezel STATIC ${BEZEL_SOURCES})
+add_dependencies(bezel generate_shaders)
 target_link_libraries(bezel
         PUBLIC Opal::Opal
         PRIVATE ${ATLAS_SDL_TARGET} ${ATLAS_GLM_TARGET}
@@ -482,9 +427,7 @@ target_link_libraries(aurora
 target_include_directories(aurora PRIVATE ${ATLAS_DEP_INCLUDE_DIRS})
 add_dependencies(aurora generate_shaders)
 
-if (BACKEND_OPENGL)
-    target_link_libraries(aurora PRIVATE OpenGL::GL)
-elseif (BACKEND_VULKAN)
+if (BACKEND_VULKAN)
     target_link_libraries(aurora PRIVATE Vulkan::Vulkan)
 endif ()
 
@@ -497,9 +440,7 @@ target_link_libraries(hydra
 target_include_directories(hydra PRIVATE ${ATLAS_DEP_INCLUDE_DIRS})
 add_dependencies(hydra generate_shaders)
 
-if (BACKEND_OPENGL)
-    target_link_libraries(hydra PRIVATE OpenGL::GL)
-elseif (BACKEND_VULKAN)
+if (BACKEND_VULKAN)
     target_link_libraries(hydra PRIVATE Vulkan::Vulkan)
 endif ()
 
@@ -540,9 +481,7 @@ endif ()
 
 target_include_directories(atlas PRIVATE ${ATLAS_DEP_INCLUDE_DIRS})
 
-if (BACKEND_OPENGL)
-    target_link_libraries(atlas PRIVATE OpenGL::GL)
-elseif (BACKEND_VULKAN)
+if (BACKEND_VULKAN)
     target_link_libraries(atlas PRIVATE Vulkan::Vulkan)
     if (APPLE)
         message(STATUS "Configuring MoltenVK for macOS")
@@ -555,15 +494,8 @@ target_compile_options(atlas PRIVATE -Wno-overlength-strings)
 
 if (WIN32)
     target_compile_definitions(atlas PRIVATE _CRT_SECURE_NO_WARNINGS NOMINMAX)
-    target_link_libraries(atlas PRIVATE opengl32)
 elseif (APPLE)
-    if (BACKEND_OPENGL)
-        target_link_libraries(atlas PRIVATE
-                "-framework OpenGL"
-                "-framework Cocoa"
-                "-framework IOKit"
-        )
-    elseif (BACKEND_VULKAN)
+    if (BACKEND_VULKAN)
         target_link_libraries(atlas PRIVATE
                 "-framework Cocoa"
                 "-framework IOKit"

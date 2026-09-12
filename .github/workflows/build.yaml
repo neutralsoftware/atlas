@@ -20,6 +20,18 @@ jobs:
       - name: Install Dependencies
         run: |
           brew install cmake ninja qt@6 sdl3 glm openal-soft assimp vulkan-loader molten-vk vulkan-validationlayers spirv-cross spirv-headers spirv-tools
+      - name: Install Slang
+        run: |
+          case "$(uname -m)" in
+            arm64) slang_arch=aarch64 ;;
+            x86_64) slang_arch=x86_64 ;;
+            *) exit 1 ;;
+          esac
+          slang_dir="$RUNNER_TEMP/slang"
+          mkdir -p "$slang_dir"
+          curl --fail --location "https://github.com/shader-slang/slang/releases/download/v2024.13/slang-2024.13-macos-${slang_arch}.tar.gz" -o "$RUNNER_TEMP/slang.tar.gz"
+          tar -xzf "$RUNNER_TEMP/slang.tar.gz" -C "$slang_dir"
+          echo "$slang_dir/bin" >> "$GITHUB_PATH"
       - name: Configure Qt
         run: |
           echo "$(brew --prefix qt@6)/bin" >> "$GITHUB_PATH"

@@ -1,231 +1,153 @@
-import os
-import sys
+import argparse
+import json
+from pathlib import Path
+import re
 import subprocess
 import tempfile
 
-if len(sys.argv) < 3:
-    print("Usage: python pack_shaders.py <input_dir> <output_file> [opengl|vulkan|metal]")
-    sys.exit(1)
 
-input_dir = sys.argv[1]
-output_file = sys.argv[2]
-mode_arg = sys.argv[3].lower() if len(sys.argv) >= 4 else None
-
-MAX_CHUNK = 8192
-GLSL_EXTENSIONS = {'.vert', '.frag', '.comp', '.geom', '.tesc', '.tese', '.glsl'}
-SHADER_EXTENSIONS = GLSL_EXTENSIONS | {'.metal'}
+def run(command):
+    result = subprocess.run(command, capture_output=True, text=True)
+    if result.returncode:
+        raise RuntimeError(f"Shader command failed: {' '.join(map(str, command))}\n"
+                           f"{result.stdout}{result.stderr}")
+    return result.stdout
 
 
-def parse_backend_mode(mode):
-    if mode is None:
-        return None
-    if mode in ('opengl', 'vulkan', 'metal'):
-        return mode
-    if mode in ('true', '1', 'yes'):
-        return 'vulkan'
-    if mode in ('false', '0', 'no'):
-        return 'opengl'
-    raise ValueError(f"Unknown backend mode '{mode}'. Expected opengl, vulkan, or metal.")
+def read_source(path, stack=()):
+    path = Path(path).resolve()
+    if path in stack:
+        raise ValueError(f"Cyclic shader include: {path}")
+    return re.sub(
+        r'^[ \t]*#include "([^"\n]+)"\n',
+        lambda match: read_source(path.parent / match[1], (*stack, path)),
+        path.read_text(), flags=re.MULTILINE)
 
 
-def compile_to_spirv(glsl_code, shader_path):
-    """Compile GLSL to SPIR-V using glslangValidator or glslc"""
-    ext = os.path.splitext(shader_path)[1].lower()
-    stage_map = {
-        '.vert': 'vert',
-        '.frag': 'frag',
-        '.comp': 'comp',
-        '.geom': 'geom',
-        '.tesc': 'tesc',
-        '.tese': 'tese'
+def write_atomic(path, contents):
+    path.parent.mkdir(parents=True, exist_ok=True)
+    with tempfile.NamedTemporaryFile(mode="w", dir=path.parent,
+                                     delete=False) as temporary:
+        temporary.write(contents)
+        temporary_path = Path(temporary.name)
+    temporary_path.replace(path)
+
+
+def pack_source(symbol, source):
+    if ')ATLAS_SHADER"' in source:
+        raise ValueError(f"Raw-string delimiter collision in {symbol}")
+    chunks = [source[i:i + 8192] for i in range(0, len(source), 8192)] or [""]
+    parts = "\n".join(f'R"ATLAS_SHADER({chunk})ATLAS_SHADER",' for chunk in chunks)
+    return (f"inline const char *const {symbol}_PARTS[] = {{\n{parts}\n}};\n"
+            f"inline const AtlasPackedShaderSource {symbol} = "
+            f"{{{symbol}_PARTS, {len(chunks)}}};\n")
+
+
+def generate(input_dir, output_file, backend, slangc, spirv_cross,
+             photon_backend, photon_manifest=None):
+    input_dir = Path(input_dir).resolve()
+    output_file = Path(output_file).resolve()
+    artifact_dir = output_file.parent / "shader_artifacts"
+    artifact_dir.mkdir(parents=True, exist_ok=True)
+    manifest = json.loads((input_dir / "manifest.json").read_text())
+    entries = list(manifest["shaders"])
+    native = []
+    if photon_backend != "off":
+        if photon_backend != backend:
+            raise ValueError("Photon's native backend must match Atlas's backend")
+        native_manifest = (Path(photon_manifest) if photon_manifest else
+                           input_dir / "photon" / photon_backend / "manifest.json")
+        if not native_manifest.is_file():
+            raise ValueError(f"Photon {photon_backend} shaders are not implemented: "
+                             f"missing {native_manifest}")
+        extension = json.loads(native_manifest.read_text())
+        entries.extend(extension.get("shaders", []))
+        native = extension.get("native", [])
+        symbols = {entry["symbol"] for entry in entries + native}
+        if not {"PATH", "DDGI", "DDGI_WRITE"}.issubset(symbols):
+            raise ValueError("Photon requires PATH, DDGI, and DDGI_WRITE shaders")
+
+    packed = {}
+    artifacts = []
+    for entry in sorted(entries, key=lambda item: item["symbol"]):
+        symbol = entry["symbol"]
+        if not re.fullmatch(r"[A-Z][A-Z0-9_]*", symbol) or symbol in packed:
+            raise ValueError(f"Invalid or duplicate shader symbol: {symbol}")
+        source = input_dir / entry["source"]
+        stage = entry["stage"]
+        if stage not in ("vertex", "fragment", "compute"):
+            raise ValueError(f"Unsupported shader stage: {stage}")
+        spirv = artifact_dir / f"{symbol}.spv"
+        run([slangc, str(source), "-I", str(input_dir), "-D",
+             f"ATLAS_{stage.upper()}=1", "-entry", entry["entry"],
+             "-target", "spirv", "-profile", "spirv_1_3", "-preserve-params",
+             "-o", str(spirv)])
+        reflection = run([spirv_cross, str(spirv), "--reflect"])
+        write_atomic(artifact_dir / f"{symbol}.json", reflection)
+        if backend == "metal":
+            metal = artifact_dir / f"{symbol}.metal"
+            run([spirv_cross, str(spirv), "--msl", "--msl-version", "230000",
+                 "--output", str(metal)])
+            packed[symbol] = metal.read_text()
+        else:
+            packed[symbol] = spirv.read_bytes().hex()
+        artifacts.append({**entry, "spirv": str(spirv)})
+
+    for entry in native:
+        symbol = entry["symbol"]
+        if not re.fullmatch(r"[A-Z][A-Z0-9_]*", symbol) or symbol in packed:
+            raise ValueError(f"Invalid or duplicate native shader symbol: {symbol}")
+        source = input_dir / entry["source"]
+        if backend == "metal" and source.suffix == ".metal":
+            packed[symbol] = read_source(source)
+            write_atomic(artifact_dir / f"{symbol}.metal", packed[symbol])
+        elif backend == "vulkan" and source.suffix == ".spv":
+            data = source.read_bytes()
+            if len(data) % 4 or data[:4] != b"\x03\x02\x23\x07":
+                raise ValueError(f"Invalid native SPIR-V: {source}")
+            packed[symbol] = data.hex()
+        else:
+            raise ValueError(f"Invalid native {backend} shader: {source}")
+
+    header = """#pragma once
+#include <cstddef>
+
+namespace opal {
+const char *packedShaderSource(const char *const *parts, std::size_t count);
+}
+
+struct AtlasPackedShaderSource {
+    const char *const *parts;
+    std::size_t count;
+    operator const char *() const {
+        return opal::packedShaderSource(parts, count);
     }
+};
 
-    stage = stage_map.get(ext, 'vert')
-
-    with tempfile.NamedTemporaryFile(mode='w', suffix=f'.{stage}', delete=False) as tmp_in:
-        tmp_in.write(glsl_code)
-        tmp_in_path = tmp_in.name
-
-    tmp_out_path = tmp_in_path + '.spv'
-
-    try:
-        try:
-            subprocess.run(
-                ['glslangValidator', '-V', '-o', tmp_out_path, tmp_in_path],
-                check=True,
-                capture_output=True
-            )
-        except (subprocess.CalledProcessError, FileNotFoundError):
-            subprocess.run(
-                ['glslc', f'-fshader-stage={stage}', '-o', tmp_out_path, tmp_in_path],
-                check=True,
-                capture_output=True
-            )
-
-        with open(tmp_out_path, 'rb') as f:
-            return f.read()
-
-    except subprocess.CalledProcessError as e:
-        print(f"Error compiling {shader_path}: {e}")
-        print(f"stderr: {e.stderr.decode() if e.stderr else 'N/A'}")
-        return None
-
-    finally:
-        if os.path.exists(tmp_in_path):
-            os.remove(tmp_in_path)
-        if os.path.exists(tmp_out_path):
-            os.remove(tmp_out_path)
+"""
+    header += f"#define ATLAS_HAS_PHOTON {int(photon_backend != 'off')}\n"
+    header += f"#define ATLAS_PHOTON_NATIVE_METAL {int(photon_backend == 'metal')}\n\n"
+    for symbol, source in sorted(packed.items()):
+        header += pack_source(symbol, source) + "\n"
+    write_atomic(output_file, header)
+    write_atomic(artifact_dir / "manifest.json", json.dumps(artifacts, indent=2) + "\n")
+    print(f"Generated {len(entries)} Slang stages and {len(native)} native "
+          f"Photon shaders for {backend}: {output_file}")
 
 
-def detect_backend(path):
-    explicit_backend = parse_backend_mode(mode_arg)
-    if explicit_backend is not None:
-        return explicit_backend
-
-    normalized = os.path.normpath(path).lower()
-    base = os.path.basename(normalized)
-    if base in ('opengl', 'vulkan', 'metal'):
-        return base
-    parts = normalized.split(os.sep)
-    for backend in ('metal', 'vulkan', 'opengl'):
-        if backend in parts:
-            return backend
-    return 'opengl'
+def main():
+    parser = argparse.ArgumentParser()
+    parser.add_argument("input_dir")
+    parser.add_argument("output_file")
+    parser.add_argument("backend", choices=("vulkan", "metal"))
+    parser.add_argument("--slangc", default="slangc")
+    parser.add_argument("--spirv-cross", default="spirv-cross")
+    parser.add_argument("--photon-backend", choices=("off", "metal", "vulkan"),
+                        default="off")
+    parser.add_argument("--photon-manifest")
+    arguments = parser.parse_args()
+    generate(**vars(arguments))
 
 
-try:
-    backend_mode = detect_backend(input_dir)
-except ValueError as e:
-    print(f"Error: {e}")
-    sys.exit(1)
-
-
-def canonical_shader_name(filename):
-    if filename.endswith('.metal'):
-        filename = filename[:-6]
-    return filename
-
-
-def variable_name_from_filename(filename):
-    canonical = canonical_shader_name(filename)
-    return canonical.replace('.', '_').replace('-', '_').upper()
-
-
-def should_compile_file(path, backend):
-    if backend != 'vulkan':
-        return False
-    ext = os.path.splitext(path)[1].lower()
-    if ext == '.metal':
-        return False
-    return ext in GLSL_EXTENSIONS
-
-
-def shader_priority(relative_path, backend):
-    rel = relative_path.replace('\\', '/')
-    if backend == 'metal':
-        if rel.startswith('vulkan/'):
-            return 2
-        if rel.startswith('opengl/'):
-            return 1
-    return 0
-
-
-def write_chunks(out, var_name, contents):
-    """Write shader source as chunk arrays to avoid oversized string literals"""
-    out.write(f'static const char* const {var_name}_PARTS[] = {{\n')
-
-    part_count = 0
-    if contents == "":
-        out.write('R"()",\n')
-        part_count = 1
-    else:
-        for i in range(0, len(contents), MAX_CHUNK):
-            chunk = contents[i:i + MAX_CHUNK]
-            out.write(f'R"({chunk})",\n')
-            part_count += 1
-
-    out.write('};\n')
-    out.write(
-        f'static const AtlasPackedShaderSource {var_name} = '
-        f'{{{var_name}_PARTS, {part_count}}};\n\n'
-    )
-
-
-with open(output_file, "w") as out:
-    backend = backend_mode
-
-    out.write("// This file contains packed shader source code.\n")
-    if backend == 'vulkan':
-        out.write("// Shaders compiled to SPIR-V for Vulkan\n")
-    elif backend == 'metal':
-        out.write("// Metal shaders packed as source\n")
-    out.write("#ifndef ATLAS_GENERATED_SHADERS_H\n")
-    out.write("#define ATLAS_GENERATED_SHADERS_H\n\n")
-    out.write("#include <cstddef>\n\n")
-    out.write("namespace opal {\n")
-    out.write("const char *packedShaderSource(const char *const *parts, std::size_t count);\n")
-    out.write("}\n\n")
-    out.write("struct AtlasPackedShaderSource {\n")
-    out.write("    const char *const *parts;\n")
-    out.write("    std::size_t count;\n\n")
-    out.write("    operator const char *() const {\n")
-    out.write("        return opal::packedShaderSource(parts, count);\n")
-    out.write("    }\n")
-    out.write("};\n\n")
-
-    shader_files = []
-    for root, _, files in os.walk(input_dir):
-        for filename in files:
-            path = os.path.join(root, filename)
-            if not os.path.isfile(path):
-                continue
-            ext = os.path.splitext(filename)[1].lower()
-            if ext not in SHADER_EXTENSIONS:
-                continue
-            rel = os.path.relpath(path, input_dir)
-            shader_files.append((rel, path, filename))
-
-    shader_files.sort(key=lambda x: x[0].replace('\\', '/'))
-
-    chosen_files = {}
-    for rel, path, filename in shader_files:
-        var_name = variable_name_from_filename(filename)
-        priority = shader_priority(rel, backend)
-        existing = chosen_files.get(var_name)
-        if existing is None:
-            chosen_files[var_name] = (priority, rel, path, filename)
-        else:
-            prev_priority, prev_rel, _, _ = existing
-            if priority > prev_priority:
-                chosen_files[var_name] = (priority, rel, path, filename)
-                print(f"Info: Replaced shader symbol {var_name}: {prev_rel} -> {rel}")
-            else:
-                print(f"Info: Skipping duplicate shader symbol {var_name}: {rel}")
-
-    ordered_entries = sorted(chosen_files.items(), key=lambda item: item[0])
-    for var_name, (_, rel, path, filename) in ordered_entries:
-        with open(path, "r") as f:
-            contents = f.read()
-
-        if should_compile_file(path, backend):
-            if contents.strip() == "":
-                out.write(f'// {rel} is empty\n')
-                write_chunks(out, var_name, "")
-            else:
-                spirv_bytes = compile_to_spirv(contents, path)
-                if spirv_bytes is not None:
-                    hex_string = ''.join(f'{b:02x}' for b in spirv_bytes)
-                    out.write(f'// Compiled from {rel} (SPIR-V as hex string)\n')
-                    write_chunks(out, var_name, hex_string)
-                else:
-                    print(f"Warning: Failed to compile {rel}, emitting empty shader")
-                    write_chunks(out, var_name, "")
-        else:
-            write_chunks(out, var_name, contents)
-
-    out.write("#endif // ATLAS_GENERATED_SHADERS_H\n")
-
-
-print(f"Shaders packed successfully to {output_file}")
-if backend_mode == 'vulkan':
-    print("SPIR-V compilation enabled")
+if __name__ == "__main__":
+    main()

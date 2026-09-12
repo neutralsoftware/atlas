@@ -23,8 +23,8 @@
 
 #include <glm/glm.hpp>
 
-#define DEFAULT_FRAG_SHADER Main
-#define DEFAULT_VERT_SHADER Main
+#define DEFAULT_FRAG_SHADER Deferred
+#define DEFAULT_VERT_SHADER Deferred
 
 /**
  * @brief  Enumeration of default vertex shaders provided by the Atlas engine.

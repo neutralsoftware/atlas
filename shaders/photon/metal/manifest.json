@@ -1,0 +1,16 @@
+{
+  "native": [
+    {
+      "source": "photon/metal/path.metal",
+      "symbol": "PATH"
+    },
+    {
+      "source": "photon/metal/ddgi.metal",
+      "symbol": "DDGI"
+    },
+    {
+      "source": "photon/metal/ddgi_write.metal",
+      "symbol": "DDGI_WRITE"
+    }
+  ]
+}

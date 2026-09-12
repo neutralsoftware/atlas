@@ -546,7 +546,7 @@ class CoreObject : public GameObject {
     void disableDeferredRendering() {
         useDeferredRendering = false;
         this->shaderProgram = ShaderProgram::fromDefaultShaders(
-            AtlasVertexShader::Main, AtlasFragmentShader::Main);
+            AtlasVertexShader::Deferred, AtlasFragmentShader::Deferred);
     }
 
     /**

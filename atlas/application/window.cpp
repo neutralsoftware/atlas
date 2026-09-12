@@ -1191,11 +1191,6 @@ Window::Window(const WindowConfiguration &config)
     program.compile();
     this->depthProgram = program;
 
-#ifdef __APPLE__
-    this->useMultiPassPointShadows = true;
-#else
-    this->useMultiPassPointShadows = false;
-#endif
 
 #ifdef METAL
     this->shadowUpdateInterval = 1.0f / 6.0f;
@@ -4799,52 +4794,22 @@ void Window::renderLightsToShadowMaps(
         pointLightPipeline->setUniform1f("far_plane", light->distance);
         light->lastShadowParams.farPlane = light->distance;
 
-        if (this->useMultiPassPointShadows) {
-            // Multi-pass rendering: render 6 times, once per cubemap face
-            for (int face = 0; face < 6; ++face) {
-                shadowRenderTarget->bindCubemapFace(face);
+        // Multi-pass rendering: render 6 times, once per cubemap face
+        for (int face = 0; face < 6; ++face) {
+            shadowRenderTarget->bindCubemapFace(face);
 
-                // Set up render pass for this cubemap face
-                auto shadowRenderPass = opal::RenderPass::create();
-                shadowRenderPass->setFramebuffer(
-                    shadowRenderTarget->getFramebuffer());
-                commandBuffer->beginPass(shadowRenderPass);
-
-                commandBuffer->clearDepth(1.0f);
-
-                // Set the shadow matrix for this face
-                pointLightPipeline->setUniformMat4f("shadowMatrix",
-                                                    shadowTransforms.at(face));
-                pointLightPipeline->setUniform1i("faceIndex", face);
-
-                for (auto *obj : shadowCasters) {
-                    if (!obj->canCastShadows()) {
-                        continue;
-                    }
-
-                    obj->setProjectionMatrix(glm::mat4(1.0));
-                    obj->setViewMatrix(glm::mat4(1.0));
-                    obj->setPipeline(pointLightPipeline);
-                    obj->render(getDeltaTime(), commandBuffer, false);
-                }
-
-                commandBuffer->endPass();
-            }
-        } else {
-            // Single-pass rendering with geometry shader
+            // Set up render pass for this cubemap face
             auto shadowRenderPass = opal::RenderPass::create();
             shadowRenderPass->setFramebuffer(
                 shadowRenderTarget->getFramebuffer());
             commandBuffer->beginPass(shadowRenderPass);
 
-            shadowRenderTarget->bind();
             commandBuffer->clearDepth(1.0f);
 
-            for (size_t i = 0; i < shadowTransforms.size(); ++i) {
-                pointLightPipeline->setUniformMat4f("shadowMatrices[" +
-                                                        std::to_string(i) + "]",
-                                                    shadowTransforms.at(i));
-            }
+            // Set the shadow matrix for this face
+            pointLightPipeline->setUniformMat4f("shadowMatrix",
+                                                shadowTransforms.at(face));
+            pointLightPipeline->setUniform1i("faceIndex", face);
 
             for (auto *obj : shadowCasters) {
                 if (!obj->canCastShadows()) {
