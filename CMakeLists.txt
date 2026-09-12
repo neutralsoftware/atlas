@@ -385,6 +385,7 @@ set(OPAL_BACKEND "${BACKEND}" CACHE STRING "Opal rendering backend" FORCE)
 add_subdirectory(opal)
 
 add_library(bezel STATIC ${BEZEL_SOURCES})
+add_dependencies(bezel generate_shaders)
 target_link_libraries(bezel
         PUBLIC Opal::Opal
         PRIVATE ${ATLAS_SDL_TARGET} ${ATLAS_GLM_TARGET}

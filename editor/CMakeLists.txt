@@ -173,7 +173,7 @@ if (APPLE)
 endif ()
 
 qt_add_executable(AtlasEditor ${EDITOR_FILES})
-add_dependencies(AtlasEditor generate_atlas_themes atlas_editor_cli)
+add_dependencies(AtlasEditor generate_shaders generate_atlas_themes atlas_editor_cli)
 
 if (APPLE)
     set_target_properties(AtlasEditor PROPERTIES
