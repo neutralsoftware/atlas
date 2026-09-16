@@ -11,6 +11,17 @@ constant float PHOTON_LAMBDA_MAX_NM = 830.0;
 constant float PHOTON_LAMBDA_RANGE_NM =
     PHOTON_LAMBDA_MAX_NM - PHOTON_LAMBDA_MIN_NM;
 constant float PHOTON_CIE_Y_INTEGRAL = 106.856895f;
+constant uint PHOTON_WAVELENGTH_CDF_BIN_COUNT = 32;
+constant float PHOTON_WAVELENGTH_CDF[33] = {
+    0.000000000f, 0.013349540f, 0.026769640f, 0.040377409f,
+    0.054438285f, 0.069490706f, 0.086506470f, 0.107052655f,
+    0.133634668f, 0.171206903f, 0.227843254f, 0.304508651f,
+    0.390584771f, 0.479164775f, 0.564236129f, 0.640360711f,
+    0.703557178f, 0.752611910f, 0.788882128f, 0.815347485f,
+    0.835360285f, 0.851703036f, 0.866231865f, 0.879978311f,
+    0.893429295f, 0.906782339f, 0.920106833f, 0.933423997f,
+    0.946739502f, 0.960054675f, 0.973369790f, 0.986684896f,
+    1.000000000f};
 
 struct SpectralPath {
     float4 wavelengthNm;
@@ -19,14 +30,42 @@ struct SpectralPath {
     float4 radiance;
 };
 
+float2 sampleVisibleWavelength(float u) {
+    uint low = 0;
+    uint high = PHOTON_WAVELENGTH_CDF_BIN_COUNT;
+    for (uint iteration = 0; iteration < 5; ++iteration) {
+        uint middle = (low + high) / 2;
+        if (u < PHOTON_WAVELENGTH_CDF[middle]) {
+            high = middle;
+        } else {
+            low = middle;
+        }
+    }
+    uint bin = min(low, PHOTON_WAVELENGTH_CDF_BIN_COUNT - 1);
+    float cdfMinimum = PHOTON_WAVELENGTH_CDF[bin];
+    float cdfMaximum = PHOTON_WAVELENGTH_CDF[bin + 1];
+    float binProbability = max(cdfMaximum - cdfMinimum, 1e-8f);
+    float binPosition = clamp((u - cdfMinimum) / binProbability, 0.0f, 1.0f);
+    float binWidth =
+        PHOTON_LAMBDA_RANGE_NM / float(PHOTON_WAVELENGTH_CDF_BIN_COUNT);
+    float wavelength =
+        PHOTON_LAMBDA_MIN_NM + (float(bin) + binPosition) * binWidth;
+    return float2(wavelength, binProbability / binWidth);
+}
+
 SpectralPath createSpectralPath(thread uint &rng) {
     SpectralPath path;
     float4 strata = float4(0.0, 1.0, 2.0, 3.0);
     float4 u = (strata + float4(rand(rng))) /
                float(PHOTON_SPECTRAL_LANE_COUNT);
+    float2 sample0 = sampleVisibleWavelength(u.x);
+    float2 sample1 = sampleVisibleWavelength(u.y);
+    float2 sample2 = sampleVisibleWavelength(u.z);
+    float2 sample3 = sampleVisibleWavelength(u.w);
     path.wavelengthNm =
-        PHOTON_LAMBDA_MIN_NM + u * PHOTON_LAMBDA_RANGE_NM;
-    path.wavelengthPdf = float4(1.0 / PHOTON_LAMBDA_RANGE_NM);
+        float4(sample0.x, sample1.x, sample2.x, sample3.x);
+    path.wavelengthPdf =
+        float4(sample0.y, sample1.y, sample2.y, sample3.y);
     path.throughput = float4(1.0);
     path.radiance = float4(0.0);
     return path;
