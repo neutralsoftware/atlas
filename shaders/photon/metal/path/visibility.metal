@@ -7,18 +7,20 @@ using namespace raytracing;
 
 #include "types.metal"
 #include "sampling.metal"
+#include "spectral.metal"
 #include "geometry.metal"
 #include "materials.metal"
 
-float3 traceShadowVisibility(
+float traceShadowVisibility(
     intersector<triangle_data> isect, primitive_acceleration_structure sceneAS,
     float3 P, float3 Ng, float3 L, float maxDistance, thread uint &rng,
     constant Material *materials, constant uint *primitiveObjects,
     constant uint *blasPrimitiveOffsets, constant VertexData *vertices,
     constant uint *indices, constant InstanceData *instanceData,
-    constant SceneData &sceneData, PT_MATERIAL_TEXTURE_PARAMS) {
+    constant SceneData &sceneData, thread const SpectralPath &path,
+    PT_MATERIAL_TEXTURE_PARAMS) {
     float shadowBias = rayOffsetDistance(P);
-    float3 visibility = float3(1.0);
+    float visibility = 1.0;
     float causticGain = 1.0;
     float3 entryNormal = float3(0.0);
     uint dielectricObject = 0xFFFFFFFFu;
@@ -31,7 +33,7 @@ float3 traceShadowVisibility(
     for (uint alphaStep = 0; alphaStep < 32; ++alphaStep) {
         auto shadowHit = isect.intersect(shadowRay, sceneAS);
         if (shadowHit.type == intersection_type::none) {
-            return clampLuminance(visibility * causticGain, 2.5);
+            return min(visibility * causticGain, 2.5);
         }
 
         uint primitiveIndex = blasPrimitiveOffsets[shadowHit.geometry_id] +
@@ -52,10 +54,20 @@ float3 traceShadowVisibility(
             resolveMaterialOpacity(material, uv, sceneData.materialTextureCount,
                                    PT_MATERIAL_TEXTURE_ARGS);
         if (opacity >= 0.999 || rand(rng) < opacity) {
-            float transmission = clamp(material.transmittance, 0.0, 1.0) *
-                                 (1.0 - clamp(material.metallic, 0.0, 1.0));
+            float3 albedoRgb;
+            float metallic;
+            float roughness;
+            float ao;
+            float3 emissiveRgb;
+            float baseIor;
+            float transmittance;
+            resolveMaterialParameters(
+                material, uv, sceneData.materialTextureCount,
+                PT_MATERIAL_TEXTURE_ARGS, albedoRgb, metallic, roughness, ao,
+                emissiveRgb, baseIor, transmittance);
+            float transmission = transmittance * (1.0 - metallic);
             if (transmission <= 0.001) {
-                return float3(0.0);
+                return 0.0;
             }
 
             float3 p0 = float3(vertices[i0].position);
@@ -63,19 +75,17 @@ float3 traceShadowVisibility(
             float3 p2 = float3(vertices[i2].position);
             float3 hitNormal = normalizeOr(cross(p1 - p0, p2 - p0), -L);
             hitNormal = dot(hitNormal, L) < 0.0 ? hitNormal : -hitNormal;
-            float ior = max(material.ior, 1.0);
+            float ior = evaluateIorAtWavelength(baseIor, path);
             float dielectricF0 = pow((ior - 1.0) / (ior + 1.0), 2.0);
             float fresnel =
                 dielectricF0 +
                 (1.0 - dielectricF0) * pow5(1.0 - abs(dot(hitNormal, L)));
-            float3 tint =
-                mix(float3(1.0),
-                    clamp(material.albedo.xyz, float3(0.0), float3(1.0)), 0.15);
+            float tint = mix(1.0, evaluateReflectance(albedoRgb, path), 0.15);
             visibility *= tint * transmission * (1.0 - fresnel);
             if (dielectricObject == objectIndex) {
                 float curvature =
                     1.0 - clamp(abs(dot(entryNormal, hitNormal)), 0.0, 1.0);
-                float smoothness = 1.0 - clamp(material.roughness, 0.0, 1.0);
+                float smoothness = 1.0 - roughness;
                 float focus = 1.0 + transmission * max(ior - 1.0, 0.0) *
                                         smoothness * smoothness *
                                         (0.35 + curvature * 3.0);
@@ -85,8 +95,8 @@ float3 traceShadowVisibility(
                 dielectricObject = objectIndex;
                 entryNormal = hitNormal;
             }
-            if (luminance(visibility) <= 0.001) {
-                return float3(0.0);
+            if (visibility <= 0.001) {
+                return 0.0;
             }
         }
 
@@ -95,11 +105,11 @@ float3 traceShadowVisibility(
         shadowRay.origin += shadowRay.direction * advance;
         shadowRay.max_distance -= advance;
         if (shadowRay.max_distance <= shadowBias) {
-            return clampLuminance(visibility * causticGain, 2.5);
+            return min(visibility * causticGain, 2.5);
         }
     }
 
-    return float3(0.0);
+    return 0.0;
 }
 
 float3 sampleDirectionalLightDirection(DirectionalLightData light,
@@ -114,7 +124,3 @@ float3 sampleDirectionalLightDirection(DirectionalLightData light,
         baseL + basis[0] * (r * cos(phi)) + basis[1] * (r * sin(phi));
     return normalize(jittered);
 }
-
-// ---------------------------------------------------------------------------
-// PBR helpers: GGX / Cook-Torrance
-// ---------------------------------------------------------------------------
