@@ -13,17 +13,18 @@ float D_GGX(float NdotH, float roughness) {
     return a2 / max(M_PI_F * d * d, 1e-6);
 }
 
-float F_Schlick(float cosTheta, float F0) {
+float4 F_Schlick(float cosTheta, float4 F0) {
     float c = clamp(1.0 - cosTheta, 0.0, 1.0);
     return F0 + (1.0 - F0) * pow5(c);
 }
 
-float materialF0(float albedo, float metallic, float reflectivity, float ior) {
+float4 materialF0(float4 albedo, float metallic, float reflectivity,
+                  float ior) {
     float dielectricF0 =
         pow((max(ior, 1.0001) - 1.0) / (max(ior, 1.0001) + 1.0), 2.0);
     float dielectricScale = mix(0.5, 1.5, clamp(reflectivity, 0.0, 1.0));
     float dielectric = clamp(dielectricF0 * dielectricScale, 0.0, 0.16);
-    return mix(dielectric, albedo, clamp(metallic, 0.0, 1.0));
+    return mix(float4(dielectric), albedo, clamp(metallic, 0.0, 1.0));
 }
 
 float G_Smith(float NdotV, float NdotL, float roughness) {
@@ -89,9 +90,9 @@ float3 sampleGGXVNDF(float3 localView, float roughness, float2 u) {
 }
 
 // Full Cook-Torrance PBR for a single analytic light
-float evalPBR(float albedo, float metallic, float roughness, float reflectivity,
-              float ior, float transmittance, float3 N, float3 V, float3 L,
-              float lightRadiance, float intensity) {
+float4 evalPBR(float4 albedo, float metallic, float roughness,
+               float reflectivity, float ior, float transmittance, float3 N,
+               float3 V, float3 L, float4 lightRadiance, float intensity) {
     float3 H = normalize(V + L);
 
     float NdotL = max(dot(N, L), 0.0);
@@ -100,29 +101,29 @@ float evalPBR(float albedo, float metallic, float roughness, float reflectivity,
     float VdotH = max(dot(V, H), 0.0);
 
     float clampedRoughness = clamp(roughness, 0.045, 1.0);
-    float F0 = materialF0(albedo, metallic, reflectivity, ior);
-    float F = F_Schlick(VdotH, F0);
+    float4 F0 = materialF0(albedo, metallic, reflectivity, ior);
+    float4 F = F_Schlick(VdotH, F0);
     float D = D_GGX(NdotH, clampedRoughness);
     float G = G_Smith(NdotV, NdotL, clampedRoughness);
 
-    float specular = (D * G * F) / max(4.0 * NdotV * NdotL, 1e-4);
-    float kD = (1.0 - F) * (1.0 - clamp(metallic, 0.0, 1.0)) *
-               (1.0 - clamp(transmittance, 0.0, 1.0));
+    float4 specular = (D * G * F) / max(4.0 * NdotV * NdotL, 1e-4);
+    float4 kD = (1.0 - F) * (1.0 - clamp(metallic, 0.0, 1.0)) *
+                (1.0 - clamp(transmittance, 0.0, 1.0));
     float diffuseFactor = disneyDiffuseFactor(NdotV, NdotL, max(dot(L, H), 0.0),
                                               clampedRoughness);
-    float diffuse = (kD * albedo * diffuseFactor) / M_PI_F;
+    float4 diffuse = (kD * albedo * diffuseFactor) / M_PI_F;
 
     return (diffuse + specular) * lightRadiance * intensity * NdotL;
 }
 
-float evalTransmission(float albedo, float3 N, float3 V, float3 L,
-                       float lightRadiance, float intensity, float roughness,
-                       float ior) {
+float4 evalTransmission(float4 albedo, float3 N, float3 V, float3 L,
+                        float4 lightRadiance, float intensity, float roughness,
+                        float ior) {
     float backLighting = max(dot(N, -L), 0.0);
     float forwardAlignment = max(dot(-V, L), 0.0);
     float F0 = pow((ior - 1.0) / (ior + 1.0), 2.0);
-    float F = F_Schlick(max(dot(N, V), 0.0), F0);
-    float transmitTint = mix(albedo, 1.0, 0.1);
+    float4 F = F_Schlick(max(dot(N, V), 0.0), float4(F0));
+    float4 transmitTint = mix(albedo, float4(1.0), 0.1);
     float lobeExponent = mix(96.0, 2.0, sqrt(clamp(roughness, 0.0, 1.0)));
     float transmissionLobe = pow(forwardAlignment, lobeExponent);
     return (1.0 - F) * transmitTint * lightRadiance * intensity * backLighting *

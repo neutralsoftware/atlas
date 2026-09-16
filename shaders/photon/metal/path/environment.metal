@@ -9,8 +9,9 @@ using namespace metal;
 constexpr sampler skyboxSampler(coord::normalized, address::clamp_to_edge,
                                 filter::linear, mip_filter::linear);
 
-float skyColor(float3 dir, float intensity, texturecube<float> skybox,
-               constant SceneData &sceneData, thread const SpectralPath &path) {
+float4 skyColor(float3 dir, float intensity, texturecube<float> skybox,
+                constant SceneData &sceneData,
+                thread const SpectralPath &path) {
     float3 sampleDir = dir;
     float len2 = dot(sampleDir, sampleDir);
 
@@ -83,5 +84,9 @@ float skyColor(float3 dir, float intensity, texturecube<float> skybox,
 
     skyRGB *= scale;
 
-    return rgbToEmissionAtWavelength(skyRGB, path.wavelengthNm);
+    float4 reuslt = float4(0.0);
+    for (uint i = 0; i < PHOTON_SPECTRAL_LANE_COUNT; ++i) {
+        reuslt[i] = rgbToEmissionAtWavelength(skyRGB, path.wavelengthNm[i]);
+    }
+    return reuslt;
 }

@@ -11,7 +11,7 @@ using namespace raytracing;
 #include "geometry.metal"
 #include "materials.metal"
 
-float traceShadowVisibility(
+float4 traceShadowVisibility(
     intersector<triangle_data> isect, primitive_acceleration_structure sceneAS,
     float3 P, float3 Ng, float3 L, float maxDistance, thread uint &rng,
     constant Material *materials, constant uint *primitiveObjects,
@@ -20,7 +20,7 @@ float traceShadowVisibility(
     constant SceneData &sceneData, thread const SpectralPath &path,
     PT_MATERIAL_TEXTURE_PARAMS) {
     float shadowBias = rayOffsetDistance(P);
-    float visibility = 1.0;
+    float4 visibility = float4(1.0);
     float causticGain = 1.0;
     float3 entryNormal = float3(0.0);
     uint dielectricObject = 0xFFFFFFFFu;
@@ -33,7 +33,7 @@ float traceShadowVisibility(
     for (uint alphaStep = 0; alphaStep < 32; ++alphaStep) {
         auto shadowHit = isect.intersect(shadowRay, sceneAS);
         if (shadowHit.type == intersection_type::none) {
-            return min(visibility * causticGain, 2.5);
+            return min(visibility * causticGain, float4(2.5));
         }
 
         uint primitiveIndex = blasPrimitiveOffsets[shadowHit.geometry_id] +
@@ -67,7 +67,7 @@ float traceShadowVisibility(
                 emissiveRgb, baseIor, transmittance);
             float transmission = transmittance * (1.0 - metallic);
             if (transmission <= 0.001) {
-                return 0.0;
+                return float4(0.0);
             }
 
             float3 p0 = float3(vertices[i0].position);
@@ -80,7 +80,8 @@ float traceShadowVisibility(
             float fresnel =
                 dielectricF0 +
                 (1.0 - dielectricF0) * pow5(1.0 - abs(dot(hitNormal, L)));
-            float tint = mix(1.0, evaluateReflectance(albedoRgb, path), 0.15);
+            float4 tint =
+                mix(float4(1.0), evaluateReflectance(albedoRgb, path), 0.15);
             visibility *= tint * transmission * (1.0 - fresnel);
             if (dielectricObject == objectIndex) {
                 float curvature =
@@ -95,8 +96,8 @@ float traceShadowVisibility(
                 dielectricObject = objectIndex;
                 entryNormal = hitNormal;
             }
-            if (visibility <= 0.001) {
-                return 0.0;
+            if (spectralMax(visibility) <= 0.001) {
+                return float4(0.0);
             }
         }
 
@@ -105,11 +106,11 @@ float traceShadowVisibility(
         shadowRay.origin += shadowRay.direction * advance;
         shadowRay.max_distance -= advance;
         if (shadowRay.max_distance <= shadowBias) {
-            return min(visibility * causticGain, 2.5);
+            return min(visibility * causticGain, float4(2.5));
         }
     }
 
-    return 0.0;
+    return float4(0.0);
 }
 
 float3 sampleDirectionalLightDirection(DirectionalLightData light,

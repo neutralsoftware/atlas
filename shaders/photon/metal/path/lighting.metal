@@ -13,10 +13,10 @@ using namespace raytracing;
 #include "visibility.metal"
 #include "brdf.metal"
 
-float evalEmissiveTriangleLighting(
+float4 evalEmissiveTriangleLighting(
     intersector<triangle_data> isect,
     primitive_acceleration_structure sceneAS, float3 P, float3 N, float3 Ng,
-    float3 V, float albedo, float metallic, float roughness,
+    float3 V, float4 albedo, float metallic, float roughness,
     float reflectivity, float ior, float transmittance, thread uint &rng,
     thread const SpectralPath &path, constant SceneData &sceneData,
     constant EmissiveTriangle *emissiveTriangles,
@@ -25,7 +25,7 @@ float evalEmissiveTriangleLighting(
     constant uint *indices, constant InstanceData *instanceData,
     PT_MATERIAL_TEXTURE_PARAMS) {
     if (sceneData.numEmissiveTriangles == 0) {
-        return 0.0;
+        return float4(0.0);
     }
     float selector = rand(rng);
     uint first = 0;
@@ -49,7 +49,7 @@ float evalEmissiveTriangleLighting(
     float3 toLight = lightPosition - P;
     float distanceSquared = dot(toLight, toLight);
     if (distanceSquared <= 1e-8) {
-        return 0.0;
+        return float4(0.0);
     }
     float distanceToLight = sqrt(distanceSquared);
     float3 L = toLight / distanceToLight;
@@ -58,25 +58,25 @@ float evalEmissiveTriangleLighting(
     if (surfaceCosine <= 0.0 || dot(Ng, L) <= 0.0 ||
         lightCosine <= 1e-5 || light.area <= 1e-8 ||
         light.selectionPdf <= 1e-8) {
-        return 0.0;
+        return float4(0.0);
     }
     float solidAnglePdf = light.selectionPdf * distanceSquared /
                           max(lightCosine * light.area, 1e-8);
-    float visibility = traceShadowVisibility(
+    float4 visibility = traceShadowVisibility(
         isect, sceneAS, P, Ng, L, distanceToLight, rng, materials,
         primitiveObjects, blasPrimitiveOffsets, vertices, indices,
         instanceData, sceneData, path, PT_MATERIAL_TEXTURE_ARGS);
-    float lightRadiance = evaluateEmission(float3(light.emission), path);
+    float4 lightRadiance = evaluateEmission(float3(light.emission), path);
     return evalPBR(albedo, metallic, roughness, reflectivity, ior,
                    transmittance, N, V, L, lightRadiance,
                    1.0 / max(solidAnglePdf, 1e-8)) *
            visibility;
 }
 
-float evalDirectLightingPBR(
+float4 evalDirectLightingPBR(
     intersector<triangle_data> isect,
     primitive_acceleration_structure sceneAS, float3 P, float3 N, float3 Ng,
-    float3 V, float albedo, float metallic, float roughness,
+    float3 V, float4 albedo, float metallic, float roughness,
     float reflectivity, float ior, float transmittance, thread uint &rng,
     thread const SpectralPath &path,
     constant DirectionalLightData &dirLight, constant SceneData &sceneData,
@@ -87,15 +87,15 @@ float evalDirectLightingPBR(
     constant uint *blasPrimitiveOffsets, constant VertexData *vertices,
     constant uint *indices, constant InstanceData *instanceData,
     PT_MATERIAL_TEXTURE_PARAMS) {
-    float lighting = 0.0;
+    float4 lighting = float4(0.0);
     if (sceneData.numDirectionalLights > 0) {
         float3 L = sampleDirectionalLightDirection(dirLight, rng);
-        float lightRadiance = evaluateEmission(dirLight.color, path);
-        float contribution =
+        float4 lightRadiance = evaluateEmission(dirLight.color, path);
+        float4 contribution =
             evalPBR(albedo, metallic, roughness, reflectivity, ior,
                     transmittance, N, V, L, lightRadiance,
                     max(dirLight.intensity, 0.0));
-        float visibility = traceShadowVisibility(
+        float4 visibility = traceShadowVisibility(
             isect, sceneAS, P, Ng, L, 1e30, rng, materials, primitiveObjects,
             blasPrimitiveOffsets, vertices, indices, instanceData, sceneData,
             path, PT_MATERIAL_TEXTURE_ARGS);
@@ -112,12 +112,12 @@ float evalDirectLightingPBR(
         float rangeFade = 1.0 - smoothstep(lightRange * 0.75, lightRange, dist);
         float intensity =
             max(pointLights[i].intensity, 0.0) * rangeFade / max(distSq, 1e-4);
-        float lightRadiance =
+        float4 lightRadiance =
             evaluateEmission(float3(pointLights[i].color), path);
-        float contribution = evalPBR(
+        float4 contribution = evalPBR(
             albedo, metallic, roughness, reflectivity, ior, transmittance, N, V,
             L, lightRadiance, intensity);
-        float visibility = traceShadowVisibility(
+        float4 visibility = traceShadowVisibility(
             isect, sceneAS, P, Ng, L, dist, rng, materials, primitiveObjects,
             blasPrimitiveOffsets, vertices, indices, instanceData, sceneData,
             path, PT_MATERIAL_TEXTURE_ARGS);
@@ -138,12 +138,12 @@ float evalDirectLightingPBR(
         float rangeFade = 1.0 - smoothstep(lightRange * 0.75, lightRange, dist);
         float intensity = max(spotLights[i].intensity, 0.0) * rangeFade * spot /
                           max(distSq, 1e-4);
-        float lightRadiance =
+        float4 lightRadiance =
             evaluateEmission(float3(spotLights[i].color), path);
-        float contribution = evalPBR(
+        float4 contribution = evalPBR(
             albedo, metallic, roughness, reflectivity, ior, transmittance, N, V,
             L, lightRadiance, intensity);
-        float visibility = traceShadowVisibility(
+        float4 visibility = traceShadowVisibility(
             isect, sceneAS, P, Ng, L, dist, rng, materials, primitiveObjects,
             blasPrimitiveOffsets, vertices, indices, instanceData, sceneData,
             path, PT_MATERIAL_TEXTURE_ARGS);
@@ -171,12 +171,12 @@ float evalDirectLightingPBR(
         float distSq = max(dist * dist, 1e-6);
         float intensity = max(areaLights[i].intensity, 0.0) * cosLight /
                           max(distSq * lightPdfArea, 1e-6);
-        float lightRadiance =
+        float4 lightRadiance =
             evaluateEmission(float3(areaLights[i].color), path);
-        float contribution = evalPBR(
+        float4 contribution = evalPBR(
             albedo, metallic, roughness, reflectivity, ior, transmittance, N, V,
             L, lightRadiance, intensity);
-        float visibility = traceShadowVisibility(
+        float4 visibility = traceShadowVisibility(
             isect, sceneAS, P, Ng, L, dist, rng, materials, primitiveObjects,
             blasPrimitiveOffsets, vertices, indices, instanceData, sceneData,
             path, PT_MATERIAL_TEXTURE_ARGS);
