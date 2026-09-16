@@ -1,3 +1,8 @@
+#pragma once
+
+#include <metal_stdlib>
+using namespace metal;
+
 float pow5(float x) {
     float x2 = x * x;
     return x2 * x2 * x;
@@ -36,4 +41,3 @@ float rand(thread uint &state) {
 uint seedBase(uint2 gid, uint w, uint frame, uint sampleIndex) {
     return gid.x + gid.y * w + frame * 9781u + sampleIndex * 6271u + 1u;
 }
-

@@ -1,3 +1,10 @@
+#pragma once
+
+#include <metal_stdlib>
+using namespace metal;
+
+#include "types.metal"
+
 constexpr sampler skyboxSampler(coord::normalized, address::clamp_to_edge,
                                 filter::linear, mip_filter::linear);
 
@@ -51,4 +58,3 @@ float3 skyColor(float3 dir, float intensity, texturecube<float> skybox,
     float scale = intensity > 0.0 ? intensity : 1.0;
     return sky * scale;
 }
-

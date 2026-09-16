@@ -5,6 +5,7 @@ using namespace raytracing;
 
 #include "path/types.metal"
 #include "path/sampling.metal"
+#include "path/spectral.metal"
 #include "path/environment.metal"
 #include "path/geometry.metal"
 #include "path/materials.metal"

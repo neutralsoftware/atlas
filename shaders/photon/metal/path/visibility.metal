@@ -1,3 +1,15 @@
+#pragma once
+
+#include <metal_stdlib>
+#include <metal_raytracing>
+using namespace metal;
+using namespace raytracing;
+
+#include "types.metal"
+#include "sampling.metal"
+#include "geometry.metal"
+#include "materials.metal"
+
 float3 traceShadowVisibility(intersector<triangle_data> isect,
                              primitive_acceleration_structure sceneAS,
                              float3 P, float3 Ng, float3 L,
@@ -112,4 +124,3 @@ float3 sampleDirectionalLightDirection(DirectionalLightData light,
 // ---------------------------------------------------------------------------
 // PBR helpers: GGX / Cook-Torrance
 // ---------------------------------------------------------------------------
-

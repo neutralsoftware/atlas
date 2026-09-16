@@ -1,3 +1,17 @@
+#pragma once
+
+#include <metal_stdlib>
+#include <metal_raytracing>
+using namespace metal;
+using namespace raytracing;
+
+#include "types.metal"
+#include "sampling.metal"
+#include "geometry.metal"
+#include "materials.metal"
+#include "visibility.metal"
+#include "brdf.metal"
+
 float3 evalEmissiveTriangleLighting(
     intersector<triangle_data> isect,
     primitive_acceleration_structure sceneAS, float3 P, float3 N, float3 Ng,
@@ -197,4 +211,3 @@ float3 evalDirectLightingPBR(intersector<triangle_data> isect,
 // ---------------------------------------------------------------------------
 // sampleRadiance — iterative path with GGX importance-sampled indirect bounces
 // ---------------------------------------------------------------------------
-

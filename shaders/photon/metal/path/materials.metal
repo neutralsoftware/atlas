@@ -1,3 +1,11 @@
+#pragma once
+
+#include <metal_stdlib>
+using namespace metal;
+
+#include "types.metal"
+#include "geometry.metal"
+
 constexpr sampler materialTexSampler(coord::normalized, address::repeat,
                                      filter::linear, mip_filter::linear);
 
@@ -232,10 +240,10 @@ float4 sampleMaterialTexture(
 #undef PT_MATERIAL_TEXTURE_PARAMS
 #undef PT_MATERIAL_TEXTURE_ARGS
 #undef PT_MATERIAL_TEXTURE_BINDINGS
-#define PT_MATERIAL_TEXTURE_PARAMS                                            \
+#define PT_MATERIAL_TEXTURE_PARAMS                                             \
     constant MaterialTextureArguments &materialTextureArguments
 #define PT_MATERIAL_TEXTURE_ARGS materialTextureArguments
-#define PT_MATERIAL_TEXTURE_BINDINGS                                          \
+#define PT_MATERIAL_TEXTURE_BINDINGS                                           \
     constant MaterialTextureArguments &materialTextureArguments [[buffer(12)]]
 
 float resolveMaterialOpacity(Material mat, float2 uv, uint textureCount,
@@ -262,8 +270,7 @@ void resolveMaterialParameters(Material mat, float2 uv, uint textureCount,
     metallic = mat.metallic;
     roughness = mat.roughness;
     ao = mat.ao;
-    emissive = max(float3(mat.emissiveColor) *
-                       max(mat.emissiveIntensity, 0.0),
+    emissive = max(float3(mat.emissiveColor) * max(mat.emissiveIntensity, 0.0),
                    float3(0.0));
 
     outIor = max(mat.ior, 1.0);
@@ -343,4 +350,3 @@ float3 resolveShadingNormal(Material mat, float2 uv, float3 localN,
 
     return N;
 }
-

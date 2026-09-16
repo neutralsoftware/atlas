@@ -1,3 +1,11 @@
+#pragma once
+
+#include <metal_stdlib>
+using namespace metal;
+
+#include "sampling.metal"
+#include "geometry.metal"
+
 float D_GGX(float NdotH, float roughness) {
     float a = max(roughness * roughness, 1e-4);
     float a2 = a * a;
@@ -140,4 +148,3 @@ float3 evalTransmission(float3 albedo, float3 N, float3 V, float3 L,
     return (1.0 - F) * transmitTint * lightColor * intensity * backLighting *
            transmissionLobe;
 }
-

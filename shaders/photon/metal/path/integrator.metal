@@ -1,3 +1,20 @@
+#pragma once
+
+#include <metal_stdlib>
+#include <metal_raytracing>
+using namespace metal;
+using namespace raytracing;
+
+#include "types.metal"
+#include "sampling.metal"
+#include "spectral.metal"
+#include "environment.metal"
+#include "geometry.metal"
+#include "materials.metal"
+#include "visibility.metal"
+#include "brdf.metal"
+#include "lighting.metal"
+
 float3 sampleRadiance(uint2 gid, uint sampleIndex, uint w,
                       intersector<triangle_data> isect,
                       primitive_acceleration_structure sceneAS, ray primaryRay,
@@ -378,4 +395,3 @@ float3 sampleRadiance(uint2 gid, uint sampleIndex, uint w,
 
     return radiance;
 }
-

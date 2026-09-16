@@ -1,3 +1,8 @@
+#pragma once
+
+#include <metal_stdlib>
+using namespace metal;
+
 float3 cosineSampleHemisphere(float2 u) {
     float r = sqrt(u.x);
     float theta = 2.0 * M_PI_F * u.y;
@@ -45,4 +50,3 @@ float2 encodeNormal(float3 normal) {
     }
     return encoded;
 }
-

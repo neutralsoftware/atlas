@@ -14,14 +14,22 @@ def run(command):
     return result.stdout
 
 
-def read_source(path, stack=()):
+def read_source(path, stack=(), included=None):
     path = Path(path).resolve()
+    if included is None:
+        included = set()
     if path in stack:
         raise ValueError(f"Cyclic shader include: {path}")
+    if path in included:
+        return ""
+    included.add(path)
+    source = re.sub(r'^[ \t]*#pragma once[ \t]*\n', "", path.read_text(),
+                    flags=re.MULTILINE)
     return re.sub(
         r'^[ \t]*#include "([^"\n]+)"\n',
-        lambda match: read_source(path.parent / match[1], (*stack, path)),
-        path.read_text(), flags=re.MULTILINE)
+        lambda match: read_source(path.parent / match[1], (*stack, path),
+                                  included),
+        source, flags=re.MULTILINE)
 
 
 def write_atomic(path, contents):

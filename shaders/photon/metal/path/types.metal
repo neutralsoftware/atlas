@@ -1,3 +1,8 @@
+#pragma once
+
+#include <metal_stdlib>
+using namespace metal;
+
 struct CameraUniforms {
     float4x4 invViewProj;
     float4x4 prevViewProj;
@@ -140,4 +145,3 @@ static_assert(__builtin_offsetof(SceneData, ambientColor) == 112);
 static_assert(__builtin_offsetof(SceneData, accumulationFrameLimit) == 132);
 static_assert(__builtin_offsetof(SceneData, numEmissiveTriangles) == 140);
 static_assert(__builtin_offsetof(SceneData, bloomThreshold) == 144);
-
