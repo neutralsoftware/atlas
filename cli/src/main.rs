@@ -4,8 +4,8 @@ use clap::Parser;
 #[derive(Parser)]
 #[command(
     name = "atlas",
-    version = "Beta 1 Vela",
-    about = "Atlas (Beta 1 Vela)",
+    version = "Beta 2 Lyra",
+    about = "Atlas (Beta 2 Lyra)",
     arg_required_else_help = true
 )]
 pub struct Cli {

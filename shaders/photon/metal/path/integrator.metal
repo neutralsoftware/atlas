@@ -15,33 +15,25 @@ using namespace raytracing;
 #include "brdf.metal"
 #include "lighting.metal"
 
-float3 sampleRadiance(uint2 gid, uint sampleIndex, uint w,
-                      intersector<triangle_data> isect,
-                      primitive_acceleration_structure sceneAS, ray primaryRay,
-                      constant Material *materials,
-                      constant uint *primitiveObjects,
-                      constant uint *blasPrimitiveOffsets,
-                      constant VertexData *vertices, constant uint *indices,
-                      constant InstanceData *instanceData,
-                      constant DirectionalLightData &dirLight,
-                      constant SceneData &sceneData,
-                      constant PointLight *pointLights,
-                      constant SpotLight *spotLights,
-                      constant AreaLight *areaLights,
-                      constant EmissiveTriangle *emissiveTriangles,
-                      PT_MATERIAL_TEXTURE_PARAMS, texturecube<float> skybox,
-                      thread float3 &primaryAlbedo,
-                      thread float3 &primaryNormal,
-                      thread float3 &primaryPosition,
-                      thread float &primaryDepth,
-                      thread float &primaryRoughness,
-                      thread float &primaryHitDistance,
-                      thread uint &primaryObjectId) {
+float3 sampleRadiance(
+    uint2 gid, uint sampleIndex, uint w, intersector<triangle_data> isect,
+    primitive_acceleration_structure sceneAS, ray primaryRay,
+    constant Material *materials, constant uint *primitiveObjects,
+    constant uint *blasPrimitiveOffsets, constant VertexData *vertices,
+    constant uint *indices, constant InstanceData *instanceData,
+    constant DirectionalLightData &dirLight, constant SceneData &sceneData,
+    constant PointLight *pointLights, constant SpotLight *spotLights,
+    constant AreaLight *areaLights,
+    constant EmissiveTriangle *emissiveTriangles,
+    PT_MATERIAL_TEXTURE_PARAMS, texturecube<float> skybox,
+    thread float3 &primaryAlbedo, thread float3 &primaryNormal,
+    thread float3 &primaryPosition, thread float &primaryDepth,
+    thread float &primaryRoughness, thread float &primaryHitDistance,
+    thread uint &primaryObjectId) {
     uint rng = seedBase(gid, w, sceneData.frameIndex, sampleIndex);
+    SpectralPath spectralPath = createSpectralPath(rng);
     uint bounceLimit = min(sceneData.maxBounces, 16u);
     ray surfaceRay = primaryRay;
-    float3 radiance = float3(0.0);
-    float3 throughput = float3(1.0);
     float previousBsdfPdf = 0.0;
     float previousEnvironmentPdf = 0.0;
     bool previousEventWasDelta = true;
@@ -125,8 +117,10 @@ float3 sampleRadiance(uint2 gid, uint sampleIndex, uint w,
                                   ? 1.0
                                   : powerHeuristic(previousBsdfPdf,
                                                    previousEnvironmentPdf);
-            radiance += throughput * misWeight *
-                        skyColor(surfaceRay.direction, 0.0, skybox, sceneData);
+            spectralPath.radiance +=
+                spectralPath.throughput * misWeight *
+                skyColor(surfaceRay.direction, 0.0, skybox, sceneData,
+                         spectralPath);
             break;
         }
 
@@ -143,19 +137,23 @@ float3 sampleRadiance(uint2 gid, uint sampleIndex, uint w,
             N = normalizeOr(N + Ng * (0.1 - shadingNormalCosine), Ng);
         }
 
-        float3 albedo;
+        float3 albedoRgb;
         float metallic;
         float roughness;
         float ao;
-        float3 emissive;
-        float ior;
+        float3 emissiveRgb;
+        float baseIor;
         float transmittance;
-        resolveMaterialParameters(mat, texUV, sceneData.materialTextureCount,
-                                  PT_MATERIAL_TEXTURE_ARGS, albedo, metallic,
-                                  roughness, ao, emissive, ior, transmittance);
+        resolveMaterialParameters(
+            mat, texUV, sceneData.materialTextureCount,
+            PT_MATERIAL_TEXTURE_ARGS, albedoRgb, metallic, roughness, ao,
+            emissiveRgb, baseIor, transmittance);
+        float4 albedo = evaluateReflectance(albedoRgb, spectralPath);
+        float4 emissive = evaluateEmission(emissiveRgb, spectralPath);
+        float ior = evaluateIorAtWavelength(baseIor, spectralPath);
 
         if (depth == 0) {
-            primaryAlbedo = albedo;
+            primaryAlbedo = albedoRgb;
             primaryNormal = N;
             primaryPosition = P;
             primaryDepth = length(P - primaryRay.origin);
@@ -165,41 +163,42 @@ float3 sampleRadiance(uint2 gid, uint sampleIndex, uint w,
         }
 
         float reflectivity = clamp(mat.reflectivity, 0.0, 1.0);
-        float sssStrength = 0.0;
-        float sssThickness = mix(0.25, 1.75, ao);
-        float3 direct = evalDirectLightingPBR(
+        float4 direct = evalDirectLightingPBR(
             isect, sceneAS, P, N, Ng, V, albedo, metallic, roughness,
-            reflectivity, ior, transmittance, sssStrength, sssThickness, rng,
-            dirLight, sceneData, pointLights, spotLights, areaLights,
-            emissiveTriangles, materials, primitiveObjects,
-            blasPrimitiveOffsets, vertices, indices, instanceData,
-            PT_MATERIAL_TEXTURE_ARGS);
-        radiance += throughput * direct;
+            reflectivity, ior, transmittance, rng, spectralPath, dirLight,
+            sceneData, pointLights, spotLights, areaLights, emissiveTriangles,
+            materials, primitiveObjects, blasPrimitiveOffsets, vertices,
+            indices, instanceData, PT_MATERIAL_TEXTURE_ARGS);
+        spectralPath.radiance += spectralPath.throughput * direct;
         if (depth == 0 || previousEventWasDelta ||
             sceneData.numEmissiveTriangles == 0) {
-            radiance += throughput * emissive;
+            spectralPath.radiance += spectralPath.throughput * emissive;
         }
 
         if (depth == 0 && sceneData.ambientIntensity > 0.0) {
             float aoVisibility = mix(0.2, 1.0, ao);
             float dielectricF0 = pow((ior - 1.0) / (ior + 1.0), 2.0);
-            float3 ambientF0 = mix(float3(dielectricF0), albedo, metallic);
-            float3 ambientF = F_Schlick(max(dot(N, V), 0.0), ambientF0);
-            float3 ambientDiffuse = (1.0 - ambientF) * (1.0 - metallic) *
+            float4 ambientF0 = mix(float4(dielectricF0), albedo, metallic);
+            float4 ambientF = F_Schlick(max(dot(N, V), 0.0), ambientF0);
+            float4 ambientDiffuse = (1.0 - ambientF) * (1.0 - metallic) *
                                     albedo * (1.0 - transmittance);
-            float3 ambientSpecular = ambientF * mix(1.0, 0.35, roughness) *
+            float4 ambientSpecular = ambientF * mix(1.0, 0.35, roughness) *
                                      (1.0 - transmittance);
-            float3 ambient = (ambientDiffuse + ambientSpecular) *
-                             sceneData.ambientColor *
-                             sceneData.ambientIntensity * aoVisibility;
-            radiance += throughput * ambient;
+            float4 ambientRadiance =
+                evaluateEmission(sceneData.ambientColor, spectralPath) *
+                sceneData.ambientIntensity;
+            spectralPath.radiance +=
+                spectralPath.throughput *
+                (ambientDiffuse + ambientSpecular) * ambientRadiance *
+                aoVisibility;
         }
 
         float dielectricF0 = pow((ior - 1.0) / (ior + 1.0), 2.0);
-        float3 F0 = materialF0(albedo, metallic, mat.reflectivity, ior);
+        float4 F0 = materialF0(albedo, metallic, reflectivity, ior);
         float NdotV = max(dot(N, V), 1e-4);
-        float3 viewFresnel = F_Schlick(NdotV, F0);
-        float fresnelProbability = clamp(luminance(viewFresnel), 0.001, 0.999);
+        float4 viewFresnel = F_Schlick(NdotV, F0);
+        float fresnelProbability =
+            clamp(spectralAverage(viewFresnel), 0.001, 0.999);
         float specProb = fresnelProbability;
         float transmitProb = transmittance * (1.0 - metallic) *
                              (1.0 - fresnelProbability);
@@ -229,46 +228,44 @@ float3 sampleRadiance(uint2 gid, uint sampleIndex, uint w,
             float NdotEnvironment = dot(N, environmentDirection);
             if (NdotEnvironment > 0.0 &&
                 dot(Ng, environmentDirection) > 0.0) {
-                float3 visibility = traceShadowVisibility(
+                float4 visibility = traceShadowVisibility(
                     isect, sceneAS, P, Ng, environmentDirection, 1e30, rng,
                     materials, primitiveObjects, blasPrimitiveOffsets,
-                    vertices, indices, instanceData, sceneData,
+                    vertices, indices, instanceData, sceneData, spectralPath,
                     PT_MATERIAL_TEXTURE_ARGS);
-                if (luminance(visibility) <= 0.001) {
-                    visibility = float3(0.0);
-                }
                 float3 H = normalizeOr(V + environmentDirection, N);
                 float NdotH = max(dot(N, H), 1e-5);
                 float VdotH = max(dot(V, H), 1e-5);
-                float3 F = F_Schlick(VdotH, F0);
-                float3 kD = (1.0 - F) * (1.0 - metallic) *
+                float4 F = F_Schlick(VdotH, F0);
+                float4 kD = (1.0 - F) * (1.0 - metallic) *
                             (1.0 - transmittance);
                 float diffuseFactor = disneyDiffuseFactor(
                     NdotV, NdotEnvironment,
                     max(dot(environmentDirection, H), 0.0), roughness);
-                float3 reflectionBsdf =
+                float4 reflectionBsdf =
                     kD * albedo * diffuseFactor / M_PI_F;
                 float environmentPdf = NdotEnvironment / M_PI_F;
                 float bsdfPdf = diffuseProb * environmentPdf;
                 if (roughness > 0.025 && specProb > 1e-4) {
                     float D = D_GGX(NdotH, roughness);
                     float G1V = G1_SmithGGX(NdotV, roughness);
-                    float G1L =
-                        G1_SmithGGX(NdotEnvironment, roughness);
+                    float G1L = G1_SmithGGX(NdotEnvironment, roughness);
                     reflectionBsdf +=
                         D * G1V * G1L * F /
                         max(4.0 * NdotV * NdotEnvironment, 1e-6);
-                    bsdfPdf += specProb * D * G1V /
-                               max(4.0 * NdotV, 1e-6);
+                    bsdfPdf +=
+                        specProb * D * G1V / max(4.0 * NdotV, 1e-6);
                 }
                 float competingBsdfPdf = depth < bounceLimit ? bsdfPdf : 0.0;
                 float misWeight =
                     powerHeuristic(environmentPdf, competingBsdfPdf);
-                float3 environmentRadiance = skyColor(
-                    environmentDirection, 0.0, skybox, sceneData);
-                radiance += throughput * reflectionBsdf *
-                            environmentRadiance * visibility * NdotEnvironment *
-                            misWeight / max(environmentPdf, 1e-6);
+                float4 environmentRadiance = skyColor(
+                    environmentDirection, 0.0, skybox, sceneData,
+                    spectralPath);
+                spectralPath.radiance +=
+                    spectralPath.throughput * reflectionBsdf *
+                    environmentRadiance * visibility * NdotEnvironment *
+                    misWeight / max(environmentPdf, 1e-6);
             }
         }
 
@@ -277,7 +274,7 @@ float3 sampleRadiance(uint2 gid, uint sampleIndex, uint w,
         }
 
         float choice = rand(rng);
-        float3 bounceWeight = float3(0.0);
+        float4 bounceWeight = float4(0.0);
         float3 nextDirection = N;
         float sampledBsdfPdf = 0.0;
         float sampledEnvironmentPdf = 0.0;
@@ -286,8 +283,8 @@ float3 sampleRadiance(uint2 gid, uint sampleIndex, uint w,
         if (choice < specProb && specProb > 1e-4) {
             if (roughness <= 0.025 || totalInternalReflection) {
                 nextDirection = reflect(-V, N);
-                float3 F = totalInternalReflection
-                               ? float3(1.0)
+                float4 F = totalInternalReflection
+                               ? float4(1.0)
                                : F_Schlick(NdotV, F0);
                 bounceWeight = F / max(specProb, 1e-4);
             } else {
@@ -304,15 +301,15 @@ float3 sampleRadiance(uint2 gid, uint sampleIndex, uint w,
                     float D = D_GGX(NdotH, roughness);
                     float G1V = G1_SmithGGX(NdotV, roughness);
                     float G1L = G1_SmithGGX(NdotL, roughness);
-                    float3 F = F_Schlick(VdotH, F0);
-                    float3 specularBsdf =
+                    float4 F = F_Schlick(VdotH, F0);
+                    float4 specularBsdf =
                         D * G1V * G1L * F /
                         max(4.0 * NdotV * NdotL, 1e-6);
                     float conditionalPdf =
                         D * G1V / max(4.0 * NdotV, 1e-6);
                     float combinedPdf = specProb * conditionalPdf;
-                    bounceWeight = specularBsdf * NdotL /
-                                   max(combinedPdf, 1e-6);
+                    bounceWeight =
+                        specularBsdf * NdotL / max(combinedPdf, 1e-6);
                     sampledBsdfPdf = combinedPdf;
                     sampledEnvironmentPdf = NdotL / M_PI_F;
                     sampledEventWasDelta = false;
@@ -336,51 +333,50 @@ float3 sampleRadiance(uint2 gid, uint sampleIndex, uint w,
                     fresnelCosine = max(dot(V, H), 0.0);
                 }
             }
-            float3 F = F_Schlick(fresnelCosine, float3(dielectricF0));
-            float3 tint = mix(float3(1.0), albedo, 0.15);
-            bounceWeight = (1.0 - F) * tint /
-                           max(transmitProb, 1e-4);
+            float4 F = F_Schlick(fresnelCosine, float4(dielectricF0));
+            float4 tint = mix(float4(1.0), albedo, 0.15);
+            bounceWeight =
+                (1.0 - F) * tint / max(transmitProb, 1e-4);
         } else {
             float3 localDirection =
                 cosineSampleHemisphere(float2(rand(rng), rand(rng)));
             nextDirection = normalizeOr(basis * localDirection, N);
             float NdotL = max(dot(N, nextDirection), 0.0);
             float3 H = normalizeOr(V + nextDirection, N);
-            float3 F = F_Schlick(max(dot(V, H), 0.0), F0);
-            float3 kD = (1.0 - F) * (1.0 - metallic) *
+            float4 F = F_Schlick(max(dot(V, H), 0.0), F0);
+            float4 kD = (1.0 - F) * (1.0 - metallic) *
                         (1.0 - transmittance);
             float diffuseFactor = disneyDiffuseFactor(
                 NdotV, NdotL, max(dot(nextDirection, H), 0.0), roughness);
-            float3 diffuseBsdf = kD * albedo * diffuseFactor / M_PI_F;
+            float4 diffuseBsdf = kD * albedo * diffuseFactor / M_PI_F;
             float conditionalPdf = NdotL / M_PI_F;
             float combinedPdf = diffuseProb * conditionalPdf;
-            bounceWeight = diffuseBsdf * NdotL /
-                           max(combinedPdf, 1e-6);
+            bounceWeight =
+                diffuseBsdf * NdotL / max(combinedPdf, 1e-6);
             sampledBsdfPdf = combinedPdf;
             sampledEnvironmentPdf = conditionalPdf;
             sampledEventWasDelta = false;
         }
 
-        bounceWeight = clampLuminance(max(bounceWeight, float3(0.0)), 16.0);
-        throughput *= bounceWeight;
-        throughput = clampLuminance(throughput, 32.0);
+        bounceWeight = clamp(bounceWeight, float4(0.0), float4(16.0));
+        spectralPath.throughput *= bounceWeight;
+        spectralPath.throughput =
+            min(spectralPath.throughput, float4(32.0));
         if (depth == 0) {
-            throughput *= max(sceneData.indirectStrength, 0.0);
+            spectralPath.throughput *= max(sceneData.indirectStrength, 0.0);
         }
-        if (!all(isfinite(throughput)) || max(throughput.x,
-                                             max(throughput.y, throughput.z)) <
-                                               1e-5) {
+        if (!all(isfinite(spectralPath.throughput)) ||
+            spectralMax(spectralPath.throughput) < 1e-5) {
             break;
         }
 
         if (depth >= 2) {
-            float survival = clamp(max(throughput.x,
-                                       max(throughput.y, throughput.z)),
-                                   0.05, 0.95);
+            float survival =
+                clamp(spectralMax(spectralPath.throughput), 0.05, 0.95);
             if (rand(rng) > survival) {
                 break;
             }
-            throughput /= survival;
+            spectralPath.throughput /= survival;
         }
 
         previousBsdfPdf = sampledBsdfPdf;
@@ -393,5 +389,7 @@ float3 sampleRadiance(uint2 gid, uint sampleIndex, uint w,
         surfaceRay.max_distance = 1.0e30;
     }
 
-    return radiance;
+    float3 xyz = spectralRadianceToXYZ(
+        max(spectralPath.radiance, float4(0.0)), spectralPath);
+    return xyzToLinearSRGB(xyz);
 }

@@ -30,7 +30,7 @@ message(STATUS "Using Compiler: ${CMAKE_CXX_COMPILER_ID} ${CMAKE_CXX_COMPILER_VE
 message(STATUS "Compiler at path:" ${CMAKE_CXX_COMPILER})
 
 add_compile_definitions(
-        ATLAS_VERSION="Beta 1 Vela"
+        ATLAS_VERSION="Beta 2 Lyra"
 )
 
 set(CMAKE_INTERPROCEDURAL_OPTIMIZATION OFF)

@@ -7,24 +7,25 @@ using namespace raytracing;
 
 #include "types.metal"
 #include "sampling.metal"
+#include "spectral.metal"
 #include "geometry.metal"
 #include "materials.metal"
 #include "visibility.metal"
 #include "brdf.metal"
 
-float3 evalEmissiveTriangleLighting(
+float4 evalEmissiveTriangleLighting(
     intersector<triangle_data> isect,
     primitive_acceleration_structure sceneAS, float3 P, float3 N, float3 Ng,
-    float3 V, float3 albedo, float metallic, float roughness,
+    float3 V, float4 albedo, float metallic, float roughness,
     float reflectivity, float ior, float transmittance, thread uint &rng,
-    constant SceneData &sceneData,
+    thread const SpectralPath &path, constant SceneData &sceneData,
     constant EmissiveTriangle *emissiveTriangles,
     constant Material *materials, constant uint *primitiveObjects,
     constant uint *blasPrimitiveOffsets, constant VertexData *vertices,
     constant uint *indices, constant InstanceData *instanceData,
     PT_MATERIAL_TEXTURE_PARAMS) {
     if (sceneData.numEmissiveTriangles == 0) {
-        return float3(0.0);
+        return float4(0.0);
     }
     float selector = rand(rng);
     uint first = 0;
@@ -48,7 +49,7 @@ float3 evalEmissiveTriangleLighting(
     float3 toLight = lightPosition - P;
     float distanceSquared = dot(toLight, toLight);
     if (distanceSquared <= 1e-8) {
-        return float3(0.0);
+        return float4(0.0);
     }
     float distanceToLight = sqrt(distanceSquared);
     float3 L = toLight / distanceToLight;
@@ -57,157 +58,136 @@ float3 evalEmissiveTriangleLighting(
     if (surfaceCosine <= 0.0 || dot(Ng, L) <= 0.0 ||
         lightCosine <= 1e-5 || light.area <= 1e-8 ||
         light.selectionPdf <= 1e-8) {
-        return float3(0.0);
+        return float4(0.0);
     }
     float solidAnglePdf = light.selectionPdf * distanceSquared /
                           max(lightCosine * light.area, 1e-8);
-    float3 visibility = traceShadowVisibility(
+    float4 visibility = traceShadowVisibility(
         isect, sceneAS, P, Ng, L, distanceToLight, rng, materials,
         primitiveObjects, blasPrimitiveOffsets, vertices, indices,
-        instanceData, sceneData, PT_MATERIAL_TEXTURE_ARGS);
+        instanceData, sceneData, path, PT_MATERIAL_TEXTURE_ARGS);
+    float4 lightRadiance = evaluateEmission(float3(light.emission), path);
     return evalPBR(albedo, metallic, roughness, reflectivity, ior,
-                   transmittance, N, V, L, light.emission,
+                   transmittance, N, V, L, lightRadiance,
                    1.0 / max(solidAnglePdf, 1e-8)) *
            visibility;
 }
 
-// ---------------------------------------------------------------------------
-// Direct lighting with full PBR (replaces old evalDirectLighting)
-// ---------------------------------------------------------------------------
-
-float3 evalDirectLightingPBR(intersector<triangle_data> isect,
-                             primitive_acceleration_structure sceneAS, float3 P,
-                             float3 N, float3 Ng, float3 V, float3 albedo,
-                             float metallic, float roughness, float reflectivity,
-                             float ior, float transmittance, float sssStrength,
-                             float sssThickness,
-                             thread uint &rng,
-                             constant DirectionalLightData &dirLight,
-                             constant SceneData &sceneData,
-                             constant PointLight *pointLights,
-                             constant SpotLight *spotLights,
-                             constant AreaLight *areaLights,
-                             constant EmissiveTriangle *emissiveTriangles,
-                             constant Material *materials,
-                             constant uint *primitiveObjects,
-                             constant uint *blasPrimitiveOffsets,
-                             constant VertexData *vertices,
-                             constant uint *indices,
-                             constant InstanceData *instanceData,
-                             PT_MATERIAL_TEXTURE_PARAMS) {
-    float3 lighting = float3(0.0);
-    // Directional
+float4 evalDirectLightingPBR(
+    intersector<triangle_data> isect,
+    primitive_acceleration_structure sceneAS, float3 P, float3 N, float3 Ng,
+    float3 V, float4 albedo, float metallic, float roughness,
+    float reflectivity, float ior, float transmittance, thread uint &rng,
+    thread const SpectralPath &path,
+    constant DirectionalLightData &dirLight, constant SceneData &sceneData,
+    constant PointLight *pointLights, constant SpotLight *spotLights,
+    constant AreaLight *areaLights,
+    constant EmissiveTriangle *emissiveTriangles,
+    constant Material *materials, constant uint *primitiveObjects,
+    constant uint *blasPrimitiveOffsets, constant VertexData *vertices,
+    constant uint *indices, constant InstanceData *instanceData,
+    PT_MATERIAL_TEXTURE_PARAMS) {
+    float4 lighting = float4(0.0);
     if (sceneData.numDirectionalLights > 0) {
         float3 L = sampleDirectionalLightDirection(dirLight, rng);
-        float3 c = evalPBR(albedo, metallic, roughness, reflectivity, ior,
-                           transmittance, N, V, L, dirLight.color,
-                           max(dirLight.intensity, 0.0));
-        float3 s = evalSubsurface(albedo, N, V, L, dirLight.color,
-                                  max(dirLight.intensity, 0.0), roughness,
-                                  sssStrength, sssThickness);
-        float3 visibility = traceShadowVisibility(
+        float4 lightRadiance = evaluateEmission(dirLight.color, path);
+        float4 contribution =
+            evalPBR(albedo, metallic, roughness, reflectivity, ior,
+                    transmittance, N, V, L, lightRadiance,
+                    max(dirLight.intensity, 0.0));
+        float4 visibility = traceShadowVisibility(
             isect, sceneAS, P, Ng, L, 1e30, rng, materials, primitiveObjects,
             blasPrimitiveOffsets, vertices, indices, instanceData, sceneData,
-            PT_MATERIAL_TEXTURE_ARGS);
-        lighting += (c + s * (1.0 - transmittance)) * visibility;
+            path, PT_MATERIAL_TEXTURE_ARGS);
+        lighting += contribution * visibility;
     }
 
-    // Point lights
     for (uint i = 0; i < sceneData.numPointLights; ++i) {
-        float3 sampledPosition = pointLights[i].position;
-        float3 toLight = sampledPosition - P;
+        float3 toLight = float3(pointLights[i].position) - P;
         float dist = max(length(toLight), 1e-4);
         float3 L = toLight / dist;
         float lightRange = max(pointLights[i].range, 1e-4);
         float minDist = max(lightRange * 0.08, 0.15);
         float distSq = dist * dist + minDist * minDist;
         float rangeFade = 1.0 - smoothstep(lightRange * 0.75, lightRange, dist);
-        float atten = rangeFade / max(distSq, 1e-4);
-        float intensity = max(pointLights[i].intensity, 0.0) * atten;
-        float3 c = evalPBR(albedo, metallic, roughness, reflectivity, ior,
-                           transmittance, N, V, L, pointLights[i].color,
-                           intensity);
-        float3 s =
-            evalSubsurface(albedo, N, V, L, pointLights[i].color, intensity,
-                           roughness, sssStrength, sssThickness);
-        float3 visibility = traceShadowVisibility(
+        float intensity =
+            max(pointLights[i].intensity, 0.0) * rangeFade / max(distSq, 1e-4);
+        float4 lightRadiance =
+            evaluateEmission(float3(pointLights[i].color), path);
+        float4 contribution = evalPBR(
+            albedo, metallic, roughness, reflectivity, ior, transmittance, N, V,
+            L, lightRadiance, intensity);
+        float4 visibility = traceShadowVisibility(
             isect, sceneAS, P, Ng, L, dist, rng, materials, primitiveObjects,
             blasPrimitiveOffsets, vertices, indices, instanceData, sceneData,
-            PT_MATERIAL_TEXTURE_ARGS);
-        lighting += (c + s * (1.0 - transmittance)) * visibility;
+            path, PT_MATERIAL_TEXTURE_ARGS);
+        lighting += contribution * visibility;
     }
 
-    // Spot lights
     for (uint i = 0; i < sceneData.numSpotLights; ++i) {
-        float3 sampledPosition = spotLights[i].position;
-        float3 toLight = sampledPosition - P;
+        float3 toLight = float3(spotLights[i].position) - P;
         float dist = max(length(toLight), 1e-4);
         float3 L = toLight / dist;
-        float3 fwd = normalize(spotLights[i].direction);
-        float spotCos = dot(-L, fwd);
+        float3 forward = normalize(float3(spotLights[i].direction));
+        float spotCos = dot(-L, forward);
         float spot =
             smoothstep(spotLights[i].outerCos, spotLights[i].innerCos, spotCos);
         float lightRange = max(spotLights[i].range, 1e-4);
         float minDist = max(lightRange * 0.08, 0.15);
         float distSq = dist * dist + minDist * minDist;
         float rangeFade = 1.0 - smoothstep(lightRange * 0.75, lightRange, dist);
-        float atten = rangeFade / max(distSq, 1e-4);
-        float intensity = max(spotLights[i].intensity, 0.0) * atten * spot;
-        float3 c = evalPBR(albedo, metallic, roughness, reflectivity, ior,
-                           transmittance, N, V, L, spotLights[i].color,
-                           intensity);
-        float3 s =
-            evalSubsurface(albedo, N, V, L, spotLights[i].color, intensity,
-                           roughness, sssStrength, sssThickness);
-        float3 visibility = traceShadowVisibility(
+        float intensity = max(spotLights[i].intensity, 0.0) * rangeFade * spot /
+                          max(distSq, 1e-4);
+        float4 lightRadiance =
+            evaluateEmission(float3(spotLights[i].color), path);
+        float4 contribution = evalPBR(
+            albedo, metallic, roughness, reflectivity, ior, transmittance, N, V,
+            L, lightRadiance, intensity);
+        float4 visibility = traceShadowVisibility(
             isect, sceneAS, P, Ng, L, dist, rng, materials, primitiveObjects,
             blasPrimitiveOffsets, vertices, indices, instanceData, sceneData,
-            PT_MATERIAL_TEXTURE_ARGS);
-        lighting += (c + s * (1.0 - transmittance)) * visibility;
+            path, PT_MATERIAL_TEXTURE_ARGS);
+        lighting += contribution * visibility;
     }
 
-    // Area lights
     for (uint i = 0; i < sceneData.numAreaLights; ++i) {
         float2 lightSample = float2(rand(rng), rand(rng)) * 2.0 - 1.0;
         float3 sampledPosition =
-            areaLights[i].position +
-            areaLights[i].right * (lightSample.x * areaLights[i].halfWidth) +
-            areaLights[i].up * (lightSample.y * areaLights[i].halfHeight);
+            float3(areaLights[i].position) +
+            float3(areaLights[i].right) *
+                (lightSample.x * areaLights[i].halfWidth) +
+            float3(areaLights[i].up) *
+                (lightSample.y * areaLights[i].halfHeight);
         float3 toLight = sampledPosition - P;
         float dist = max(length(toLight), 1e-4);
         float3 L = toLight / dist;
-        float3 lightNorm =
-            normalize(cross(areaLights[i].right, areaLights[i].up));
+        float3 lightNormal = normalize(
+            cross(float3(areaLights[i].right), float3(areaLights[i].up)));
         float cosLight = areaLights[i].twoSided > 0.5
-                             ? abs(dot(lightNorm, -L))
-                             : max(dot(lightNorm, -L), 0.0);
+                             ? abs(dot(lightNormal, -L))
+                             : max(dot(lightNormal, -L), 0.0);
         float area = 4.0 * areaLights[i].halfWidth * areaLights[i].halfHeight;
         float lightPdfArea = 1.0 / max(area, 1e-6);
         float distSq = max(dist * dist, 1e-6);
-        float atten = cosLight / max(distSq * lightPdfArea, 1e-6);
-        float intensity = max(areaLights[i].intensity, 0.0) * atten;
-        float3 c = evalPBR(albedo, metallic, roughness, reflectivity, ior,
-                           transmittance, N, V, L, areaLights[i].color,
-                           intensity);
-        float3 s =
-            evalSubsurface(albedo, N, V, L, areaLights[i].color, intensity,
-                           roughness, sssStrength, sssThickness);
-        float3 visibility = traceShadowVisibility(
+        float intensity = max(areaLights[i].intensity, 0.0) * cosLight /
+                          max(distSq * lightPdfArea, 1e-6);
+        float4 lightRadiance =
+            evaluateEmission(float3(areaLights[i].color), path);
+        float4 contribution = evalPBR(
+            albedo, metallic, roughness, reflectivity, ior, transmittance, N, V,
+            L, lightRadiance, intensity);
+        float4 visibility = traceShadowVisibility(
             isect, sceneAS, P, Ng, L, dist, rng, materials, primitiveObjects,
             blasPrimitiveOffsets, vertices, indices, instanceData, sceneData,
-            PT_MATERIAL_TEXTURE_ARGS);
-        lighting += (c + s * (1.0 - transmittance)) * visibility;
+            path, PT_MATERIAL_TEXTURE_ARGS);
+        lighting += contribution * visibility;
     }
 
     lighting += evalEmissiveTriangleLighting(
         isect, sceneAS, P, N, Ng, V, albedo, metallic, roughness,
-        reflectivity, ior, transmittance, rng, sceneData, emissiveTriangles,
-        materials, primitiveObjects, blasPrimitiveOffsets, vertices, indices,
-        instanceData, PT_MATERIAL_TEXTURE_ARGS);
+        reflectivity, ior, transmittance, rng, path, sceneData,
+        emissiveTriangles, materials, primitiveObjects, blasPrimitiveOffsets,
+        vertices, indices, instanceData, PT_MATERIAL_TEXTURE_ARGS);
 
     return lighting;
 }
-
-// ---------------------------------------------------------------------------
-// sampleRadiance — iterative path with GGX importance-sampled indirect bounces
-// ---------------------------------------------------------------------------

@@ -103,8 +103,8 @@ kernel void main0(texture2d<float, access::write> outTex [[texture(0)]],
         if (!all(isfinite(sample))) {
             sample = float3(0.0);
         }
-        color += clampLuminance(max(sample, float3(0.0)),
-                                max(sceneData.fireflyClamp, 1.0));
+        color +=
+            clampLuminance(sample, max(sceneData.fireflyClamp, 1.0));
         if (s == 0) {
             primaryAlbedo = sampleAlbedo;
             primaryNormal = sampleNormal;
@@ -171,7 +171,7 @@ kernel void main0(texture2d<float, access::write> outTex [[texture(0)]],
     float accumulationDenominator = max(previousWeight + 1.0, 1.0);
     float3 accum =
         (prevColor.xyz * previousWeight + color) / accumulationDenominator;
-    float moment = luminance(color);
+    float moment = max(luminance(color), 0.0);
     float accumulatedMoment =
         (previousMoments.x * previousWeight + moment) /
         accumulationDenominator;
@@ -184,13 +184,14 @@ kernel void main0(texture2d<float, access::write> outTex [[texture(0)]],
 
     constexpr float bloomKnee = 0.35;
 
-    float brightness = luminance(accum);
+    float3 presentColor = max(accum, float3(0.0));
+    float brightness = max(luminance(accum), 0.0);
     float soft = clamp(brightness - sceneData.bloomThreshold + bloomKnee, 0.0,
                        bloomKnee * 2.0);
     soft = soft * soft / max(bloomKnee * 4.0, 0.00001);
     float contribution = max(brightness - sceneData.bloomThreshold, soft) /
                          max(brightness, 0.00001);
-    float3 brightColor = accum * contribution;
+    float3 brightColor = presentColor * contribution;
     float2 motion = previousUvValid ? uv - previousUv : float2(0.0);
 
     for (uint y = 0; y < pixelStride; ++y) {
@@ -209,7 +210,7 @@ kernel void main0(texture2d<float, access::write> outTex [[texture(0)]],
                 float4(accumulatedMoment, accumulatedMomentSquared, variance,
                        primaryHitDistance),
                 pixel);
-            outTex.write(float4(accum, 1.0), pixel);
+            outTex.write(float4(presentColor, 1.0), pixel);
             brightTex.write(float4(brightColor, 1.0), pixel);
         }
     }
