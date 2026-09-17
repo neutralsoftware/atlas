@@ -265,7 +265,8 @@ void resolveMaterialParameters(Material mat, float2 uv, uint textureCount,
                                thread float3 &albedo, thread float &metallic,
                                thread float &roughness, thread float &ao,
                                thread float3 &emissive, thread float &outIor,
-                               thread float &outTransmittance) {
+                               thread float &outTransmittance,
+                               thread float &outAbbeNumber) {
     albedo = clamp(mat.albedo.xyz, float3(0.0), float3(1.0));
     metallic = mat.metallic;
     roughness = mat.roughness;
@@ -275,6 +276,7 @@ void resolveMaterialParameters(Material mat, float2 uv, uint textureCount,
 
     outIor = max(mat.ior, 1.0);
     outTransmittance = clamp(mat.transmittance, 0.0, 1.0);
+    outAbbeNumber = max(mat.abbeNumber, 0.0);
 
     if (mat.albedoTextureIndex >= 0 &&
         uint(mat.albedoTextureIndex) < textureCount) {
@@ -335,7 +337,7 @@ float3 resolveShadingNormal(Material mat, float2 uv, float3 localN,
         B = basis[1];
     }
 
-    bool useNormalMap = mat._pad1[0] != 0;
+    bool useNormalMap = mat.useNormalMap != 0;
     float normalStrength = max(mat._pad0, 0.0f);
     if (useNormalMap && normalStrength > 0.0 && mat.normalTextureIndex >= 0 &&
         uint(mat.normalTextureIndex) < textureCount) {

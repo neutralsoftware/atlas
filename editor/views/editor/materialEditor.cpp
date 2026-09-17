@@ -144,8 +144,7 @@ class MaterialPreviewWidget : public QWidget {
     ~MaterialPreviewWidget() override { shutdownRuntime(); }
 
     void setMaterial(const QJsonObject &next, const QString &nextBaseDir) {
-        materialDefinition =
-            QJsonDocument(next).toJson(QJsonDocument::Compact);
+        materialDefinition = QJsonDocument(next).toJson(QJsonDocument::Compact);
         baseDir = nextBaseDir;
         if (runtimeContext != nullptr) {
             runtimeContext->setMaterialPreviewMaterial(
@@ -230,8 +229,8 @@ class MaterialPreviewWidget : public QWidget {
     }
 
     void startRuntime() {
-        if (runtimeContext != nullptr || projectFile.isEmpty() || width() <= 1 ||
-            height() <= 1 || materialDefinition.isEmpty()) {
+        if (runtimeContext != nullptr || projectFile.isEmpty() ||
+            width() <= 1 || height() <= 1 || materialDefinition.isEmpty()) {
             return;
         }
 #ifdef METAL
@@ -253,7 +252,8 @@ class MaterialPreviewWidget : public QWidget {
             }
         } catch (const std::exception &error) {
             qWarning().noquote()
-                << QStringLiteral("Failed to start runtime material preview: %1")
+                << QStringLiteral(
+                       "Failed to start runtime material preview: %1")
                        .arg(QString::fromUtf8(error.what()));
             runtimeContext.reset();
         }
@@ -428,6 +428,8 @@ MaterialEditorPanel::normalizedMaterial(const QJsonObject &source) const {
         result.insert("transmittance", 0.0);
     if (!result.value("ior").isDouble())
         result.insert("ior", 1.45);
+    if (!result.value("abbeNumber").isDouble())
+        result.insert("abbeNumber", 0.0);
     return result;
 }
 
@@ -543,8 +545,7 @@ void MaterialEditorPanel::showMaterial() {
             if (materialSplitter == nullptr)
                 return;
             const int available = std::max(materialSplitter->width(), 500);
-            materialSplitter->setSizes(
-                {available * 2 / 5, available * 3 / 5});
+            materialSplitter->setSizes({available * 2 / 5, available * 3 / 5});
         });
     }
     connect(materialSplitter, &QSplitter::splitterMoved, this,
@@ -592,10 +593,14 @@ void MaterialEditorPanel::showMaterial() {
     auto *volumeForm = new QFormLayout(volume);
     transmittanceField = scalarField(0.0, 1.0, 0.01, volume);
     iorField = scalarField(1.0, 3.0, 0.01, volume);
+    abbeNumberField = scalarField(0.0, 100.0, 0.1, volume);
     transmittanceField->setValue(material.value("transmittance").toDouble());
     iorField->setValue(material.value("ior").toDouble());
+    abbeNumberField->setValue(material.value("abbeNumber").toDouble());
+
     volumeForm->addRow("Weight", transmittanceField);
     volumeForm->addRow("IOR", iorField);
+    volumeForm->addRow("Abbe Number", abbeNumberField);
     propertiesLayout->addWidget(volume);
 
     auto *normal = new QGroupBox("Normal", properties);
@@ -688,18 +693,12 @@ void MaterialEditorPanel::showMaterial() {
             [this] { setColor("albedo", albedoButton); });
     connect(emissiveButton, &QPushButton::clicked, this,
             [this] { setColor("emissiveColor", emissiveButton); });
-    const QList<QDoubleSpinBox *> scalars{metallicField,
-                                          roughnessField,
-                                          aoField,
-                                          reflectivityField,
-                                          emissiveIntensityField,
-                                          normalStrengthField,
-                                          textureScaleUField,
-                                          textureScaleVField,
-                                          textureOffsetUField,
-                                          textureOffsetVField,
-                                          transmittanceField,
-                                          iorField};
+    const QList<QDoubleSpinBox *> scalars{
+        metallicField,       roughnessField,         aoField,
+        reflectivityField,   emissiveIntensityField, normalStrengthField,
+        textureScaleUField,  textureScaleVField,     textureOffsetUField,
+        textureOffsetVField, transmittanceField,     iorField,
+        abbeNumberField};
     for (QDoubleSpinBox *field : scalars) {
         connect(field, &QDoubleSpinBox::valueChanged, this,
                 [this](double) { materialChanged(); });
@@ -776,12 +775,10 @@ void MaterialEditorPanel::materialChanged() {
     material.insert("emissiveIntensity", emissiveIntensityField->value());
     material.insert("normalMapStrength", normalStrengthField->value());
     material.insert("useNormalMap", normalMapField->isChecked());
-    material.insert("textureScale",
-                    QJsonArray{textureScaleUField->value(),
-                               textureScaleVField->value()});
-    material.insert("textureOffset",
-                    QJsonArray{textureOffsetUField->value(),
-                               textureOffsetVField->value()});
+    material.insert("textureScale", QJsonArray{textureScaleUField->value(),
+                                               textureScaleVField->value()});
+    material.insert("textureOffset", QJsonArray{textureOffsetUField->value(),
+                                                textureOffsetVField->value()});
     material.insert("transmittance", transmittanceField->value());
     material.insert("ior", iorField->value());
     if (material == previous)

@@ -13,21 +13,21 @@ constant float PHOTON_LAMBDA_RANGE_NM =
 constant float PHOTON_CIE_Y_INTEGRAL = 106.856895f;
 constant uint PHOTON_WAVELENGTH_CDF_BIN_COUNT = 32;
 constant float PHOTON_WAVELENGTH_CDF[33] = {
-    0.000000000f, 0.013349540f, 0.026769640f, 0.040377409f,
-    0.054438285f, 0.069490706f, 0.086506470f, 0.107052655f,
-    0.133634668f, 0.171206903f, 0.227843254f, 0.304508651f,
-    0.390584771f, 0.479164775f, 0.564236129f, 0.640360711f,
-    0.703557178f, 0.752611910f, 0.788882128f, 0.815347485f,
-    0.835360285f, 0.851703036f, 0.866231865f, 0.879978311f,
-    0.893429295f, 0.906782339f, 0.920106833f, 0.933423997f,
-    0.946739502f, 0.960054675f, 0.973369790f, 0.986684896f,
-    1.000000000f};
+    0.000000000f, 0.013349540f, 0.026769640f, 0.040377409f, 0.054438285f,
+    0.069490706f, 0.086506470f, 0.107052655f, 0.133634668f, 0.171206903f,
+    0.227843254f, 0.304508651f, 0.390584771f, 0.479164775f, 0.564236129f,
+    0.640360711f, 0.703557178f, 0.752611910f, 0.788882128f, 0.815347485f,
+    0.835360285f, 0.851703036f, 0.866231865f, 0.879978311f, 0.893429295f,
+    0.906782339f, 0.920106833f, 0.933423997f, 0.946739502f, 0.960054675f,
+    0.973369790f, 0.986684896f, 1.000000000f};
 
 struct SpectralPath {
     float4 wavelengthNm;
     float4 wavelengthPdf;
     float4 throughput;
     float4 radiance;
+
+    uint heroIndex;
 };
 
 float2 sampleVisibleWavelength(float u) {
@@ -56,18 +56,18 @@ float2 sampleVisibleWavelength(float u) {
 SpectralPath createSpectralPath(thread uint &rng) {
     SpectralPath path;
     float4 strata = float4(0.0, 1.0, 2.0, 3.0);
-    float4 u = (strata + float4(rand(rng))) /
-               float(PHOTON_SPECTRAL_LANE_COUNT);
+    float4 u = (strata + float4(rand(rng))) / float(PHOTON_SPECTRAL_LANE_COUNT);
     float2 sample0 = sampleVisibleWavelength(u.x);
     float2 sample1 = sampleVisibleWavelength(u.y);
     float2 sample2 = sampleVisibleWavelength(u.z);
     float2 sample3 = sampleVisibleWavelength(u.w);
-    path.wavelengthNm =
-        float4(sample0.x, sample1.x, sample2.x, sample3.x);
-    path.wavelengthPdf =
-        float4(sample0.y, sample1.y, sample2.y, sample3.y);
+    path.wavelengthNm = float4(sample0.x, sample1.x, sample2.x, sample3.x);
+    path.wavelengthPdf = float4(sample0.y, sample1.y, sample2.y, sample3.y);
     path.throughput = float4(1.0);
     path.radiance = float4(0.0);
+
+    path.heroIndex = min(uint(rand(rng) * float(PHOTON_SPECTRAL_LANE_COUNT)),
+                         PHOTON_SPECTRAL_LANE_COUNT - 1);
     return path;
 }
 
@@ -95,11 +95,10 @@ float rgbToEmissionAtWavelength(float3 rgb, float wavelengthNm) {
 }
 
 float4 evaluateReflectance(float3 rgb, thread const SpectralPath &path) {
-    return float4(
-        rgbToReflectanceAtWavelength(rgb, path.wavelengthNm.x),
-        rgbToReflectanceAtWavelength(rgb, path.wavelengthNm.y),
-        rgbToReflectanceAtWavelength(rgb, path.wavelengthNm.z),
-        rgbToReflectanceAtWavelength(rgb, path.wavelengthNm.w));
+    return float4(rgbToReflectanceAtWavelength(rgb, path.wavelengthNm.x),
+                  rgbToReflectanceAtWavelength(rgb, path.wavelengthNm.y),
+                  rgbToReflectanceAtWavelength(rgb, path.wavelengthNm.z),
+                  rgbToReflectanceAtWavelength(rgb, path.wavelengthNm.w));
 }
 
 float4 evaluateEmission(float3 rgb, thread const SpectralPath &path) {
@@ -109,13 +108,31 @@ float4 evaluateEmission(float3 rgb, thread const SpectralPath &path) {
                   rgbToEmissionAtWavelength(rgb, path.wavelengthNm.w));
 }
 
-float evaluateIorAtWavelength(float baseIor, thread const SpectralPath &path) {
-    return max(baseIor, 1.0001f);
+float4 evaluateIorAtWavelength(float referenceIor, float abbeNumber,
+                               thread const SpectralPath &path) {
+    if (abbeNumber <= 0.0f || !isfinite(abbeNumber)) {
+        return float4(max(referenceIor, 1.0001f));
+    }
+
+    constexpr float lambdaD = 587.6f;
+    constexpr float lambdaF = 486.1f;
+    constexpr float lambdaC = 656.3f;
+
+    float deltaN = (referenceIor - 1.0f) / abbeNumber;
+
+    float B =
+        deltaN / (1.0f / (lambdaF * lambdaF) - 1.0f / (lambdaC * lambdaC));
+
+    float A = referenceIor - B / (lambdaD * lambdaD);
+
+    float4 lambda = clamp(path.wavelengthNm, 380.0f, 780.0f);
+
+    float4 ior = A + B / (lambda * lambda);
+
+    return max(ior, float4(1.0001f));
 }
 
-float spectralAverage(float4 spectrum) {
-    return dot(spectrum, float4(0.25));
-}
+float spectralAverage(float4 spectrum) { return dot(spectrum, float4(0.25)); }
 
 float spectralMax(float4 spectrum) {
     return max(max(spectrum.x, spectrum.y), max(spectrum.z, spectrum.w));
@@ -154,8 +171,7 @@ float3 cieXYZ1931(float wavelengthNm) {
                float3(0.0f));
 }
 
-float3 spectralRadianceToXYZ(float4 radiance,
-                             thread const SpectralPath &path) {
+float3 spectralRadianceToXYZ(float4 radiance, thread const SpectralPath &path) {
     float3 xyz = float3(0.0);
     for (uint lane = 0; lane < PHOTON_SPECTRAL_LANE_COUNT; ++lane) {
         float pdf = path.wavelengthPdf[lane];
@@ -168,7 +184,9 @@ float3 spectralRadianceToXYZ(float4 radiance,
 }
 
 float3 xyzToLinearSRGB(float3 xyz) {
-    return float3(3.2404542f * xyz.x - 1.5371385f * xyz.y - 0.4985314f * xyz.z,
-                  -0.9692660f * xyz.x + 1.8760108f * xyz.y + 0.0415560f * xyz.z,
-                  0.0556434f * xyz.x - 0.2040259f * xyz.y + 1.0572252f * xyz.z);
+    float3 rgb =
+        float3(3.2404542f * xyz.x - 1.5371385f * xyz.y - 0.4985314f * xyz.z,
+               -0.9692660f * xyz.x + 1.8760108f * xyz.y + 0.0415560f * xyz.z,
+               0.0556434f * xyz.x - 0.2040259f * xyz.y + 1.0572252f * xyz.z);
+    return rgb / float3(1.1994129f, 0.9511085f, 0.9081339f);
 }

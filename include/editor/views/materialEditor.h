@@ -70,6 +70,7 @@ class MaterialEditorPanel : public QWidget {
     QDoubleSpinBox *textureOffsetVField = nullptr;
     QDoubleSpinBox *transmittanceField = nullptr;
     QDoubleSpinBox *iorField = nullptr;
+    QDoubleSpinBox *abbeNumberField = nullptr;
     QCheckBox *normalMapField = nullptr;
     QHash<QString, QLineEdit *> textureFields;
     QHash<QString, QLabel *> texturePreviews;
