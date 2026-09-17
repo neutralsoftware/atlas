@@ -14,6 +14,7 @@
 
 - Add Bezel Jolt softbodies and cloth simulation *M9*
 - Add breaking and fracturing to Bezel Jolt *M10*
+- *Optional:* Revamp Bezel Native
 
 - Add a shader customization and procedural material system *M11*
 
