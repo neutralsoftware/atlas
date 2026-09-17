@@ -36,6 +36,7 @@ float3 sampleRadiance(
     float previousBsdfPdf = 0.0;
     float previousEnvironmentPdf = 0.0;
     bool previousEventWasDelta = true;
+    bool wavelengthSelected = false;
 
     for (uint depth = 0; depth <= bounceLimit; ++depth) {
         auto hit = isect.intersect(surfaceRay, sceneAS);
@@ -89,8 +90,10 @@ float3 sampleRadiance(
             float3 p2 = float3(vertices[i2].position);
             float3x3 normalMatrix = float3x3(
                 inst.normalCol0.xyz, inst.normalCol1.xyz, inst.normalCol2.xyz);
+            float3 localGeometricNormal =
+                normalizeOr(cross(p1 - p0, p2 - p0), localN);
             geometricNormal = normalizeOr(
-                cross(p1 - p0, p2 - p0),
+                normalMatrix * localGeometricNormal,
                 normalizeOr(normalMatrix * localN, float3(0.0, 1.0, 0.0)));
 
             float alpha = resolveMaterialOpacity(mat, texUV,
@@ -327,6 +330,14 @@ float3 sampleRadiance(
             float4 F = F_Schlick(fresnelCosine, float4(dielectricF0));
             float4 tint = mix(float4(1.0), albedo, 0.15);
             bounceWeight = (1.0 - F) * tint / max(transmitProb, 1e-4);
+            if (abbeNumber > 0.0 && !wavelengthSelected) {
+                float4 heroMask = float4(heroIndex == 0 ? 1.0f : 0.0f,
+                                         heroIndex == 1 ? 1.0f : 0.0f,
+                                         heroIndex == 2 ? 1.0f : 0.0f,
+                                         heroIndex == 3 ? 1.0f : 0.0f);
+                bounceWeight *= heroMask * float(PHOTON_SPECTRAL_LANE_COUNT);
+                wavelengthSelected = true;
+            }
         } else {
             float3 localDirection =
                 cosineSampleHemisphere(float2(rand(rng), rand(rng)));

@@ -78,7 +78,13 @@ float4 traceShadowVisibility(
             float3 p1 = float3(vertices[i1].position);
             float3 p2 = float3(vertices[i2].position);
 
-            float3 hitNormal = normalizeOr(cross(p1 - p0, p2 - p0), -L);
+            InstanceData hitInstance = instanceData[objectIndex];
+            float3x3 normalMatrix = float3x3(
+                hitInstance.normalCol0.xyz, hitInstance.normalCol1.xyz,
+                hitInstance.normalCol2.xyz);
+            float3 hitNormal = normalizeOr(
+                normalMatrix * normalizeOr(cross(p1 - p0, p2 - p0), -L),
+                -L);
             hitNormal = dot(hitNormal, L) < 0.0f ? hitNormal : -hitNormal;
 
             float4 ior = evaluateIorAtWavelength(baseIor, abbeNumber, path);
