@@ -212,6 +212,8 @@ void photon::PathTracing::init() {
     emissiveTriangleCount = 0;
     accelerationBuildFailed = false;
     lastError.clear();
+    causticMapDirty = true;
+    causticGeometryPresent = false;
 
     ComputeShader pathTracerShader =
         ComputeShader::fromDefaultShader(AtlasComputeShader::PathTracer);
@@ -224,6 +226,26 @@ void photon::PathTracing::init() {
     pathTracingPipeline->setShaderProgram(computePathTracer->shader);
     pathTracingPipeline->setComputeThreadgroupSize(8, 8, 1);
     pathTracingPipeline->build();
+
+    auto createCausticPipeline = [&](const char *entry) {
+        auto shader = pathTracerShader.shader->forFunction(
+            entry, opal::ShaderType::Compute);
+        shader->compile();
+        auto program = opal::ShaderProgram::create();
+        program->attachShader(shader);
+        program->link();
+        auto pipeline = opal::Pipeline::create();
+        pipeline->setShaderProgram(program);
+        pipeline->setComputeThreadgroupSize(64, 1, 1);
+        pipeline->build();
+        return pipeline;
+    };
+    causticClearPipeline = createCausticPipeline("clearCaustics");
+    causticEmitPipeline = createCausticPipeline("emitCaustics");
+    causticPhotons =
+        opal::Buffer::create(opal::BufferUsage::ShaderReadWrite, 65536 * 48);
+    causticSlots = opal::Buffer::create(opal::BufferUsage::ShaderReadWrite,
+                                        16384 * (8 * 2 + 1) * sizeof(uint32_t));
 
     ComputeShader pathDenoiserShader =
         ComputeShader::fromDefaultShader(AtlasComputeShader::PathDenoiser);
@@ -455,6 +477,12 @@ bool photon::PathTracing::buildAccelerationStructure(
 
     int objectID = 0;
     if (needsRebuild) {
+        causticMapDirty = true;
+        causticGeometryPresent = false;
+        glm::vec3 causticMinimum(1e30f);
+        glm::vec3 causticMaximum(-1e30f);
+        glm::vec3 sceneMinimum(1e30f);
+        glm::vec3 sceneMaximum(-1e30f);
         sceneBLAS.reset();
         cachedBLASPrimitiveOffsets.clear();
         materialTextures.clear();
@@ -519,6 +547,15 @@ bool photon::PathTracing::buildAccelerationStructure(
             for (const auto &v : objectVertices) {
                 glm::vec4 worldPosition =
                     object->model * glm::vec4(v.position.toGlm(), 1.0f);
+                sceneMinimum = glm::min(sceneMinimum, glm::vec3(worldPosition));
+                sceneMaximum = glm::max(sceneMaximum, glm::vec3(worldPosition));
+                if (object->material.roughness <= 0.025f) {
+                    causticGeometryPresent = true;
+                    causticMinimum =
+                        glm::min(causticMinimum, glm::vec3(worldPosition));
+                    causticMaximum =
+                        glm::max(causticMaximum, glm::vec3(worldPosition));
+                }
                 accelerationPositions.push_back(worldPosition.x);
                 accelerationPositions.push_back(worldPosition.y);
                 accelerationPositions.push_back(worldPosition.z);
@@ -668,6 +705,16 @@ bool photon::PathTracing::buildAccelerationStructure(
             }
 
             objectID++;
+        }
+
+        if (causticGeometryPresent) {
+            causticBounds = glm::vec4(
+                (causticMinimum + causticMaximum) * 0.5f,
+                std::max(glm::length(causticMaximum - causticMinimum) * 0.505f,
+                         0.01f));
+            causticRadius = std::clamp(causticBounds.w * 0.018f, 0.01f, 0.15f);
+            causticLaunchDistance =
+                glm::length(sceneMaximum - sceneMinimum) + 0.01f;
         }
 
         float totalEmissiveWeight = 0.0f;
@@ -1179,6 +1226,7 @@ bool photon::PathTracing::render(
     }
     try {
         if (this->createLightBuffers()) {
+            causticMapDirty = true;
             frameIndex = 0;
         }
     } catch (const std::exception &error) {
@@ -1254,6 +1302,7 @@ bool photon::PathTracing::render(
         std::fabs(cachedAtmosphereSunSize - atmosphereSunSize) > 0.0001f;
     bool skyChanged = cachedSkyboxTextureId != skyboxTextureId;
     if (lightChanged || skyChanged) {
+        causticMapDirty = true;
         frameIndex = 0;
     }
     cachedDirectionalLightCount = directionalLightCount;
@@ -1273,7 +1322,8 @@ bool photon::PathTracing::render(
     const int pixelStride = interactive ? 2 : 1;
     const int effectiveSamples = interactive ? 1 : this->raysPerPixel;
     const int effectiveBounces =
-        interactive ? std::min(this->maxBounces, 2) : this->maxBounces;
+        interactive ? std::min(this->maxBounces, causticGeometryPresent ? 6 : 2)
+                    : this->maxBounces;
     pathTracingPipeline->setUniform1i("sceneData.frameIndex", frameIndex);
     pathTracingPipeline->setUniform1i("sceneData.raysPerPixel",
                                       effectiveSamples);
@@ -1314,6 +1364,71 @@ bool photon::PathTracing::render(
                                        fallbackMaterialTexture);
     }
     pathTracingPipeline->bindTextureArray(materialTextureBindings, 12);
+
+    const bool causticsEnabled =
+        causticGeometryPresent && directionalLightCount + pointLightCount +
+                                          spotLightCount + areaLightCount +
+                                          emissiveTriangleCount >
+                                      0;
+    if (causticPhotons == nullptr || causticSlots == nullptr) {
+        return fail("Caustic photon buffers are unavailable");
+    }
+    pathTracingPipeline->setUniform1i("sceneData.causticsEnabled",
+                                      causticsEnabled ? 1 : 0);
+    pathTracingPipeline->setUniform1f("caustics.radius", causticRadius);
+    pathTracingPipeline->bindBuffer("photons", causticPhotons, 15);
+    pathTracingPipeline->bindBuffer("photonSlots", causticSlots, 16);
+    if (causticsEnabled && causticMapDirty) {
+        commandBuffer->bindPipeline(causticClearPipeline);
+        causticClearPipeline->bindBuffer("photonSlots", causticSlots, 16);
+        commandBuffer->dispatch(16384, 1, 1);
+        commandBuffer->computeBarrier();
+        commandBuffer->bindPipeline(causticEmitPipeline);
+        auto &pipeline = causticEmitPipeline;
+        pipeline->setUniform1i("sceneData.numDirectionalLights",
+                               directionalLightCount);
+        pipeline->setUniform1i("sceneData.numPointLights", pointLightCount);
+        pipeline->setUniform1i("sceneData.numSpotLights", spotLightCount);
+        pipeline->setUniform1i("sceneData.numAreaLights", areaLightCount);
+        pipeline->setUniform1i("sceneData.numEmissiveTriangles",
+                               emissiveTriangleCount);
+        pipeline->setUniform1i("sceneData.materialTextureCount",
+                               std::min<int>(materialTextures.size(),
+                                             kPathTracerMaxMaterialTextures));
+        pipeline->setUniform3f(
+            "dirLight.direction", directionalLightDirection.x,
+            directionalLightDirection.y, directionalLightDirection.z);
+        pipeline->setUniform3f("dirLight.color", directionalLightColor.x,
+                               directionalLightColor.y,
+                               directionalLightColor.z);
+        pipeline->setUniform1f("dirLight.intensity", directionalLightIntensity);
+        pipeline->setUniform4f("caustics.bounds", causticBounds.x,
+                               causticBounds.y, causticBounds.z,
+                               causticBounds.w);
+        pipeline->setUniform1f("caustics.radius", causticRadius);
+        pipeline->setUniform1f("caustics.launchDistance",
+                               causticLaunchDistance);
+        pipeline->setUniform1i("caustics.seed", causticSeed++);
+        pipeline->bindBuffer("materials", materialBuffer, 2);
+        pipeline->bindBuffer("primitiveObjects", meshInfo, 3);
+        pipeline->bindBuffer("vertices", globalVertices, 4);
+        pipeline->bindBuffer("indices", globalIndices, 5);
+        pipeline->bindBuffer("instanceData", instanceDataBuffer, 6);
+        pipeline->bindBuffer("pointLights", pointLights, 9);
+        pipeline->bindBuffer("spotLights", spotLights, 10);
+        pipeline->bindBuffer("areaLights", areaLights, 11);
+        pipeline->bindBuffer("blasPrimitiveOffsets", blasPrimitiveOffsets, 13);
+        pipeline->bindBuffer("emissiveTriangles", emissiveTriangles, 14);
+        pipeline->bindBuffer("photons", causticPhotons, 15);
+        pipeline->bindBuffer("photonSlots", causticSlots, 16);
+        pipeline->bindTextureArray(materialTextureBindings, 12);
+        commandBuffer->bindPrimitiveAccelerationStructure(sceneBLAS, 0);
+        commandBuffer->dispatch(65536, 1, 1);
+        commandBuffer->computeBarrier();
+        causticMapDirty = false;
+        commandBuffer->bindPipeline(pathTracingPipeline);
+        commandBuffer->bindPrimitiveAccelerationStructure(sceneBLAS, 0);
+    }
 
     commandBuffer->dispatch((outputWidth + pixelStride - 1) / pixelStride,
                             (outputHeight + pixelStride - 1) / pixelStride, 1);

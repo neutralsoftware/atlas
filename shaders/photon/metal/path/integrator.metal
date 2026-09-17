@@ -14,6 +14,7 @@ using namespace raytracing;
 #include "visibility.metal"
 #include "brdf.metal"
 #include "lighting.metal"
+#include "caustics.metal"
 
 float3 sampleRadiance(
     uint2 gid, uint sampleIndex, uint w, intersector<triangle_data> isect,
@@ -24,7 +25,9 @@ float3 sampleRadiance(
     constant DirectionalLightData &dirLight, constant SceneData &sceneData,
     constant PointLight *pointLights, constant SpotLight *spotLights,
     constant AreaLight *areaLights,
-    constant EmissiveTriangle *emissiveTriangles, PT_MATERIAL_TEXTURE_PARAMS,
+    constant EmissiveTriangle *emissiveTriangles,
+    device const CausticPhoton *photons, device const uint *photonSlots,
+    constant CausticSettings &caustics, PT_MATERIAL_TEXTURE_PARAMS,
     texturecube<float> skybox, thread float3 &primaryAlbedo,
     thread float3 &primaryNormal, thread float3 &primaryPosition,
     thread float &primaryDepth, thread float &primaryRoughness,
@@ -37,6 +40,8 @@ float3 sampleRadiance(
     float previousEnvironmentPdf = 0.0;
     bool previousEventWasDelta = true;
     bool wavelengthSelected = false;
+    bool causticConnection = false;
+    bool hasNonDeltaVertex = false;
 
     for (uint depth = 0; depth <= bounceLimit; ++depth) {
         auto hit = isect.intersect(surfaceRay, sceneAS);
@@ -93,7 +98,7 @@ float3 sampleRadiance(
             float3 localGeometricNormal =
                 normalizeOr(cross(p1 - p0, p2 - p0), localN);
             geometricNormal = normalizeOr(
-                normalMatrix * localGeometricNormal,
+                localGeometricNormal,
                 normalizeOr(normalMatrix * localN, float3(0.0, 1.0, 0.0)));
 
             float alpha = resolveMaterialOpacity(mat, texUV,
@@ -111,6 +116,20 @@ float3 sampleRadiance(
                 surfaceRay.direction * rayOffsetDistance(rejectedPosition);
             surfaceRay.min_distance = 0.0;
             hit = isect.intersect(surfaceRay, sceneAS);
+        }
+
+        bool foundAreaEmitter;
+        float3 areaEmission = intersectAreaEmitters(
+            surfaceRay, foundSurface ? hit.distance : 1e30f, sceneData,
+            areaLights, foundAreaEmitter);
+        if (foundAreaEmitter) {
+            if ((depth == 0 || previousEventWasDelta) &&
+                !(sceneData.causticsEnabled != 0 && causticConnection)) {
+                spectralPath.radiance +=
+                    spectralPath.throughput *
+                    evaluateEmission(areaEmission, spectralPath);
+            }
+            break;
         }
 
         if (!foundSurface) {
@@ -165,15 +184,31 @@ float3 sampleRadiance(
         }
 
         float reflectivity = clamp(mat.reflectivity, 0.0, 1.0);
-        float4 direct = evalDirectLightingPBR(
-            isect, sceneAS, P, N, Ng, V, albedo, metallic, roughness,
-            reflectivity, ior, transmittance, rng, spectralPath, dirLight,
-            sceneData, pointLights, spotLights, areaLights, emissiveTriangles,
-            materials, primitiveObjects, blasPrimitiveOffsets, vertices,
-            indices, instanceData, PT_MATERIAL_TEXTURE_ARGS);
-        spectralPath.radiance += spectralPath.throughput * direct;
-        if (depth == 0 || previousEventWasDelta ||
-            sceneData.numEmissiveTriangles == 0) {
+        bool smoothDielectric =
+            roughness <= 0.025f && transmittance > 0.999f && metallic < 0.001f;
+        bool smoothMirror = roughness <= 0.025f && metallic > 0.999f;
+        if (sceneData.causticsEnabled != 0 && !smoothDielectric &&
+            !smoothMirror) {
+            spectralPath.radiance +=
+                spectralPath.throughput *
+                gatherCaustics(P, N, Ng, V, surfaceObjectIndex, albedo,
+                               metallic, roughness, reflectivity, ior,
+                               transmittance, spectralPath, caustics, photons,
+                               photonSlots);
+        }
+        if (!smoothDielectric && !smoothMirror) {
+            float4 direct = evalDirectLightingPBR(
+                isect, sceneAS, P, N, Ng, V, albedo, metallic, roughness,
+                reflectivity, ior, transmittance, rng, spectralPath, dirLight,
+                sceneData, pointLights, spotLights, areaLights,
+                emissiveTriangles, materials, primitiveObjects,
+                blasPrimitiveOffsets, vertices, indices, instanceData,
+                PT_MATERIAL_TEXTURE_ARGS);
+            spectralPath.radiance += spectralPath.throughput * direct;
+        }
+        if (!(sceneData.causticsEnabled != 0 && causticConnection) &&
+            (depth == 0 || previousEventWasDelta ||
+             sceneData.numEmissiveTriangles == 0)) {
             spectralPath.radiance += spectralPath.throughput * emissive;
         }
 
@@ -194,10 +229,12 @@ float3 sampleRadiance(
                                      ambientRadiance * aoVisibility;
         }
 
-        float4 dielectricF0 = pow((ior - 1.0f) / (ior + 1.0f), 2.0f);
         float4 F0 = materialF0(albedo, metallic, reflectivity, ior);
         float NdotV = max(dot(N, V), 1e-4);
-        float4 viewFresnel = F_Schlick(NdotV, F0);
+        float4 etaPacket = frontFace ? 1.0 / ior : ior;
+        float4 viewFresnel = smoothDielectric
+                                 ? dielectricFresnel(NdotV, etaPacket)
+                                 : F_Schlick(NdotV, F0);
         float fresnelProbability =
             clamp(spectralAverage(viewFresnel), 0.001, 0.999);
         float specProb = fresnelProbability;
@@ -205,7 +242,6 @@ float3 sampleRadiance(
             transmittance * (1.0 - metallic) * (1.0 - fresnelProbability);
         float diffuseProb = (1.0 - metallic) * (1.0 - transmittance) *
                             (1.0 - fresnelProbability);
-        float4 etaPacket = frontFace ? 1.0 / ior : ior;
         uint heroIndex = spectralPath.heroIndex;
         float eta = etaPacket[heroIndex];
 
@@ -277,12 +313,12 @@ float3 sampleRadiance(
         float sampledBsdfPdf = 0.0;
         float sampledEnvironmentPdf = 0.0;
         bool sampledEventWasDelta = true;
+        bool sampledRoughTransmission = false;
 
         if (choice < specProb && specProb > 1e-4) {
             if (roughness <= 0.025 || totalInternalReflection) {
                 nextDirection = reflect(-V, N);
-                float4 F = totalInternalReflection ? float4(1.0)
-                                                   : F_Schlick(NdotV, F0);
+                float4 F = totalInternalReflection ? float4(1.0) : viewFresnel;
                 bounceWeight = F / max(specProb, 1e-4);
             } else {
                 float3 localView =
@@ -314,6 +350,7 @@ float3 sampleRadiance(
             nextDirection = idealRefractedDirection;
             float fresnelCosine = NdotV;
             if (roughness > 0.025) {
+                sampledRoughTransmission = true;
                 float3 localView =
                     float3(dot(V, basis[0]), dot(V, basis[1]), dot(V, N));
                 float3 localH = sampleGGXVNDF(localView, roughness,
@@ -327,9 +364,10 @@ float3 sampleRadiance(
                     fresnelCosine = max(dot(V, H), 0.0);
                 }
             }
-            float4 F = F_Schlick(fresnelCosine, float4(dielectricF0));
+            float4 F = dielectricFresnel(fresnelCosine, etaPacket);
             float4 tint = mix(float4(1.0), albedo, 0.15);
-            bounceWeight = (1.0 - F) * tint / max(transmitProb, 1e-4);
+            bounceWeight = (1.0 - F) * tint * transmittance * (1.0 - metallic) *
+                           etaPacket * etaPacket / max(transmitProb, 1e-4);
             if (abbeNumber > 0.0 && !wavelengthSelected) {
                 float4 heroMask = float4(heroIndex == 0 ? 1.0f : 0.0f,
                                          heroIndex == 1 ? 1.0f : 0.0f,
@@ -377,6 +415,15 @@ float3 sampleRadiance(
             spectralPath.throughput /= survival;
         }
 
+        if (sampledRoughTransmission) {
+            hasNonDeltaVertex = false;
+            causticConnection = false;
+        } else if (!sampledEventWasDelta) {
+            hasNonDeltaVertex = true;
+            causticConnection = false;
+        } else if (hasNonDeltaVertex) {
+            causticConnection = true;
+        }
         previousBsdfPdf = sampledBsdfPdf;
         previousEnvironmentPdf = sampledEnvironmentPdf;
         previousEventWasDelta = sampledEventWasDelta;

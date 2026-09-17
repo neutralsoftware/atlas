@@ -135,6 +135,7 @@ struct SceneData {
     float fireflyClamp;
     uint numEmissiveTriangles;
     float bloomThreshold;
+    uint causticsEnabled;
 };
 
 static_assert(sizeof(SceneData) == 160);
@@ -146,3 +147,24 @@ static_assert(__builtin_offsetof(SceneData, ambientColor) == 112);
 static_assert(__builtin_offsetof(SceneData, accumulationFrameLimit) == 132);
 static_assert(__builtin_offsetof(SceneData, numEmissiveTriangles) == 140);
 static_assert(__builtin_offsetof(SceneData, bloomThreshold) == 144);
+static_assert(__builtin_offsetof(SceneData, causticsEnabled) == 148);
+
+struct CausticPhoton {
+    float4 positionWavelength;
+    float4 normalPower;
+    float4 incomingObject;
+};
+
+struct CausticSettings {
+    float4 bounds;
+    float radius;
+    uint seed;
+    float launchDistance;
+};
+
+static_assert(sizeof(CausticPhoton) == 48);
+static_assert(sizeof(CausticSettings) == 32);
+
+constant uint CAUSTIC_PHOTON_COUNT = 65536;
+constant uint CAUSTIC_BUCKET_COUNT = 16384;
+constant uint CAUSTIC_BUCKET_SAMPLES = 8;

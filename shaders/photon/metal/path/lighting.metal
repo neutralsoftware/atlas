@@ -185,3 +185,34 @@ float4 evalDirectLightingPBR(
 
     return lighting;
 }
+
+float3 intersectAreaEmitters(ray r, float surfaceDistance,
+                             constant SceneData &sceneData,
+                             constant AreaLight *areaLights,
+                             thread bool &foundEmitter) {
+    float nearest = surfaceDistance;
+    float3 emission = float3(0.0f);
+    foundEmitter = false;
+    for (uint i = 0; i < sceneData.numAreaLights; ++i) {
+        AreaLight source = areaLights[i];
+        float3 right = float3(source.right);
+        float3 up = float3(source.up);
+        float3 normal = normalize(cross(right, up));
+        float cosine = dot(normal, r.direction);
+        if (abs(cosine) < 1e-6f || (source.twoSided < 0.5f && cosine >= 0.0f))
+            continue;
+        float distance =
+            dot(float3(source.position) - r.origin, normal) / cosine;
+        if (distance <= r.min_distance || distance >= nearest)
+            continue;
+        float3 offset =
+            r.origin + r.direction * distance - float3(source.position);
+        if (abs(dot(offset, right)) > source.halfWidth ||
+            abs(dot(offset, up)) > source.halfHeight)
+            continue;
+        nearest = distance;
+        emission = float3(source.color) * max(source.intensity, 0.0f);
+        foundEmitter = true;
+    }
+    return emission;
+}

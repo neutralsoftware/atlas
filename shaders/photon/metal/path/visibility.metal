@@ -21,9 +21,6 @@ float4 traceShadowVisibility(
     PT_MATERIAL_TEXTURE_PARAMS) {
     float shadowBias = rayOffsetDistance(P);
     float4 visibility = float4(1.0);
-    float4 causticGain = float4(1.0);
-    float3 entryNormal = float3(0.0);
-    uint dielectricObject = 0xFFFFFFFFu;
     ray shadowRay;
     shadowRay.origin = offsetRayOrigin(P, Ng, L);
     shadowRay.direction = L;
@@ -33,7 +30,7 @@ float4 traceShadowVisibility(
     for (uint alphaStep = 0; alphaStep < 32; ++alphaStep) {
         auto shadowHit = isect.intersect(shadowRay, sceneAS);
         if (shadowHit.type == intersection_type::none) {
-            return min(visibility * causticGain, float4(2.5));
+            return visibility;
         }
 
         uint primitiveIndex = blasPrimitiveOffsets[shadowHit.geometry_id] +
@@ -69,6 +66,10 @@ float4 traceShadowVisibility(
                 emissiveRgb, baseIor, transmittance, abbeNumber);
 
             float transmission = transmittance * (1.0f - metallic);
+            if (sceneData.causticsEnabled != 0 && roughness <= 0.025f &&
+                transmission > 0.001f) {
+                return float4(0.0f);
+            }
 
             if (transmission <= 0.001f) {
                 return float4(0.0f);
@@ -78,13 +79,8 @@ float4 traceShadowVisibility(
             float3 p1 = float3(vertices[i1].position);
             float3 p2 = float3(vertices[i2].position);
 
-            InstanceData hitInstance = instanceData[objectIndex];
-            float3x3 normalMatrix = float3x3(
-                hitInstance.normalCol0.xyz, hitInstance.normalCol1.xyz,
-                hitInstance.normalCol2.xyz);
-            float3 hitNormal = normalizeOr(
-                normalMatrix * normalizeOr(cross(p1 - p0, p2 - p0), -L),
-                -L);
+            float3 hitNormal =
+                normalizeOr(normalizeOr(cross(p1 - p0, p2 - p0), -L), -L);
             hitNormal = dot(hitNormal, L) < 0.0f ? hitNormal : -hitNormal;
 
             float4 ior = evaluateIorAtWavelength(baseIor, abbeNumber, path);
@@ -98,20 +94,6 @@ float4 traceShadowVisibility(
 
             visibility *= tint * transmission * (1.0f - fresnel);
 
-            if (dielectricObject == objectIndex) {
-                float curvature =
-                    1.0f - clamp(abs(dot(entryNormal, hitNormal)), 0.0f, 1.0f);
-                float smoothness = 1.0f - roughness;
-                float4 focus = 1.0f + transmission * max(ior - 1.0f, 0.0f) *
-                                          smoothness * smoothness *
-                                          (0.35f + curvature * 3.0f);
-                causticGain *= clamp(focus, 1.0f, 2.5f);
-                dielectricObject = 0xFFFFFFFFu;
-            } else {
-                dielectricObject = objectIndex;
-                entryNormal = hitNormal;
-            }
-
             if (spectralMax(visibility) <= 0.001f) {
                 return float4(0.0f);
             }
@@ -122,7 +104,7 @@ float4 traceShadowVisibility(
         shadowRay.origin += shadowRay.direction * advance;
         shadowRay.max_distance -= advance;
         if (shadowRay.max_distance <= shadowBias) {
-            return min(visibility * causticGain, float4(2.5));
+            return visibility;
         }
     }
 
