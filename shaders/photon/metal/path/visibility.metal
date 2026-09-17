@@ -21,7 +21,7 @@ float4 traceShadowVisibility(
     PT_MATERIAL_TEXTURE_PARAMS) {
     float shadowBias = rayOffsetDistance(P);
     float4 visibility = float4(1.0);
-    float causticGain = 1.0;
+    float4 causticGain = float4(1.0);
     float3 entryNormal = float3(0.0);
     uint dielectricObject = 0xFFFFFFFFu;
     ray shadowRay;
@@ -61,43 +61,53 @@ float4 traceShadowVisibility(
             float3 emissiveRgb;
             float baseIor;
             float transmittance;
+            float abbeNumber;
+
             resolveMaterialParameters(
                 material, uv, sceneData.materialTextureCount,
                 PT_MATERIAL_TEXTURE_ARGS, albedoRgb, metallic, roughness, ao,
-                emissiveRgb, baseIor, transmittance);
-            float transmission = transmittance * (1.0 - metallic);
-            if (transmission <= 0.001) {
-                return float4(0.0);
+                emissiveRgb, baseIor, transmittance, abbeNumber);
+
+            float transmission = transmittance * (1.0f - metallic);
+
+            if (transmission <= 0.001f) {
+                return float4(0.0f);
             }
 
             float3 p0 = float3(vertices[i0].position);
             float3 p1 = float3(vertices[i1].position);
             float3 p2 = float3(vertices[i2].position);
+
             float3 hitNormal = normalizeOr(cross(p1 - p0, p2 - p0), -L);
-            hitNormal = dot(hitNormal, L) < 0.0 ? hitNormal : -hitNormal;
-            float ior = evaluateIorAtWavelength(baseIor, path);
-            float dielectricF0 = pow((ior - 1.0) / (ior + 1.0), 2.0);
-            float fresnel =
-                dielectricF0 +
-                (1.0 - dielectricF0) * pow5(1.0 - abs(dot(hitNormal, L)));
+            hitNormal = dot(hitNormal, L) < 0.0f ? hitNormal : -hitNormal;
+
+            float4 ior = evaluateIorAtWavelength(baseIor, abbeNumber, path);
+            float4 dielectricF0 = pow((ior - 1.0f) / (ior + 1.0f), 2.0f);
+            float cosTheta = abs(dot(hitNormal, L));
+            float schlick = pow5(1.0f - cosTheta);
+            float4 fresnel = dielectricF0 + (1.0f - dielectricF0) * schlick;
+
             float4 tint =
-                mix(float4(1.0), evaluateReflectance(albedoRgb, path), 0.15);
-            visibility *= tint * transmission * (1.0 - fresnel);
+                mix(float4(1.0f), evaluateReflectance(albedoRgb, path), 0.15f);
+
+            visibility *= tint * transmission * (1.0f - fresnel);
+
             if (dielectricObject == objectIndex) {
                 float curvature =
-                    1.0 - clamp(abs(dot(entryNormal, hitNormal)), 0.0, 1.0);
-                float smoothness = 1.0 - roughness;
-                float focus = 1.0 + transmission * max(ior - 1.0, 0.0) *
-                                        smoothness * smoothness *
-                                        (0.35 + curvature * 3.0);
-                causticGain *= clamp(focus, 1.0, 2.5);
+                    1.0f - clamp(abs(dot(entryNormal, hitNormal)), 0.0f, 1.0f);
+                float smoothness = 1.0f - roughness;
+                float4 focus = 1.0f + transmission * max(ior - 1.0f, 0.0f) *
+                                          smoothness * smoothness *
+                                          (0.35f + curvature * 3.0f);
+                causticGain *= clamp(focus, 1.0f, 2.5f);
                 dielectricObject = 0xFFFFFFFFu;
             } else {
                 dielectricObject = objectIndex;
                 entryNormal = hitNormal;
             }
-            if (spectralMax(visibility) <= 0.001) {
-                return float4(0.0);
+
+            if (spectralMax(visibility) <= 0.001f) {
+                return float4(0.0f);
             }
         }
 

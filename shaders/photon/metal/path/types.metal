@@ -24,7 +24,8 @@ struct Material {
     int roughnessTextureIndex;
     int aoTextureIndex;
     int opacityTextureIndex;
-    float _pad1[2];
+    float abbeNumber;
+    float useNormalMap;
 
     float transmittance;
     float ior;

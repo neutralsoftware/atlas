@@ -19,12 +19,14 @@ float4 F_Schlick(float cosTheta, float4 F0) {
 }
 
 float4 materialF0(float4 albedo, float metallic, float reflectivity,
-                  float ior) {
-    float dielectricF0 =
-        pow((max(ior, 1.0001) - 1.0) / (max(ior, 1.0001) + 1.0), 2.0);
+                  float4 ior) {
+    float4 safeIor = max(ior, float4(1.0001));
+    float4 dielectricF0 = pow((safeIor - 1.0) / (safeIor + 1.0), float4(2.0));
     float dielectricScale = mix(0.5, 1.5, clamp(reflectivity, 0.0, 1.0));
-    float dielectric = clamp(dielectricF0 * dielectricScale, 0.0, 0.16);
-    return mix(float4(dielectric), albedo, clamp(metallic, 0.0, 1.0));
+    float4 dielectric =
+        clamp(dielectricF0 * dielectricScale, float4(0.0), float4(0.16));
+
+    return mix(dielectric, albedo, float4(clamp(metallic, 0.0, 1.0)));
 }
 
 float G_Smith(float NdotV, float NdotL, float roughness) {
@@ -91,7 +93,7 @@ float3 sampleGGXVNDF(float3 localView, float roughness, float2 u) {
 
 // Full Cook-Torrance PBR for a single analytic light
 float4 evalPBR(float4 albedo, float metallic, float roughness,
-               float reflectivity, float ior, float transmittance, float3 N,
+               float reflectivity, float4 ior, float transmittance, float3 N,
                float3 V, float3 L, float4 lightRadiance, float intensity) {
     float3 H = normalize(V + L);
 

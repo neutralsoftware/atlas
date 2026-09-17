@@ -352,7 +352,8 @@ bool photon::PathTracing::buildAccelerationStructure(
         int roughnessTextureIndex;
         int aoTextureIndex;
         int opacityTextureIndex;
-        int _pad1[2];
+        float abbeNumber;
+        int useNormalMap;
 
         float transmittance;
         float ior;
@@ -613,8 +614,8 @@ bool photon::PathTracing::buildAccelerationStructure(
             data.opacityTextureIndex =
                 findTextureSlotForType(object->textures, TextureType::Opacity,
                                        materialTextures, textureSlots);
-            data._pad1[0] = useNormalMap ? 1 : 0;
-            data._pad1[1] = 0;
+            data.useNormalMap = useNormalMap ? 1 : 0;
+            data.abbeNumber = 0.0f;
             materialData.push_back(data);
 
             const glm::vec3 emission =
@@ -659,8 +660,7 @@ bool photon::PathTracing::buildAccelerationStructure(
                     triangle.p1[3] = 1.0f;
                     triangle.p2[3] = 1.0f;
                     triangle.area = twiceArea * 0.5f;
-                    triangle.selectionPdf =
-                        triangle.area * emissionLuminance;
+                    triangle.selectionPdf = triangle.area * emissionLuminance;
                     emissiveTriangleData.push_back(triangle);
                 }
             }
@@ -1190,10 +1190,8 @@ bool photon::PathTracing::render(
     commandBuffer->bindPipeline(this->pathTracingPipeline);
     pathTracingPipeline->bindTexture("outTex", output, 0);
     const int historyWriteIndex = 1 - historyReadIndex;
-    pathTracingPipeline->bindTexture("historyTex",
-                                     pathTracingHistoryTextures[historyReadIndex]
-                                         ->texture,
-                                     1);
+    pathTracingPipeline->bindTexture(
+        "historyTex", pathTracingHistoryTextures[historyReadIndex]->texture, 1);
     pathTracingPipeline->bindTexture("brightTex", brightOutput, 2);
     pathTracingPipeline->bindTexture("albedoRoughnessTex",
                                      pathTracingAovTextures[0]->texture, 3);
@@ -1204,13 +1202,12 @@ bool photon::PathTracing::render(
     pathTracingPipeline->bindTexture(
         "historyMomentsTex",
         pathTracingHistoryMoments[historyReadIndex]->texture, 6);
-    pathTracingPipeline->bindTexture("historyGuideTex",
-                                     pathTracingHistoryGuides[historyReadIndex]
-                                         ->texture,
-                                     7);
     pathTracingPipeline->bindTexture(
-        "historyOutTex",
-        pathTracingHistoryTextures[historyWriteIndex]->texture, 8);
+        "historyGuideTex", pathTracingHistoryGuides[historyReadIndex]->texture,
+        7);
+    pathTracingPipeline->bindTexture(
+        "historyOutTex", pathTracingHistoryTextures[historyWriteIndex]->texture,
+        8);
     pathTracingPipeline->bindTexture(
         "historyGuideOutTex",
         pathTracingHistoryGuides[historyWriteIndex]->texture, 9);
@@ -1301,8 +1298,7 @@ bool photon::PathTracing::render(
     pathTracingPipeline->bindBuffer("areaLights", areaLights, 11);
     pathTracingPipeline->bindBuffer("blasPrimitiveOffsets",
                                     blasPrimitiveOffsets, 13);
-    pathTracingPipeline->bindBuffer("emissiveTriangles", emissiveTriangles,
-                                    14);
+    pathTracingPipeline->bindBuffer("emissiveTriangles", emissiveTriangles, 14);
     pathTracingPipeline->setUniform1i(
         "sceneData.materialTextureCount",
         std::min<int>(static_cast<int>(materialTextures.size()),
@@ -1324,8 +1320,8 @@ bool photon::PathTracing::render(
     historyReadIndex = historyWriteIndex;
 
     if (denoisingEnabled && !interactive && pixelStride == 1 &&
-        pathDenoisePipeline != nullptr &&
-        denoiseTextures[0] != nullptr && denoiseTextures[1] != nullptr) {
+        pathDenoisePipeline != nullptr && denoiseTextures[0] != nullptr &&
+        denoiseTextures[1] != nullptr) {
         const std::array<int, 3> denoiseSteps = {1, 2, 4};
         const size_t denoisePassCount = refinementFrame < 32 ? 2 : 3;
         for (size_t pass = 0; pass < denoisePassCount; ++pass) {
