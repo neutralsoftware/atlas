@@ -615,7 +615,9 @@ bool photon::PathTracing::buildAccelerationStructure(
                 findTextureSlotForType(object->textures, TextureType::Opacity,
                                        materialTextures, textureSlots);
             data.useNormalMap = useNormalMap ? 1 : 0;
-            data.abbeNumber = 0.0f;
+            data.abbeNumber = object->material.ior > 0.0f
+                                  ? object->material.abbeNumber
+                                  : 0.0f;
             materialData.push_back(data);
 
             const glm::vec3 emission =

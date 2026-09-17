@@ -95,6 +95,10 @@ struct Material {
      * @brief Index of refraction used for transmission effects.
      */
     float ior = 1.0f;
+    /**
+     * @brief Abbe number for dispersion effects in transmissive materials.
+     */
+    float abbeNumber = 0.0f;
 };
 
 /**
