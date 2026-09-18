@@ -187,7 +187,8 @@ float3 sampleRadiance(
                                   PT_MATERIAL_TEXTURE_ARGS, albedoRgb, metallic,
                                   roughness, ao, emissiveRgb, baseIor,
                                   transmittance, abbeNumber);
-        bool hasVolume = false;
+        bool hasVolume =
+            transmittance > 0.001f && mat.attenuationDistance > 0.001f;
         float4 albedo = evaluateReflectance(albedoRgb, spectralPath);
         float4 emissive = evaluateEmission(emissiveRgb, spectralPath);
         float4 ior = evaluateIorAtWavelength(baseIor, abbeNumber, spectralPath);
@@ -203,11 +204,11 @@ float3 sampleRadiance(
         }
 
         float reflectivity = clamp(mat.reflectivity, 0.0, 1.0);
-        bool smoothDielectric =
+        bool deltaDielectric =
             roughness <= 0.005f && transmittance > 0.999f && metallic < 0.001f;
-        bool smoothMirror = roughness <= 0.005f && metallic > 0.999f;
-        if (sceneData.causticsEnabled != 0 && !smoothDielectric &&
-            !smoothMirror) {
+        bool deltaMirror = roughness <= 0.005f && metallic > 0.999f;
+        if (sceneData.causticsEnabled != 0 && !deltaDielectric &&
+            !deltaMirror) {
             spectralPath.radiance +=
                 spectralPath.throughput *
                 gatherCaustics(P, N, Ng, V, surfaceObjectIndex, albedo,
@@ -215,7 +216,7 @@ float3 sampleRadiance(
                                transmittance, spectralPath, caustics, photons,
                                photonSlots);
         }
-        if (!smoothDielectric && !smoothMirror) {
+        if (!deltaDielectric && !deltaMirror) {
             float4 direct = evalDirectLightingPBR(
                 isect, sceneAS, P, N, Ng, V, albedo, metallic, roughness,
                 reflectivity, ior, transmittance, rng, spectralPath, dirLight,
@@ -250,11 +251,11 @@ float3 sampleRadiance(
 
         float4 F0 = materialF0(albedo, metallic, reflectivity, ior);
         float NdotV = max(dot(N, V), 1e-4f);
-        float3 interfaceN = smoothDielectric ? Ng : N;
+        float3 interfaceN = deltaDielectric ? Ng : N;
         float interfaceNdotV = max(dot(interfaceN, V), 1e-4f);
         float4 etaPacket = frontFace ? 1.0f / ior : ior;
 
-        float4 viewFresnel = smoothDielectric
+        float4 viewFresnel = deltaDielectric
                                  ? dielectricFresnel(interfaceNdotV, etaPacket)
                                  : F_Schlick(NdotV, F0);
         float fresnelProbability =
@@ -341,7 +342,7 @@ float3 sampleRadiance(
         bool sampledRoughTransmission = false;
 
         if (choice < specProb && specProb > 1e-4) {
-            if (smoothDielectric || totalInternalReflection) {
+            if (deltaDielectric || totalInternalReflection) {
                 nextDirection = reflect(-V, Ng);
                 float4 F = totalInternalReflection ? float4(1.0f) : viewFresnel;
                 bounceWeight = F / max(specProb, 1e-4f);
@@ -379,7 +380,7 @@ float3 sampleRadiance(
             nextDirection = idealRefractedDirection;
             float fresnelCosine = interfaceNdotV;
 
-            if (roughness > 0.025) {
+            if (!deltaDielectric) {
                 sampledRoughTransmission = true;
                 float3 localView =
                     float3(dot(V, basis[0]), dot(V, basis[1]), dot(V, N));
@@ -403,19 +404,23 @@ float3 sampleRadiance(
                     insideMedium = true;
                     mediumObjectId = surfaceObjectIndex;
 
-                    float3 transmissionColor =
-                        clamp(albedoRgb, float3(0.001f), float3(0.9999f));
+                    float3 attenuationColor =
+                        clamp(float3(mat.attenuationColor), float3(0.001f),
+                              float3(1.0f));
 
-                    constexpr float absorptionDistance = 0.25f;
+                    float attenuationDistance =
+                        max(mat.attenuationDistance, 1e-4f);
 
-                    float4 spectralTransmissionColor = clamp(
-                        evaluateReflectance(transmissionColor, spectralPath),
-                        float4(0.001f), float4(0.9999f));
+                    float4 spectralAttenuation = clamp(
+                        evaluateReflectance(attenuationColor, spectralPath),
+                        float4(0.001f), float4(1.0f));
 
                     mediumSigmaA =
-                        -log(spectralTransmissionColor) / absorptionDistance;
+                        -log(spectralAttenuation) / attenuationDistance;
+
                 } else if (insideMedium &&
                            mediumObjectId == surfaceObjectIndex) {
+
                     insideMedium = false;
                     mediumObjectId = 0xFFFFFFFFu;
                     mediumSigmaA = float4(0.0f);

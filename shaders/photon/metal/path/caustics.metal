@@ -513,9 +513,11 @@ kernel void emitCaustics(primitive_acceleration_structure sceneAS [[buffer(0)]],
         N = dot(N, Ng) >= 0.0f ? N : -N;
         if (dot(N, Ng) < 0.1f)
             N = normalizeOr(N + Ng * (0.1f - dot(N, Ng)), Ng);
-        bool smooth = roughness <= 0.005f;
-        if (specularPath &&
-            (!smooth || (1.0f - metallic) * (1.0f - transmission) > 0.001f)) {
+        bool deltaSurface = roughness <= 0.005f;
+
+        bool causticTransportSurface =
+            roughness < 0.25f && (transmission > 0.001f || metallic > 0.001f);
+        if (specularPath && !causticTransportSurface) {
             CausticPhoton photon;
 
             photon.positionWavelength = float4(P, wavelength.x);
@@ -533,11 +535,27 @@ kernel void emitCaustics(primitive_acceleration_structure sceneAS [[buffer(0)]],
 
             return;
         }
-        if (!smooth)
+        if (!causticTransportSurface)
             return;
+        float3 interfaceNormal = Ng;
+
+        if (!deltaSurface) {
+            float3 V = -photonRay.direction;
+
+            float3x3 basis = buildOrthonormalBasis(Ng);
+
+            float3 localView =
+                float3(dot(V, basis[0]), dot(V, basis[1]), dot(V, Ng));
+
+            float3 localH = sampleGGXVNDF(localView, roughness,
+                                          float2(rand(rng), rand(rng)));
+
+            interfaceNormal = normalizeOr(basis * localH, Ng);
+        }
+
         float ior = evaluateIorAtWavelength(baseIor, abbe, path).x;
         float eta = frontFace ? 1.0f / ior : ior;
-        float cosine = max(dot(-photonRay.direction, Ng), 0.0f);
+        float cosine = max(dot(-photonRay.direction, interfaceNormal), 0.0f);
         float fresnel = dielectricFresnel(cosine, float4(eta)).x;
         float reflectance =
             mix(fresnel, rgbToReflectanceAtWavelength(albedo, wavelength.x),
@@ -545,31 +563,34 @@ kernel void emitCaustics(primitive_acceleration_structure sceneAS [[buffer(0)]],
         float transmittance =
             (1.0f - fresnel) * transmission * (1.0f - metallic);
         float choice = rand(rng);
+
         float3 nextDirection;
         if (choice < reflectance) {
-            nextDirection = reflect(photonRay.direction, Ng);
+            nextDirection = reflect(photonRay.direction, interfaceNormal);
         } else if (choice < reflectance + transmittance) {
-            nextDirection = refract(photonRay.direction, Ng, eta);
+            nextDirection = refract(photonRay.direction, interfaceNormal, eta);
 
             if (dot(nextDirection, nextDirection) < 1e-8f) {
-                nextDirection = reflect(photonRay.direction, Ng);
+                nextDirection = reflect(photonRay.direction, interfaceNormal);
             } else {
                 if (frontFace) {
                     photonInsideMedium = true;
                     photonMediumObjectId = objectId;
 
-                    float3 transmissionColor =
-                        clamp(albedo, float3(0.001f), float3(0.9999f));
+                    float3 attenuationColor =
+                        clamp(float3(mat.attenuationColor), float3(0.001f),
+                              float3(1.0f));
 
-                    constexpr float absorptionDistance = 0.25f;
+                    float attenuationDistance =
+                        max(mat.attenuationDistance, 1e-4f);
 
-                    float spectralTransmission =
-                        clamp(rgbToReflectanceAtWavelength(transmissionColor,
+                    float spectralAttenuation =
+                        clamp(rgbToReflectanceAtWavelength(attenuationColor,
                                                            wavelength.x),
-                              0.001f, 0.9999f);
+                              0.001f, 1.0f);
 
                     photonSigmaA =
-                        -log(spectralTransmission) / absorptionDistance;
+                        -log(spectralAttenuation) / attenuationDistance;
                 } else if (photonInsideMedium &&
                            photonMediumObjectId == objectId) {
                     photonInsideMedium = false;

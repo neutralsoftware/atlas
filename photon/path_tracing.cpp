@@ -383,6 +383,9 @@ bool photon::PathTracing::buildAccelerationStructure(
         float _pad2;
         float textureScale[2];
         float textureOffset[2];
+
+        float attenuationColor[3];
+        float attenuationDistance;
     };
 
     struct VertexData {
@@ -405,7 +408,7 @@ bool photon::PathTracing::buildAccelerationStructure(
         float _pad[2];
     };
 
-    static_assert(sizeof(MaterialData) == 112);
+    static_assert(sizeof(MaterialData) == 128);
     static_assert(sizeof(VertexData) == 56);
     static_assert(sizeof(EmissiveTriangleData) == 96);
 
@@ -655,6 +658,10 @@ bool photon::PathTracing::buildAccelerationStructure(
             data.abbeNumber = object->material.ior > 0.0f
                                   ? object->material.abbeNumber
                                   : 0.0f;
+            data.attenuationColor[0] = object->material.attenuationColor.r;
+            data.attenuationColor[1] = object->material.attenuationColor.g;
+            data.attenuationColor[2] = object->material.attenuationColor.b;
+            data.attenuationDistance = object->material.attenuationDistance;
             materialData.push_back(data);
 
             const glm::vec3 emission =
@@ -987,8 +994,8 @@ bool photon::PathTracing::createLightBuffers() {
             data.color[1] = light->color.g;
             data.color[2] = light->color.b;
             data.twoSided = light->castsBothSides ? 1.0f : 0.0f;
-            data.emissionCos = std::cos(glm::radians(
-                std::clamp(light->angle, 0.1f, 90.0f)));
+            data.emissionCos =
+                std::cos(glm::radians(std::clamp(light->angle, 0.1f, 90.0f)));
             areaLightData.push_back(data);
         }
     }

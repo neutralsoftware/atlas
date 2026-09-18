@@ -33,9 +33,12 @@ struct Material {
     float _pad2;
     packed_float2 textureScale;
     packed_float2 textureOffset;
+
+    packed_float3 attenuationColor;
+    float attenuationDistance;
 };
 
-static_assert(sizeof(Material) == 112);
+static_assert(sizeof(Material) == 128);
 static_assert(__builtin_offsetof(Material, emissiveColor) == 32);
 static_assert(__builtin_offsetof(Material, albedoTextureIndex) == 48);
 static_assert(__builtin_offsetof(Material, transmittance) == 80);

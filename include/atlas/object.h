@@ -99,6 +99,15 @@ struct Material {
      * @brief Abbe number for dispersion effects in transmissive materials.
      */
     float abbeNumber = 0.0f;
+    /**
+     * @brief Color attenuation for transmissive materials, simulating
+     * absorption over distance.
+     */
+    Color attenuationColor = {1.0, 1.0, 1.0, 1.0};
+    /**
+     * @brief Distance over which attenuationColor is applied.
+     */
+    float attenuationDistance = 1.0f;
 };
 
 /**

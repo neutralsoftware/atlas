@@ -430,6 +430,10 @@ MaterialEditorPanel::normalizedMaterial(const QJsonObject &source) const {
         result.insert("ior", 1.45);
     if (!result.value("abbeNumber").isDouble())
         result.insert("abbeNumber", 0.0);
+    if (!result.value("attenuationColor").isArray())
+        result.insert("attenuationColor", QJsonArray{1.0, 1.0, 1.0, 1.0});
+    if (!result.value("attenuationDistance").isDouble())
+        result.insert("attenuationDistance", 0.0);
     return result;
 }
 
@@ -563,7 +567,7 @@ void MaterialEditorPanel::showMaterial() {
     displayColor(albedoButton,
                  jsonColor(material.value("albedo"), QColor(204, 204, 204)));
     metallicField = scalarField(0.0, 1.0, 0.01, surface);
-    roughnessField = scalarField(0.02, 1.0, 0.01, surface);
+    roughnessField = scalarField(0.0, 1.0, 0.01, surface);
     aoField = scalarField(0.0, 1.0, 0.01, surface);
     reflectivityField = scalarField(0.0, 1.0, 0.01, surface);
     metallicField->setValue(material.value("metallic").toDouble());
@@ -592,15 +596,23 @@ void MaterialEditorPanel::showMaterial() {
     auto *volume = new QGroupBox("Transmission", properties);
     auto *volumeForm = new QFormLayout(volume);
     transmittanceField = scalarField(0.0, 1.0, 0.01, volume);
+    attenuationColorButton = new styling::Button(volume);
+    displayColor(attenuationColorButton,
+                 jsonColor(material.value("attenuationColor"), Qt::white));
+    attenuationDistanceField = scalarField(0.0, 100.0, 0.1, volume);
     iorField = scalarField(1.0, 3.0, 0.01, volume);
     abbeNumberField = scalarField(0.0, 100.0, 0.1, volume);
     transmittanceField->setValue(material.value("transmittance").toDouble());
     iorField->setValue(material.value("ior").toDouble());
     abbeNumberField->setValue(material.value("abbeNumber").toDouble());
+    attenuationDistanceField->setValue(
+        material.value("attenuationDistance").toDouble());
 
     volumeForm->addRow("Weight", transmittanceField);
     volumeForm->addRow("IOR", iorField);
     volumeForm->addRow("Abbe Number", abbeNumberField);
+    volumeForm->addRow("Attenuation Color", attenuationColorButton);
+    volumeForm->addRow("Attenuation Distance", attenuationDistanceField);
     propertiesLayout->addWidget(volume);
 
     auto *normal = new QGroupBox("Normal", properties);
@@ -693,12 +705,14 @@ void MaterialEditorPanel::showMaterial() {
             [this] { setColor("albedo", albedoButton); });
     connect(emissiveButton, &QPushButton::clicked, this,
             [this] { setColor("emissiveColor", emissiveButton); });
+    connect(attenuationColorButton, &QPushButton::clicked, this,
+            [this] { setColor("attenuationColor", attenuationColorButton); });
     const QList<QDoubleSpinBox *> scalars{
-        metallicField,       roughnessField,         aoField,
-        reflectivityField,   emissiveIntensityField, normalStrengthField,
-        textureScaleUField,  textureScaleVField,     textureOffsetUField,
-        textureOffsetVField, transmittanceField,     iorField,
-        abbeNumberField};
+        metallicField,       roughnessField,          aoField,
+        reflectivityField,   emissiveIntensityField,  normalStrengthField,
+        textureScaleUField,  textureScaleVField,      textureOffsetUField,
+        textureOffsetVField, transmittanceField,      iorField,
+        abbeNumberField,     attenuationDistanceField};
     for (QDoubleSpinBox *field : scalars) {
         connect(field, &QDoubleSpinBox::valueChanged, this,
                 [this](double) { materialChanged(); });
@@ -775,6 +789,7 @@ void MaterialEditorPanel::materialChanged() {
     material.insert("emissiveIntensity", emissiveIntensityField->value());
     material.insert("normalMapStrength", normalStrengthField->value());
     material.insert("useNormalMap", normalMapField->isChecked());
+    material.insert("attenuationDistance", attenuationDistanceField->value());
     material.insert("textureScale", QJsonArray{textureScaleUField->value(),
                                                textureScaleVField->value()});
     material.insert("textureOffset", QJsonArray{textureOffsetUField->value(),

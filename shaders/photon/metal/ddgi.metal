@@ -215,14 +215,16 @@ static inline Hit traceScene(float3 ro, float3 rd, device const Triangle *tris,
         best.n = normalize(tris[i].n0.xyz * w + tris[i].n1.xyz * u +
                            tris[i].n2.xyz * v);
         best.uv = tris[i].uv0.xy * w + tris[i].uv1.xy * u + tris[i].uv2.xy * v;
-        float3 tRaw = tris[i].t0.xyz * w + tris[i].t1.xyz * u + tris[i].t2.xyz * v;
+        float3 tRaw =
+            tris[i].t0.xyz * w + tris[i].t1.xyz * u + tris[i].t2.xyz * v;
         float tLen2 = dot(tRaw, tRaw);
-        best.tangent = (tLen2 > 1e-10f) ? tRaw * rsqrt(tLen2)
-                                         : float3(1.0f, 0.0f, 0.0f);
-        float3 bRaw = tris[i].b0.xyz * w + tris[i].b1.xyz * u + tris[i].b2.xyz * v;
+        best.tangent =
+            (tLen2 > 1e-10f) ? tRaw * rsqrt(tLen2) : float3(1.0f, 0.0f, 0.0f);
+        float3 bRaw =
+            tris[i].b0.xyz * w + tris[i].b1.xyz * u + tris[i].b2.xyz * v;
         float bLen2 = dot(bRaw, bRaw);
-        best.bitangent = (bLen2 > 1e-10f) ? bRaw * rsqrt(bLen2)
-                                           : float3(0.0f, 0.0f, 1.0f);
+        best.bitangent =
+            (bLen2 > 1e-10f) ? bRaw * rsqrt(bLen2) : float3(0.0f, 0.0f, 1.0f);
         best.materialID = tris[i].materialID;
         best.triIndex = i;
         best.hit = 1u;
@@ -446,33 +448,29 @@ static inline void resolveMaterialParameters(
     bool useNormalMap = mat._pad1 > 0.5f && normalStrength > 0.0f;
     normalTextureIndex = useNormalMap ? mat.normalTextureIndex : -1;
 
-    if (mat.albedoTextureIndex >= 0 && uint(mat.albedoTextureIndex) < textureCount) {
-        albedo = clamp(sampleMaterialTexture(
-                           mat.albedoTextureIndex, uv, materialTexture0,
-                           materialTexture1, materialTexture2, materialTexture3,
-                           materialTexture4, materialTexture5, materialTexture6,
-                           materialTexture7, materialTexture8, materialTexture9,
-                           materialTexture10, materialTexture11,
-                           materialTexture12, materialTexture13,
-                           materialTexture14, materialTexture15,
-                           materialTexture16, materialTexture17,
-                           materialTexture18, materialTexture19,
-                           materialTexture20, materialTexture21,
-                           materialTexture22, materialTexture23,
-                           materialTexture24, materialTexture25,
-                           materialTexture26, materialTexture27,
-                           materialTexture28, materialTexture29,
-                           materialTexture30, materialTexture31,
-                           materialTexture32, materialTexture33,
-                           materialTexture34, materialTexture35,
-                           materialTexture36, materialTexture37,
-                           materialTexture38, materialTexture39,
-                           materialTexture40, materialTexture41,
-                           materialTexture42, materialTexture43,
-                           materialTexture44, materialTexture45,
-                           materialTexture46, materialTexture47)
-                           .xyz,
-                       float3(0.0f), float3(1.0f));
+    if (mat.albedoTextureIndex >= 0 &&
+        uint(mat.albedoTextureIndex) < textureCount) {
+        albedo =
+            clamp(sampleMaterialTexture(
+                      mat.albedoTextureIndex, uv, materialTexture0,
+                      materialTexture1, materialTexture2, materialTexture3,
+                      materialTexture4, materialTexture5, materialTexture6,
+                      materialTexture7, materialTexture8, materialTexture9,
+                      materialTexture10, materialTexture11, materialTexture12,
+                      materialTexture13, materialTexture14, materialTexture15,
+                      materialTexture16, materialTexture17, materialTexture18,
+                      materialTexture19, materialTexture20, materialTexture21,
+                      materialTexture22, materialTexture23, materialTexture24,
+                      materialTexture25, materialTexture26, materialTexture27,
+                      materialTexture28, materialTexture29, materialTexture30,
+                      materialTexture31, materialTexture32, materialTexture33,
+                      materialTexture34, materialTexture35, materialTexture36,
+                      materialTexture37, materialTexture38, materialTexture39,
+                      materialTexture40, materialTexture41, materialTexture42,
+                      materialTexture43, materialTexture44, materialTexture45,
+                      materialTexture46, materialTexture47)
+                      .xyz,
+                  float3(0.0f), float3(1.0f));
     }
     if (mat.metallicTextureIndex >= 0 &&
         uint(mat.metallicTextureIndex) < textureCount) {
@@ -532,24 +530,18 @@ static inline void resolveMaterialParameters(
                         materialTexture1, materialTexture2, materialTexture3,
                         materialTexture4, materialTexture5, materialTexture6,
                         materialTexture7, materialTexture8, materialTexture9,
-                        materialTexture10, materialTexture11,
-                        materialTexture12, materialTexture13,
-                        materialTexture14, materialTexture15,
-                        materialTexture16, materialTexture17,
-                        materialTexture18, materialTexture19,
-                        materialTexture20, materialTexture21,
-                        materialTexture22, materialTexture23,
-                        materialTexture24, materialTexture25,
-                        materialTexture26, materialTexture27,
-                        materialTexture28, materialTexture29,
-                        materialTexture30, materialTexture31,
-                        materialTexture32, materialTexture33,
-                        materialTexture34, materialTexture35,
-                        materialTexture36, materialTexture37,
-                        materialTexture38, materialTexture39,
-                        materialTexture40, materialTexture41,
-                        materialTexture42, materialTexture43,
-                        materialTexture44, materialTexture45,
+                        materialTexture10, materialTexture11, materialTexture12,
+                        materialTexture13, materialTexture14, materialTexture15,
+                        materialTexture16, materialTexture17, materialTexture18,
+                        materialTexture19, materialTexture20, materialTexture21,
+                        materialTexture22, materialTexture23, materialTexture24,
+                        materialTexture25, materialTexture26, materialTexture27,
+                        materialTexture28, materialTexture29, materialTexture30,
+                        materialTexture31, materialTexture32, materialTexture33,
+                        materialTexture34, materialTexture35, materialTexture36,
+                        materialTexture37, materialTexture38, materialTexture39,
+                        materialTexture40, materialTexture41, materialTexture42,
+                        materialTexture43, materialTexture44, materialTexture45,
                         materialTexture46, materialTexture47)
                         .x,
                     0.0f, 1.0f);
@@ -562,34 +554,35 @@ static inline void resolveMaterialParameters(
 }
 
 static inline float3 resolveNormal(
-    int normalTextureIndex, float normalStrength, float2 uv, float3 n, float3 tangent,
-    float3 bitangent, uint textureCount, texture2d<float> materialTexture0,
-    texture2d<float> materialTexture1, texture2d<float> materialTexture2,
-    texture2d<float> materialTexture3, texture2d<float> materialTexture4,
-    texture2d<float> materialTexture5, texture2d<float> materialTexture6,
-    texture2d<float> materialTexture7, texture2d<float> materialTexture8,
-    texture2d<float> materialTexture9, texture2d<float> materialTexture10,
-    texture2d<float> materialTexture11, texture2d<float> materialTexture12,
-    texture2d<float> materialTexture13, texture2d<float> materialTexture14,
-    texture2d<float> materialTexture15, texture2d<float> materialTexture16,
-    texture2d<float> materialTexture17, texture2d<float> materialTexture18,
-    texture2d<float> materialTexture19, texture2d<float> materialTexture20,
-    texture2d<float> materialTexture21, texture2d<float> materialTexture22,
-    texture2d<float> materialTexture23, texture2d<float> materialTexture24,
-    texture2d<float> materialTexture25, texture2d<float> materialTexture26,
-    texture2d<float> materialTexture27, texture2d<float> materialTexture28,
-    texture2d<float> materialTexture29, texture2d<float> materialTexture30,
-    texture2d<float> materialTexture31, texture2d<float> materialTexture32,
-    texture2d<float> materialTexture33, texture2d<float> materialTexture34,
-    texture2d<float> materialTexture35, texture2d<float> materialTexture36,
-    texture2d<float> materialTexture37, texture2d<float> materialTexture38,
-    texture2d<float> materialTexture39, texture2d<float> materialTexture40,
-    texture2d<float> materialTexture41, texture2d<float> materialTexture42,
-    texture2d<float> materialTexture43, texture2d<float> materialTexture44,
-    texture2d<float> materialTexture45, texture2d<float> materialTexture46,
-    texture2d<float> materialTexture47) {
+    int normalTextureIndex, float normalStrength, float2 uv, float3 n,
+    float3 tangent, float3 bitangent, uint textureCount,
+    texture2d<float> materialTexture0, texture2d<float> materialTexture1,
+    texture2d<float> materialTexture2, texture2d<float> materialTexture3,
+    texture2d<float> materialTexture4, texture2d<float> materialTexture5,
+    texture2d<float> materialTexture6, texture2d<float> materialTexture7,
+    texture2d<float> materialTexture8, texture2d<float> materialTexture9,
+    texture2d<float> materialTexture10, texture2d<float> materialTexture11,
+    texture2d<float> materialTexture12, texture2d<float> materialTexture13,
+    texture2d<float> materialTexture14, texture2d<float> materialTexture15,
+    texture2d<float> materialTexture16, texture2d<float> materialTexture17,
+    texture2d<float> materialTexture18, texture2d<float> materialTexture19,
+    texture2d<float> materialTexture20, texture2d<float> materialTexture21,
+    texture2d<float> materialTexture22, texture2d<float> materialTexture23,
+    texture2d<float> materialTexture24, texture2d<float> materialTexture25,
+    texture2d<float> materialTexture26, texture2d<float> materialTexture27,
+    texture2d<float> materialTexture28, texture2d<float> materialTexture29,
+    texture2d<float> materialTexture30, texture2d<float> materialTexture31,
+    texture2d<float> materialTexture32, texture2d<float> materialTexture33,
+    texture2d<float> materialTexture34, texture2d<float> materialTexture35,
+    texture2d<float> materialTexture36, texture2d<float> materialTexture37,
+    texture2d<float> materialTexture38, texture2d<float> materialTexture39,
+    texture2d<float> materialTexture40, texture2d<float> materialTexture41,
+    texture2d<float> materialTexture42, texture2d<float> materialTexture43,
+    texture2d<float> materialTexture44, texture2d<float> materialTexture45,
+    texture2d<float> materialTexture46, texture2d<float> materialTexture47) {
     float3 N = safeNormalize(n, float3(0.0f, 1.0f, 0.0f));
-    float3 T = safeNormalize(tangent - N * dot(N, tangent), float3(1.0f, 0.0f, 0.0f));
+    float3 T =
+        safeNormalize(tangent - N * dot(N, tangent), float3(1.0f, 0.0f, 0.0f));
     float3 B = safeNormalize(bitangent - N * dot(N, bitangent), cross(N, T));
     if (dot(cross(T, B), cross(T, B)) <= 1e-10f) {
         float3 up = (fabs(N.y) < 0.999f) ? float3(0.0f, 1.0f, 0.0f)
@@ -599,31 +592,26 @@ static inline float3 resolveNormal(
     }
     if (normalTextureIndex >= 0 && uint(normalTextureIndex) < textureCount &&
         normalStrength > 0.0f) {
-        float3 texN = sampleMaterialTexture(
-                          normalTextureIndex, uv, materialTexture0,
-                          materialTexture1, materialTexture2, materialTexture3,
-                          materialTexture4, materialTexture5, materialTexture6,
-                          materialTexture7, materialTexture8, materialTexture9,
-                          materialTexture10, materialTexture11,
-                          materialTexture12, materialTexture13,
-                          materialTexture14, materialTexture15,
-                          materialTexture16, materialTexture17,
-                          materialTexture18, materialTexture19,
-                          materialTexture20, materialTexture21,
-                          materialTexture22, materialTexture23,
-                          materialTexture24, materialTexture25,
-                          materialTexture26, materialTexture27,
-                          materialTexture28, materialTexture29,
-                          materialTexture30, materialTexture31,
-                          materialTexture32, materialTexture33,
-                          materialTexture34, materialTexture35,
-                          materialTexture36, materialTexture37,
-                          materialTexture38, materialTexture39,
-                          materialTexture40, materialTexture41,
-                          materialTexture42, materialTexture43,
-                          materialTexture44, materialTexture45,
-                          materialTexture46, materialTexture47)
-                          .xyz;
+        float3 texN =
+            sampleMaterialTexture(
+                normalTextureIndex, uv, materialTexture0, materialTexture1,
+                materialTexture2, materialTexture3, materialTexture4,
+                materialTexture5, materialTexture6, materialTexture7,
+                materialTexture8, materialTexture9, materialTexture10,
+                materialTexture11, materialTexture12, materialTexture13,
+                materialTexture14, materialTexture15, materialTexture16,
+                materialTexture17, materialTexture18, materialTexture19,
+                materialTexture20, materialTexture21, materialTexture22,
+                materialTexture23, materialTexture24, materialTexture25,
+                materialTexture26, materialTexture27, materialTexture28,
+                materialTexture29, materialTexture30, materialTexture31,
+                materialTexture32, materialTexture33, materialTexture34,
+                materialTexture35, materialTexture36, materialTexture37,
+                materialTexture38, materialTexture39, materialTexture40,
+                materialTexture41, materialTexture42, materialTexture43,
+                materialTexture44, materialTexture45, materialTexture46,
+                materialTexture47)
+                .xyz;
         texN = texN * 2.0f - 1.0f;
         texN.xy *= normalStrength;
         texN = safeNormalize(texN, float3(0.0f, 0.0f, 1.0f));
@@ -662,18 +650,17 @@ static inline float3 samplePreviousIrradiance(texture2d<float> previous,
     uint probesPerRow = uint(ps.atlasParams.z);
     uint tileRes = innerRes + 2u * border;
     uint2 tile = uint2(probeIndex % probesPerRow, probeIndex / probesPerRow);
-    float2 inner = octEncode(safeNormalize(direction, float3(0.0f, 1.0f, 0.0f))) *
-                       0.5f +
-                   0.5f;
+    float2 inner =
+        octEncode(safeNormalize(direction, float3(0.0f, 1.0f, 0.0f))) * 0.5f +
+        0.5f;
     float2 pixel = float2(tile * tileRes + border) +
                    inner * float(max(innerRes, 1u) - 1u) + 0.5f;
-    float3 history = previous.sample(
-                                 ddgiLinearSampler,
-                                 pixel / float2(previous.get_width(),
-                                                previous.get_height()))
-                         .xyz;
-    return all(isfinite(history)) ? max(history, float3(0.0f))
-                                  : float3(0.0f);
+    float3 history =
+        previous
+            .sample(ddgiLinearSampler,
+                    pixel / float2(previous.get_width(), previous.get_height()))
+            .xyz;
+    return all(isfinite(history)) ? max(history, float3(0.0f)) : float3(0.0f);
 }
 
 static inline float3 sampleSky(float3 d, texturecube<float> skybox,
@@ -702,17 +689,17 @@ static inline float shadowVisibility(float3 ro, float3 rd, float maxT,
     return (h.t >= maxT) ? 1.0f : 0.0f;
 }
 
-static inline float giNdotL(float3 n, float3 l) {
-    return max(dot(n, l), 0.0f);
-}
+static inline float giNdotL(float3 n, float3 l) { return max(dot(n, l), 0.0f); }
 
-static inline float3 evaluateDirectLights(
-    float3 posWS, float3 normalWS, float bias, float maxDistance,
-    device const Triangle *tris, instance_acceleration_structure sceneAS,
-    device const DirectionalLight *directionalLights, uint directionalLightCount,
-    device const PointLight *pointLights, uint pointLightCount,
-    device const SpotLight *spotLights, uint spotLightCount,
-    device const AreaLight *areaLights, uint areaLightCount) {
+static inline float3
+evaluateDirectLights(float3 posWS, float3 normalWS, float bias,
+                     float maxDistance, device const Triangle *tris,
+                     instance_acceleration_structure sceneAS,
+                     device const DirectionalLight *directionalLights,
+                     uint directionalLightCount,
+                     device const PointLight *pointLights, uint pointLightCount,
+                     device const SpotLight *spotLights, uint spotLightCount,
+                     device const AreaLight *areaLights, uint areaLightCount) {
     float3 n = safeNormalize(normalWS, float3(0.0f, 1.0f, 0.0f));
     float3 sum = float3(0.0f);
 
@@ -723,8 +710,8 @@ static inline float3 evaluateDirectLights(
         if (ndl <= 0.0f)
             continue;
 
-        float visibility = shadowVisibility(posWS + n * bias, L, maxDistance,
-                                            tris, sceneAS);
+        float visibility =
+            shadowVisibility(posWS + n * bias, L, maxDistance, tris, sceneAS);
         sum += directionalLights[i].diffuse *
                max(0.0f, directionalLights[i].intensity) * ndl * visibility;
     }
@@ -746,8 +733,8 @@ static inline float3 evaluateDirectLights(
                            pointLights[i].quadratic * dist * dist,
                        1e-4f);
         float fade = 1.0f - smoothstep(radius * 0.9f, radius, dist);
-        float visibility = shadowVisibility(posWS + n * bias, L, dist - bias,
-                                            tris, sceneAS);
+        float visibility =
+            shadowVisibility(posWS + n * bias, L, dist - bias, tris, sceneAS);
         sum += pointLights[i].diffuse * max(0.0f, pointLights[i].intensity) *
                attenuation * fade * ndl * visibility;
     }
@@ -764,28 +751,29 @@ static inline float3 evaluateDirectLights(
         if (ndl <= 0.0f)
             continue;
 
-        float3 spotDir = safeNormalize(spotLights[i].direction,
-                                       float3(0.0f, -1.0f, 0.0f));
+        float3 spotDir =
+            safeNormalize(spotLights[i].direction, float3(0.0f, -1.0f, 0.0f));
         float theta = dot(L, -spotDir);
-        float epsilon = max(spotLights[i].cutOff - spotLights[i].outerCutOff,
-                            1e-4f);
-        float cone = clamp((theta - spotLights[i].outerCutOff) / epsilon, 0.0f,
-                           1.0f);
+        float epsilon =
+            max(spotLights[i].cutOff - spotLights[i].outerCutOff, 1e-4f);
+        float cone =
+            clamp((theta - spotLights[i].outerCutOff) / epsilon, 0.0f, 1.0f);
         if (cone <= 0.0f)
             continue;
 
-        float attenuation =
-            1.0f / ((1.0f + (dist / range)) + ((dist * dist) / (range * range)));
+        float attenuation = 1.0f / ((1.0f + (dist / range)) +
+                                    ((dist * dist) / (range * range)));
         float fade = 1.0f - smoothstep(range * 0.9f, range, dist);
-        float visibility = shadowVisibility(posWS + n * bias, L, dist - bias,
-                                            tris, sceneAS);
-        sum += spotLights[i].diffuse * max(0.0f, spotLights[i].intensity) * cone *
-               attenuation * fade * ndl * visibility;
+        float visibility =
+            shadowVisibility(posWS + n * bias, L, dist - bias, tris, sceneAS);
+        sum += spotLights[i].diffuse * max(0.0f, spotLights[i].intensity) *
+               cone * attenuation * fade * ndl * visibility;
     }
 
     for (uint i = 0; i < areaLightCount; i++) {
         float3 center = areaLights[i].position;
-        float3 right = safeNormalize(areaLights[i].right, float3(1.0f, 0.0f, 0.0f));
+        float3 right =
+            safeNormalize(areaLights[i].right, float3(1.0f, 0.0f, 0.0f));
         float3 up = safeNormalize(areaLights[i].up, float3(0.0f, 1.0f, 0.0f));
         float2 halfSize = areaLights[i].size * 0.5f;
 
@@ -808,16 +796,17 @@ static inline float3 evaluateDirectLights(
         float3 lightNormal =
             safeNormalize(cross(right, up), float3(0.0f, -1.0f, 0.0f));
         float nl = dot(lightNormal, -L);
-        float facing = (areaLights[i].castsBothSides != 0) ? abs(nl) : max(nl, 0.0f);
+        float facing =
+            (areaLights[i].castsBothSides != 0) ? abs(nl) : max(nl, 0.0f);
         float cutoff = cos(areaLights[i].angle * 0.01745329251f);
         if (facing < cutoff || facing <= 0.0f)
             continue;
 
-        float attenuation =
-            1.0f / ((1.0f + (dist / range)) + ((dist * dist) / (range * range)));
+        float attenuation = 1.0f / ((1.0f + (dist / range)) +
+                                    ((dist * dist) / (range * range)));
         float fade = 1.0f - smoothstep(range * 0.9f, range, dist);
-        float visibility = shadowVisibility(posWS + n * bias, L, dist - bias,
-                                            tris, sceneAS);
+        float visibility =
+            shadowVisibility(posWS + n * bias, L, dist - bias, tris, sceneAS);
         sum += areaLights[i].diffuse * max(0.0f, areaLights[i].intensity) *
                facing * attenuation * fade * ndl * visibility;
     }
@@ -843,7 +832,8 @@ static inline float3 sampleCosineHemisphere(thread uint &state) {
     return float3(x, y, z);
 }
 
-static inline float3 sphericalFibonacci(uint index, uint count, uint frameIndex) {
+static inline float3 sphericalFibonacci(uint index, uint count,
+                                        uint frameIndex) {
     const float GOLDEN_RATIO = 1.6180339887498949f;
     const float TAU = 6.28318530718f;
     float i = float(index) + 0.5f;
@@ -862,7 +852,8 @@ kernel void main0(device float4 *probeRadianceOut [[buffer(0)]],
                   constant SceneCounts &sc [[buffer(3)]],
                   constant ProbeSpace &ps [[buffer(4)]],
                   constant RaytracingSettings &rt [[buffer(5)]],
-                  device const DirectionalLight *directionalLights [[buffer(6)]],
+                  device const DirectionalLight *directionalLights
+                  [[buffer(6)]],
                   device const PointLight *pointLights [[buffer(7)]],
                   device const SpotLight *spotLights [[buffer(8)]],
                   device const AreaLight *areaLights [[buffer(9)]],
@@ -984,28 +975,27 @@ kernel void main0(device float4 *probeRadianceOut [[buffer(0)]],
         float normalStrength;
         resolveMaterialParameters(
             materials, h.materialID, sc.materialCount, h.uv, sc.textureCount,
-            materialTexture0,
-            materialTexture1, materialTexture2, materialTexture3,
-            materialTexture4, materialTexture5, materialTexture6,
-            materialTexture7, materialTexture8, materialTexture9,
-            materialTexture10, materialTexture11, materialTexture12,
-            materialTexture13, materialTexture14, materialTexture15,
-            materialTexture16, materialTexture17, materialTexture18,
-            materialTexture19, materialTexture20, materialTexture21,
-            materialTexture22, materialTexture23, materialTexture24,
-            materialTexture25, materialTexture26, materialTexture27,
-            materialTexture28, materialTexture29, materialTexture30,
-            materialTexture31, materialTexture32, materialTexture33,
-            materialTexture34, materialTexture35, materialTexture36,
-            materialTexture37, materialTexture38, materialTexture39,
-            materialTexture40, materialTexture41, materialTexture42,
-            materialTexture43, materialTexture44, materialTexture45,
-            materialTexture46, materialTexture47, albedo, metallic, roughness,
-            ao, emissive,
-            normalTextureIndex, normalStrength);
+            materialTexture0, materialTexture1, materialTexture2,
+            materialTexture3, materialTexture4, materialTexture5,
+            materialTexture6, materialTexture7, materialTexture8,
+            materialTexture9, materialTexture10, materialTexture11,
+            materialTexture12, materialTexture13, materialTexture14,
+            materialTexture15, materialTexture16, materialTexture17,
+            materialTexture18, materialTexture19, materialTexture20,
+            materialTexture21, materialTexture22, materialTexture23,
+            materialTexture24, materialTexture25, materialTexture26,
+            materialTexture27, materialTexture28, materialTexture29,
+            materialTexture30, materialTexture31, materialTexture32,
+            materialTexture33, materialTexture34, materialTexture35,
+            materialTexture36, materialTexture37, materialTexture38,
+            materialTexture39, materialTexture40, materialTexture41,
+            materialTexture42, materialTexture43, materialTexture44,
+            materialTexture45, materialTexture46, materialTexture47, albedo,
+            metallic, roughness, ao, emissive, normalTextureIndex,
+            normalStrength);
         float3 hitNormal = resolveNormal(
-            normalTextureIndex, normalStrength, h.uv, h.n, h.tangent, h.bitangent,
-            sc.textureCount, materialTexture0, materialTexture1,
+            normalTextureIndex, normalStrength, h.uv, h.n, h.tangent,
+            h.bitangent, sc.textureCount, materialTexture0, materialTexture1,
             materialTexture2, materialTexture3, materialTexture4,
             materialTexture5, materialTexture6, materialTexture7,
             materialTexture8, materialTexture9, materialTexture10,
