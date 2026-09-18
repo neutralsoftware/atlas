@@ -447,6 +447,9 @@ declare module "atlas" {
          * @defaultValue 1
          */
         ior: number;
+        abbeNumber: number;
+        attenuationColor: Color;
+        attenuationDistance: number;
     }
 
     /**

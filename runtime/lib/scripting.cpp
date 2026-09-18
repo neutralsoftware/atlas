@@ -1297,8 +1297,11 @@ bool parseMaterial(JSContext *ctx, JSValueConst value, Material &out) {
     double normalMapStrength = out.normalMapStrength;
     double transmittance = out.transmittance;
     double ior = out.ior;
+    double abbeNumber = out.abbeNumber;
+    double attenuationDistance = out.attenuationDistance;
     bool useNormalMap = out.useNormalMap;
     Color emissiveColor = out.emissiveColor;
+    Color attenuationColor = out.attenuationColor;
 
     readNumberProperty(ctx, value, "metallic", metallic);
     readNumberProperty(ctx, value, "roughness", roughness);
@@ -1308,6 +1311,8 @@ bool parseMaterial(JSContext *ctx, JSValueConst value, Material &out) {
     readNumberProperty(ctx, value, "normalMapStrength", normalMapStrength);
     readNumberProperty(ctx, value, "transmittance", transmittance);
     readNumberProperty(ctx, value, "ior", ior);
+    readNumberProperty(ctx, value, "abbeNumber", abbeNumber);
+    readNumberProperty(ctx, value, "attenuationDistance", attenuationDistance);
     readBoolProperty(ctx, value, "useNormalMap", useNormalMap);
 
     JSValue emissiveValue = JS_GetPropertyStr(ctx, value, "emissiveColor");
@@ -1315,6 +1320,14 @@ bool parseMaterial(JSContext *ctx, JSValueConst value, Material &out) {
         parseColor(ctx, emissiveValue, emissiveColor);
     }
     JS_FreeValue(ctx, emissiveValue);
+
+    JSValue attenuationValue =
+        JS_GetPropertyStr(ctx, value, "attenuationColor");
+    if (!JS_IsException(attenuationValue) &&
+        !JS_IsUndefined(attenuationValue)) {
+        parseColor(ctx, attenuationValue, attenuationColor);
+    }
+    JS_FreeValue(ctx, attenuationValue);
 
     out.metallic = static_cast<float>(metallic);
     out.roughness = static_cast<float>(roughness);
@@ -1326,6 +1339,9 @@ bool parseMaterial(JSContext *ctx, JSValueConst value, Material &out) {
     out.useNormalMap = useNormalMap;
     out.transmittance = static_cast<float>(transmittance);
     out.ior = static_cast<float>(ior);
+    out.abbeNumber = static_cast<float>(abbeNumber);
+    out.attenuationColor = attenuationColor;
+    out.attenuationDistance = static_cast<float>(attenuationDistance);
     return true;
 }
 
@@ -4116,6 +4132,12 @@ JSValue makeMaterial(JSContext *ctx, ScriptHost &host,
     setProperty(ctx, result, "transmittance",
                 JS_NewFloat64(ctx, material.transmittance));
     setProperty(ctx, result, "ior", JS_NewFloat64(ctx, material.ior));
+    setProperty(ctx, result, "abbeNumber",
+                JS_NewFloat64(ctx, material.abbeNumber));
+    setProperty(ctx, result, "attenuationColor",
+                makeColor(ctx, host, material.attenuationColor));
+    setProperty(ctx, result, "attenuationDistance",
+                JS_NewFloat64(ctx, material.attenuationDistance));
     return result;
 }
 
