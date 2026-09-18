@@ -313,6 +313,10 @@ kernel void emitCaustics(primitive_acceleration_structure sceneAS [[buffer(0)]],
         float(lightCount) / (float(CAUSTIC_PHOTON_COUNT) * wavelength.y);
     float sourceRange = 0.0f;
     float sourceDistance = 0.0f;
+
+    bool photonInsideMedium = false;
+    uint photonMediumObjectId = 0xFFFFFFFFu;
+    float photonSigmaA = 0.0f;
     if (light < sceneData.numDirectionalLights) {
         float3 direction = -sampleDirectionalLightDirection(dirLight, rng);
         float3x3 basis = buildOrthonormalBasis(direction);
@@ -424,6 +428,14 @@ kernel void emitCaustics(primitive_acceleration_structure sceneAS [[buffer(0)]],
         if (hit.type == intersection_type::none || flux <= 0.0f ||
             !isfinite(flux))
             return;
+        if (photonInsideMedium) {
+            flux *= exp(-photonSigmaA * hit.distance);
+
+            if (flux <= 1e-8f || !isfinite(flux)) {
+                return;
+            }
+        }
+
         sourceDistance += hit.distance;
         uint primitive =
             blasPrimitiveOffsets[hit.geometry_id] + hit.primitive_id;
@@ -532,6 +544,29 @@ kernel void emitCaustics(primitive_acceleration_structure sceneAS [[buffer(0)]],
 
             if (dot(nextDirection, nextDirection) < 1e-8f) {
                 nextDirection = reflect(photonRay.direction, Ng);
+            } else {
+                if (frontFace) {
+                    photonInsideMedium = true;
+                    photonMediumObjectId = objectId;
+
+                    float3 transmissionColor =
+                        clamp(albedo, float3(0.001f), float3(0.9999f));
+
+                    constexpr float absorptionDistance = 0.25f;
+
+                    float spectralTransmission =
+                        clamp(rgbToReflectanceAtWavelength(transmissionColor,
+                                                           wavelength.x),
+                              0.001f, 0.9999f);
+
+                    photonSigmaA =
+                        -log(spectralTransmission) / absorptionDistance;
+                } else if (photonInsideMedium &&
+                           photonMediumObjectId == objectId) {
+                    photonInsideMedium = false;
+                    photonMediumObjectId = 0xFFFFFFFFu;
+                    photonSigmaA = 0.0f;
+                }
             }
         } else {
             return;

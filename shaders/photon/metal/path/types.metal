@@ -171,4 +171,4 @@ static_assert(sizeof(CausticSettings) == 32);
 
 constant uint CAUSTIC_PHOTON_COUNT = 65536;
 constant uint CAUSTIC_BUCKET_COUNT = 16384;
-constant uint CAUSTIC_BUCKET_SAMPLES = 8;
+constant uint CAUSTIC_BUCKET_SAMPLES = 16;

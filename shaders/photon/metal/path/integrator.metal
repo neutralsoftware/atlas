@@ -43,6 +43,10 @@ float3 sampleRadiance(
     bool causticConnection = false;
     bool hasNonDeltaVertex = false;
 
+    bool insideMedium = false;
+    uint mediumObjectId = 0xFFFFFFFFu;
+    float4 mediumSigmaA = float4(0.0);
+
     for (uint depth = 0; depth <= bounceLimit; ++depth) {
         auto hit = isect.intersect(surfaceRay, sceneAS);
         Material mat{};
@@ -144,6 +148,19 @@ float3 sampleRadiance(
             break;
         }
 
+        if (insideMedium) {
+            float distance = max(hit.distance, 0.0f);
+
+            float4 spectralTransmittance = exp(-mediumSigmaA * distance);
+
+            spectralPath.throughput *= spectralTransmittance;
+
+            if (!all(isfinite(spectralPath.throughput)) ||
+                spectralMax(spectralPath.throughput) < 1e-6f) {
+                break;
+            }
+        }
+
         float3 shadingNormal = resolveShadingNormal(
             mat, texUV, localN, localT, localB, inst,
             sceneData.materialTextureCount, PT_MATERIAL_TEXTURE_ARGS);
@@ -186,7 +203,7 @@ float3 sampleRadiance(
 
         float reflectivity = clamp(mat.reflectivity, 0.0, 1.0);
         bool smoothDielectric =
-            roughness <= 0.025f && transmittance > 0.999f && metallic < 0.001f;
+            roughness <= 0.005f && transmittance > 0.999f && metallic < 0.001f;
         bool smoothMirror = roughness <= 0.005f && metallic > 0.999f;
         if (sceneData.causticsEnabled != 0 && !smoothDielectric &&
             !smoothMirror) {
@@ -359,7 +376,8 @@ float3 sampleRadiance(
             }
         } else if (choice < specProb + transmitProb && transmitProb > 1e-4) {
             nextDirection = idealRefractedDirection;
-            float fresnelCosine = NdotV;
+            float fresnelCosine = interfaceNdotV;
+
             if (roughness > 0.025) {
                 sampledRoughTransmission = true;
                 float3 localView =
@@ -378,6 +396,31 @@ float3 sampleRadiance(
             float4 F = dielectricFresnel(fresnelCosine, etaPacket);
             bounceWeight = (1.0 - F) * transmittance * (1.0 - metallic) *
                            etaPacket * etaPacket / max(transmitProb, 1e-4);
+
+            if (smoothDielectric) {
+                if (frontFace) {
+                    insideMedium = true;
+                    mediumObjectId = surfaceObjectIndex;
+
+                    float3 transmissionColor =
+                        clamp(albedoRgb, float3(0.001f), float3(0.9999f));
+
+                    constexpr float absorptionDistance = 0.25f;
+
+                    float4 spectralTransmissionColor = clamp(
+                        evaluateReflectance(transmissionColor, spectralPath),
+                        float4(0.001f), float4(0.9999f));
+
+                    mediumSigmaA =
+                        -log(spectralTransmissionColor) / absorptionDistance;
+                } else if (insideMedium &&
+                           mediumObjectId == surfaceObjectIndex) {
+                    insideMedium = false;
+                    mediumObjectId = 0xFFFFFFFFu;
+                    mediumSigmaA = float4(0.0f);
+                }
+            }
+
             if (abbeNumber > 0.0 && !wavelengthSelected) {
                 float4 heroMask = float4(
                     heroIndex == 0 ? 1.0f : 0.0f, heroIndex == 1 ? 1.0f : 0.0f,
