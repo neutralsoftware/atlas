@@ -450,6 +450,15 @@ declare module "atlas" {
         abbeNumber: number;
         attenuationColor: Color;
         attenuationDistance: number;
+        isVolume: boolean;
+        volumeDensity: number;
+        volumeAbsorptionColor: Color;
+        volumeAbsorptionStrength: number;
+        volumeScatteringColor: Color;
+        volumeScatteringStrength: number;
+        volumeAnisotropy: number;
+        volumeEmissionColor: Color;
+        volumeEmissionStrength: number;
     }
 
     /**

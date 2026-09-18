@@ -15,6 +15,7 @@
 #include "opal/opal.h"
 #include <algorithm>
 #include <cmath>
+#include <cstddef>
 #include <cstdint>
 #include <cstring>
 #include <exception>
@@ -101,6 +102,21 @@ uint64_t pathTracingObjectStateHash(const CoreObject *object,
     append(&material.textureOffset, sizeof(material.textureOffset));
     append(&material.transmittance, sizeof(material.transmittance));
     append(&material.ior, sizeof(material.ior));
+    append(&material.isVolume, sizeof(material.isVolume));
+    append(&material.volumeDensity, sizeof(material.volumeDensity));
+    append(&material.volumeAbsorptionColor,
+           sizeof(material.volumeAbsorptionColor));
+    append(&material.volumeAbsorptionStrength,
+           sizeof(material.volumeAbsorptionStrength));
+    append(&material.volumeScatteringColor,
+           sizeof(material.volumeScatteringColor));
+    append(&material.volumeScatteringStrength,
+           sizeof(material.volumeScatteringStrength));
+    append(&material.volumeAnisotropy, sizeof(material.volumeAnisotropy));
+    append(&material.volumeEmissionColor,
+           sizeof(material.volumeEmissionColor));
+    append(&material.volumeEmissionStrength,
+           sizeof(material.volumeEmissionStrength));
     append(&model, sizeof(model));
     const size_t vertexCount = object->vertices.size();
     const size_t indexCount = object->indices.size();
@@ -391,6 +407,16 @@ bool photon::PathTracing::buildAccelerationStructure(
 
         float attenuationColor[3];
         float attenuationDistance;
+        int isVolume;
+        float volumeDensity;
+        float volumeAbsorptionColor[3];
+        float volumeAbsorptionStrength;
+        float volumeScatteringColor[3];
+        float volumeScatteringStrength;
+        float volumeAnisotropy;
+        float volumeEmissionColor[3];
+        float volumeEmissionStrength;
+        float _pad3;
     };
 
     struct VertexData {
@@ -413,7 +439,10 @@ bool photon::PathTracing::buildAccelerationStructure(
         float _pad[2];
     };
 
-    static_assert(sizeof(MaterialData) == 128);
+    static_assert(sizeof(MaterialData) == 192);
+    static_assert(offsetof(MaterialData, isVolume) == 128);
+    static_assert(offsetof(MaterialData, volumeAbsorptionColor) == 136);
+    static_assert(offsetof(MaterialData, volumeEmissionStrength) == 184);
     static_assert(sizeof(VertexData) == 56);
     static_assert(sizeof(EmissiveTriangleData) == 96);
 
@@ -669,6 +698,34 @@ bool photon::PathTracing::buildAccelerationStructure(
             data.attenuationColor[1] = object->material.attenuationColor.g;
             data.attenuationColor[2] = object->material.attenuationColor.b;
             data.attenuationDistance = object->material.attenuationDistance;
+            data.isVolume = object->material.isVolume ? 1 : 0;
+            data.volumeDensity = object->material.volumeDensity;
+            data.volumeAbsorptionColor[0] =
+                object->material.volumeAbsorptionColor.r;
+            data.volumeAbsorptionColor[1] =
+                object->material.volumeAbsorptionColor.g;
+            data.volumeAbsorptionColor[2] =
+                object->material.volumeAbsorptionColor.b;
+            data.volumeAbsorptionStrength =
+                object->material.volumeAbsorptionStrength;
+            data.volumeScatteringColor[0] =
+                object->material.volumeScatteringColor.r;
+            data.volumeScatteringColor[1] =
+                object->material.volumeScatteringColor.g;
+            data.volumeScatteringColor[2] =
+                object->material.volumeScatteringColor.b;
+            data.volumeScatteringStrength =
+                object->material.volumeScatteringStrength;
+            data.volumeAnisotropy = object->material.volumeAnisotropy;
+            data.volumeEmissionColor[0] =
+                object->material.volumeEmissionColor.r;
+            data.volumeEmissionColor[1] =
+                object->material.volumeEmissionColor.g;
+            data.volumeEmissionColor[2] =
+                object->material.volumeEmissionColor.b;
+            data.volumeEmissionStrength =
+                object->material.volumeEmissionStrength;
+            data._pad3 = 0.0f;
             materialData.push_back(data);
 
             const glm::vec3 emission =

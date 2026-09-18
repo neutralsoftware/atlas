@@ -53,9 +53,12 @@ float4 traceShadowVisibility(
         uv =
             uv * float2(material.textureScale) + float2(material.textureOffset);
 
-        float opacity =
-            resolveMaterialOpacity(material, uv, sceneData.materialTextureCount,
-                                   PT_MATERIAL_TEXTURE_ARGS);
+        float opacity = material.isVolume != 0
+                            ? 0.0f
+                            : resolveMaterialOpacity(
+                                  material, uv,
+                                  sceneData.materialTextureCount,
+                                  PT_MATERIAL_TEXTURE_ARGS);
 
         if (opacity >= 0.999f || rand(rng) < opacity)
             return float4(0.0f);

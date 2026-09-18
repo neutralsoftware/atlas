@@ -54,6 +54,9 @@ static_assert(__builtin_offsetof(Material, emissiveColor) == 32);
 static_assert(__builtin_offsetof(Material, albedoTextureIndex) == 48);
 static_assert(__builtin_offsetof(Material, transmittance) == 80);
 static_assert(__builtin_offsetof(Material, textureScale) == 96);
+static_assert(__builtin_offsetof(Material, isVolume) == 128);
+static_assert(__builtin_offsetof(Material, volumeAbsorptionColor) == 136);
+static_assert(__builtin_offsetof(Material, volumeEmissionStrength) == 184);
 
 struct VertexData {
     packed_float3 position;
