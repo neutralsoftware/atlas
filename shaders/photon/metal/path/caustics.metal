@@ -182,6 +182,22 @@ kernel void emitCaustics(primitive_acceleration_structure sceneAS [[buffer(0)]],
         flux *= M_PI_F * 4.0f * source.halfWidth * source.halfHeight *
                 (1.0f - source.emissionCos * source.emissionCos) *
                 (source.twoSided > 0.5f ? 2.0f : 1.0f);
+        float3 toBounds = caustics.bounds.xyz - photonRay.origin;
+        float distanceSquared = dot(toBounds, toBounds);
+        float radiusSquared = caustics.bounds.w * caustics.bounds.w;
+        if (source.emissionCos < 0.01f && distanceSquared > radiusSquared) {
+            float coneCos = sqrt(max(0.0f, 1.0f - radiusSquared / distanceSquared));
+            float cosine = mix(coneCos, 1.0f, rand(rng));
+            float sine = sqrt(max(0.0f, 1.0f - cosine * cosine));
+            float azimuth = 2.0f * M_PI_F * rand(rng);
+            photonRay.direction = buildOrthonormalBasis(normalize(toBounds)) *
+                float3(sine * cos(azimuth), sine * sin(azimuth), cosine);
+            float emissionCosine = dot(normal, photonRay.direction);
+            if (emissionCosine <= source.emissionCos)
+                return;
+            flux *= 2.0f * (1.0f - coneCos) * emissionCosine /
+                    (1.0f - source.emissionCos * source.emissionCos);
+        }
     } else {
         float selector = rand(rng);
         uint first = 0, last = sceneData.numEmissiveTriangles - 1;
