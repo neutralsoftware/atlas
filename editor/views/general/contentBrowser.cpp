@@ -618,7 +618,16 @@ void ContentBrowserPanel::createMaterial() {
         "        \"normalMapStrength\": 1.0,\n"
         "        \"useNormalMap\": true,\n"
         "        \"transmittance\": 0.0,\n"
-        "        \"ior\": 1.45\n"
+        "        \"ior\": 1.45,\n"
+        "        \"isVolume\": false,\n"
+        "        \"volumeDensity\": 1.0,\n"
+        "        \"volumeAbsorptionColor\": [1.0, 1.0, 1.0, 1.0],\n"
+        "        \"volumeAbsorptionStrength\": 0.0,\n"
+        "        \"volumeScatteringColor\": [1.0, 1.0, 1.0, 1.0],\n"
+        "        \"volumeScatteringStrength\": 0.0,\n"
+        "        \"volumeAnisotropy\": 0.0,\n"
+        "        \"volumeEmissionColor\": [0.0, 0.0, 0.0, 1.0],\n"
+        "        \"volumeEmissionStrength\": 0.0\n"
         "    }\n"
         "}\n";
     if (writeNewFile(path, material)) {

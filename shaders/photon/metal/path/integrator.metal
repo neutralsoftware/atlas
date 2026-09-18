@@ -15,6 +15,7 @@ using namespace raytracing;
 #include "brdf.metal"
 #include "lighting.metal"
 #include "caustics.metal"
+#include "volumes.metal"
 
 float3 sampleRadiance(
     uint2 gid, uint sampleIndex, uint w, intersector<triangle_data> isect,
@@ -47,6 +48,10 @@ float3 sampleRadiance(
     bool insideMedium = false;
     uint mediumObjectId = 0xFFFFFFFFu;
     float4 mediumSigmaA = float4(0.0);
+    float4 mediumSigmaS = float4(0.0);
+    float4 mediumSigmaT = float4(0.0);
+    float4 mediumEmission = float4(0.0);
+    float mediumAnisotropy = 0.0f;
 
     for (uint depth = 0; depth <= bounceLimit; ++depth) {
         auto hit = isect.intersect(surfaceRay, sceneAS);
@@ -151,10 +156,57 @@ float3 sampleRadiance(
 
         if (insideMedium) {
             float distance = max(hit.distance, 0.0f);
+            float heroSigmaT = mediumSigmaT[spectralPath.heroIndex];
+            bool canScatter = spectralMax(mediumSigmaS) > 1e-6f;
+            float sampledDistance = canScatter && heroSigmaT > 1e-6f
+                                        ? -log(max(1.0f - rand(rng), 1e-6f)) /
+                                              heroSigmaT
+                                        : 1e30f;
+            float traveledDistance = min(distance, sampledDistance);
+            float4 spectralTransmittance =
+                exp(-mediumSigmaT * traveledDistance);
+            float4 emissionIntegral =
+                (1.0f - spectralTransmittance) /
+                max(mediumSigmaT, float4(1e-6f));
+            spectralPath.radiance += spectralPath.throughput * mediumEmission *
+                                     emissionIntegral;
 
-            float4 spectralTransmittance = exp(-mediumSigmaA * distance);
+            if (sampledDistance < distance) {
+                float heroTransmittance =
+                    max(exp(-heroSigmaT * sampledDistance), 1e-6f);
+                float samplingPdf = max(heroSigmaT * heroTransmittance, 1e-6f);
+                spectralPath.throughput *=
+                    spectralTransmittance * mediumSigmaS / samplingPdf;
+                float3 scatteringPosition =
+                    surfaceRay.origin + surfaceRay.direction * sampledDistance;
+                float3 scatteringDirection = sampleHenyeyGreenstein(
+                    surfaceRay.direction, mediumAnisotropy,
+                    float2(rand(rng), rand(rng)));
+                previousBsdfPdf = henyeyGreensteinPhase(
+                    dot(surfaceRay.direction, scatteringDirection),
+                    mediumAnisotropy);
+                previousEnvironmentPdf = 0.0f;
+                previousEventWasDelta = false;
+                hasNonDeltaVertex = true;
+                causticConnection = false;
+                surfaceRay.origin =
+                    scatteringPosition + scatteringDirection *
+                                             rayOffsetDistance(scatteringPosition);
+                surfaceRay.direction = scatteringDirection;
+                surfaceRay.min_distance = 0.0f;
+                surfaceRay.max_distance = 1.0e30f;
+                if (!all(isfinite(spectralPath.throughput)) ||
+                    spectralMax(spectralPath.throughput) < 1e-6f) {
+                    break;
+                }
+                continue;
+            }
 
-            spectralPath.throughput *= spectralTransmittance;
+            float heroTransmittance = max(exp(-heroSigmaT * distance), 1e-6f);
+            spectralPath.throughput *= canScatter
+                                           ? spectralTransmittance /
+                                                 heroTransmittance
+                                           : spectralTransmittance;
 
             if (!all(isfinite(spectralPath.throughput)) ||
                 spectralMax(spectralPath.throughput) < 1e-6f) {
@@ -202,6 +254,42 @@ float3 sampleRadiance(
             primaryRoughness = roughness;
             primaryHitDistance = hit.distance;
             primaryObjectId = surfaceObjectIndex;
+        }
+
+        if (mat.isVolume != 0) {
+            if (frontFace) {
+                VolumeCoefficients coefficients = calculateVolumeCoefficients(
+                    float3(mat.volumeAbsorptionColor),
+                    max(mat.volumeAbsorptionStrength, 0.0f),
+                    float3(mat.volumeScatteringColor),
+                    max(mat.volumeScatteringStrength, 0.0f),
+                    max(mat.volumeDensity, 0.0f), spectralPath);
+                insideMedium = true;
+                mediumObjectId = surfaceObjectIndex;
+                mediumSigmaA = coefficients.sigmaA;
+                mediumSigmaS = coefficients.sigmaS;
+                mediumSigmaT = coefficients.sigmaT;
+                mediumEmission =
+                    evaluateEmission(float3(mat.volumeEmissionColor),
+                                     spectralPath) *
+                    max(mat.volumeEmissionStrength, 0.0f) *
+                    max(mat.volumeDensity, 0.0f);
+                mediumAnisotropy = clamp(mat.volumeAnisotropy, -0.99f, 0.99f);
+            } else if (insideMedium &&
+                       mediumObjectId == surfaceObjectIndex) {
+                insideMedium = false;
+                mediumObjectId = 0xFFFFFFFFu;
+                mediumSigmaA = float4(0.0f);
+                mediumSigmaS = float4(0.0f);
+                mediumSigmaT = float4(0.0f);
+                mediumEmission = float4(0.0f);
+                mediumAnisotropy = 0.0f;
+            }
+            surfaceRay.origin =
+                P + surfaceRay.direction * rayOffsetDistance(P);
+            surfaceRay.min_distance = 0.0f;
+            surfaceRay.max_distance = 1.0e30f;
+            continue;
         }
 
         float reflectivity = clamp(mat.reflectivity, 0.0, 1.0);
@@ -415,6 +503,10 @@ float3 sampleRadiance(
 
                     mediumSigmaA =
                         -log(spectralAttenuation) / attenuationDistance;
+                    mediumSigmaS = float4(0.0f);
+                    mediumSigmaT = mediumSigmaA;
+                    mediumEmission = float4(0.0f);
+                    mediumAnisotropy = 0.0f;
 
                 } else if (insideMedium &&
                            mediumObjectId == surfaceObjectIndex) {
@@ -422,6 +514,10 @@ float3 sampleRadiance(
                     insideMedium = false;
                     mediumObjectId = 0xFFFFFFFFu;
                     mediumSigmaA = float4(0.0f);
+                    mediumSigmaS = float4(0.0f);
+                    mediumSigmaT = float4(0.0f);
+                    mediumEmission = float4(0.0f);
+                    mediumAnisotropy = 0.0f;
                 }
             }
 

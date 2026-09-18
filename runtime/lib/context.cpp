@@ -815,6 +815,23 @@ MaterialDefinition loadMaterialDefinition(const json &value,
                     loaded.material.attenuationColor);
     tryReadFloatAny(materialData, {"attenuationDistance"},
                     loaded.material.attenuationDistance);
+    tryReadBoolAny(materialData, {"isVolume"}, loaded.material.isVolume);
+    tryReadFloatAny(materialData, {"volumeDensity"},
+                    loaded.material.volumeDensity);
+    tryReadColorAny(materialData, {"volumeAbsorptionColor"},
+                    loaded.material.volumeAbsorptionColor);
+    tryReadFloatAny(materialData, {"volumeAbsorptionStrength"},
+                    loaded.material.volumeAbsorptionStrength);
+    tryReadColorAny(materialData, {"volumeScatteringColor"},
+                    loaded.material.volumeScatteringColor);
+    tryReadFloatAny(materialData, {"volumeScatteringStrength"},
+                    loaded.material.volumeScatteringStrength);
+    tryReadFloatAny(materialData, {"volumeAnisotropy"},
+                    loaded.material.volumeAnisotropy);
+    tryReadColorAny(materialData, {"volumeEmissionColor"},
+                    loaded.material.volumeEmissionColor);
+    tryReadFloatAny(materialData, {"volumeEmissionStrength"},
+                    loaded.material.volumeEmissionStrength);
 
     auto appendTexture = [&](std::initializer_list<const char *> keys,
                              TextureType type, bool allowTypeOverride) {

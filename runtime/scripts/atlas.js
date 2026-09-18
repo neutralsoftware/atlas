@@ -159,6 +159,15 @@ export class Material {
         this.abbeNumber = 0;
         this.attenuationColor = Color.white();
         this.attenuationDistance = 1;
+        this.isVolume = false;
+        this.volumeDensity = 1;
+        this.volumeAbsorptionColor = Color.white();
+        this.volumeAbsorptionStrength = 0;
+        this.volumeScatteringColor = Color.white();
+        this.volumeScatteringStrength = 0;
+        this.volumeAnisotropy = 0;
+        this.volumeEmissionColor = Color.black();
+        this.volumeEmissionStrength = 0;
     }
 }
 

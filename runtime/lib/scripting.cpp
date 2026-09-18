@@ -1299,9 +1299,18 @@ bool parseMaterial(JSContext *ctx, JSValueConst value, Material &out) {
     double ior = out.ior;
     double abbeNumber = out.abbeNumber;
     double attenuationDistance = out.attenuationDistance;
+    double volumeDensity = out.volumeDensity;
+    double volumeAbsorptionStrength = out.volumeAbsorptionStrength;
+    double volumeScatteringStrength = out.volumeScatteringStrength;
+    double volumeAnisotropy = out.volumeAnisotropy;
+    double volumeEmissionStrength = out.volumeEmissionStrength;
     bool useNormalMap = out.useNormalMap;
+    bool isVolume = out.isVolume;
     Color emissiveColor = out.emissiveColor;
     Color attenuationColor = out.attenuationColor;
+    Color volumeAbsorptionColor = out.volumeAbsorptionColor;
+    Color volumeScatteringColor = out.volumeScatteringColor;
+    Color volumeEmissionColor = out.volumeEmissionColor;
 
     readNumberProperty(ctx, value, "metallic", metallic);
     readNumberProperty(ctx, value, "roughness", roughness);
@@ -1313,7 +1322,16 @@ bool parseMaterial(JSContext *ctx, JSValueConst value, Material &out) {
     readNumberProperty(ctx, value, "ior", ior);
     readNumberProperty(ctx, value, "abbeNumber", abbeNumber);
     readNumberProperty(ctx, value, "attenuationDistance", attenuationDistance);
+    readNumberProperty(ctx, value, "volumeDensity", volumeDensity);
+    readNumberProperty(ctx, value, "volumeAbsorptionStrength",
+                       volumeAbsorptionStrength);
+    readNumberProperty(ctx, value, "volumeScatteringStrength",
+                       volumeScatteringStrength);
+    readNumberProperty(ctx, value, "volumeAnisotropy", volumeAnisotropy);
+    readNumberProperty(ctx, value, "volumeEmissionStrength",
+                       volumeEmissionStrength);
     readBoolProperty(ctx, value, "useNormalMap", useNormalMap);
+    readBoolProperty(ctx, value, "isVolume", isVolume);
 
     JSValue emissiveValue = JS_GetPropertyStr(ctx, value, "emissiveColor");
     if (!JS_IsException(emissiveValue) && !JS_IsUndefined(emissiveValue)) {
@@ -1329,6 +1347,30 @@ bool parseMaterial(JSContext *ctx, JSValueConst value, Material &out) {
     }
     JS_FreeValue(ctx, attenuationValue);
 
+    JSValue volumeAbsorptionValue =
+        JS_GetPropertyStr(ctx, value, "volumeAbsorptionColor");
+    if (!JS_IsException(volumeAbsorptionValue) &&
+        !JS_IsUndefined(volumeAbsorptionValue)) {
+        parseColor(ctx, volumeAbsorptionValue, volumeAbsorptionColor);
+    }
+    JS_FreeValue(ctx, volumeAbsorptionValue);
+
+    JSValue volumeScatteringValue =
+        JS_GetPropertyStr(ctx, value, "volumeScatteringColor");
+    if (!JS_IsException(volumeScatteringValue) &&
+        !JS_IsUndefined(volumeScatteringValue)) {
+        parseColor(ctx, volumeScatteringValue, volumeScatteringColor);
+    }
+    JS_FreeValue(ctx, volumeScatteringValue);
+
+    JSValue volumeEmissionValue =
+        JS_GetPropertyStr(ctx, value, "volumeEmissionColor");
+    if (!JS_IsException(volumeEmissionValue) &&
+        !JS_IsUndefined(volumeEmissionValue)) {
+        parseColor(ctx, volumeEmissionValue, volumeEmissionColor);
+    }
+    JS_FreeValue(ctx, volumeEmissionValue);
+
     out.metallic = static_cast<float>(metallic);
     out.roughness = static_cast<float>(roughness);
     out.ao = static_cast<float>(ao);
@@ -1342,6 +1384,15 @@ bool parseMaterial(JSContext *ctx, JSValueConst value, Material &out) {
     out.abbeNumber = static_cast<float>(abbeNumber);
     out.attenuationColor = attenuationColor;
     out.attenuationDistance = static_cast<float>(attenuationDistance);
+    out.isVolume = isVolume;
+    out.volumeDensity = static_cast<float>(volumeDensity);
+    out.volumeAbsorptionColor = volumeAbsorptionColor;
+    out.volumeAbsorptionStrength = static_cast<float>(volumeAbsorptionStrength);
+    out.volumeScatteringColor = volumeScatteringColor;
+    out.volumeScatteringStrength = static_cast<float>(volumeScatteringStrength);
+    out.volumeAnisotropy = static_cast<float>(volumeAnisotropy);
+    out.volumeEmissionColor = volumeEmissionColor;
+    out.volumeEmissionStrength = static_cast<float>(volumeEmissionStrength);
     return true;
 }
 
@@ -4138,6 +4189,23 @@ JSValue makeMaterial(JSContext *ctx, ScriptHost &host,
                 makeColor(ctx, host, material.attenuationColor));
     setProperty(ctx, result, "attenuationDistance",
                 JS_NewFloat64(ctx, material.attenuationDistance));
+    setProperty(ctx, result, "isVolume", JS_NewBool(ctx, material.isVolume));
+    setProperty(ctx, result, "volumeDensity",
+                JS_NewFloat64(ctx, material.volumeDensity));
+    setProperty(ctx, result, "volumeAbsorptionColor",
+                makeColor(ctx, host, material.volumeAbsorptionColor));
+    setProperty(ctx, result, "volumeAbsorptionStrength",
+                JS_NewFloat64(ctx, material.volumeAbsorptionStrength));
+    setProperty(ctx, result, "volumeScatteringColor",
+                makeColor(ctx, host, material.volumeScatteringColor));
+    setProperty(ctx, result, "volumeScatteringStrength",
+                JS_NewFloat64(ctx, material.volumeScatteringStrength));
+    setProperty(ctx, result, "volumeAnisotropy",
+                JS_NewFloat64(ctx, material.volumeAnisotropy));
+    setProperty(ctx, result, "volumeEmissionColor",
+                makeColor(ctx, host, material.volumeEmissionColor));
+    setProperty(ctx, result, "volumeEmissionStrength",
+                JS_NewFloat64(ctx, material.volumeEmissionStrength));
     return result;
 }
 

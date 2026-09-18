@@ -434,6 +434,24 @@ MaterialEditorPanel::normalizedMaterial(const QJsonObject &source) const {
         result.insert("attenuationColor", QJsonArray{1.0, 1.0, 1.0, 1.0});
     if (!result.value("attenuationDistance").isDouble())
         result.insert("attenuationDistance", 0.0);
+    if (!result.value("isVolume").isBool())
+        result.insert("isVolume", false);
+    if (!result.value("volumeDensity").isDouble())
+        result.insert("volumeDensity", 1.0);
+    if (!result.value("volumeAbsorptionColor").isArray())
+        result.insert("volumeAbsorptionColor", QJsonArray{1.0, 1.0, 1.0, 1.0});
+    if (!result.value("volumeAbsorptionStrength").isDouble())
+        result.insert("volumeAbsorptionStrength", 0.0);
+    if (!result.value("volumeScatteringColor").isArray())
+        result.insert("volumeScatteringColor", QJsonArray{1.0, 1.0, 1.0, 1.0});
+    if (!result.value("volumeScatteringStrength").isDouble())
+        result.insert("volumeScatteringStrength", 0.0);
+    if (!result.value("volumeAnisotropy").isDouble())
+        result.insert("volumeAnisotropy", 0.0);
+    if (!result.value("volumeEmissionColor").isArray())
+        result.insert("volumeEmissionColor", QJsonArray{0.0, 0.0, 0.0, 1.0});
+    if (!result.value("volumeEmissionStrength").isDouble())
+        result.insert("volumeEmissionStrength", 0.0);
     return result;
 }
 
@@ -615,6 +633,44 @@ void MaterialEditorPanel::showMaterial() {
     volumeForm->addRow("Attenuation Distance", attenuationDistanceField);
     propertiesLayout->addWidget(volume);
 
+    auto *medium = new QGroupBox("Volume", properties);
+    auto *mediumForm = new QFormLayout(medium);
+    volumeField = new QCheckBox(medium);
+    volumeField->setChecked(material.value("isVolume").toBool());
+    volumeDensityField = scalarField(0.0, 100.0, 0.01, medium);
+    volumeDensityField->setValue(material.value("volumeDensity").toDouble());
+    volumeAbsorptionColorButton = new styling::Button(medium);
+    displayColor(volumeAbsorptionColorButton,
+                 jsonColor(material.value("volumeAbsorptionColor"), Qt::white));
+    volumeAbsorptionStrengthField = scalarField(0.0, 100.0, 0.01, medium);
+    volumeAbsorptionStrengthField->setValue(
+        material.value("volumeAbsorptionStrength").toDouble());
+    volumeScatteringColorButton = new styling::Button(medium);
+    displayColor(volumeScatteringColorButton,
+                 jsonColor(material.value("volumeScatteringColor"), Qt::white));
+    volumeScatteringStrengthField = scalarField(0.0, 100.0, 0.01, medium);
+    volumeScatteringStrengthField->setValue(
+        material.value("volumeScatteringStrength").toDouble());
+    volumeAnisotropyField = scalarField(-0.99, 0.99, 0.01, medium);
+    volumeAnisotropyField->setValue(
+        material.value("volumeAnisotropy").toDouble());
+    volumeEmissionColorButton = new styling::Button(medium);
+    displayColor(volumeEmissionColorButton,
+                 jsonColor(material.value("volumeEmissionColor"), Qt::black));
+    volumeEmissionStrengthField = scalarField(0.0, 100.0, 0.01, medium);
+    volumeEmissionStrengthField->setValue(
+        material.value("volumeEmissionStrength").toDouble());
+    mediumForm->addRow("Enabled", volumeField);
+    mediumForm->addRow("Density", volumeDensityField);
+    mediumForm->addRow("Absorption Color", volumeAbsorptionColorButton);
+    mediumForm->addRow("Absorption Strength", volumeAbsorptionStrengthField);
+    mediumForm->addRow("Scattering Color", volumeScatteringColorButton);
+    mediumForm->addRow("Scattering Strength", volumeScatteringStrengthField);
+    mediumForm->addRow("Anisotropy", volumeAnisotropyField);
+    mediumForm->addRow("Emission Color", volumeEmissionColorButton);
+    mediumForm->addRow("Emission Strength", volumeEmissionStrengthField);
+    propertiesLayout->addWidget(medium);
+
     auto *normal = new QGroupBox("Normal", properties);
     auto *normalForm = new QFormLayout(normal);
     normalMapField = new QCheckBox(normal);
@@ -707,17 +763,41 @@ void MaterialEditorPanel::showMaterial() {
             [this] { setColor("emissiveColor", emissiveButton); });
     connect(attenuationColorButton, &QPushButton::clicked, this,
             [this] { setColor("attenuationColor", attenuationColorButton); });
-    const QList<QDoubleSpinBox *> scalars{
-        metallicField,       roughnessField,          aoField,
-        reflectivityField,   emissiveIntensityField,  normalStrengthField,
-        textureScaleUField,  textureScaleVField,      textureOffsetUField,
-        textureOffsetVField, transmittanceField,      iorField,
-        abbeNumberField,     attenuationDistanceField};
+    connect(volumeAbsorptionColorButton, &QPushButton::clicked, this, [this] {
+        setColor("volumeAbsorptionColor", volumeAbsorptionColorButton);
+    });
+    connect(volumeScatteringColorButton, &QPushButton::clicked, this, [this] {
+        setColor("volumeScatteringColor", volumeScatteringColorButton);
+    });
+    connect(volumeEmissionColorButton, &QPushButton::clicked, this, [this] {
+        setColor("volumeEmissionColor", volumeEmissionColorButton);
+    });
+    const QList<QDoubleSpinBox *> scalars{metallicField,
+                                          roughnessField,
+                                          aoField,
+                                          reflectivityField,
+                                          emissiveIntensityField,
+                                          normalStrengthField,
+                                          textureScaleUField,
+                                          textureScaleVField,
+                                          textureOffsetUField,
+                                          textureOffsetVField,
+                                          transmittanceField,
+                                          iorField,
+                                          abbeNumberField,
+                                          attenuationDistanceField,
+                                          volumeDensityField,
+                                          volumeAbsorptionStrengthField,
+                                          volumeScatteringStrengthField,
+                                          volumeAnisotropyField,
+                                          volumeEmissionStrengthField};
     for (QDoubleSpinBox *field : scalars) {
         connect(field, &QDoubleSpinBox::valueChanged, this,
                 [this](double) { materialChanged(); });
     }
     connect(normalMapField, &QCheckBox::toggled, this,
+            [this](bool) { materialChanged(); });
+    connect(volumeField, &QCheckBox::toggled, this,
             [this](bool) { materialChanged(); });
     loading = false;
 }
@@ -801,6 +881,27 @@ void MaterialEditorPanel::materialChanged() {
     material.insert("transmittance", transmittanceField->value());
     material.insert("abbeNumber", abbeNumberField->value());
     material.insert("ior", iorField->value());
+    material.insert("isVolume", volumeField->isChecked());
+    material.insert("volumeDensity", volumeDensityField->value());
+    material.insert(
+        "volumeAbsorptionColor",
+        colorJson(volumeAbsorptionColorButton->property("materialColor")
+                      .value<QColor>()));
+    material.insert("volumeAbsorptionStrength",
+                    volumeAbsorptionStrengthField->value());
+    material.insert(
+        "volumeScatteringColor",
+        colorJson(volumeScatteringColorButton->property("materialColor")
+                      .value<QColor>()));
+    material.insert("volumeScatteringStrength",
+                    volumeScatteringStrengthField->value());
+    material.insert("volumeAnisotropy", volumeAnisotropyField->value());
+    material.insert(
+        "volumeEmissionColor",
+        colorJson(volumeEmissionColorButton->property("materialColor")
+                      .value<QColor>()));
+    material.insert("volumeEmissionStrength",
+                    volumeEmissionStrengthField->value());
     if (material == previous)
         return;
     recordHistory(previous);

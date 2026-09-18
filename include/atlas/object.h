@@ -108,6 +108,15 @@ struct Material {
      * @brief Distance over which attenuationColor is applied.
      */
     float attenuationDistance = 1.0f;
+    bool isVolume = false;
+    float volumeDensity = 1.0f;
+    Color volumeAbsorptionColor = {1.0, 1.0, 1.0, 1.0};
+    float volumeAbsorptionStrength = 0.0f;
+    Color volumeScatteringColor = {1.0, 1.0, 1.0, 1.0};
+    float volumeScatteringStrength = 0.0f;
+    float volumeAnisotropy = 0.0f;
+    Color volumeEmissionColor = {0.0, 0.0, 0.0, 1.0};
+    float volumeEmissionStrength = 0.0f;
 };
 
 /**
