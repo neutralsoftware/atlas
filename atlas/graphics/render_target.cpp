@@ -857,9 +857,10 @@ void RenderTarget::render(float dt,
 
     renderTargetPipeline->setUniform1i("TextureType",
                                        static_cast<int>(texture.type));
-    renderTargetPipeline->setUniform1i("EffectCount", effects.size());
+    const size_t effectCount = std::min(effects.size(), size_t{64});
+    renderTargetPipeline->setUniform1i("EffectCount", effectCount);
 
-    for (size_t i = 0; i < effects.size(); i++) {
+    for (size_t i = 0; i < effectCount; i++) {
         std::string uniformName = "Effects[" + std::to_string(i) + "]";
         renderTargetPipeline->setUniform1i(uniformName,
                                            static_cast<int>(effects[i]->type));
