@@ -143,17 +143,14 @@ bool insertCausticPhoton(device atomic_uint *photonSlots, int3 cell,
     return true;
 }
 
-float4 gatherCaustics(float3 P, float3 N, float3 Ng, float3 V, uint objectId,
-                      float4 albedo, float metallic, float roughness,
-                      float reflectivity, float4 ior, float transmittance,
-                      thread const SpectralPath &path,
-                      constant CausticSettings &caustics,
-                      device const CausticPhoton *photons,
-                      device const uint *photonSlots) {
-    float4 result = float4(0.0f);
+float3 gatherCausticsXYZ(float3 P, float3 N, float3 Ng, uint objectId,
+                         float3 albedoRgb, constant CausticSettings &caustics,
+                         device const CausticPhoton *photons,
+                         device const uint *photonSlots) {
+    float3 resultXYZ = float3(0.0f);
 
     if (caustics.radius <= 0.0f) {
-        return result;
+        return resultXYZ;
     }
 
     float radiusSquared = caustics.radius * caustics.radius;
@@ -239,27 +236,26 @@ float4 gatherCaustics(float3 P, float3 N, float3 Ng, float3 V, uint objectId,
                         2.0f * (1.0f - distanceSquared / radiusSquared) /
                         (M_PI_F * radiusSquared);
 
-                    constexpr float spectralSigmaNm = 20.0f;
+                    float wavelengthNm = photon.positionWavelength.w;
 
-                    float4 wavelengthDelta =
-                        (path.wavelengthNm - photon.positionWavelength.w) /
-                        spectralSigmaNm;
+                    float irradiance =
+                        photon.normalPower.w * reservoirWeight * densityWeight;
 
-                    float4 spectrum =
-                        exp(-0.5f * wavelengthDelta * wavelengthDelta) /
-                        (2.50662827463f * spectralSigmaNm);
-                    float4 irradiance = spectrum * photon.normalPower.w *
-                                        reservoirWeight * densityWeight;
+                    float receiverReflectance =
+                        rgbToReflectanceAtWavelength(albedoRgb, wavelengthNm);
 
-                    result += evalPBR(albedo, metallic, roughness, reflectivity,
-                                      ior, transmittance, N, V, incoming,
-                                      irradiance, 1.0f / cosine);
+                    float bsdf = receiverReflectance / M_PI_F;
+
+                    float spectralRadiance = irradiance * bsdf;
+
+                    resultXYZ += spectralRadiance * cieXYZ1931(wavelengthNm) /
+                                 PHOTON_CIE_Y_INTEGRAL;
                 }
             }
         }
     }
 
-    return result;
+    return resultXYZ;
 }
 
 kernel void clearCaustics(device atomic_uint *photonSlots [[buffer(16)]],
@@ -539,7 +535,7 @@ kernel void emitCaustics(primitive_acceleration_structure sceneAS [[buffer(0)]],
         }
         if (!causticTransportSurface)
             return;
-        float3 opticalNormal = N;
+        float3 opticalNormal = deltaSurface ? Ng : N;
         float3 interfaceNormal = opticalNormal;
 
         if (!deltaSurface) {

@@ -34,6 +34,7 @@ float3 sampleRadiance(
     thread float &primaryHitDistance, thread uint &primaryObjectId) {
     uint rng = seedBase(gid, w, sceneData.frameIndex, sampleIndex);
     SpectralPath spectralPath = createSpectralPath(rng);
+    float3 causticXYZ = float3(0.0f);
     uint bounceLimit = min(sceneData.maxBounces, 16u);
     ray surfaceRay = primaryRay;
     float previousBsdfPdf = 0.0;
@@ -207,14 +208,11 @@ float3 sampleRadiance(
         bool deltaDielectric =
             roughness <= 0.005f && transmittance > 0.999f && metallic < 0.001f;
         bool deltaMirror = roughness <= 0.005f && metallic > 0.999f;
-        if (sceneData.causticsEnabled != 0 && !deltaDielectric &&
+        if (depth == 0 && sceneData.causticsEnabled != 0 && !deltaDielectric &&
             !deltaMirror) {
-            spectralPath.radiance +=
-                spectralPath.throughput *
-                gatherCaustics(P, N, Ng, V, surfaceObjectIndex, albedo,
-                               metallic, roughness, reflectivity, ior,
-                               transmittance, spectralPath, caustics, photons,
-                               photonSlots);
+            causticXYZ +=
+                gatherCausticsXYZ(P, N, Ng, surfaceObjectIndex, albedoRgb,
+                                  caustics, photons, photonSlots);
         }
         if (!deltaDielectric && !deltaMirror) {
             float4 direct = evalDirectLightingPBR(
@@ -251,7 +249,7 @@ float3 sampleRadiance(
 
         float4 F0 = materialF0(albedo, metallic, reflectivity, ior);
         float NdotV = max(dot(N, V), 1e-4f);
-        float3 interfaceN = N;
+        float3 interfaceN = deltaDielectric ? Ng : N;
         float interfaceNdotV = max(dot(interfaceN, V), 1e-4f);
         float4 etaPacket = frontFace ? 1.0f / ior : ior;
 
@@ -343,11 +341,11 @@ float3 sampleRadiance(
 
         if (choice < specProb && specProb > 1e-4) {
             if (deltaDielectric || totalInternalReflection) {
-                nextDirection = reflect(-V, Ng);
+                nextDirection = reflect(-V, interfaceN);
                 float4 F = totalInternalReflection ? float4(1.0f) : viewFresnel;
                 bounceWeight = F / max(specProb, 1e-4f);
             } else if (roughness <= 0.005) {
-                nextDirection = reflect(-V, N);
+                nextDirection = reflect(-V, interfaceN);
                 float4 F = totalInternalReflection ? float4(1.0) : viewFresnel;
                 bounceWeight = F / max(specProb, 1e-4);
             } else {
@@ -494,5 +492,6 @@ float3 sampleRadiance(
 
     float3 xyz = spectralRadianceToXYZ(max(spectralPath.radiance, float4(0.0)),
                                        spectralPath);
+    xyz += causticXYZ;
     return xyzToLinearSRGB(xyz);
 }
