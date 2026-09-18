@@ -239,13 +239,15 @@ float4 gatherCaustics(float3 P, float3 N, float3 Ng, float3 V, uint objectId,
                         2.0f * (1.0f - distanceSquared / radiusSquared) /
                         (M_PI_F * radiusSquared);
 
+                    constexpr float spectralSigmaNm = 20.0f;
+
                     float4 wavelengthDelta =
                         (path.wavelengthNm - photon.positionWavelength.w) /
-                        10.0f;
+                        spectralSigmaNm;
 
                     float4 spectrum =
                         exp(-0.5f * wavelengthDelta * wavelengthDelta) /
-                        25.06628275f;
+                        (2.50662827463f * spectralSigmaNm);
                     float4 irradiance = spectrum * photon.normalPower.w *
                                         reservoirWeight * densityWeight;
 
@@ -537,20 +539,21 @@ kernel void emitCaustics(primitive_acceleration_structure sceneAS [[buffer(0)]],
         }
         if (!causticTransportSurface)
             return;
-        float3 interfaceNormal = Ng;
+        float3 opticalNormal = N;
+        float3 interfaceNormal = opticalNormal;
 
         if (!deltaSurface) {
             float3 V = -photonRay.direction;
 
-            float3x3 basis = buildOrthonormalBasis(Ng);
+            float3x3 basis = buildOrthonormalBasis(opticalNormal);
 
-            float3 localView =
-                float3(dot(V, basis[0]), dot(V, basis[1]), dot(V, Ng));
+            float3 localView = float3(dot(V, basis[0]), dot(V, basis[1]),
+                                      dot(V, opticalNormal));
 
             float3 localH = sampleGGXVNDF(localView, roughness,
                                           float2(rand(rng), rand(rng)));
 
-            interfaceNormal = normalizeOr(basis * localH, Ng);
+            interfaceNormal = normalizeOr(basis * localH, opticalNormal);
         }
 
         float ior = evaluateIorAtWavelength(baseIor, abbe, path).x;

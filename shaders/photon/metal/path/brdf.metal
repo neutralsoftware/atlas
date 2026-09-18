@@ -125,9 +125,8 @@ float4 evalTransmission(float4 albedo, float3 N, float3 V, float3 L,
     float forwardAlignment = max(dot(-V, L), 0.0);
     float F0 = pow((ior - 1.0) / (ior + 1.0), 2.0);
     float4 F = F_Schlick(max(dot(N, V), 0.0), float4(F0));
-    float4 transmitTint = mix(albedo, float4(1.0), 0.1);
     float lobeExponent = mix(96.0, 2.0, sqrt(clamp(roughness, 0.0, 1.0)));
     float transmissionLobe = pow(forwardAlignment, lobeExponent);
-    return (1.0 - F) * transmitTint * lightRadiance * intensity * backLighting *
+    return (1.0 - F) * lightRadiance * intensity * backLighting *
            transmissionLobe;
 }

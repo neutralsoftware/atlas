@@ -172,6 +172,6 @@ struct CausticSettings {
 static_assert(sizeof(CausticPhoton) == 48);
 static_assert(sizeof(CausticSettings) == 32);
 
-constant uint CAUSTIC_PHOTON_COUNT = 131072;
-constant uint CAUSTIC_BUCKET_COUNT = 65536;
-constant uint CAUSTIC_BUCKET_SAMPLES = 8;
+constant uint CAUSTIC_PHOTON_COUNT = 1u << 20; // 1,048,576
+constant uint CAUSTIC_BUCKET_COUNT = 1u << 18; // 262,144
+constant uint CAUSTIC_BUCKET_SAMPLES = 32;

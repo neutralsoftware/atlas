@@ -789,6 +789,10 @@ void MaterialEditorPanel::materialChanged() {
     material.insert("emissiveIntensity", emissiveIntensityField->value());
     material.insert("normalMapStrength", normalStrengthField->value());
     material.insert("useNormalMap", normalMapField->isChecked());
+    material.insert(
+        "attenuationColor",
+        colorJson(
+            attenuationColorButton->property("materialColor").value<QColor>()));
     material.insert("attenuationDistance", attenuationDistanceField->value());
     material.insert("textureScale", QJsonArray{textureScaleUField->value(),
                                                textureScaleVField->value()});
