@@ -954,11 +954,12 @@ bool photon::PathTracing::createLightBuffers() {
             data.direction[0] = light->direction.x;
             data.direction[1] = light->direction.y;
             data.direction[2] = light->direction.z;
-            data.innerCos = light->cutOff;
+            data.innerCos = std::clamp(light->cutOff, -1.0f, 1.0f);
             data.color[0] = light->color.r;
             data.color[1] = light->color.g;
             data.color[2] = light->color.b;
-            data.outerCos = light->outerCutoff;
+            data.outerCos =
+                std::clamp(light->outerCutoff, -1.0f, data.innerCos);
             data.range = light->range;
             spotLightData.push_back(data);
         }

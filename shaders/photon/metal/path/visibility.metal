@@ -66,8 +66,7 @@ float4 traceShadowVisibility(
                 emissiveRgb, baseIor, transmittance, abbeNumber);
 
             float transmission = transmittance * (1.0f - metallic);
-            if (sceneData.causticsEnabled != 0 && roughness <= 0.025f &&
-                transmission > 0.001f) {
+            if (roughness <= 0.025f && transmission > 0.001f) {
                 return float4(0.0f);
             }
 
