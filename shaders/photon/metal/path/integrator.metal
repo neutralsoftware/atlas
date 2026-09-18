@@ -97,8 +97,9 @@ float3 sampleRadiance(
                 inst.normalCol0.xyz, inst.normalCol1.xyz, inst.normalCol2.xyz);
             float3 localGeometricNormal =
                 normalizeOr(cross(p1 - p0, p2 - p0), localN);
+
             geometricNormal = normalizeOr(
-                localGeometricNormal,
+                normalMatrix * localGeometricNormal,
                 normalizeOr(normalMatrix * localN, float3(0.0, 1.0, 0.0)));
 
             float alpha = resolveMaterialOpacity(mat, texUV,
@@ -186,7 +187,7 @@ float3 sampleRadiance(
         float reflectivity = clamp(mat.reflectivity, 0.0, 1.0);
         bool smoothDielectric =
             roughness <= 0.025f && transmittance > 0.999f && metallic < 0.001f;
-        bool smoothMirror = roughness <= 0.025f && metallic > 0.999f;
+        bool smoothMirror = roughness <= 0.005f && metallic > 0.999f;
         if (sceneData.causticsEnabled != 0 && !smoothDielectric &&
             !smoothMirror) {
             spectralPath.radiance +=
@@ -230,27 +231,33 @@ float3 sampleRadiance(
         }
 
         float4 F0 = materialF0(albedo, metallic, reflectivity, ior);
-        float NdotV = max(dot(N, V), 1e-4);
-        float4 etaPacket = frontFace ? 1.0 / ior : ior;
+        float NdotV = max(dot(N, V), 1e-4f);
+        float3 interfaceN = smoothDielectric ? Ng : N;
+        float interfaceNdotV = max(dot(interfaceN, V), 1e-4f);
+        float4 etaPacket = frontFace ? 1.0f / ior : ior;
+
         float4 viewFresnel = smoothDielectric
-                                 ? dielectricFresnel(NdotV, etaPacket)
+                                 ? dielectricFresnel(interfaceNdotV, etaPacket)
                                  : F_Schlick(NdotV, F0);
         float fresnelProbability =
-            clamp(spectralAverage(viewFresnel), 0.001, 0.999);
+            clamp(spectralAverage(viewFresnel), 0.001f, 0.999f);
         float specProb = fresnelProbability;
         float transmitProb =
-            transmittance * (1.0 - metallic) * (1.0 - fresnelProbability);
-        float diffuseProb = (1.0 - metallic) * (1.0 - transmittance) *
-                            (1.0 - fresnelProbability);
+            transmittance * (1.0f - metallic) * (1.0f - fresnelProbability);
+
+        float diffuseProb = (1.0f - metallic) * (1.0f - transmittance) *
+                            (1.0f - fresnelProbability);
+
         uint heroIndex = spectralPath.heroIndex;
         float eta = etaPacket[heroIndex];
-
-        float3 idealRefractedDirection = refract(-V, N, eta);
+        float3 idealRefractedDirection = refract(-V, interfaceN, eta);
         bool totalInternalReflection =
-            dot(idealRefractedDirection, idealRefractedDirection) < 1e-8;
+            transmitProb > 1e-4f &&
+            dot(idealRefractedDirection, idealRefractedDirection) < 1e-8f;
+
         if (totalInternalReflection) {
             specProb += transmitProb;
-            transmitProb = 0.0;
+            transmitProb = 0.0f;
         }
         float probabilitySum = max(specProb + transmitProb + diffuseProb, 1e-4);
         specProb /= probabilitySum;
@@ -316,7 +323,11 @@ float3 sampleRadiance(
         bool sampledRoughTransmission = false;
 
         if (choice < specProb && specProb > 1e-4) {
-            if (roughness <= 0.025 || totalInternalReflection) {
+            if (smoothDielectric || totalInternalReflection) {
+                nextDirection = reflect(-V, Ng);
+                float4 F = totalInternalReflection ? float4(1.0f) : viewFresnel;
+                bounceWeight = F / max(specProb, 1e-4f);
+            } else if (roughness <= 0.005) {
                 nextDirection = reflect(-V, N);
                 float4 F = totalInternalReflection ? float4(1.0) : viewFresnel;
                 bounceWeight = F / max(specProb, 1e-4);
@@ -365,14 +376,12 @@ float3 sampleRadiance(
                 }
             }
             float4 F = dielectricFresnel(fresnelCosine, etaPacket);
-            float4 tint = mix(float4(1.0), albedo, 0.15);
-            bounceWeight = (1.0 - F) * tint * transmittance * (1.0 - metallic) *
+            bounceWeight = (1.0 - F) * transmittance * (1.0 - metallic) *
                            etaPacket * etaPacket / max(transmitProb, 1e-4);
             if (abbeNumber > 0.0 && !wavelengthSelected) {
-                float4 heroMask = float4(heroIndex == 0 ? 1.0f : 0.0f,
-                                         heroIndex == 1 ? 1.0f : 0.0f,
-                                         heroIndex == 2 ? 1.0f : 0.0f,
-                                         heroIndex == 3 ? 1.0f : 0.0f);
+                float4 heroMask = float4(
+                    heroIndex == 0 ? 1.0f : 0.0f, heroIndex == 1 ? 1.0f : 0.0f,
+                    heroIndex == 2 ? 1.0f : 0.0f, heroIndex == 3 ? 1.0f : 0.0f);
                 bounceWeight *= heroMask * float(PHOTON_SPECTRAL_LANE_COUNT);
                 wavelengthSelected = true;
             }

@@ -780,6 +780,7 @@ void MaterialEditorPanel::materialChanged() {
     material.insert("textureOffset", QJsonArray{textureOffsetUField->value(),
                                                 textureOffsetVField->value()});
     material.insert("transmittance", transmittanceField->value());
+    material.insert("abbeNumber", abbeNumberField->value());
     material.insert("ior", iorField->value());
     if (material == previous)
         return;

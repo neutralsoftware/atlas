@@ -108,28 +108,29 @@ float4 evaluateEmission(float3 rgb, thread const SpectralPath &path) {
                   rgbToEmissionAtWavelength(rgb, path.wavelengthNm.w));
 }
 
-float4 evaluateIorAtWavelength(float referenceIor, float abbeNumber,
+float4 evaluateIorAtWavelength(float nd, float abbe,
                                thread const SpectralPath &path) {
-    if (abbeNumber <= 0.0f || !isfinite(abbeNumber)) {
-        return float4(max(referenceIor, 1.0001f));
-    }
+    if (abbe <= 0.0f)
+        return float4(nd);
 
-    constexpr float lambdaD = 587.6f;
-    constexpr float lambdaF = 486.1f;
-    constexpr float lambdaC = 656.3f;
+    constexpr float lambdaF = 0.4861327f;
+    constexpr float lambdaD = 0.5875618f;
+    constexpr float lambdaC = 0.6562725f;
 
-    float deltaN = (referenceIor - 1.0f) / abbeNumber;
+    float invF2 = 1.0f / (lambdaF * lambdaF);
+    float invD2 = 1.0f / (lambdaD * lambdaD);
+    float invC2 = 1.0f / (lambdaC * lambdaC);
 
-    float B =
-        deltaN / (1.0f / (lambdaF * lambdaF) - 1.0f / (lambdaC * lambdaC));
+    float deltaFC = (nd - 1.0f) / max(abbe, 1e-4f);
 
-    float A = referenceIor - B / (lambdaD * lambdaD);
+    float B = deltaFC / (invF2 - invC2);
 
-    float4 lambda = clamp(path.wavelengthNm, 380.0f, 780.0f);
+    float A = nd - B * invD2;
 
-    float4 ior = A + B / (lambda * lambda);
+    float4 lambdaUm =
+        clamp(path.wavelengthNm, float4(380.0f), float4(830.0f)) * 0.001f;
 
-    return max(ior, float4(1.0001f));
+    return max(A + B / (lambdaUm * lambdaUm), float4(1.0001f));
 }
 
 float spectralAverage(float4 spectrum) { return dot(spectrum, float4(0.25)); }

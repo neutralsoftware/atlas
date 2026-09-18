@@ -8,10 +8,130 @@
 #include "visibility.metal"
 #include "brdf.metal"
 
-uint causticBucket(int3 cell) {
+constant uint CAUSTIC_EMPTY_KEY = 0u;
+constant uint CAUSTIC_INVALID_BUCKET = 0xFFFFFFFFu;
+
+constant uint CAUSTIC_BUCKET_HEADER_WORDS = 2u;
+
+constant uint CAUSTIC_BUCKET_WORDS =
+    CAUSTIC_BUCKET_HEADER_WORDS + CAUSTIC_BUCKET_SAMPLES;
+
+constant uint CAUSTIC_MAX_PROBES = 128u;
+
+uint causticCellKey(int3 cell) {
     uint3 c = as_type<uint3>(cell);
-    return wang_hash(c.x * 73856093u ^ c.y * 19349663u ^ c.z * 83492791u) &
-           (CAUSTIC_BUCKET_COUNT - 1);
+
+    uint h = c.x * 73856093u ^ c.y * 19349663u ^ c.z * 83492791u;
+
+    h = wang_hash(h);
+
+    if (h == CAUSTIC_EMPTY_KEY) {
+        h = 1u;
+    }
+
+    return h;
+}
+uint causticInitialBucket(uint key) {
+    return wang_hash(key ^ 0x9E3779B9u) & (CAUSTIC_BUCKET_COUNT - 1u);
+}
+
+uint findCausticCell(device const uint *photonSlots, int3 cell) {
+    uint key = causticCellKey(cell);
+    uint initialBucket = causticInitialBucket(key);
+
+    for (uint probe = 0u; probe < CAUSTIC_MAX_PROBES; ++probe) {
+
+        uint bucket = (initialBucket + probe) & (CAUSTIC_BUCKET_COUNT - 1u);
+
+        uint base = bucket * CAUSTIC_BUCKET_WORDS;
+
+        uint storedKey = photonSlots[base + 0u];
+
+        if (storedKey == CAUSTIC_EMPTY_KEY) {
+            return CAUSTIC_INVALID_BUCKET;
+        }
+
+        if (storedKey == key) {
+            return bucket;
+        }
+    }
+
+    return CAUSTIC_INVALID_BUCKET;
+}
+
+uint findOrCreateCausticCell(device atomic_uint *photonSlots, int3 cell) {
+    uint key = causticCellKey(cell);
+    uint initialBucket = causticInitialBucket(key);
+
+    for (uint probe = 0u; probe < CAUSTIC_MAX_PROBES; ++probe) {
+
+        uint bucket = (initialBucket + probe) & (CAUSTIC_BUCKET_COUNT - 1u);
+
+        uint base = bucket * CAUSTIC_BUCKET_WORDS;
+
+        uint storedKey =
+            atomic_load_explicit(&photonSlots[base + 0u], memory_order_relaxed);
+
+        if (storedKey == key) {
+            return bucket;
+        }
+
+        if (storedKey == CAUSTIC_EMPTY_KEY) {
+            uint expected = CAUSTIC_EMPTY_KEY;
+
+            bool claimed = atomic_compare_exchange_weak_explicit(
+                &photonSlots[base + 0u], &expected, key, memory_order_relaxed,
+                memory_order_relaxed);
+
+            if (claimed) {
+                return bucket;
+            }
+
+            if (expected == key) {
+                return bucket;
+            }
+        }
+    }
+    return CAUSTIC_INVALID_BUCKET;
+}
+
+bool insertCausticPhoton(device atomic_uint *photonSlots, int3 cell,
+                         uint photonId, uint seed) {
+    uint bucket = findOrCreateCausticCell(photonSlots, cell);
+
+    if (bucket == CAUSTIC_INVALID_BUCKET) {
+        return false;
+    }
+
+    uint base = bucket * CAUSTIC_BUCKET_WORDS;
+
+    uint oldCount = atomic_fetch_add_explicit(&photonSlots[base + 1u], 1u,
+                                              memory_order_relaxed);
+
+    uint newCount = oldCount + 1u;
+
+    uint reservoirSlot;
+
+    if (oldCount < CAUSTIC_BUCKET_SAMPLES) {
+        reservoirSlot = oldCount;
+    } else {
+        uint randomValue = wang_hash(photonId ^ (seed * 0x9E3779B9u) ^
+                                     (newCount * 0x85EBCA6Bu));
+
+        uint candidate = randomValue % newCount;
+
+        if (candidate >= CAUSTIC_BUCKET_SAMPLES) {
+            return true;
+        }
+
+        reservoirSlot = candidate;
+    }
+
+    atomic_store_explicit(
+        &photonSlots[base + CAUSTIC_BUCKET_HEADER_WORDS + reservoirSlot],
+        photonId, memory_order_relaxed);
+
+    return true;
 }
 
 float4 gatherCaustics(float3 P, float3 N, float3 Ng, float3 V, uint objectId,
@@ -22,66 +142,133 @@ float4 gatherCaustics(float3 P, float3 N, float3 Ng, float3 V, uint objectId,
                       device const CausticPhoton *photons,
                       device const uint *photonSlots) {
     float4 result = float4(0.0f);
+
+    if (caustics.radius <= 0.0f) {
+        return result;
+    }
+
     float radiusSquared = caustics.radius * caustics.radius;
+
     int3 center = int3(floor(P / caustics.radius));
+
     for (int z = -1; z <= 1; ++z) {
         for (int y = -1; y <= 1; ++y) {
             for (int x = -1; x <= 1; ++x) {
+
                 int3 cell = center + int3(x, y, z);
-                uint base =
-                    causticBucket(cell) * (CAUSTIC_BUCKET_SAMPLES * 2 + 1);
-                if (photonSlots[base] == 0)
+
+                uint bucket = findCausticCell(photonSlots, cell);
+
+                if (bucket == CAUSTIC_INVALID_BUCKET) {
                     continue;
-                for (uint slot = 0; slot < CAUSTIC_BUCKET_SAMPLES; ++slot) {
-                    uint count = photonSlots[base + 1 + slot * 2];
-                    if (count == 0)
+                }
+
+                uint base = bucket * CAUSTIC_BUCKET_WORDS;
+
+                uint totalCount = photonSlots[base + 1u];
+
+                if (totalCount == 0u) {
+                    continue;
+                }
+
+                uint storedCount =
+                    min(totalCount, uint(CAUSTIC_BUCKET_SAMPLES));
+
+                if (storedCount == 0u) {
+                    continue;
+                }
+
+                float reservoirWeight = float(totalCount) / float(storedCount);
+
+                for (uint slot = 0u; slot < storedCount; ++slot) {
+
+                    uint photonId =
+                        photonSlots[base + CAUSTIC_BUCKET_HEADER_WORDS + slot];
+
+                    if (photonId == 0xFFFFFFFFu) {
                         continue;
-                    uint key = photonSlots[base + 2 + slot * 2];
-                    CausticPhoton photon = photons[key & 65535u];
-                    if (uint(photon.incomingObject.w) != objectId ||
-                        any(int3(floor(photon.positionWavelength.xyz /
-                                       caustics.radius)) != cell))
+                    }
+
+                    CausticPhoton photon = photons[photonId];
+
+                    if (uint(photon.incomingObject.w) != objectId) {
                         continue;
+                    }
+
+                    int3 photonCell = int3(
+                        floor(photon.positionWavelength.xyz / caustics.radius));
+
+                    if (any(photonCell != cell)) {
+                        continue;
+                    }
+
                     float3 delta = photon.positionWavelength.xyz - P;
+
                     float distanceSquared = dot(delta, delta);
-                    float cosine = dot(N, photon.incomingObject.xyz);
-                    if (distanceSquared >= radiusSquared || cosine <= 1e-4f ||
-                        dot(Ng, photon.normalPower.xyz) < 0.95f ||
-                        abs(dot(delta, Ng)) > caustics.radius * 0.1f)
+
+                    if (distanceSquared >= radiusSquared) {
                         continue;
+                    }
+
+                    float3 incoming = photon.incomingObject.xyz;
+
+                    float cosine = dot(N, incoming);
+
+                    if (cosine <= 1e-4f) {
+                        continue;
+                    }
+
+                    if (dot(Ng, photon.normalPower.xyz) < 0.95f) {
+                        continue;
+                    }
+
+                    if (abs(dot(delta, Ng)) > caustics.radius * 0.1f) {
+                        continue;
+                    }
+
                     float densityWeight =
                         2.0f * (1.0f - distanceSquared / radiusSquared) /
                         (M_PI_F * radiusSquared);
+
                     float4 wavelengthDelta =
                         (path.wavelengthNm - photon.positionWavelength.w) /
                         10.0f;
+
                     float4 spectrum =
                         exp(-0.5f * wavelengthDelta * wavelengthDelta) /
                         25.06628275f;
                     float4 irradiance = spectrum * photon.normalPower.w *
-                                        float(count) * densityWeight;
-                    result +=
-                        evalPBR(albedo, metallic, roughness, reflectivity, ior,
-                                transmittance, N, V, photon.incomingObject.xyz,
-                                irradiance, 1.0f / cosine);
+                                        reservoirWeight * densityWeight;
+
+                    result += evalPBR(albedo, metallic, roughness, reflectivity,
+                                      ior, transmittance, N, V, incoming,
+                                      irradiance, 1.0f / cosine);
                 }
             }
         }
     }
+
     return result;
 }
 
 kernel void clearCaustics(device atomic_uint *photonSlots [[buffer(16)]],
                           uint id [[thread_position_in_grid]]) {
-    if (id >= CAUSTIC_BUCKET_COUNT)
+    if (id >= CAUSTIC_BUCKET_COUNT) {
         return;
-    uint base = id * (CAUSTIC_BUCKET_SAMPLES * 2 + 1);
-    atomic_store_explicit(&photonSlots[base], 0u, memory_order_relaxed);
-    for (uint slot = 0; slot < CAUSTIC_BUCKET_SAMPLES; ++slot) {
-        atomic_store_explicit(&photonSlots[base + 1 + slot * 2], 0u,
-                              memory_order_relaxed);
-        atomic_store_explicit(&photonSlots[base + 2 + slot * 2], 0xFFFFFFFFu,
-                              memory_order_relaxed);
+    }
+
+    uint base = id * CAUSTIC_BUCKET_WORDS;
+
+    atomic_store_explicit(&photonSlots[base + 0u], CAUSTIC_EMPTY_KEY,
+                          memory_order_relaxed);
+
+    atomic_store_explicit(&photonSlots[base + 1u], 0u, memory_order_relaxed);
+
+    for (uint slot = 0u; slot < CAUSTIC_BUCKET_SAMPLES; ++slot) {
+
+        atomic_store_explicit(
+            &photonSlots[base + CAUSTIC_BUCKET_HEADER_WORDS + slot],
+            0xFFFFFFFFu, memory_order_relaxed);
     }
 }
 
@@ -108,8 +295,8 @@ kernel void emitCaustics(primitive_acceleration_structure sceneAS [[buffer(0)]],
         return;
     uint rng = wang_hash(id + caustics.seed * 9781u + 1u);
     SpectralPath path = createSpectralPath(rng);
-    float2 wavelength = sampleVisibleWavelength(
-        (float(id) + rand(rng)) / float(CAUSTIC_PHOTON_COUNT));
+    float2 wavelength = sampleVisibleWavelength((float(id) + rand(rng)) /
+                                                float(CAUSTIC_PHOTON_COUNT));
     path.wavelengthNm = float4(wavelength.x);
     uint lightCount = sceneData.numDirectionalLights +
                       sceneData.numPointLights + sceneData.numSpotLights +
@@ -172,10 +359,11 @@ kernel void emitCaustics(primitive_acceleration_structure sceneAS [[buffer(0)]],
             normalize(cross(float3(source.right), float3(source.up)));
         if (source.twoSided > 0.5f && rand(rng) < 0.5f)
             normal = -normal;
-        float sineSquared = rand(rng) *
-                            (1.0f - source.emissionCos * source.emissionCos);
+        float sineSquared =
+            rand(rng) * (1.0f - source.emissionCos * source.emissionCos);
         float angle = 2.0f * M_PI_F * rand(rng);
-        photonRay.direction = buildOrthonormalBasis(normal) *
+        photonRay.direction =
+            buildOrthonormalBasis(normal) *
             float3(sqrt(sineSquared) * cos(angle),
                    sqrt(sineSquared) * sin(angle), sqrt(1.0f - sineSquared));
         emission = float3(source.color) * max(source.intensity, 0.0f);
@@ -186,11 +374,13 @@ kernel void emitCaustics(primitive_acceleration_structure sceneAS [[buffer(0)]],
         float distanceSquared = dot(toBounds, toBounds);
         float radiusSquared = caustics.bounds.w * caustics.bounds.w;
         if (source.emissionCos < 0.01f && distanceSquared > radiusSquared) {
-            float coneCos = sqrt(max(0.0f, 1.0f - radiusSquared / distanceSquared));
+            float coneCos =
+                sqrt(max(0.0f, 1.0f - radiusSquared / distanceSquared));
             float cosine = mix(coneCos, 1.0f, rand(rng));
             float sine = sqrt(max(0.0f, 1.0f - cosine * cosine));
             float azimuth = 2.0f * M_PI_F * rand(rng);
-            photonRay.direction = buildOrthonormalBasis(normalize(toBounds)) *
+            photonRay.direction =
+                buildOrthonormalBasis(normalize(toBounds)) *
                 float3(sine * cos(azimuth), sine * sin(azimuth), cosine);
             float emissionCosine = dot(normal, photonRay.direction);
             if (emissionCosine <= source.emissionCos)
@@ -263,13 +453,23 @@ kernel void emitCaustics(primitive_acceleration_structure sceneAS [[buffer(0)]],
                                       sourceDistance);
         }
         ++interactions;
-        float3 normal = normalizeOr(
-            cross(float3(vertices[i1].position) - float3(vertices[i0].position),
-                  float3(vertices[i2].position) -
-                      float3(vertices[i0].position)),
-            -photonRay.direction);
-        bool frontFace = dot(normal, photonRay.direction) < 0.0f;
-        float3 Ng = frontFace ? normal : -normal;
+        InstanceData inst = instanceData[objectId];
+
+        float3x3 normalMatrix = float3x3(
+            inst.normalCol0.xyz, inst.normalCol1.xyz, inst.normalCol2.xyz);
+
+        float3 p0 = float3(vertices[i0].position);
+        float3 p1 = float3(vertices[i1].position);
+        float3 p2 = float3(vertices[i2].position);
+
+        float3 localGeometricNormal =
+            normalizeOr(cross(p1 - p0, p2 - p0), float3(0.0, 1.0, 0.0));
+
+        float3 worldGeometricNormal = normalizeOr(
+            normalMatrix * localGeometricNormal, float3(0.0, 1.0, 0.0));
+
+        bool frontFace = dot(worldGeometricNormal, photonRay.direction) < 0.0f;
+        float3 Ng = frontFace ? worldGeometricNormal : -worldGeometricNormal;
         float3 albedo, emissive;
         float metallic, roughness, ao, baseIor, transmission, abbe;
         resolveMaterialParameters(mat, uv, sceneData.materialTextureCount,
@@ -292,35 +492,31 @@ kernel void emitCaustics(primitive_acceleration_structure sceneAS [[buffer(0)]],
         N = dot(N, Ng) >= 0.0f ? N : -N;
         if (dot(N, Ng) < 0.1f)
             N = normalizeOr(N + Ng * (0.1f - dot(N, Ng)), Ng);
-        bool smooth = roughness <= 0.025f;
+        bool smooth = roughness <= 0.005f;
         if (specularPath &&
             (!smooth || (1.0f - metallic) * (1.0f - transmission) > 0.001f)) {
             CausticPhoton photon;
+
             photon.positionWavelength = float4(P, wavelength.x);
+
             photon.normalPower = float4(Ng, flux);
+
             photon.incomingObject =
                 float4(-photonRay.direction, float(objectId));
+
             photons[id] = photon;
-            uint base = causticBucket(int3(floor(P / caustics.radius))) *
-                        (CAUSTIC_BUCKET_SAMPLES * 2 + 1);
-            uint slot =
-                wang_hash(id ^ 0x68bc21ebu) & (CAUSTIC_BUCKET_SAMPLES - 1);
-            uint priority =
-                wang_hash(id ^ caustics.seed ^ 0x967a889bu) & 65535u;
-            uint key = (priority << 16) | id;
-            atomic_fetch_add_explicit(&photonSlots[base], 1u,
-                                      memory_order_relaxed);
-            atomic_fetch_add_explicit(&photonSlots[base + 1 + slot * 2], 1u,
-                                      memory_order_relaxed);
-            atomic_fetch_min_explicit(&photonSlots[base + 2 + slot * 2], key,
-                                      memory_order_relaxed);
+
+            int3 cell = int3(floor(P / caustics.radius));
+
+            insertCausticPhoton(photonSlots, cell, id, caustics.seed);
+
             return;
         }
         if (!smooth)
             return;
         float ior = evaluateIorAtWavelength(baseIor, abbe, path).x;
         float eta = frontFace ? 1.0f / ior : ior;
-        float cosine = max(dot(-photonRay.direction, N), 0.0f);
+        float cosine = max(dot(-photonRay.direction, Ng), 0.0f);
         float fresnel = dielectricFresnel(cosine, float4(eta)).x;
         float reflectance =
             mix(fresnel, rgbToReflectanceAtWavelength(albedo, wavelength.x),
@@ -330,14 +526,16 @@ kernel void emitCaustics(primitive_acceleration_structure sceneAS [[buffer(0)]],
         float choice = rand(rng);
         float3 nextDirection;
         if (choice < reflectance) {
-            nextDirection = reflect(photonRay.direction, N);
+            nextDirection = reflect(photonRay.direction, Ng);
         } else if (choice < reflectance + transmittance) {
-            nextDirection = refract(photonRay.direction, N, eta);
-            flux *=
-                mix(1.0f, rgbToReflectanceAtWavelength(albedo, wavelength.x),
-                    0.15f);
-        } else
+            nextDirection = refract(photonRay.direction, Ng, eta);
+
+            if (dot(nextDirection, nextDirection) < 1e-8f) {
+                nextDirection = reflect(photonRay.direction, Ng);
+            }
+        } else {
             return;
+        }
         specularPath = true;
         photonRay.origin = offsetRayOrigin(P, Ng, nextDirection);
         photonRay.direction = normalize(nextDirection);
