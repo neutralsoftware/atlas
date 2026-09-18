@@ -95,7 +95,11 @@ struct AreaLight {
 
     packed_float3 color;
     float twoSided;
+    float emissionCos;
+    float _pad[3];
 };
+
+static_assert(sizeof(AreaLight) == 80);
 
 struct EmissiveTriangle {
     float4 p0;

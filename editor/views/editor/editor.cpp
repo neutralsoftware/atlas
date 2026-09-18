@@ -46,6 +46,7 @@
 #include <QMessageBox>
 #include <QPlainTextEdit>
 #include <QProcess>
+#include <QProcessEnvironment>
 #include <QProgressBar>
 #include <QPixmap>
 #include <QPushButton>
@@ -2223,7 +2224,24 @@ void EditorWindow::runProjectCommand(bool buildOnly) {
         const QStringList arguments =
             buildOnly ? QStringList{"pack", "--backend", "METAL"}
                       : QStringList{"run", "project.atlas"};
-        QProcess::startDetached(executable, arguments, workingDirectory);
+        QProcess process;
+        process.setProgram(executable);
+        process.setArguments(arguments);
+        process.setWorkingDirectory(workingDirectory);
+        auto environment = QProcessEnvironment::systemEnvironment();
+        const QFileInfo bundledRuntime(
+            QDir(QCoreApplication::applicationDirPath())
+                .filePath("../Frameworks/runtime.dylib"));
+        if (!buildOnly && bundledRuntime.isFile()) {
+            environment.insert("ATLAS_RUNTIME_LIB",
+                               bundledRuntime.absoluteFilePath());
+        }
+        process.setProcessEnvironment(environment);
+        if (!process.startDetached()) {
+            QMessageBox::warning(this,
+                                 buildOnly ? "Build Project" : "Run Project",
+                                 process.errorString());
+        }
         return;
     }
     QProcess::startDetached("/bin/zsh", {"-lc", command}, workingDirectory);

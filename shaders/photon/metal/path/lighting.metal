@@ -161,6 +161,8 @@ float4 evalDirectLightingPBR(
                              ? abs(dot(lightNormal, -L))
                              : max(dot(lightNormal, -L), 0.0);
         float area = 4.0 * areaLights[i].halfWidth * areaLights[i].halfHeight;
+        if (cosLight < areaLights[i].emissionCos)
+            continue;
         float lightPdfArea = 1.0 / max(area, 1e-6);
         float distSq = max(dist * dist, 1e-6);
         float intensity = max(areaLights[i].intensity, 0.0) * cosLight /
@@ -200,6 +202,8 @@ float3 intersectAreaEmitters(ray r, float surfaceDistance,
         float3 normal = normalize(cross(right, up));
         float cosine = dot(normal, r.direction);
         if (abs(cosine) < 1e-6f || (source.twoSided < 0.5f && cosine >= 0.0f))
+            continue;
+        if (abs(cosine) < source.emissionCos)
             continue;
         float distance =
             dot(float3(source.position) - r.origin, normal) / cosine;

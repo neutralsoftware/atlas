@@ -108,7 +108,8 @@ kernel void emitCaustics(primitive_acceleration_structure sceneAS [[buffer(0)]],
         return;
     uint rng = wang_hash(id + caustics.seed * 9781u + 1u);
     SpectralPath path = createSpectralPath(rng);
-    float2 wavelength = sampleVisibleWavelength(rand(rng));
+    float2 wavelength = sampleVisibleWavelength(
+        (float(id) + rand(rng)) / float(CAUSTIC_PHOTON_COUNT));
     path.wavelengthNm = float4(wavelength.x);
     uint lightCount = sceneData.numDirectionalLights +
                       sceneData.numPointLights + sceneData.numSpotLights +
@@ -171,11 +172,15 @@ kernel void emitCaustics(primitive_acceleration_structure sceneAS [[buffer(0)]],
             normalize(cross(float3(source.right), float3(source.up)));
         if (source.twoSided > 0.5f && rand(rng) < 0.5f)
             normal = -normal;
-        photonRay.direction =
-            buildOrthonormalBasis(normal) *
-            cosineSampleHemisphere(float2(rand(rng), rand(rng)));
+        float sineSquared = rand(rng) *
+                            (1.0f - source.emissionCos * source.emissionCos);
+        float angle = 2.0f * M_PI_F * rand(rng);
+        photonRay.direction = buildOrthonormalBasis(normal) *
+            float3(sqrt(sineSquared) * cos(angle),
+                   sqrt(sineSquared) * sin(angle), sqrt(1.0f - sineSquared));
         emission = float3(source.color) * max(source.intensity, 0.0f);
         flux *= M_PI_F * 4.0f * source.halfWidth * source.halfHeight *
+                (1.0f - source.emissionCos * source.emissionCos) *
                 (source.twoSided > 0.5f ? 2.0f : 1.0f);
     } else {
         float selector = rand(rng);

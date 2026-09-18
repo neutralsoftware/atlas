@@ -712,7 +712,7 @@ bool photon::PathTracing::buildAccelerationStructure(
                 (causticMinimum + causticMaximum) * 0.5f,
                 std::max(glm::length(causticMaximum - causticMinimum) * 0.505f,
                          0.01f));
-            causticRadius = std::clamp(causticBounds.w * 0.018f, 0.01f, 0.15f);
+            causticRadius = std::clamp(causticBounds.w * 0.04f, 0.02f, 0.2f);
             causticLaunchDistance =
                 glm::length(sceneMaximum - sceneMinimum) + 0.01f;
         }
@@ -911,11 +911,13 @@ bool photon::PathTracing::createLightBuffers() {
 
         float color[3];
         float twoSided;
+        float emissionCos;
+        float _pad[3];
     };
 
     static_assert(sizeof(PointLightData) == 32);
     static_assert(sizeof(SpotLightData) == 64);
-    static_assert(sizeof(AreaLightData) == 64);
+    static_assert(sizeof(AreaLightData) == 80);
 
     std::vector<PointLightData> pointLightData;
     std::vector<SpotLightData> spotLightData;
@@ -985,6 +987,8 @@ bool photon::PathTracing::createLightBuffers() {
             data.color[1] = light->color.g;
             data.color[2] = light->color.b;
             data.twoSided = light->castsBothSides ? 1.0f : 0.0f;
+            data.emissionCos = std::cos(glm::radians(
+                std::clamp(light->angle, 0.1f, 90.0f)));
             areaLightData.push_back(data);
         }
     }
@@ -1379,7 +1383,7 @@ bool photon::PathTracing::render(
     pathTracingPipeline->setUniform1f("caustics.radius", causticRadius);
     pathTracingPipeline->bindBuffer("photons", causticPhotons, 15);
     pathTracingPipeline->bindBuffer("photonSlots", causticSlots, 16);
-    if (causticsEnabled && causticMapDirty) {
+    if (causticsEnabled && (causticMapDirty || frameIndex % 16 == 0)) {
         commandBuffer->bindPipeline(causticClearPipeline);
         causticClearPipeline->bindBuffer("photonSlots", causticSlots, 16);
         commandBuffer->dispatch(16384, 1, 1);
