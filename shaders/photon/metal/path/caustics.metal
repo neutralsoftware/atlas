@@ -338,14 +338,29 @@ kernel void emitCaustics(primitive_acceleration_structure sceneAS [[buffer(0)]],
     } else if ((light -= sceneData.numDirectionalLights) <
                sceneData.numPointLights) {
         PointLight source = pointLights[light];
-        float cosine = 1.0f - 2.0f * rand(rng);
-        float angle = 2.0f * M_PI_F * rand(rng);
-        float sine = sqrt(max(0.0f, 1.0f - cosine * cosine));
         photonRay.origin = float3(source.position);
-        photonRay.direction =
-            float3(sine * cos(angle), sine * sin(angle), cosine);
+        float3 toBounds = caustics.bounds.xyz - photonRay.origin;
+        float distanceSquared = dot(toBounds, toBounds);
+        float radiusSquared = caustics.bounds.w * caustics.bounds.w;
+        if (distanceSquared > radiusSquared) {
+            float coneCosine =
+                sqrt(max(0.0f, 1.0f - radiusSquared / distanceSquared));
+            float cosine = mix(coneCosine, 1.0f, rand(rng));
+            float angle = 2.0f * M_PI_F * rand(rng);
+            float sine = sqrt(max(0.0f, 1.0f - cosine * cosine));
+            photonRay.direction =
+                buildOrthonormalBasis(normalize(toBounds)) *
+                float3(sine * cos(angle), sine * sin(angle), cosine);
+            flux *= 2.0f * M_PI_F * (1.0f - coneCosine);
+        } else {
+            float cosine = 1.0f - 2.0f * rand(rng);
+            float angle = 2.0f * M_PI_F * rand(rng);
+            float sine = sqrt(max(0.0f, 1.0f - cosine * cosine));
+            photonRay.direction =
+                float3(sine * cos(angle), sine * sin(angle), cosine);
+            flux *= 4.0f * M_PI_F;
+        }
         emission = float3(source.color) * max(source.intensity, 0.0f);
-        flux *= 4.0f * M_PI_F;
         sourceRange = source.range;
     } else if ((light -= sceneData.numPointLights) < sceneData.numSpotLights) {
         SpotLight source = spotLights[light];
@@ -416,13 +431,35 @@ kernel void emitCaustics(primitive_acceleration_structure sceneAS [[buffer(0)]],
                            source.p2.xyz * u * v;
         float3 normal =
             rand(rng) < 0.5f ? source.normal.xyz : -source.normal.xyz;
-        photonRay.direction =
-            buildOrthonormalBasis(normal) *
-            cosineSampleHemisphere(float2(rand(rng), rand(rng)));
+        float3 toBounds = caustics.bounds.xyz - photonRay.origin;
+        float distanceSquared = dot(toBounds, toBounds);
+        float radiusSquared = caustics.bounds.w * caustics.bounds.w;
+        if (distanceSquared > radiusSquared) {
+            float coneCosine =
+                sqrt(max(0.0f, 1.0f - radiusSquared / distanceSquared));
+            float cosine = mix(coneCosine, 1.0f, rand(rng));
+            float angle = 2.0f * M_PI_F * rand(rng);
+            float sine = sqrt(max(0.0f, 1.0f - cosine * cosine));
+            photonRay.direction =
+                buildOrthonormalBasis(normalize(toBounds)) *
+                float3(sine * cos(angle), sine * sin(angle), cosine);
+            float emissionCosine = dot(normal, photonRay.direction);
+            if (emissionCosine <= 0.0f)
+                return;
+            float solidAngle = 2.0f * M_PI_F * (1.0f - coneCosine);
+            flux *= 2.0f * solidAngle * emissionCosine * source.area /
+                    max(source.selectionPdf, 1e-8f);
+        } else {
+            photonRay.direction =
+                buildOrthonormalBasis(normal) *
+                cosineSampleHemisphere(float2(rand(rng), rand(rng)));
+            flux *=
+                2.0f * M_PI_F * source.area /
+                max(source.selectionPdf, 1e-8f);
+        }
         photonRay.origin =
             offsetRayOrigin(photonRay.origin, normal, photonRay.direction);
         emission = float3(source.emission);
-        flux *= 2.0f * M_PI_F * source.area / max(source.selectionPdf, 1e-8f);
     }
     flux *= rgbToEmissionAtWavelength(emission, wavelength.x);
     intersector<triangle_data> isect;

@@ -29,6 +29,10 @@ namespace {
 constexpr int kPathTracerMaxMaterialTextures = 256;
 constexpr int kPathTracerSkyboxTextureUnit = 60;
 constexpr size_t kPathTracerMaxPrimitivesPerGeometry = 250000;
+constexpr size_t kCausticPhotonCount = size_t{1} << 19;
+constexpr size_t kCausticBucketCount = size_t{1} << 17;
+constexpr size_t kCausticBucketSamples = 32;
+constexpr size_t kCausticBucketWords = 2 + kCausticBucketSamples;
 
 std::shared_ptr<opal::Texture> createFallbackSkyboxTexture() {
     auto texture = opal::Texture::create(
@@ -242,10 +246,11 @@ void photon::PathTracing::init() {
     };
     causticClearPipeline = createCausticPipeline("clearCaustics");
     causticEmitPipeline = createCausticPipeline("emitCaustics");
-    causticPhotons =
-        opal::Buffer::create(opal::BufferUsage::ShaderReadWrite, 65536 * 48);
-    causticSlots = opal::Buffer::create(opal::BufferUsage::ShaderReadWrite,
-                                        16384 * (8 * 2 + 1) * sizeof(uint32_t));
+    causticPhotons = opal::Buffer::create(
+        opal::BufferUsage::ShaderReadWrite, kCausticPhotonCount * 48);
+    causticSlots = opal::Buffer::create(
+        opal::BufferUsage::ShaderReadWrite,
+        kCausticBucketCount * kCausticBucketWords * sizeof(uint32_t));
 
     ComputeShader pathDenoiserShader =
         ComputeShader::fromDefaultShader(AtlasComputeShader::PathDenoiser);
@@ -552,7 +557,9 @@ bool photon::PathTracing::buildAccelerationStructure(
                     object->model * glm::vec4(v.position.toGlm(), 1.0f);
                 sceneMinimum = glm::min(sceneMinimum, glm::vec3(worldPosition));
                 sceneMaximum = glm::max(sceneMaximum, glm::vec3(worldPosition));
-                if (object->material.roughness <= 0.025f) {
+                if (object->material.roughness < 0.25f &&
+                    (object->material.transmittance > 0.001f ||
+                     object->material.metallic > 0.001f)) {
                     causticGeometryPresent = true;
                     causticMinimum =
                         glm::min(causticMinimum, glm::vec3(worldPosition));
@@ -1390,10 +1397,10 @@ bool photon::PathTracing::render(
     pathTracingPipeline->setUniform1f("caustics.radius", causticRadius);
     pathTracingPipeline->bindBuffer("photons", causticPhotons, 15);
     pathTracingPipeline->bindBuffer("photonSlots", causticSlots, 16);
-    if (causticsEnabled && (causticMapDirty || frameIndex % 16 == 0)) {
+    if (causticsEnabled && causticMapDirty) {
         commandBuffer->bindPipeline(causticClearPipeline);
         causticClearPipeline->bindBuffer("photonSlots", causticSlots, 16);
-        commandBuffer->dispatch(16384, 1, 1);
+        commandBuffer->dispatch(kCausticBucketCount, 1, 1);
         commandBuffer->computeBarrier();
         commandBuffer->bindPipeline(causticEmitPipeline);
         auto &pipeline = causticEmitPipeline;
@@ -1435,7 +1442,7 @@ bool photon::PathTracing::render(
         pipeline->bindBuffer("photonSlots", causticSlots, 16);
         pipeline->bindTextureArray(materialTextureBindings, 12);
         commandBuffer->bindPrimitiveAccelerationStructure(sceneBLAS, 0);
-        commandBuffer->dispatch(65536, 1, 1);
+        commandBuffer->dispatch(kCausticPhotonCount, 1, 1);
         commandBuffer->computeBarrier();
         causticMapDirty = false;
         commandBuffer->bindPipeline(pathTracingPipeline);
