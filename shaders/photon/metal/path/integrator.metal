@@ -187,6 +187,7 @@ float3 sampleRadiance(
                                   PT_MATERIAL_TEXTURE_ARGS, albedoRgb, metallic,
                                   roughness, ao, emissiveRgb, baseIor,
                                   transmittance, abbeNumber);
+        bool hasVolume = false;
         float4 albedo = evaluateReflectance(albedoRgb, spectralPath);
         float4 emissive = evaluateEmission(emissiveRgb, spectralPath);
         float4 ior = evaluateIorAtWavelength(baseIor, abbeNumber, spectralPath);
@@ -397,7 +398,7 @@ float3 sampleRadiance(
             bounceWeight = (1.0 - F) * transmittance * (1.0 - metallic) *
                            etaPacket * etaPacket / max(transmitProb, 1e-4);
 
-            if (smoothDielectric) {
+            if (hasVolume) {
                 if (frontFace) {
                     insideMedium = true;
                     mediumObjectId = surfaceObjectIndex;

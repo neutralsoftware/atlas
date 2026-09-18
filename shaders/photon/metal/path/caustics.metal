@@ -70,7 +70,7 @@ uint findOrCreateCausticCell(device atomic_uint *photonSlots, int3 cell) {
         uint base = bucket * CAUSTIC_BUCKET_WORDS;
 
         uint storedKey =
-            atomic_load_explicit(&photonSlots[base + 0u], memory_order_relaxed);
+            atomic_load_explicit(&photonSlots[base], memory_order_relaxed);
 
         if (storedKey == key) {
             return bucket;
@@ -78,20 +78,29 @@ uint findOrCreateCausticCell(device atomic_uint *photonSlots, int3 cell) {
 
         if (storedKey == CAUSTIC_EMPTY_KEY) {
             uint expected = CAUSTIC_EMPTY_KEY;
+            for (;;) {
 
-            bool claimed = atomic_compare_exchange_weak_explicit(
-                &photonSlots[base + 0u], &expected, key, memory_order_relaxed,
-                memory_order_relaxed);
+                bool claimed = atomic_compare_exchange_weak_explicit(
+                    &photonSlots[base], &expected, key, memory_order_relaxed,
+                    memory_order_relaxed);
 
-            if (claimed) {
-                return bucket;
-            }
+                if (claimed) {
+                    return bucket;
+                }
 
-            if (expected == key) {
-                return bucket;
+                if (expected == key) {
+                    return bucket;
+                }
+
+                if (expected != CAUSTIC_EMPTY_KEY) {
+                    break;
+                }
+
+                expected = CAUSTIC_EMPTY_KEY;
             }
         }
     }
+
     return CAUSTIC_INVALID_BUCKET;
 }
 
