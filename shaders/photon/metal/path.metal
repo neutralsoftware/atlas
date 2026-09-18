@@ -12,6 +12,7 @@ using namespace raytracing;
 #include "path/visibility.metal"
 #include "path/brdf.metal"
 #include "path/lighting.metal"
+#include "path/caustics.metal"
 #include "path/integrator.metal"
 kernel void main0(texture2d<float, access::write> outTex [[texture(0)]],
                   texture2d<float, access::read> historyTex [[texture(1)]],
@@ -37,6 +38,9 @@ kernel void main0(texture2d<float, access::write> outTex [[texture(0)]],
                   constant SpotLight *spotLights [[buffer(10)]],
                   constant AreaLight *areaLights [[buffer(11)]],
                   constant EmissiveTriangle *emissiveTriangles [[buffer(14)]],
+                  device const CausticPhoton *photons [[buffer(15)]],
+                  device const uint *photonSlots [[buffer(16)]],
+                  constant CausticSettings &caustics [[buffer(17)]],
                   PT_MATERIAL_TEXTURE_BINDINGS,
                   constant uint *blasPrimitiveOffsets [[buffer(13)]],
                   texturecube<float> skybox [[texture(60)]],
@@ -97,7 +101,8 @@ kernel void main0(texture2d<float, access::write> outTex [[texture(0)]],
             gid, s, w, isect, sceneAS, primaryRay, materials, primitiveObjects,
             blasPrimitiveOffsets, vertices, indices, instanceData, dirLight,
             sceneData, pointLights, spotLights, areaLights,
-            emissiveTriangles, PT_MATERIAL_TEXTURE_ARGS, skybox, sampleAlbedo,
+            emissiveTriangles, photons, photonSlots, caustics,
+            PT_MATERIAL_TEXTURE_ARGS, skybox, sampleAlbedo,
             sampleNormal, samplePosition, sampleDepth, sampleRoughness,
             sampleHitDistance, sampleObjectId);
         if (!all(isfinite(sample))) {

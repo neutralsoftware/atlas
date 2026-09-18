@@ -811,6 +811,10 @@ MaterialDefinition loadMaterialDefinition(const json &value,
     tryReadFloatAny(materialData, {"ior"}, loaded.material.ior);
     tryReadFloatAny(materialData, {"abbeNumber"},
                     loaded.material.abbeNumber);
+    tryReadColorAny(materialData, {"attenuationColor"},
+                    loaded.material.attenuationColor);
+    tryReadFloatAny(materialData, {"attenuationDistance"},
+                    loaded.material.attenuationDistance);
 
     auto appendTexture = [&](std::initializer_list<const char *> keys,
                              TextureType type, bool allowTypeOverride) {

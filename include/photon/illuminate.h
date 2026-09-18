@@ -124,6 +124,16 @@ class PathTracing {
     std::shared_ptr<opal::PrimitiveAccelerationStructure> sceneBLAS;
     std::shared_ptr<opal::Pipeline> pathTracingPipeline;
     std::shared_ptr<opal::Pipeline> pathDenoisePipeline;
+    std::shared_ptr<opal::Pipeline> causticClearPipeline;
+    std::shared_ptr<opal::Pipeline> causticEmitPipeline;
+    std::shared_ptr<opal::Buffer> causticPhotons;
+    std::shared_ptr<opal::Buffer> causticSlots;
+    glm::vec4 causticBounds = glm::vec4(0.0f);
+    float causticRadius = 0.035f;
+    float causticLaunchDistance = 1.0f;
+    bool causticMapDirty = true;
+    bool causticGeometryPresent = false;
+    uint32_t causticSeed = 1;
     std::shared_ptr<ShaderProgram> computePathTracer;
     std::shared_ptr<ShaderProgram> computePathDenoiser;
     std::array<std::shared_ptr<Texture>, 2> denoiseTextures;

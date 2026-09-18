@@ -33,9 +33,12 @@ struct Material {
     float _pad2;
     packed_float2 textureScale;
     packed_float2 textureOffset;
+
+    packed_float3 attenuationColor;
+    float attenuationDistance;
 };
 
-static_assert(sizeof(Material) == 112);
+static_assert(sizeof(Material) == 128);
 static_assert(__builtin_offsetof(Material, emissiveColor) == 32);
 static_assert(__builtin_offsetof(Material, albedoTextureIndex) == 48);
 static_assert(__builtin_offsetof(Material, transmittance) == 80);
@@ -95,7 +98,11 @@ struct AreaLight {
 
     packed_float3 color;
     float twoSided;
+    float emissionCos;
+    float _pad[3];
 };
+
+static_assert(sizeof(AreaLight) == 80);
 
 struct EmissiveTriangle {
     float4 p0;
@@ -135,6 +142,7 @@ struct SceneData {
     float fireflyClamp;
     uint numEmissiveTriangles;
     float bloomThreshold;
+    uint causticsEnabled;
 };
 
 static_assert(sizeof(SceneData) == 160);
@@ -146,3 +154,24 @@ static_assert(__builtin_offsetof(SceneData, ambientColor) == 112);
 static_assert(__builtin_offsetof(SceneData, accumulationFrameLimit) == 132);
 static_assert(__builtin_offsetof(SceneData, numEmissiveTriangles) == 140);
 static_assert(__builtin_offsetof(SceneData, bloomThreshold) == 144);
+static_assert(__builtin_offsetof(SceneData, causticsEnabled) == 148);
+
+struct CausticPhoton {
+    float4 positionWavelength;
+    float4 normalPower;
+    float4 incomingObject;
+};
+
+struct CausticSettings {
+    float4 bounds;
+    float radius;
+    uint seed;
+    float launchDistance;
+};
+
+static_assert(sizeof(CausticPhoton) == 48);
+static_assert(sizeof(CausticSettings) == 32);
+
+constant uint CAUSTIC_PHOTON_COUNT = 1u << 19;
+constant uint CAUSTIC_BUCKET_COUNT = 1u << 17;
+constant uint CAUSTIC_BUCKET_SAMPLES = 32;

@@ -58,6 +58,7 @@ class MaterialEditorPanel : public QWidget {
     QLabel *statusLabel = nullptr;
     QPushButton *albedoButton = nullptr;
     QPushButton *emissiveButton = nullptr;
+    QPushButton *attenuationColorButton = nullptr;
     QDoubleSpinBox *metallicField = nullptr;
     QDoubleSpinBox *roughnessField = nullptr;
     QDoubleSpinBox *aoField = nullptr;
@@ -71,6 +72,7 @@ class MaterialEditorPanel : public QWidget {
     QDoubleSpinBox *transmittanceField = nullptr;
     QDoubleSpinBox *iorField = nullptr;
     QDoubleSpinBox *abbeNumberField = nullptr;
+    QDoubleSpinBox *attenuationDistanceField = nullptr;
     QCheckBox *normalMapField = nullptr;
     QHash<QString, QLineEdit *> textureFields;
     QHash<QString, QLabel *> texturePreviews;

@@ -156,6 +156,9 @@ export class Material {
         this.useNormalMap = true;
         this.transmittance = 0;
         this.ior = 1;
+        this.abbeNumber = 0;
+        this.attenuationColor = Color.white();
+        this.attenuationDistance = 1;
     }
 }
 

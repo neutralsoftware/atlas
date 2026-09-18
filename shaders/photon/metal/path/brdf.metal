@@ -20,13 +20,12 @@ float4 F_Schlick(float cosTheta, float4 F0) {
 
 float4 materialF0(float4 albedo, float metallic, float reflectivity,
                   float4 ior) {
-    float4 safeIor = max(ior, float4(1.0001));
-    float4 dielectricF0 = pow((safeIor - 1.0) / (safeIor + 1.0), float4(2.0));
-    float dielectricScale = mix(0.5, 1.5, clamp(reflectivity, 0.0, 1.0));
-    float4 dielectric =
-        clamp(dielectricF0 * dielectricScale, float4(0.0), float4(0.16));
+    float4 safeIor = max(ior, float4(1.0001f));
 
-    return mix(dielectric, albedo, float4(clamp(metallic, 0.0, 1.0)));
+    float4 dielectricF0 =
+        pow((safeIor - 1.0f) / (safeIor + 1.0f), float4(2.0f));
+
+    return mix(dielectricF0, albedo, float4(clamp(metallic, 0.0f, 1.0f)));
 }
 
 float G_Smith(float NdotV, float NdotL, float roughness) {
@@ -106,7 +105,8 @@ float4 evalPBR(float4 albedo, float metallic, float roughness,
     float4 F0 = materialF0(albedo, metallic, reflectivity, ior);
     float4 F = F_Schlick(VdotH, F0);
     float D = D_GGX(NdotH, clampedRoughness);
-    float G = G_Smith(NdotV, NdotL, clampedRoughness);
+    float G = G1_SmithGGX(NdotV, clampedRoughness) *
+              G1_SmithGGX(NdotL, clampedRoughness);
 
     float4 specular = (D * G * F) / max(4.0 * NdotV * NdotL, 1e-4);
     float4 kD = (1.0 - F) * (1.0 - clamp(metallic, 0.0, 1.0)) *
@@ -125,9 +125,8 @@ float4 evalTransmission(float4 albedo, float3 N, float3 V, float3 L,
     float forwardAlignment = max(dot(-V, L), 0.0);
     float F0 = pow((ior - 1.0) / (ior + 1.0), 2.0);
     float4 F = F_Schlick(max(dot(N, V), 0.0), float4(F0));
-    float4 transmitTint = mix(albedo, float4(1.0), 0.1);
     float lobeExponent = mix(96.0, 2.0, sqrt(clamp(roughness, 0.0, 1.0)));
     float transmissionLobe = pow(forwardAlignment, lobeExponent);
-    return (1.0 - F) * transmitTint * lightRadiance * intensity * backLighting *
+    return (1.0 - F) * lightRadiance * intensity * backLighting *
            transmissionLobe;
 }

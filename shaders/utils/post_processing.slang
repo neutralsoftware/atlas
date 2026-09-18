@@ -2,12 +2,12 @@ float4 sampleColor(float2  uv)
 {
     for (int i = 0; i < parameters.EffectCount; i++)
     {
-        if (EffectBuffer[i] == 7)
+        if (Effects[i] == 7)
         {
-            float redOffset = EffectFloat1Buffer[i];
-            float greenOffset = EffectFloat2Buffer[i];
-            float blueOffset = EffectFloat3Buffer[i];
-            float2 focusPoint = float2(EffectFloat4Buffer[i], EffectFloat5Buffer[i]);
+            float redOffset = EffectFloat1[i];
+            float greenOffset = EffectFloat2[i];
+            float blueOffset = EffectFloat3[i];
+            float2 focusPoint = float2(EffectFloat4[i], EffectFloat5[i]);
             float2 sampleCoord = uv;
             float2 direction = sampleCoord - focusPoint;
             float red = Texture.Sample((sampleCoord + (direction * redOffset))).x;
@@ -17,9 +17,9 @@ float4 sampleColor(float2  uv)
         }
         else
         {
-            if (EffectBuffer[i] == 9)
+            if (Effects[i] == 9)
             {
-                float pixelSizeInPixels = EffectFloat1Buffer[i];
+                float pixelSizeInPixels = EffectFloat1[i];
                 float2 texSize = float2(int2(textureSize(Texture).x, textureSize(Texture).y));
                 float2 pixelSize = float2(pixelSizeInPixels) / texSize;
                 float2 pixelated = floor(uv / pixelSize) * pixelSize;
@@ -27,10 +27,10 @@ float4 sampleColor(float2  uv)
             }
             else
             {
-                if (EffectBuffer[i] == 10)
+                if (Effects[i] == 10)
                 {
-                    float radius = EffectFloat1Buffer[i];
-                    float separation = EffectFloat2Buffer[i];
+                    float radius = EffectFloat1[i];
+                    float separation = EffectFloat2[i];
                     float2 texelSize = float2(1.0) / float2(int2(textureSize(Texture).x, textureSize(Texture).y));
                     float3 maxColor = Texture.Sample(uv).xyz;
                     int range = int(radius);
@@ -172,7 +172,7 @@ float4 applyColorCorrection(float4  color, ColorCorrection  cc)
     linearColor.y += (cc.tint * 0.0500000007);
     float luminance = dot(linearColor, float3(0.212599993, 0.715200007, 0.0722000003));
     linearColor = lerp(float3(luminance), linearColor, float3(cc.saturation));
-    linearColor = clamp(linearColor, float3(0.0), float3(1.0));
+    linearColor = max(linearColor, float3(0.0));
     return float4(linearColor, color.w);
 }
 
@@ -181,36 +181,36 @@ float4 applyColorEffects(inout float4  color, inout float4  gl_FragCoord)
     ColorCorrection cc;
     for (int i = 0; i < parameters.EffectCount; i++)
     {
-        if (EffectBuffer[i] == 0)
+        if (Effects[i] == 0)
         {
             color = float4(float3(1.0) - color.xyz, color.w);
         }
         else
         {
-            if (EffectBuffer[i] == 1)
+            if (Effects[i] == 1)
             {
                 float average = ((0.212599993 * color.x) + (0.715200007 * color.y)) + (0.0722000003 * color.z);
                 color = float4(average, average, average, color.w);
             }
             else
             {
-                if (EffectBuffer[i] == 5)
+                if (Effects[i] == 5)
                 {
-                    cc.exposure = EffectFloat1Buffer[i];
-                    cc.contrast = EffectFloat2Buffer[i];
-                    cc.saturation = EffectFloat3Buffer[i];
-                    cc.gamma = EffectFloat4Buffer[i];
-                    cc.temperature = EffectFloat5Buffer[i];
-                    cc.tint = EffectFloat6Buffer[i];
+                    cc.exposure = EffectFloat1[i];
+                    cc.contrast = EffectFloat2[i];
+                    cc.saturation = EffectFloat3[i];
+                    cc.gamma = EffectFloat4[i];
+                    cc.temperature = EffectFloat5[i];
+                    cc.tint = EffectFloat6[i];
                     float4 param = color;
                     ColorCorrection param_1 = cc;
                     color = applyColorCorrection(param, param_1);
                 }
                 else
                 {
-                    if (EffectBuffer[i] == 8)
+                    if (Effects[i] == 8)
                     {
-                        float levels = max(EffectFloat1Buffer[i], 1.0);
+                        float levels = max(EffectFloat1[i], 1.0);
                         float grayscale = max(color.x, max(color.y, color.z));
                         if (grayscale > 9.99999975e-05)
                         {
@@ -225,9 +225,9 @@ float4 applyColorEffects(inout float4  color, inout float4  gl_FragCoord)
                     }
                     else
                     {
-                        if (EffectBuffer[i] == 11)
+                        if (Effects[i] == 11)
                         {
-                            float amount = EffectFloat1Buffer[i];
+                            float amount = EffectFloat1[i];
                             float3 seed = float3(gl_FragCoord.xy, uniforms.deltaTime * 100.0);
                             float n = dot(seed, float3(12.9898005, 78.2330017, 45.1640015));
                             float noise = frac(sin(n) * 43758.546875);
@@ -264,12 +264,12 @@ float4 sampleBright(float2  uv)
 {
     for (int i = 0; i < parameters.EffectCount; i++)
     {
-        if (EffectBuffer[i] == 7)
+        if (Effects[i] == 7)
         {
-            float redOffset = EffectFloat1Buffer[i];
-            float greenOffset = EffectFloat2Buffer[i];
-            float blueOffset = EffectFloat3Buffer[i];
-            float2 focusPoint = float2(EffectFloat4Buffer[i], EffectFloat5Buffer[i]);
+            float redOffset = EffectFloat1[i];
+            float greenOffset = EffectFloat2[i];
+            float blueOffset = EffectFloat3[i];
+            float2 focusPoint = float2(EffectFloat4[i], EffectFloat5[i]);
             float2 sampleCoord = uv;
             float2 direction = sampleCoord - focusPoint;
             float red = BrightTexture.Sample((sampleCoord + (direction * redOffset))).x;
@@ -279,9 +279,9 @@ float4 sampleBright(float2  uv)
         }
         else
         {
-            if (EffectBuffer[i] == 9)
+            if (Effects[i] == 9)
             {
-                float pixelSizeInPixels = EffectFloat1Buffer[i];
+                float pixelSizeInPixels = EffectFloat1[i];
                 float2 texSize = float2(int2(textureSize(BrightTexture).x, textureSize(BrightTexture).y));
                 float2 pixelSize = float2(pixelSizeInPixels) / texSize;
                 float2 pixelated = floor(uv / pixelSize) * pixelSize;
@@ -290,10 +290,10 @@ float4 sampleBright(float2  uv)
             }
             else
             {
-                if (EffectBuffer[i] == 10)
+                if (Effects[i] == 10)
                 {
-                    float radius = EffectFloat1Buffer[i];
-                    float separation = EffectFloat2Buffer[i];
+                    float radius = EffectFloat1[i];
+                    float separation = EffectFloat2[i];
                     float2 texelSize = float2(1.0) / float2(int2(textureSize(BrightTexture).x, textureSize(BrightTexture).y));
                     float3 maxColor = BrightTexture.Sample(uv).xyz;
                     int range = int(radius);
@@ -526,5 +526,8 @@ float3 acesToneMapping(float3  color)
     float c = 2.43000007;
     float d = 0.589999974;
     float e = 0.140000001;
-    return clamp((color * ((color * a) + float3(b))) / ((color * ((color * c) + float3(d))) + float3(e)), float3(0.0), float3(1.0));
+    color = max(color, float3(0.0));
+    return clamp((color * ((color * a) + float3(b))) /
+                 ((color * ((color * c) + float3(d))) + float3(e)),
+                 float3(0.0), float3(1.0));
 }

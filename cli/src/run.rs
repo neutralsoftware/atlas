@@ -170,8 +170,8 @@ fn candidate_runtime_paths(
         }
     }
 
-    candidates.sort();
-    candidates.dedup();
+    let mut seen = std::collections::HashSet::new();
+    candidates.retain(|path| seen.insert(path.clone()));
     Ok(candidates)
 }
 
@@ -223,6 +223,9 @@ fn load_runtime_entry(
 fn resolve_runtime_entry(
     project_path: &Path,
 ) -> Result<(*mut c_void, AtlasRuntimeRunProject), String> {
+    if let Some(path) = std::env::var_os("ATLAS_RUNTIME_LIB") {
+        return load_runtime_entry(&PathBuf::from(path));
+    }
     let atlas_version = atlas_version_from_manifest(project_path)?;
     let candidates = candidate_runtime_paths(project_path, &atlas_version)?;
 
