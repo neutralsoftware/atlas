@@ -41,6 +41,7 @@ float3 sampleRadiance(
     float previousBsdfPdf = 0.0;
     float previousEnvironmentPdf = 0.0;
     bool previousEventWasDelta = true;
+    bool previousEventWasDiffuse = false;
     bool wavelengthSelected = false;
     bool causticConnection = false;
     bool hasNonDeltaVertex = false;
@@ -134,7 +135,7 @@ float3 sampleRadiance(
             surfaceRay, foundSurface ? hit.distance : 1e30f, sceneData,
             areaLights, foundAreaEmitter);
         if (foundAreaEmitter) {
-            if ((depth == 0 || previousEventWasDelta) &&
+            if ((depth == 0 || !previousEventWasDiffuse) &&
                 !(sceneData.causticsEnabled != 0 && causticConnection)) {
                 spectralPath.radiance +=
                     spectralPath.throughput *
@@ -186,6 +187,7 @@ float3 sampleRadiance(
                     mediumAnisotropy);
                 previousEnvironmentPdf = 0.0f;
                 previousEventWasDelta = false;
+                previousEventWasDiffuse = false;
                 hasNonDeltaVertex = true;
                 causticConnection = false;
                 surfaceRay.origin =
@@ -341,7 +343,7 @@ float3 sampleRadiance(
 
         float4 F0 = materialF0(albedo, metallic, reflectivity, ior);
         float NdotV = max(dot(N, V), 1e-4f);
-        float3 interfaceN = deltaDielectric ? Ng : N;
+        float3 interfaceN = N;
         float interfaceNdotV = max(dot(interfaceN, V), 1e-4f);
         float4 etaPacket = frontFace ? 1.0f / ior : ior;
 
@@ -444,6 +446,7 @@ float3 sampleRadiance(
         float sampledEnvironmentPdf = 0.0;
         bool sampledEventWasDelta = true;
         bool sampledRoughTransmission = false;
+        bool sampledEventWasDiffuse = false;
 
         if (choice < specProb && specProb > 1e-4) {
             if (deltaDielectric || totalInternalReflection) {
@@ -558,6 +561,7 @@ float3 sampleRadiance(
                 wavelengthSelected = true;
             }
         } else {
+            sampledEventWasDiffuse = true;
             float3 localDirection =
                 cosineSampleHemisphere(float2(rand(rng), rand(rng)));
             nextDirection = normalizeOr(basis * localDirection, N);
@@ -613,6 +617,7 @@ float3 sampleRadiance(
         previousBsdfPdf = sampledBsdfPdf;
         previousEnvironmentPdf = sampledEnvironmentPdf;
         previousEventWasDelta = sampledEventWasDelta;
+        previousEventWasDiffuse = sampledEventWasDiffuse;
 
         surfaceRay.origin = offsetRayOrigin(P, Ng, nextDirection);
         surfaceRay.direction = normalizeOr(nextDirection, N);

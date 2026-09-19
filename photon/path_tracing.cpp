@@ -102,6 +102,9 @@ uint64_t pathTracingObjectStateHash(const CoreObject *object,
     append(&material.textureOffset, sizeof(material.textureOffset));
     append(&material.transmittance, sizeof(material.transmittance));
     append(&material.ior, sizeof(material.ior));
+    append(&material.abbeNumber, sizeof(material.abbeNumber));
+    append(&material.attenuationColor, sizeof(material.attenuationColor));
+    append(&material.attenuationDistance, sizeof(material.attenuationDistance));
     append(&material.isVolume, sizeof(material.isVolume));
     append(&material.volumeDensity, sizeof(material.volumeDensity));
     append(&material.volumeAbsorptionColor,

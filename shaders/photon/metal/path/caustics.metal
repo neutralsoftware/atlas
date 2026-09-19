@@ -578,7 +578,7 @@ kernel void emitCaustics(primitive_acceleration_structure sceneAS [[buffer(0)]],
         }
         if (!causticTransportSurface)
             return;
-        float3 opticalNormal = deltaSurface ? Ng : N;
+        float3 opticalNormal = N;
         float3 interfaceNormal = opticalNormal;
 
         if (!deltaSurface) {

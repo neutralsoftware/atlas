@@ -106,7 +106,8 @@ float4 evalPBR(float4 albedo, float metallic, float roughness,
                float substrateIor, float substrateAbbe,
                float iridescenceFactor, float iridescenceIor,
                float iridescenceAbbe, float iridescenceThickness,
-               bool isFront, thread const SpectralPath &spectralPath) {
+               bool isFront, thread const SpectralPath &spectralPath,
+               bool includeSpecular = true) {
     float3 H = normalize(V + L);
 
     float NdotL = max(dot(N, L), 0.0);
@@ -132,7 +133,8 @@ float4 evalPBR(float4 albedo, float metallic, float roughness,
                                               clampedRoughness);
     float4 diffuse = (kD * albedo * diffuseFactor) / M_PI_F;
 
-    return (diffuse + specular) * lightRadiance * intensity * NdotL;
+    return (diffuse + (includeSpecular ? specular : float4(0.0f))) *
+           lightRadiance * intensity * NdotL;
 }
 
 float4 evalTransmission(float4 albedo, float3 N, float3 V, float3 L,
@@ -171,11 +173,6 @@ float4 evalIridescence(float cosTheta, float4 ordinaryFresnel,
     float4 iridescenceFresnel =
         thinFilmFresnel(cosTheta, n0.x, n0.y, n1.x, n1.y, n2.x, n2.y,
                         iridescenceThickness, spectralPath);
-    float iridescenceMean = spectralAverage(iridescenceFresnel);
-    iridescenceFresnel = clamp(
-        float4(iridescenceMean) +
-            (iridescenceFresnel - float4(iridescenceMean)) * 1.5f,
-        float4(0.0f), float4(1.0f));
     return mix(ordinaryFresnel, iridescenceFresnel,
                float4(clamp(iridescenceFactor, 0.0f, 1.0f)));
 }

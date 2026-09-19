@@ -190,7 +190,7 @@ float4 evalDirectLightingPBR(
                     transmittance, N, V, L, lightRadiance, intensity,
                     substrateIor, substrateAbbe, iridescenceFactor,
                     iridescenceIor, iridescenceAbbe, iridescenceThickness,
-                    isFront, path);
+                    isFront, path, false);
         float4 visibility = traceShadowVisibility(
             isect, sceneAS, P, Ng, L, dist, rng, materials, primitiveObjects,
             blasPrimitiveOffsets, vertices, indices, instanceData, sceneData,
