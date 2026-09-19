@@ -1372,8 +1372,10 @@ bool photon::PathTracing::render(
     }
     pathTracingPipeline->setUniform1i(
         "sceneData.environmentEnabled",
-        skyboxTexture != fallbackSkyboxTexture || atmosphereEnabled != 0 ? 1
-                                                                         : 0);
+        skyboxTexture != fallbackSkyboxTexture || atmosphereEnabled != 0 ||
+                ambientIntensity > 0.0f
+            ? 1
+            : 0);
     pathTracingPipeline->bindTexture("skybox", skyboxTexture,
                                      kPathTracerSkyboxTextureUnit);
     auto skyboxTextureId = skyboxTexture->textureID;

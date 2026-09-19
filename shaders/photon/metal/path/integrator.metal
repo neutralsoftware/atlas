@@ -317,28 +317,6 @@ float3 sampleRadiance(
             spectralPath.radiance += spectralPath.throughput * emissive;
         }
 
-        if (depth == 0 && sceneData.ambientIntensity > 0.0) {
-            float aoVisibility = mix(0.2, 1.0, ao);
-            float4 dielectricF0 = pow((ior - 1.0f) / (ior + 1.0f), 2.0f);
-            float4 ambientF0 = mix(float4(dielectricF0), albedo, metallic);
-            float4 ambientOrdinaryF = F_Schlick(max(dot(N, V), 0.0), ambientF0);
-            float4 ambientF = evalIridescence(
-                max(dot(N, V), 0.0), ambientOrdinaryF, 1.0f, baseIor,
-                abbeNumber, mat.iridescenceFactor, mat.iridescenceIor,
-                mat.iridescenceAbbeNumber, mat.iridescenceThickness, frontFace,
-                spectralPath);
-            float4 ambientDiffuse = (1.0 - ambientF) * (1.0 - metallic) *
-                                    albedo * (1.0 - transmittance);
-            float4 ambientSpecular =
-                ambientF * mix(1.0, 0.35, roughness);
-            float4 ambientRadiance =
-                evaluateEmission(sceneData.ambientColor, spectralPath) *
-                sceneData.ambientIntensity;
-            spectralPath.radiance += spectralPath.throughput *
-                                     (ambientDiffuse + ambientSpecular) *
-                                     ambientRadiance * aoVisibility;
-        }
-
         float4 F0 = materialF0(albedo, metallic, reflectivity, ior);
         float NdotV = max(dot(N, V), 1e-4f);
         float3 interfaceN = deltaDielectric ? Ng : N;

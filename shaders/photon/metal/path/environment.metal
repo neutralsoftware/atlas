@@ -22,6 +22,7 @@ float4 skyColor(float3 dir, float intensity, texturecube<float> skybox,
     }
 
     float3 skyRGB = skybox.sample(skyboxSampler, sampleDir).xyz;
+    skyRGB += sceneData.ambientColor * max(sceneData.ambientIntensity, 0.0f);
 
     if (sceneData.atmosphereEnabled != 0) {
         float horizon = pow(clamp(1.0 - abs(sampleDir.y), 0.0, 1.0), 4.0);

@@ -392,7 +392,10 @@ kernel void emitCaustics(primitive_acceleration_structure sceneAS [[buffer(0)]],
             buildOrthonormalBasis(normal) *
             float3(sqrt(sineSquared) * cos(angle),
                    sqrt(sineSquared) * sin(angle), sqrt(1.0f - sineSquared));
-        emission = float3(source.color) * max(source.intensity, 0.0f);
+        float sourceArea =
+            max(4.0f * source.halfWidth * source.halfHeight, 1e-6f);
+        emission = float3(source.color) *
+                   max(source.intensity, 0.0f) / sourceArea;
         flux *= M_PI_F * 4.0f * source.halfWidth * source.halfHeight *
                 (1.0f - source.emissionCos * source.emissionCos) *
                 (source.twoSided > 0.5f ? 2.0f : 1.0f);

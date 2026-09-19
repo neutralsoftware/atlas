@@ -13,6 +13,11 @@ using namespace raytracing;
 #include "visibility.metal"
 #include "brdf.metal"
 
+float areaLightRadiance(AreaLight source) {
+    float area = max(4.0f * source.halfWidth * source.halfHeight, 1e-6f);
+    return max(source.intensity, 0.0f) / area;
+}
+
 float4 evalEmissiveTriangleLighting(
     intersector<triangle_data> isect, primitive_acceleration_structure sceneAS,
     float3 P, float3 N, float3 Ng, float3 V, float4 albedo, float metallic,
@@ -181,7 +186,7 @@ float4 evalDirectLightingPBR(
             continue;
         float lightPdfArea = 1.0 / max(area, 1e-6);
         float distSq = max(dist * dist, 1e-6);
-        float intensity = max(areaLights[i].intensity, 0.0) * cosLight /
+        float intensity = areaLightRadiance(areaLights[i]) * cosLight /
                           max(distSq * lightPdfArea, 1e-6);
         float4 lightRadiance =
             evaluateEmission(float3(areaLights[i].color), path);
@@ -236,7 +241,7 @@ float3 intersectAreaEmitters(ray r, float surfaceDistance,
             abs(dot(offset, up)) > source.halfHeight)
             continue;
         nearest = distance;
-        emission = float3(source.color) * max(source.intensity, 0.0f);
+        emission = float3(source.color) * areaLightRadiance(source);
         foundEmitter = true;
     }
     return emission;
