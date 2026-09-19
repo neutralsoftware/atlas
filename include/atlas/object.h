@@ -593,6 +593,8 @@ class CoreObject : public GameObject {
         return inst;
     }
 
+    bool isVisible = true;
+
   private:
     std::shared_ptr<opal::DrawingState> vao;
     std::shared_ptr<opal::Buffer> vbo;
@@ -609,8 +611,6 @@ class CoreObject : public GameObject {
 
     bool useColor = true;
     bool useTexture = false;
-
-    bool isVisible = true;
 
     bool hasPhysics = false;
 

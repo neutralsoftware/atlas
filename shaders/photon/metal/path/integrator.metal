@@ -130,20 +130,6 @@ float3 sampleRadiance(
             hit = isect.intersect(surfaceRay, sceneAS);
         }
 
-        bool foundAreaEmitter;
-        float3 areaEmission = intersectAreaEmitters(
-            surfaceRay, foundSurface ? hit.distance : 1e30f, sceneData,
-            areaLights, foundAreaEmitter);
-        if (foundAreaEmitter) {
-            if ((depth == 0 || !previousEventWasDiffuse) &&
-                !(sceneData.causticsEnabled != 0 && causticConnection)) {
-                spectralPath.radiance +=
-                    spectralPath.throughput *
-                    evaluateEmission(areaEmission, spectralPath);
-            }
-            break;
-        }
-
         if (!foundSurface) {
             float misWeight =
                 previousEventWasDelta
@@ -307,8 +293,7 @@ float3 sampleRadiance(
                 mat.iridescenceFactor, mat.iridescenceIor,
                 mat.iridescenceAbbeNumber, mat.iridescenceThickness, frontFace,
                 rng, spectralPath, dirLight, sceneData, pointLights, spotLights,
-                areaLights,
-                emissiveTriangles, materials, primitiveObjects,
+                areaLights, emissiveTriangles, materials, primitiveObjects,
                 blasPrimitiveOffsets, vertices, indices, instanceData,
                 PT_MATERIAL_TEXTURE_ARGS);
             spectralPath.radiance += spectralPath.throughput * direct;
@@ -322,7 +307,8 @@ float3 sampleRadiance(
         if (depth == 0 && sceneData.ambientIntensity > 0.0f) {
             float aoVisibility = mix(0.2f, 1.0f, ao);
             float4 ambientF0 = materialF0(albedo, metallic, reflectivity, ior);
-            float4 ambientOrdinaryF = F_Schlick(max(dot(N, V), 0.0f), ambientF0);
+            float4 ambientOrdinaryF =
+                F_Schlick(max(dot(N, V), 0.0f), ambientF0);
             float4 ambientF = evalIridescence(
                 max(dot(N, V), 0.0f), ambientOrdinaryF, 1.0f, baseIor,
                 abbeNumber, mat.iridescenceFactor, mat.iridescenceIor,
@@ -330,8 +316,7 @@ float3 sampleRadiance(
                 spectralPath);
             float4 ambientDiffuse = (1.0f - ambientF) * (1.0f - metallic) *
                                     albedo * (1.0f - transmittance);
-            float4 ambientSpecular =
-                ambientF * mix(1.0f, 0.35f, roughness);
+            float4 ambientSpecular = ambientF * mix(1.0f, 0.35f, roughness);
             float4 ambientRadiance =
                 evaluateEmission(sceneData.ambientColor, spectralPath) *
                 sceneData.ambientIntensity;
@@ -380,8 +365,8 @@ float3 sampleRadiance(
         specProb /= probabilitySum;
         transmitProb /= probabilitySum;
         diffuseProb /= probabilitySum;
-        if (transmittance < 0.001f && roughness < 0.35f &&
-            specProb > 0.0f && diffuseProb > 0.0f) {
+        if (transmittance < 0.001f && roughness < 0.35f && specProb > 0.0f &&
+            diffuseProb > 0.0f) {
             specProb = max(specProb, 0.25f);
             diffuseProb = max(1.0f - specProb - transmitProb, 0.0f);
         }

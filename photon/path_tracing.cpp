@@ -181,6 +181,9 @@ void collectPathTracingObject(Renderable *renderable,
         return;
     }
     if (auto *object = dynamic_cast<CoreObject *>(renderable)) {
+        if (!object->isVisible) {
+            return;
+        }
         if (seen.insert(object).second) {
             objects.push_back(object);
         }

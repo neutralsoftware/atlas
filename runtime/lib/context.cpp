@@ -1757,6 +1757,17 @@ void syncEditorLightObject(Context &context, GameObject &object) {
             }
         }
         updateEditorAreaLightProxy(*it->second);
+        bool addDebugObject = true;
+        if (source != nullptr) {
+            tryReadBoolAny(*source, {"addDebugObject"}, addDebugObject);
+        }
+        if (it->second->debugObject != nullptr) {
+            if (addDebugObject) {
+                it->second->debugObject->show();
+            } else {
+                it->second->debugObject->hide();
+            }
+        }
     }
     if (auto it = context.editorDirectionalLights.find(id);
         it != context.editorDirectionalLights.end() && it->second != nullptr) {
@@ -1983,6 +1994,12 @@ json serializeEditorLightObject(Context &context, GameObject &object) {
         node["range"] = light.range;
         node["angle"] = light.angle;
         node["castsBothSides"] = light.castsBothSides;
+        bool addDebugObject = true;
+        if (auto source = context.editorLightSourceData.find(id);
+            source != context.editorLightSourceData.end()) {
+            tryReadBoolAny(source->second, {"addDebugObject"}, addDebugObject);
+        }
+        node["addDebugObject"] = addDebugObject;
         return node;
     }
 
@@ -6637,7 +6654,8 @@ int Context::createObject(const std::string &type, const std::string &name) {
         light->position = position;
         light->createDebugObject();
         auto debugObject = light->debugObject;
-        int id = registerEditorLightObject(*this, debugObject, json::object(),
+        json sourceData = {{"addDebugObject", true}};
+        int id = registerEditorLightObject(*this, debugObject, sourceData,
                                            "areaLight");
         if (id < 0) {
             return -1;
@@ -7431,7 +7449,7 @@ void Context::loadScene(Window &window, const json &sceneData) {
                 float distance = 50.0f;
                 int shadowResolution = 2048;
                 bool castsShadows = false;
-                bool addDebugObject = false;
+                bool addDebugObject = true;
 
                 tryReadVec3(lightData, "position", position);
                 tryReadColor(lightData, "color", color);
@@ -7557,9 +7575,10 @@ void Context::loadScene(Window &window, const json &sceneData) {
                             *this, light->debugObject, lightData, "areaLight");
                         if (id >= 0) {
                             editorAreaLights[id] = light.get();
-                            if (addDebugObject) {
-                                editorLightSourceData[id]["addDebugObject"] =
-                                    true;
+                            editorLightSourceData[id]["addDebugObject"] =
+                                addDebugObject;
+                            if (!addDebugObject) {
+                                light->debugObject->hide();
                             }
                         }
                     }
