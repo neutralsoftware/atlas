@@ -68,9 +68,11 @@ copy-cli:
 
 package-debug-macos args="":
     ATLAS_ALLOW_UNNOTARIZED_RELEASE=1 ./scripts/package_app.py --debug --macOS 
+    ./scripts/sign_macos_local.py
 
 package-release-macos:
     ATLAS_ALLOW_UNNOTARIZED_RELEASE=1 ./scripts/package_app.py --release --macOS
+    ./scripts/sign_macos_local.py
 
 release-macos:
     ATLAS_ALLOW_UNNOTARIZED_RELEASE=1 ./scripts/package_app.py --release --macOS
