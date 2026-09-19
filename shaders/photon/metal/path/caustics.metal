@@ -148,6 +148,7 @@ float3 gatherCausticsXYZ(float3 P, float3 N, float3 Ng, uint objectId,
                          device const CausticPhoton *photons,
                          device const uint *photonSlots) {
     float3 resultXYZ = float3(0.0f);
+    uint acceptedPhotons = 0u;
 
     if (caustics.radius <= 0.0f) {
         return resultXYZ;
@@ -250,12 +251,17 @@ float3 gatherCausticsXYZ(float3 P, float3 N, float3 Ng, uint objectId,
 
                     resultXYZ += spectralRadiance * cieXYZ1931(wavelengthNm) /
                                  PHOTON_CIE_Y_INTEGRAL;
+                    acceptedPhotons++;
                 }
             }
         }
     }
 
-    return resultXYZ;
+    float3 neutralXYZ =
+        resultXYZ.y * float3(0.95047f, 1.0f, 1.08883f);
+    float chromaConfidence =
+        mix(0.2f, 1.0f, smoothstep(6.0f, 24.0f, float(acceptedPhotons)));
+    return mix(neutralXYZ, resultXYZ, chromaConfidence);
 }
 
 kernel void clearCaustics(device atomic_uint *photonSlots [[buffer(16)]],
