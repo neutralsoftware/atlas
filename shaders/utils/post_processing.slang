@@ -521,22 +521,30 @@ float4 mapToLUT(float4  color)
 
 float3 acesToneMapping(float3  color)
 {
-    float a = 2.50999999;
-    float b = 0.0299999993;
-    float c = 2.43000007;
-    float d = 0.589999974;
-    float e = 0.140000001;
     color = max(color, float3(0.0));
-    float inputLuminance =
-        max(dot(color, float3(0.2126, 0.7152, 0.0722)), 1e-6);
-    float mappedLuminance =
-        clamp((inputLuminance * (inputLuminance * a + b)) /
-                  (inputLuminance * (inputLuminance * c + d) + e),
-              0.0, 1.0);
-    float3 mappedColor = color * (mappedLuminance / inputLuminance);
-    float highlightSaturation =
-        lerp(1.0, 0.72, smoothstep(1.0, 16.0, inputLuminance));
-    mappedColor = lerp(float3(mappedLuminance), mappedColor,
-                       float3(highlightSaturation));
-    return clamp(mappedColor, float3(0.0), float3(1.0));
+    color = float3(
+        0.8424790623 * color.x + 0.0423282423 * color.y +
+            0.0423756549 * color.z,
+        0.0784336000 * color.x + 0.8784686365 * color.y +
+            0.0784336000 * color.z,
+        0.0792237451 * color.x + 0.0791661275 * color.y +
+            0.8791429738 * color.z);
+    const float minimumEv = -12.47393;
+    const float maximumEv = 4.026069;
+    color = clamp(log2(max(color, float3(1e-10))),
+                  float3(minimumEv), float3(maximumEv));
+    color = (color - float3(minimumEv)) / (maximumEv - minimumEv);
+    float3 color2 = color * color;
+    float3 color4 = color2 * color2;
+    color = 15.5 * color4 * color2 - 40.14 * color4 * color +
+            31.96 * color4 - 6.868 * color2 * color +
+            0.4298 * color2 + 0.1191 * color - 0.00232;
+    color = float3(
+        1.1968790051 * color.x - 0.0528968518 * color.y -
+            0.0529716355 * color.z,
+        -0.0980208811 * color.x + 1.1519031299 * color.y -
+            0.0980434501 * color.z,
+        -0.0990297441 * color.x - 0.0989611768 * color.y +
+            1.1510736726 * color.z);
+    return pow(clamp(color, float3(0.0), float3(1.0)), float3(2.2));
 }
