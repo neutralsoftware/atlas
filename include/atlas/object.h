@@ -846,6 +846,7 @@ class Model : public GameObject {
      * @param deltaPosition The amount to move the model by.
      */
     void move(const Position3d &deltaPosition) override {
+        modelPosition += deltaPosition;
         for (auto &obj : objects) {
             obj->move(deltaPosition);
         }
@@ -857,6 +858,7 @@ class Model : public GameObject {
      * @param newPosition The new position to set.
      */
     void setPosition(const Position3d &newPosition) override {
+        modelPosition = newPosition;
         for (auto &obj : objects) {
             obj->setPosition(newPosition);
         }
@@ -866,6 +868,7 @@ class Model : public GameObject {
      * @brief Assigns an absolute rotation to every mesh in the model.
      */
     void setRotation(const Rotation3d &newRotation) override {
+        modelRotation = newRotation;
         for (auto &obj : objects) {
             obj->setRotation(newRotation);
         }
@@ -884,6 +887,7 @@ class Model : public GameObject {
      * @brief Scales every mesh in the model uniformly.
      */
     void setScale(const Scale3d &newScale) override {
+        modelScale = newScale;
         for (auto &obj : objects) {
             obj->setScale(newScale);
         }
@@ -1003,10 +1007,7 @@ class Model : public GameObject {
      * @brief Returns the world-space position of the first mesh in the model.
      */
     Position3d getPosition() const override {
-        if (objects.empty()) {
-            throw std::runtime_error("Model has no objects.");
-        }
-        return objects[0]->getPosition();
+        return objects.empty() ? modelPosition : objects[0]->getPosition();
     }
 
     std::vector<CoreVertex> getVertices() const override {
@@ -1030,17 +1031,11 @@ class Model : public GameObject {
     }
 
     Size3d getScale() const override {
-        if (objects.empty()) {
-            return {1.0f, 1.0f, 1.0f};
-        }
-        return objects[0]->getScale();
+        return objects.empty() ? modelScale : objects[0]->getScale();
     }
 
     Rotation3d getRotation() const override {
-        if (objects.empty()) {
-            return {0.0f, 0.0f, 0.0f};
-        }
-        return objects[0]->getRotation();
+        return objects.empty() ? modelRotation : objects[0]->getRotation();
     }
 
     bool canCastShadows() const override {
@@ -1077,6 +1072,9 @@ class Model : public GameObject {
     std::function<void(float, const std::string &)> importProgress;
     unsigned int importedMeshCount = 0;
     unsigned int totalMeshCount = 0;
+    Position3d modelPosition = Position3d::zero();
+    Rotation3d modelRotation{0.0f, 0.0f, 0.0f};
+    Scale3d modelScale{1.0f, 1.0f, 1.0f};
 
     void loadModel(
         const Resource &resource,

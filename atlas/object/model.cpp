@@ -93,6 +93,12 @@ struct ModelTextureJob {
     TextureType textureType = TextureType::Color;
     ResourceType resourceType = ResourceType::Image;
     int maximumDimension = 0;
+    std::vector<unsigned char> sourceBytes;
+    std::vector<unsigned char> aoBytes;
+    int sourceWidth = 0;
+    int sourceHeight = 0;
+    int aoWidth = 0;
+    int aoHeight = 0;
 };
 
 struct DecodedModelTexture {
@@ -135,6 +141,12 @@ uint64_t modelTextureCacheKey(const ModelTextureJob &job) {
     };
     appendPath(job.fullPath);
     appendPath(job.aoPath);
+    if (!job.sourceBytes.empty()) {
+        append(job.sourceBytes.data(), job.sourceBytes.size());
+    }
+    if (!job.aoBytes.empty()) {
+        append(job.aoBytes.data(), job.aoBytes.size());
+    }
     append(&job.maximumDimension, sizeof(job.maximumDimension));
     append(&job.textureType, sizeof(job.textureType));
     return hash;
@@ -282,10 +294,24 @@ DecodedModelTexture decodeModelTexture(const ModelTextureJob &job) {
     int height = 0;
     int channels = 0;
     std::unique_ptr<unsigned char, decltype(&stbi_image_free)> source(
-        stbi_load(job.fullPath.c_str(), &width, &height, &channels,
-                  STBI_rgb_alpha),
-        stbi_image_free);
-    if (source == nullptr || width <= 0 || height <= 0) {
+        nullptr, stbi_image_free);
+    const unsigned char *sourcePixels = nullptr;
+    if (job.sourceWidth > 0 && job.sourceHeight > 0) {
+        width = job.sourceWidth;
+        height = job.sourceHeight;
+        channels = 4;
+        sourcePixels = job.sourceBytes.data();
+    } else {
+        source.reset(job.sourceBytes.empty()
+                         ? stbi_load(job.fullPath.c_str(), &width, &height,
+                                     &channels, STBI_rgb_alpha)
+                         : stbi_load_from_memory(
+                               job.sourceBytes.data(),
+                               static_cast<int>(job.sourceBytes.size()), &width,
+                               &height, &channels, STBI_rgb_alpha));
+        sourcePixels = source.get();
+    }
+    if (sourcePixels == nullptr || width <= 0 || height <= 0) {
         return {};
     }
 
@@ -302,28 +328,45 @@ DecodedModelTexture decodeModelTexture(const ModelTextureJob &job) {
     decoded.height = targetHeight;
     if (targetWidth == width && targetHeight == height) {
         const size_t byteCount = static_cast<size_t>(width) * height * 4;
-        decoded.pixels.assign(source.get(), source.get() + byteCount);
+        decoded.pixels.assign(sourcePixels, sourcePixels + byteCount);
     } else {
-        decoded.pixels = resizeModelTexture(source.get(), width, height, 4,
+        decoded.pixels = resizeModelTexture(sourcePixels, width, height, 4,
                                             targetWidth, targetHeight);
     }
 
     if (!job.aoPath.empty()) {
-        int aoWidth = 0;
-        int aoHeight = 0;
+        int aoWidth = job.aoWidth;
+        int aoHeight = job.aoHeight;
         int aoChannels = 0;
         std::unique_ptr<unsigned char, decltype(&stbi_image_free)> aoSource(
-            stbi_load(job.aoPath.c_str(), &aoWidth, &aoHeight, &aoChannels,
-                      STBI_grey),
-            stbi_image_free);
-        if (aoSource != nullptr && aoWidth > 0 && aoHeight > 0) {
+            nullptr, stbi_image_free);
+        const unsigned char *aoPixels = nullptr;
+        std::vector<unsigned char> rawAo;
+        if (aoWidth > 0 && aoHeight > 0) {
+            rawAo.resize(static_cast<std::size_t>(aoWidth) * aoHeight);
+            for (std::size_t pixel = 0; pixel < rawAo.size(); ++pixel) {
+                rawAo[pixel] = job.aoBytes[pixel * 4];
+            }
+            aoPixels = rawAo.data();
+        } else {
+            aoSource.reset(job.aoBytes.empty()
+                               ? stbi_load(job.aoPath.c_str(), &aoWidth,
+                                           &aoHeight, &aoChannels, STBI_grey)
+                               : stbi_load_from_memory(
+                                     job.aoBytes.data(),
+                                     static_cast<int>(job.aoBytes.size()),
+                                     &aoWidth, &aoHeight, &aoChannels,
+                                     STBI_grey));
+            aoPixels = aoSource.get();
+        }
+        if (aoPixels != nullptr && aoWidth > 0 && aoHeight > 0) {
             if (aoWidth == targetWidth && aoHeight == targetHeight) {
                 const size_t byteCount =
                     static_cast<size_t>(aoWidth) * aoHeight;
-                decoded.ao.assign(aoSource.get(), aoSource.get() + byteCount);
+                decoded.ao.assign(aoPixels, aoPixels + byteCount);
             } else {
                 decoded.ao =
-                    resizeModelTexture(aoSource.get(), aoWidth, aoHeight, 1,
+                    resizeModelTexture(aoPixels, aoWidth, aoHeight, 1,
                                        targetWidth, targetHeight);
             }
         }
@@ -566,7 +609,36 @@ void Model::preloadMaterialTextures(
             }
             const std::string filename = path.C_Str();
             const std::string fullPath = directory + "/" + filename;
+            std::vector<unsigned char> sourceBytes;
+            int sourceWidth = 0;
+            int sourceHeight = 0;
+            if (const aiTexture *embedded =
+                    scene->GetEmbeddedTexture(filename.c_str());
+                embedded != nullptr) {
+                const auto *bytes = reinterpret_cast<const unsigned char *>(
+                    embedded->pcData);
+                if (embedded->mHeight == 0) {
+                    sourceBytes.assign(bytes, bytes + embedded->mWidth);
+                } else {
+                    sourceWidth = static_cast<int>(embedded->mWidth);
+                    sourceHeight = static_cast<int>(embedded->mHeight);
+                    sourceBytes.resize(static_cast<std::size_t>(sourceWidth) *
+                                       sourceHeight * 4);
+                    for (std::size_t pixel = 0;
+                         pixel < static_cast<std::size_t>(sourceWidth) *
+                                     sourceHeight;
+                         ++pixel) {
+                        sourceBytes[pixel * 4] = embedded->pcData[pixel].r;
+                        sourceBytes[pixel * 4 + 1] = embedded->pcData[pixel].g;
+                        sourceBytes[pixel * 4 + 2] = embedded->pcData[pixel].b;
+                        sourceBytes[pixel * 4 + 3] = embedded->pcData[pixel].a;
+                    }
+                }
+            }
             std::string aoPath;
+            std::vector<unsigned char> aoBytes;
+            int aoWidth = 0;
+            int aoHeight = 0;
             std::string cacheKey = fullPath + "|" + typeName;
             if (textureType == TextureType::PBRPack) {
                 aiString aoTexturePath;
@@ -574,6 +646,21 @@ void Model::preloadMaterialTextures(
                                          &aoTexturePath) == AI_SUCCESS) {
                     aoPath =
                         directory + "/" + std::string(aoTexturePath.C_Str());
+                    if (const aiTexture *embedded = scene->GetEmbeddedTexture(
+                            aoTexturePath.C_Str());
+                        embedded != nullptr) {
+                        const auto *bytes = reinterpret_cast<
+                            const unsigned char *>(embedded->pcData);
+                        if (embedded->mHeight == 0) {
+                            aoBytes.assign(bytes, bytes + embedded->mWidth);
+                        } else {
+                            aoWidth = static_cast<int>(embedded->mWidth);
+                            aoHeight = static_cast<int>(embedded->mHeight);
+                            aoBytes.resize(static_cast<std::size_t>(aoWidth) *
+                                           aoHeight * 4);
+                            std::memcpy(aoBytes.data(), bytes, aoBytes.size());
+                        }
+                    }
                     cacheKey += "|" + std::string(aoTexturePath.C_Str());
                 }
             }
@@ -588,7 +675,13 @@ void Model::preloadMaterialTextures(
                                 .textureType = textureType,
                                 .resourceType = typeName == "texture_specular"
                                                     ? ResourceType::SpecularMap
-                                                    : ResourceType::Image});
+                                                    : ResourceType::Image,
+                                .sourceBytes = std::move(sourceBytes),
+                                .aoBytes = std::move(aoBytes),
+                                .sourceWidth = sourceWidth,
+                                .sourceHeight = sourceHeight,
+                                .aoWidth = aoWidth,
+                                .aoHeight = aoHeight});
         }
     };
 
