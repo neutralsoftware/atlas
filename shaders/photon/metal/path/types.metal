@@ -47,9 +47,14 @@ struct Material {
     float volumeAnisotropy;
     packed_float3 volumeEmissionColor;
     float volumeEmissionStrength;
+
+    // Iridescence properties
+    float iridescenceFactor;
+    float iridescenceIor;
+    float iridescenceThickness; // in nanometers
 };
 
-static_assert(sizeof(Material) == 192);
+static_assert(sizeof(Material) == 208);
 static_assert(__builtin_offsetof(Material, emissiveColor) == 32);
 static_assert(__builtin_offsetof(Material, albedoTextureIndex) == 48);
 static_assert(__builtin_offsetof(Material, transmittance) == 80);
