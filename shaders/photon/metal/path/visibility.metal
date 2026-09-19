@@ -102,10 +102,6 @@ float4 traceShadowVisibility(
             float3 p2 = float3(vertices[i2].position);
             float3 localNormal =
                 normalizeOr(cross(p1 - p0, p2 - p0), float3(0.0f, 1.0f, 0.0f));
-            InstanceData instance = instanceData[objectIndex];
-            float3x3 normalMatrix = float3x3(
-                instance.normalCol0.xyz, instance.normalCol1.xyz,
-                instance.normalCol2.xyz);
             float3 geometricNormal = normalizeOr(
                 localNormal, float3(0.0f, 1.0f, 0.0f));
             bool frontFace = dot(geometricNormal, shadowRay.direction) < 0.0f;

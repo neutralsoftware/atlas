@@ -804,7 +804,7 @@ bool photon::PathTracing::buildAccelerationStructure(
                 (causticMinimum + causticMaximum) * 0.5f,
                 std::max(glm::length(causticMaximum - causticMinimum) * 0.505f,
                          0.01f));
-            causticRadius = std::clamp(causticBounds.w * 0.025f, 0.01f, 0.1f);
+            causticRadius = std::clamp(causticBounds.w * 0.04f, 0.02f, 0.2f);
             causticLaunchDistance =
                 glm::length(sceneMaximum - sceneMinimum) + 0.01f;
         }
@@ -1478,8 +1478,7 @@ bool photon::PathTracing::render(
     pathTracingPipeline->bindBuffer("photons", causticPhotons, 15);
     pathTracingPipeline->bindBuffer("photonSlots", causticSlots, 16);
     const bool refineCaustics =
-        causticsEnabled && !interactive && frameIndex < 64 &&
-        frameIndex % 8 == 0;
+        causticsEnabled && !interactive;
     if (causticsEnabled && (causticMapDirty || refineCaustics)) {
         commandBuffer->bindPipeline(causticClearPipeline);
         causticClearPipeline->bindBuffer("photonSlots", causticSlots, 16);

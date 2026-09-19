@@ -515,11 +515,6 @@ kernel void emitCaustics(primitive_acceleration_structure sceneAS [[buffer(0)]],
                                       sourceDistance);
         }
         ++interactions;
-        InstanceData inst = instanceData[objectId];
-
-        float3x3 normalMatrix = float3x3(
-            inst.normalCol0.xyz, inst.normalCol1.xyz, inst.normalCol2.xyz);
-
         float3 p0 = float3(vertices[i0].position);
         float3 p1 = float3(vertices[i1].position);
         float3 p2 = float3(vertices[i2].position);
