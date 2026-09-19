@@ -1,0 +1,10 @@
+First implementation of iridescence in the integrator
+
+JJ: Change ID: mxnkuopr
+JJ: This commit contains the following changes:
+JJ:     M shaders/photon/metal/path/brdf.metal
+JJ:     M shaders/photon/metal/path/integrator.metal
+JJ:     M shaders/photon/metal/path/iridescence.metal
+JJ:     M shaders/photon/metal/path/types.metal
+JJ:
+JJ: Lines starting with "JJ:" (like this one) will be removed.

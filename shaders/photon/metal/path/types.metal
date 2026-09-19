@@ -51,7 +51,8 @@ struct Material {
     // Iridescence properties
     float iridescenceFactor;
     float iridescenceIor;
-    float iridescenceThickness; // in nanometers
+    float iridescenceThickness;  // in nanometers
+    float iridescenceAbbeNumber; // optional, for spectral dispersion
 };
 
 static_assert(sizeof(Material) == 208);

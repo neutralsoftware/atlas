@@ -5,21 +5,16 @@ using namespace metal;
 
 #include "spectral.metal"
 
-float refractAngle(float n0, float n1, float cosTheta0) {
-    float sinTheta0 = sqrt(max(0.0, 1.0 - cosTheta0 * cosTheta0));
-    float sinTheta1 = n0 / n1 * sinTheta0;
+float4 refractCosTheta(float4 n0, float4 n1, float4 cosTheta0) {
+    float4 sinTheta0 = sqrt(max(float4(0.0f), 1.0f - cosTheta0 * cosTheta0));
 
-    if (sinTheta1 >= 1.0) {
-        return 0.0;
-    }
+    float4 sinTheta1 = (n0 / n1) * sinTheta0;
 
-    float cosTheta1 = sqrt(max(0.0, 1.0 - sinTheta1 * sinTheta1));
-
-    return cosTheta1;
+    return sqrt(max(float4(0.0f), 1.0f - sinTheta1 * sinTheta1));
 }
 
-float4 thinFilmPhase(float cosThetaIncident, float incidentIor, float filmIor,
-                     float substrateIor, float filmThickness,
+float4 thinFilmPhase(float4 cosThetaIncident, float4 filmIor,
+                     float4 filmThickness,
                      const thread SpectralPath &spectralPath) {
     float4 phaseDifference = 4.0 * M_PI_F * filmIor * filmThickness *
                              cosThetaIncident / spectralPath.wavelengthNm;
@@ -27,42 +22,58 @@ float4 thinFilmPhase(float cosThetaIncident, float incidentIor, float filmIor,
     return phaseDifference;
 }
 
-float2 calculateSPPolarizedFresnel(float n0, float n1, float cosTheta0,
-                                   float cosTheta1) {
-    float rS =
+struct PolarizedFresnel {
+    float4 s;
+    float4 p;
+};
+
+PolarizedFresnel calculateSPPolarizedFresnel(float4 n0, float4 n1,
+                                             float4 cosTheta0,
+                                             float4 cosTheta1) {
+    float4 rS =
         (n0 * cosTheta0 - n1 * cosTheta1) / (n0 * cosTheta0 + n1 * cosTheta1);
-    float rP =
+
+    float4 rP =
         (n1 * cosTheta0 - n0 * cosTheta1) / (n1 * cosTheta0 + n0 * cosTheta1);
 
-    return float2(rS, rP);
+    return {rS, rP};
 }
 
-float4 thinFilmFresnel(float cosThetaIncident, float incidentIor, float filmIor,
-                       float substrateIor, float filmThickness,
-                       const thread SpectralPath &spectralPath) {
+float4 interferenceReflectance(float4 ra, float4 rb, float4 phase) {
+    float4 numerator = ra * ra + rb * rb + 2.0 * ra * rb * cos(phase);
+    float4 denominator = 1.0 + ra * ra * rb * rb + 2.0 * ra * rb * cos(phase);
+    return numerator / denominator;
+}
+
+float4 thinFilmFresnel(float cosThetaIncident, float incidentIor,
+                       float incidentAbbe, float filmIor, float filmAbbe,
+                       float substrateIor, float subtrateAbbe,
+                       float filmThickness,
+                       thread const SpectralPath &spectralPath) {
+    float4 cosTheta0 = float4(cosThetaIncident);
+
+    float4 incidentIorWaved =
+        evaluateIorAtWavelength(incidentIor, incidentAbbe, spectralPath);
+    float4 filmIorWaved =
+        evaluateIorAtWavelength(filmIor, filmAbbe, spectralPath);
+    float4 substrateIorWaved =
+        evaluateIorAtWavelength(substrateIor, subtrateAbbe, spectralPath);
+
+    float4 cosThetaFilm =
+        refractCosTheta(incidentIorWaved, filmIorWaved, cosTheta0);
+    float4 cosThetaSubstrate =
+        refractCosTheta(filmIorWaved, substrateIorWaved, cosThetaFilm);
+
     float4 phaseDifference =
-        thinFilmPhase(cosThetaIncident, incidentIor, filmIor, substrateIor,
-                      filmThickness, spectralPath);
+        thinFilmPhase(cosThetaFilm, filmIorWaved, filmThickness, spectralPath);
 
-    float cosThetaFilm = refractAngle(incidentIor, filmIor, cosThetaIncident);
-    float cosThetaSubstrate = refractAngle(filmIor, substrateIor, cosThetaFilm);
+    PolarizedFresnel r01 = calculateSPPolarizedFresnel(
+        incidentIorWaved, filmIorWaved, cosTheta0, cosThetaFilm);
+    PolarizedFresnel r12 = calculateSPPolarizedFresnel(
+        filmIorWaved, substrateIorWaved, cosThetaFilm, cosThetaSubstrate);
 
-    float2 r1 = calculateSPPolarizedFresnel(incidentIor, filmIor,
-                                            cosThetaIncident, cosThetaFilm);
-    float2 r2 = calculateSPPolarizedFresnel(filmIor, substrateIor, cosThetaFilm,
-                                            cosThetaSubstrate);
-
-    float4 RSTop =
-        (r1.x * r1.x + r1.y * r1.y) + 2.0 * r1.x * r1.y * cos(phaseDifference);
-    float4 RSBottom = 1.0 + (r1.x * r1.x) * (r1.y * r1.y) +
-                      2.0 * r1.x * r1.y * cos(phaseDifference);
-    float4 RS = RSTop / RSBottom;
-
-    float4 RPTTop =
-        (r2.x * r2.x + r2.y * r2.y) + 2.0 * r2.x * r2.y * cos(phaseDifference);
-    float4 RPTBottom = 1.0 + (r2.x * r2.x) * (r2.y * r2.y) +
-                       2.0 * r2.x * r2.y * cos(phaseDifference);
-    float4 RP = RPTTop / RPTBottom;
+    float4 RS = interferenceReflectance(r01.s, r12.s, phaseDifference);
+    float4 RP = interferenceReflectance(r01.p, r12.p, phaseDifference);
 
     return 0.5 * (RS + RP);
 }

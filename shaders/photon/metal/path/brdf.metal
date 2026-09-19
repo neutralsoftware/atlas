@@ -5,6 +5,8 @@ using namespace metal;
 
 #include "sampling.metal"
 #include "geometry.metal"
+#include "spectral.metal"
+#include "iridescence.metal"
 
 float D_GGX(float NdotH, float roughness) {
     float a = max(roughness * roughness, 1e-4);
@@ -129,4 +131,31 @@ float4 evalTransmission(float4 albedo, float3 N, float3 V, float3 L,
     float transmissionLobe = pow(forwardAlignment, lobeExponent);
     return (1.0 - F) * lightRadiance * intensity * backLighting *
            transmissionLobe;
+}
+
+float4 evalIridescence(float cosTheta, float4 ordinaryFresnel,
+                       float incidentIor, float substrateIor,
+                       float substrateAbbe, float iridescenceFactor,
+                       float iridescenceIor, float iridescenceAbbe,
+                       float iridescenceThickness, bool isFront,
+                       thread const SpectralPath &spectralPath) {
+    if (clamp(iridescenceFactor, 0.0f, 1.0f) <= 0.0f) {
+        return ordinaryFresnel;
+    }
+
+    float2 n0 = float2(incidentIor, 0.0);
+    float2 n1 = float2(iridescenceIor, iridescenceAbbe);
+    float2 n2 = float2(substrateIor, substrateAbbe);
+
+    if (!isFront) {
+        n0 = float2(substrateIor, substrateAbbe);
+        n1 = float2(iridescenceIor, iridescenceAbbe);
+        n2 = float2(incidentIor, 0.0);
+    }
+
+    float4 iridescenceFresnel =
+        thinFilmFresnel(cosTheta, n0.x, n0.y, n1.x, n1.y, n2.x, n2.y,
+                        iridescenceThickness, spectralPath);
+    return mix(ordinaryFresnel, iridescenceFresnel,
+               float4(clamp(iridescenceFactor, 0.0f, 1.0f)));
 }
