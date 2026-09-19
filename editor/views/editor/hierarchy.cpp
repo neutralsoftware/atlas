@@ -566,6 +566,8 @@ void HierarchyPanel::showContextMenu(const QPoint &position) {
         addMenu->addAction(action);
     }
     if (index.isValid() && selectedObjectId() >= 0) {
+        const QString selectedType =
+            index.data(ObjectTypeRole).toString().toLower();
         menu.addSeparator();
         menu.addAction(styling::icon(styling::Icon::Crosshair, "#7E929C"),
                        "Focus", this, &HierarchyPanel::focusSelectedObject);
@@ -574,11 +576,28 @@ void HierarchyPanel::showContextMenu(const QPoint &position) {
         menu.addAction(styling::icon(styling::Icon::TreeStructure, "#849589"),
                        "Move to Scene Root", this,
                        &HierarchyPanel::moveSelectedObjectToRoot);
+        if (selectedType == "model" &&
+            treeView->model()->rowCount(index) == 0) {
+            menu.addAction(styling::icon(styling::Icon::TreeStructure,
+                                         "#8498A8"),
+                           "Break Down", this,
+                           &HierarchyPanel::breakDownSelectedModel);
+        }
         menu.addSeparator();
         menu.addAction(styling::icon(styling::Icon::Trash, "#A17F7F"), "Delete",
                        this, &HierarchyPanel::deleteSelectedObject);
     }
     menu.exec(treeView->viewport()->mapToGlobal(position));
+}
+
+void HierarchyPanel::breakDownSelectedModel() {
+    if (viewport == nullptr) {
+        return;
+    }
+    const int id = selectedObjectId();
+    if (id >= 0) {
+        viewport->breakDownRuntimeModel(id);
+    }
 }
 
 void HierarchyPanel::createObject(const QString &type,

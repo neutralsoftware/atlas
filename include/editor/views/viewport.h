@@ -88,6 +88,7 @@ class ViewportPanel : public QWidget {
     int selectedRuntimeObjectId() const;
     bool applyRuntimeMaterial(int id, const QString &path);
     bool applyRuntimeMaterialDirect(int id, const QString &path);
+    bool breakDownRuntimeModel(int id);
     bool attachRuntimeAsset(int id, const QString &path);
     bool importRuntimeModel(const QString &path);
     void undo();

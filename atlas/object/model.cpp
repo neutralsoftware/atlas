@@ -932,6 +932,7 @@ Model::processMesh(aiMesh *mesh, const aiScene *scene,
 
     object.attachVertices(vertices);
     object.attachIndices(indices);
+    object.name = mesh->mName.length > 0 ? mesh->mName.C_Str() : "Mesh";
 
     ResourceEventInfo info;
     info.resourceType = DebugResourceType::Mesh;

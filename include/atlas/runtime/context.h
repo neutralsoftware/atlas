@@ -105,6 +105,8 @@ class Context {
     std::unordered_map<int, std::string> objectSceneSolidTypes;
     std::unordered_map<int, std::string> objectParentReferences;
     std::unordered_map<int, int> objectParents;
+    std::unordered_map<int, int> modelPartParents;
+    std::unordered_map<int, std::size_t> modelPartIndices;
     std::unordered_map<int, json> editorObjectSourceData;
     std::unordered_map<int, json> editorComponentData;
     std::unordered_map<int, std::vector<std::string>> editorComponentBaseDirs;
@@ -170,6 +172,7 @@ class Context {
     bool setPropertySync(const json &target, const json &source);
     bool clearPropertySync(const json &target);
     bool setObjectMaterial(int id, const std::string &path);
+    bool breakDownModel(int id);
     bool initializeMaterialPreview(const std::string &definition,
                                    const std::string &baseDir,
                                    int environmentMode);

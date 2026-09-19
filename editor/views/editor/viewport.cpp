@@ -1795,6 +1795,17 @@ bool ViewportPanel::applyRuntimeMaterial(int id, const QString &path) {
     return applyRuntimeMaterialDirect(id, path);
 }
 
+bool ViewportPanel::breakDownRuntimeModel(int id) {
+    if (runtimeContext == nullptr || playbackState != 0 || id < 0 ||
+        !runtimeContext->breakDownModel(id)) {
+        return false;
+    }
+    runtimeContext->saveCurrentScene();
+    refreshSceneSnapshot();
+    setSceneDirty(true);
+    return true;
+}
+
 bool ViewportPanel::applyRuntimeMaterialDirect(int id, const QString &path) {
     if (runtimeContext == nullptr || playbackState != 0 || id < 0 ||
         path.isEmpty() ||

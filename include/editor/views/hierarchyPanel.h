@@ -36,6 +36,7 @@ class HierarchyPanel : public QWidget {
     void deleteSelectedObject();
     void focusSelectedObject();
     void moveSelectedObjectToRoot();
+    void breakDownSelectedModel();
     void selectAllObjects();
     void deselectAllObjects();
     void focusSearch();

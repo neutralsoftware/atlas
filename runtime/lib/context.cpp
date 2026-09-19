@@ -4501,6 +4501,9 @@ createRenderable(Context &context, const json &objectData,
         }
 
         applyTransform(*object, objectData);
+        if (objectData.value("brokenDown", false)) {
+            context.breakDownModel(static_cast<int>(object->getId()));
+        }
         collectPendingComponents(context, *object, objectData, baseDir,
                                  rigidbodies, standard, joints);
         return object;
@@ -5879,6 +5882,80 @@ bool Context::setObjectMaterial(int id, const std::string &path) {
     return true;
 }
 
+bool Context::breakDownModel(int id) {
+    GameObject *base = findContextObject(*this, id);
+    auto *model = dynamic_cast<Model *>(base);
+    if (model == nullptr || modelPartParents.contains(id)) {
+        return false;
+    }
+    auto &meshes = model->getObjects();
+    if (meshes.empty()) {
+        return false;
+    }
+
+    json savedParts = json::array();
+    if (auto source = editorObjectSourceData.find(id);
+        source != editorObjectSourceData.end() &&
+        source->second.contains("parts") &&
+        source->second["parts"].is_array()) {
+        savedParts = source->second["parts"];
+    }
+
+    std::vector<std::shared_ptr<CoreObject>> parts = meshes;
+    meshes.clear();
+    json serializedParts = json::array();
+    for (std::size_t index = 0; index < parts.size(); ++index) {
+        auto &part = parts[index];
+        json partData = index < savedParts.size() && savedParts[index].is_object()
+                            ? savedParts[index]
+                            : json::object();
+        if (partData.value("removed", false)) {
+            serializedParts.push_back(partData);
+            continue;
+        }
+
+        std::string baseName = part->name.empty()
+                                   ? "Part " + std::to_string(index + 1)
+                                   : part->name;
+        std::string name = partData.value(
+            "name", uniqueEditorObjectName(*this, baseName));
+        name = uniqueEditorObjectName(*this, name);
+        partData["name"] = name;
+        partData["type"] = "modelPart";
+        partData["partIndex"] = index;
+        registerGameObject(*this, *part, partData, "modelPart", objects.size());
+        const int partId = static_cast<int>(part->getId());
+        objects.push_back(part);
+        objectParents[partId] = id;
+        modelPartParents[partId] = id;
+        modelPartIndices[partId] = index;
+        editorObjectSourceData[partId]["parent"] = objectNames[id];
+
+        if (partData.contains("material") &&
+            !isEmptyStringValue(partData["material"])) {
+            try {
+                applyMaterial(*part, loadMaterialDefinition(
+                                         partData["material"], sceneDir));
+            } catch (const std::exception &error) {
+                RUNTIME_LOG("Model part material could not be applied: " +
+                            std::string(error.what()));
+            }
+        }
+        if (partData.contains("position") || partData.contains("rotation") ||
+            partData.contains("scale")) {
+            applyTransform(*part, partData);
+        }
+        if (window != nullptr) {
+            window->addObject(part.get());
+            window->setEditorObjectParent(part.get(), model);
+        }
+        serializedParts.push_back(partData);
+    }
+    editorObjectSourceData[id]["brokenDown"] = true;
+    editorObjectSourceData[id]["parts"] = serializedParts;
+    return true;
+}
+
 bool Context::initializeMaterialPreview(const std::string &definition,
                                         const std::string &baseDir,
                                         int environmentMode) {
@@ -6270,6 +6347,20 @@ bool Context::deleteObject(int id) {
         return false;
     }
 
+    bool modelPart = false;
+    if (auto parent = modelPartParents.find(id);
+        parent != modelPartParents.end()) {
+        modelPart = true;
+        const std::size_t index = modelPartIndices[id];
+        json &parts = editorObjectSourceData[parent->second]["parts"];
+        while (parts.size() <= index) {
+            parts.push_back(json::object());
+        }
+        parts[index]["removed"] = true;
+        modelPartParents.erase(id);
+        modelPartIndices.erase(id);
+    }
+
     std::vector<int> childrenToDelete;
     for (const auto &[childId, parentId] : objectParents) {
         if (parentId == id) {
@@ -6282,7 +6373,9 @@ bool Context::deleteObject(int id) {
 
     const std::string name = serializableObjectName(*this, *object);
     const std::string reference = serializableObjectReference(*this, *object);
-    deletedObjectReferences.push_back({name, reference});
+    if (!modelPart) {
+        deletedObjectReferences.push_back({name, reference});
+    }
 
     setObjectParent(id, -1);
     for (auto it = objectParents.begin(); it != objectParents.end();) {
@@ -6739,6 +6832,25 @@ bool Context::saveCurrentScene() {
         removeObjectNode(sceneData["objects"], name, reference);
     }
 
+    for (const auto &[partId, parentId] : modelPartParents) {
+        GameObject *part = findContextObject(*this, partId);
+        if (part == nullptr || !modelPartIndices.contains(partId)) {
+            continue;
+        }
+        const std::size_t index = modelPartIndices[partId];
+        json &parts = editorObjectSourceData[parentId]["parts"];
+        while (parts.size() <= index) {
+            parts.push_back(json::object());
+        }
+        json partData = editorObjectSourceData[partId];
+        writeObjectTransform(partData, *this, *part);
+        partData.erase("parent");
+        partData.erase("id");
+        partData["partIndex"] = index;
+        partData["removed"] = false;
+        parts[index] = partData;
+    }
+
     json serializedLights = json::array();
     for (const auto &renderable : objects) {
         if (renderable == nullptr) {
@@ -6747,6 +6859,10 @@ bool Context::saveCurrentScene() {
 
         auto *object = dynamic_cast<GameObject *>(renderable.get());
         if (object == nullptr) {
+            continue;
+        }
+
+        if (modelPartParents.contains(static_cast<int>(object->getId()))) {
             continue;
         }
 
@@ -7073,6 +7189,8 @@ void Context::loadScene(Window &window, const json &sceneData) {
     objectSceneSolidTypes.clear();
     objectParentReferences.clear();
     objectParents.clear();
+    modelPartParents.clear();
+    modelPartIndices.clear();
     editorObjectSourceData.clear();
     editorComponentData.clear();
     editorComponentBaseDirs.clear();
