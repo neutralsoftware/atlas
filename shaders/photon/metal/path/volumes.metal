@@ -1,6 +1,7 @@
 #pragma once
 
 #include "spectral.metal"
+#include "geometry.metal"
 
 struct VolumeCoefficients {
     float4 sigmaA;
