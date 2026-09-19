@@ -47,6 +47,7 @@ struct Material {
     float volumeAnisotropy;
     packed_float3 volumeEmissionColor;
     float volumeEmissionStrength;
+    float _pad3;
 
     // Iridescence properties
     float iridescenceFactor;
@@ -63,6 +64,10 @@ static_assert(__builtin_offsetof(Material, textureScale) == 96);
 static_assert(__builtin_offsetof(Material, isVolume) == 128);
 static_assert(__builtin_offsetof(Material, volumeAbsorptionColor) == 136);
 static_assert(__builtin_offsetof(Material, volumeEmissionStrength) == 184);
+static_assert(__builtin_offsetof(Material, iridescenceFactor) == 192);
+static_assert(__builtin_offsetof(Material, iridescenceIor) == 196);
+static_assert(__builtin_offsetof(Material, iridescenceThickness) == 200);
+static_assert(__builtin_offsetof(Material, iridescenceAbbeNumber) == 204);
 
 struct VertexData {
     packed_float3 position;

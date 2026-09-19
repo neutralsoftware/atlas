@@ -350,9 +350,8 @@ std::string normalizeToken(std::string value) {
 
 std::string propertyNameToken(const std::string &path) {
     const std::size_t separator = path.find_last_of('/');
-    return normalizeToken(separator == std::string::npos
-                              ? path
-                              : path.substr(separator + 1));
+    return normalizeToken(
+        separator == std::string::npos ? path : path.substr(separator + 1));
 }
 
 std::string resolveRuntimePath(const std::string &baseDir,
@@ -809,8 +808,7 @@ MaterialDefinition loadMaterialDefinition(const json &value,
     tryReadFloatAny(materialData, {"transmittance"},
                     loaded.material.transmittance);
     tryReadFloatAny(materialData, {"ior"}, loaded.material.ior);
-    tryReadFloatAny(materialData, {"abbeNumber"},
-                    loaded.material.abbeNumber);
+    tryReadFloatAny(materialData, {"abbeNumber"}, loaded.material.abbeNumber);
     tryReadColorAny(materialData, {"attenuationColor"},
                     loaded.material.attenuationColor);
     tryReadFloatAny(materialData, {"attenuationDistance"},
@@ -832,6 +830,14 @@ MaterialDefinition loadMaterialDefinition(const json &value,
                     loaded.material.volumeEmissionColor);
     tryReadFloatAny(materialData, {"volumeEmissionStrength"},
                     loaded.material.volumeEmissionStrength);
+    tryReadFloatAny(materialData, {"iridescenceFactor"},
+                    loaded.material.iridescenceFactor);
+    tryReadFloatAny(materialData, {"iridescenceIor"},
+                    loaded.material.iridescenceIor);
+    tryReadFloatAny(materialData, {"iridescenceAbbeNumber"},
+                    loaded.material.iridescenceAbbeNumber);
+    tryReadFloatAny(materialData, {"iridescenceThickness"},
+                    loaded.material.iridescenceThickness);
 
     auto appendTexture = [&](std::initializer_list<const char *> keys,
                              TextureType type, bool allowTypeOverride) {
@@ -3536,8 +3542,8 @@ Trigger parseTrigger(const json &triggerData) {
         JSON_READ_INT(triggerData, "id", controllerId);
         const auto button = triggerData.find("button");
         const auto legacyButton = triggerData.find("buttonIndex");
-        const auto selected = button != triggerData.end() ? button
-                                                          : legacyButton;
+        const auto selected =
+            button != triggerData.end() ? button : legacyButton;
         if (selected != triggerData.end()) {
             if (selected->is_string())
                 buttonIndex =
@@ -4888,9 +4894,8 @@ bool Context::resize(int width, int height, float scale) {
         const float verticalHalfFov = glm::radians(camera->fov * 0.5f);
         const float horizontalHalfFov =
             std::atan(std::tan(verticalHalfFov) * aspect);
-        const float limitingHalfFov =
-            std::max(glm::radians(5.0f),
-                     std::min(verticalHalfFov, horizontalHalfFov));
+        const float limitingHalfFov = std::max(
+            glm::radians(5.0f), std::min(verticalHalfFov, horizontalHalfFov));
         const float distance = 0.82f / std::sin(limitingHalfFov);
         camera->setPosition({0.0f, 0.0f, distance});
         camera->lookAt(Position3d::zero());
@@ -6830,8 +6835,7 @@ void Context::loadProject() {
             std::clamp((*renderer)["samples_per_pixel"].value_or(4), 1, 64);
         pathTracingBounces =
             std::clamp((*renderer)["max_bounces"].value_or(8), 1, 16);
-        pathTracingDenoising =
-            (*renderer)["denoising"].value_or(true);
+        pathTracingDenoising = (*renderer)["denoising"].value_or(true);
         pathTracingAccumulationFrames = std::clamp(
             (*renderer)["accumulation_frames"].value_or(512), 1, 2048);
         screenSpaceReflections = (*renderer)["ssr"].value_or(false);

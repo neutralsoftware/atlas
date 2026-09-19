@@ -452,6 +452,14 @@ MaterialEditorPanel::normalizedMaterial(const QJsonObject &source) const {
         result.insert("volumeEmissionColor", QJsonArray{0.0, 0.0, 0.0, 1.0});
     if (!result.value("volumeEmissionStrength").isDouble())
         result.insert("volumeEmissionStrength", 0.0);
+    if (!result.value("iridescenceFactor").isDouble())
+        result.insert("iridescenceFactor", 0.0);
+    if (!result.value("iridescenceIor").isDouble())
+        result.insert("iridescenceIor", 1.45);
+    if (!result.value("iridescenceAbbeNumber").isDouble())
+        result.insert("iridescenceAbbeNumber", 0.0);
+    if (!result.value("iridescenceThickness").isDouble())
+        result.insert("iridescenceThickness", 400.0);
     return result;
 }
 
@@ -671,6 +679,25 @@ void MaterialEditorPanel::showMaterial() {
     mediumForm->addRow("Emission Strength", volumeEmissionStrengthField);
     propertiesLayout->addWidget(medium);
 
+    auto *iridescence = new QGroupBox("Iridescence", properties);
+    auto *iridescenceForm = new QFormLayout(iridescence);
+    iridescenceFactorField = scalarField(0.0, 1.0, 0.01, iridescence);
+    iridescenceIorField = scalarField(1.0, 3.0, 0.01, iridescence);
+    iridescenceAbbeNumberField = scalarField(0.0, 100.0, 0.1, iridescence);
+    iridescenceThicknessField = scalarField(0.0, 1000.0, 1.0, iridescence);
+    iridescenceFactorField->setValue(
+        material.value("iridescenceFactor").toDouble());
+    iridescenceIorField->setValue(material.value("iridescenceIor").toDouble());
+    iridescenceAbbeNumberField->setValue(
+        material.value("iridescenceAbbeNumber").toDouble());
+    iridescenceThicknessField->setValue(
+        material.value("iridescenceThickness").toDouble());
+    iridescenceForm->addRow("Factor", iridescenceFactorField);
+    iridescenceForm->addRow("IOR", iridescenceIorField);
+    iridescenceForm->addRow("Abbe Number", iridescenceAbbeNumberField);
+    iridescenceForm->addRow("Thickness (nm)", iridescenceThicknessField);
+    propertiesLayout->addWidget(iridescence);
+
     auto *normal = new QGroupBox("Normal", properties);
     auto *normalForm = new QFormLayout(normal);
     normalMapField = new QCheckBox(normal);
@@ -790,7 +817,11 @@ void MaterialEditorPanel::showMaterial() {
                                           volumeAbsorptionStrengthField,
                                           volumeScatteringStrengthField,
                                           volumeAnisotropyField,
-                                          volumeEmissionStrengthField};
+                                          volumeEmissionStrengthField,
+                                          iridescenceFactorField,
+                                          iridescenceIorField,
+                                          iridescenceAbbeNumberField,
+                                          iridescenceThicknessField};
     for (QDoubleSpinBox *field : scalars) {
         connect(field, &QDoubleSpinBox::valueChanged, this,
                 [this](double) { materialChanged(); });
@@ -902,6 +933,11 @@ void MaterialEditorPanel::materialChanged() {
                       .value<QColor>()));
     material.insert("volumeEmissionStrength",
                     volumeEmissionStrengthField->value());
+    material.insert("iridescenceFactor", iridescenceFactorField->value());
+    material.insert("iridescenceIor", iridescenceIorField->value());
+    material.insert("iridescenceAbbeNumber",
+                    iridescenceAbbeNumberField->value());
+    material.insert("iridescenceThickness", iridescenceThicknessField->value());
     if (material == previous)
         return;
     recordHistory(previous);
