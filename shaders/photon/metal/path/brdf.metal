@@ -11,8 +11,9 @@ using namespace metal;
 float D_GGX(float NdotH, float roughness) {
     float a = max(roughness * roughness, 1e-4);
     float a2 = a * a;
-    float d = (NdotH * NdotH) * (a2 - 1.0) + 1.0;
-    return a2 / max(M_PI_F * d * d, 1e-6);
+    float cosineSquared = NdotH * NdotH;
+    float d = max(1.0f - cosineSquared, 0.0f) + cosineSquared * a2;
+    return a2 / max(M_PI_F * d * d, 1e-20f);
 }
 
 float4 F_Schlick(float cosTheta, float4 F0) {
@@ -73,7 +74,7 @@ float3 sampleGGX(float2 u, float roughness) {
 }
 
 float3 sampleGGXVNDF(float3 localView, float roughness, float2 u) {
-    float alpha = max(roughness * roughness, 1e-3);
+    float alpha = max(roughness * roughness, 1e-4);
     float3 stretchedView =
         normalizeOr(float3(alpha * localView.x, alpha * localView.y,
                            max(localView.z, 1e-5)),

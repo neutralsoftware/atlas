@@ -107,7 +107,7 @@ float4 traceShadowVisibility(
                 instance.normalCol0.xyz, instance.normalCol1.xyz,
                 instance.normalCol2.xyz);
             float3 geometricNormal = normalizeOr(
-                normalMatrix * localNormal, float3(0.0f, 1.0f, 0.0f));
+                localNormal, float3(0.0f, 1.0f, 0.0f));
             bool frontFace = dot(geometricNormal, shadowRay.direction) < 0.0f;
             float cosine = abs(dot(geometricNormal, shadowRay.direction));
             float4 ior = evaluateIorAtWavelength(

@@ -528,7 +528,7 @@ kernel void emitCaustics(primitive_acceleration_structure sceneAS [[buffer(0)]],
             normalizeOr(cross(p1 - p0, p2 - p0), float3(0.0, 1.0, 0.0));
 
         float3 worldGeometricNormal = normalizeOr(
-            normalMatrix * localGeometricNormal, float3(0.0, 1.0, 0.0));
+            localGeometricNormal, float3(0.0, 1.0, 0.0));
 
         bool frontFace = dot(worldGeometricNormal, photonRay.direction) < 0.0f;
         float3 Ng = frontFace ? worldGeometricNormal : -worldGeometricNormal;

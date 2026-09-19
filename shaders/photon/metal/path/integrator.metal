@@ -110,7 +110,7 @@ float3 sampleRadiance(
                 normalizeOr(cross(p1 - p0, p2 - p0), localN);
 
             geometricNormal = normalizeOr(
-                normalMatrix * localGeometricNormal,
+                localGeometricNormal,
                 normalizeOr(normalMatrix * localN, float3(0.0, 1.0, 0.0)));
 
             float alpha = resolveMaterialOpacity(mat, texUV,
