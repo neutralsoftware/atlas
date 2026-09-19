@@ -5021,7 +5021,7 @@ bool Context::configurePathTracing(int samplesPerPixel, int bounceLimit,
     if (window == nullptr) {
         return false;
     }
-    config.pathTracingSamples = std::clamp(samplesPerPixel, 1, 64);
+    config.pathTracingSamples = std::clamp(samplesPerPixel, 1, 256);
     config.pathTracingBounces = std::clamp(bounceLimit, 1, 16);
     config.pathTracingDenoising = denoising;
     config.pathTracingAccumulationFrames =
@@ -6997,7 +6997,7 @@ void Context::loadProject() {
         useUpscaling = (*renderer)["use_upscaling"].value_or(false);
         upscalingRatio = (*renderer)["upscaling_ratio"].value_or(0.67f);
         pathTracingSamples =
-            std::clamp((*renderer)["samples_per_pixel"].value_or(4), 1, 64);
+            std::clamp((*renderer)["samples_per_pixel"].value_or(4), 1, 256);
         pathTracingBounces =
             std::clamp((*renderer)["max_bounces"].value_or(8), 1, 16);
         pathTracingDenoising = (*renderer)["denoising"].value_or(true);

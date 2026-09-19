@@ -362,7 +362,7 @@ void photon::PathTracing::resizeOutput(int width, int height) {
 
 void photon::PathTracing::configure(int samplesPerPixel, int bounceLimit,
                                     bool useDenoising, int historyFrames) {
-    const int newSamples = std::clamp(samplesPerPixel, 1, 64);
+    const int newSamples = std::clamp(samplesPerPixel, 1, 256);
     const int newBounces = std::clamp(bounceLimit, 1, 16);
     const int newHistoryFrames = std::clamp(historyFrames, 1, 2048);
     if (raysPerPixel == newSamples && maxBounces == newBounces &&
