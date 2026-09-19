@@ -171,6 +171,11 @@ float4 evalIridescence(float cosTheta, float4 ordinaryFresnel,
     float4 iridescenceFresnel =
         thinFilmFresnel(cosTheta, n0.x, n0.y, n1.x, n1.y, n2.x, n2.y,
                         iridescenceThickness, spectralPath);
+    float iridescenceMean = spectralAverage(iridescenceFresnel);
+    iridescenceFresnel = clamp(
+        float4(iridescenceMean) +
+            (iridescenceFresnel - float4(iridescenceMean)) * 1.5f,
+        float4(0.0f), float4(1.0f));
     return mix(ordinaryFresnel, iridescenceFresnel,
                float4(clamp(iridescenceFactor, 0.0f, 1.0f)));
 }
