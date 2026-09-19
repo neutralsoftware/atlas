@@ -81,6 +81,10 @@ class MaterialEditorPanel : public QWidget {
     QDoubleSpinBox *volumeScatteringStrengthField = nullptr;
     QDoubleSpinBox *volumeAnisotropyField = nullptr;
     QDoubleSpinBox *volumeEmissionStrengthField = nullptr;
+    QDoubleSpinBox *iridescenceFactorField = nullptr;
+    QDoubleSpinBox *iridescenceIorField = nullptr;
+    QDoubleSpinBox *iridescenceAbbeNumberField = nullptr;
+    QDoubleSpinBox *iridescenceThicknessField = nullptr;
     QCheckBox *normalMapField = nullptr;
     QCheckBox *volumeField = nullptr;
     QHash<QString, QLineEdit *> textureFields;

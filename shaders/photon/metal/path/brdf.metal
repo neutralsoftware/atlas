@@ -5,6 +5,8 @@ using namespace metal;
 
 #include "sampling.metal"
 #include "geometry.metal"
+#include "spectral.metal"
+#include "iridescence.metal"
 
 float D_GGX(float NdotH, float roughness) {
     float a = max(roughness * roughness, 1e-4);
@@ -54,6 +56,13 @@ float disneyDiffuseFactor(float NdotV, float NdotL, float LdotH,
     return lightScatter * viewScatter;
 }
 
+float4 evalIridescence(float cosTheta, float4 ordinaryFresnel,
+                       float incidentIor, float substrateIor,
+                       float substrateAbbe, float iridescenceFactor,
+                       float iridescenceIor, float iridescenceAbbe,
+                       float iridescenceThickness, bool isFront,
+                       thread const SpectralPath &spectralPath);
+
 // GGX importance-sampled microfacet half-vector (in local TBN space, Z=up)
 float3 sampleGGX(float2 u, float roughness) {
     float a = roughness * roughness;
@@ -93,7 +102,11 @@ float3 sampleGGXVNDF(float3 localView, float roughness, float2 u) {
 // Full Cook-Torrance PBR for a single analytic light
 float4 evalPBR(float4 albedo, float metallic, float roughness,
                float reflectivity, float4 ior, float transmittance, float3 N,
-               float3 V, float3 L, float4 lightRadiance, float intensity) {
+               float3 V, float3 L, float4 lightRadiance, float intensity,
+               float substrateIor, float substrateAbbe,
+               float iridescenceFactor, float iridescenceIor,
+               float iridescenceAbbe, float iridescenceThickness,
+               bool isFront, thread const SpectralPath &spectralPath) {
     float3 H = normalize(V + L);
 
     float NdotL = max(dot(N, L), 0.0);
@@ -103,7 +116,11 @@ float4 evalPBR(float4 albedo, float metallic, float roughness,
 
     float clampedRoughness = clamp(roughness, 0.045, 1.0);
     float4 F0 = materialF0(albedo, metallic, reflectivity, ior);
-    float4 F = F_Schlick(VdotH, F0);
+    float4 ordinaryF = F_Schlick(VdotH, F0);
+    float4 F = evalIridescence(
+        VdotH, ordinaryF, 1.0f, substrateIor, substrateAbbe,
+        iridescenceFactor, iridescenceIor, iridescenceAbbe,
+        iridescenceThickness, isFront, spectralPath);
     float D = D_GGX(NdotH, clampedRoughness);
     float G = G1_SmithGGX(NdotV, clampedRoughness) *
               G1_SmithGGX(NdotL, clampedRoughness);
@@ -129,4 +146,31 @@ float4 evalTransmission(float4 albedo, float3 N, float3 V, float3 L,
     float transmissionLobe = pow(forwardAlignment, lobeExponent);
     return (1.0 - F) * lightRadiance * intensity * backLighting *
            transmissionLobe;
+}
+
+float4 evalIridescence(float cosTheta, float4 ordinaryFresnel,
+                       float incidentIor, float substrateIor,
+                       float substrateAbbe, float iridescenceFactor,
+                       float iridescenceIor, float iridescenceAbbe,
+                       float iridescenceThickness, bool isFront,
+                       thread const SpectralPath &spectralPath) {
+    if (clamp(iridescenceFactor, 0.0f, 1.0f) <= 0.0f) {
+        return ordinaryFresnel;
+    }
+
+    float2 n0 = float2(incidentIor, 0.0);
+    float2 n1 = float2(iridescenceIor, iridescenceAbbe);
+    float2 n2 = float2(substrateIor, substrateAbbe);
+
+    if (!isFront) {
+        n0 = float2(substrateIor, substrateAbbe);
+        n1 = float2(iridescenceIor, iridescenceAbbe);
+        n2 = float2(incidentIor, 0.0);
+    }
+
+    float4 iridescenceFresnel =
+        thinFilmFresnel(cosTheta, n0.x, n0.y, n1.x, n1.y, n2.x, n2.y,
+                        iridescenceThickness, spectralPath);
+    return mix(ordinaryFresnel, iridescenceFresnel,
+               float4(clamp(iridescenceFactor, 0.0f, 1.0f)));
 }

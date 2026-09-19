@@ -117,6 +117,11 @@ struct Material {
     float volumeAnisotropy = 0.0f;
     Color volumeEmissionColor = {0.0, 0.0, 0.0, 1.0};
     float volumeEmissionStrength = 0.0f;
+
+    float iridescenceFactor = 0.0f;
+    float iridescenceIor = 1.0f;
+    float iridescenceAbbeNumber = 0.0f;
+    float iridescenceThickness = 400.0f; // in nanometers
 };
 
 /**

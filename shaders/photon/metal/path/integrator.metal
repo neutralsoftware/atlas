@@ -158,18 +158,17 @@ float3 sampleRadiance(
             float distance = max(hit.distance, 0.0f);
             float heroSigmaT = mediumSigmaT[spectralPath.heroIndex];
             bool canScatter = spectralMax(mediumSigmaS) > 1e-6f;
-            float sampledDistance = canScatter && heroSigmaT > 1e-6f
-                                        ? -log(max(1.0f - rand(rng), 1e-6f)) /
-                                              heroSigmaT
-                                        : 1e30f;
+            float sampledDistance =
+                canScatter && heroSigmaT > 1e-6f
+                    ? -log(max(1.0f - rand(rng), 1e-6f)) / heroSigmaT
+                    : 1e30f;
             float traveledDistance = min(distance, sampledDistance);
             float4 spectralTransmittance =
                 exp(-mediumSigmaT * traveledDistance);
-            float4 emissionIntegral =
-                (1.0f - spectralTransmittance) /
-                max(mediumSigmaT, float4(1e-6f));
-            spectralPath.radiance += spectralPath.throughput * mediumEmission *
-                                     emissionIntegral;
+            float4 emissionIntegral = (1.0f - spectralTransmittance) /
+                                      max(mediumSigmaT, float4(1e-6f));
+            spectralPath.radiance +=
+                spectralPath.throughput * mediumEmission * emissionIntegral;
 
             if (sampledDistance < distance) {
                 float heroTransmittance =
@@ -190,8 +189,8 @@ float3 sampleRadiance(
                 hasNonDeltaVertex = true;
                 causticConnection = false;
                 surfaceRay.origin =
-                    scatteringPosition + scatteringDirection *
-                                             rayOffsetDistance(scatteringPosition);
+                    scatteringPosition +
+                    scatteringDirection * rayOffsetDistance(scatteringPosition);
                 surfaceRay.direction = scatteringDirection;
                 surfaceRay.min_distance = 0.0f;
                 surfaceRay.max_distance = 1.0e30f;
@@ -203,10 +202,9 @@ float3 sampleRadiance(
             }
 
             float heroTransmittance = max(exp(-heroSigmaT * distance), 1e-6f);
-            spectralPath.throughput *= canScatter
-                                           ? spectralTransmittance /
-                                                 heroTransmittance
-                                           : spectralTransmittance;
+            spectralPath.throughput *=
+                canScatter ? spectralTransmittance / heroTransmittance
+                           : spectralTransmittance;
 
             if (!all(isfinite(spectralPath.throughput)) ||
                 spectralMax(spectralPath.throughput) < 1e-6f) {
@@ -275,8 +273,7 @@ float3 sampleRadiance(
                     max(mat.volumeEmissionStrength, 0.0f) *
                     max(mat.volumeDensity, 0.0f);
                 mediumAnisotropy = clamp(mat.volumeAnisotropy, -0.99f, 0.99f);
-            } else if (insideMedium &&
-                       mediumObjectId == surfaceObjectIndex) {
+            } else if (insideMedium && mediumObjectId == surfaceObjectIndex) {
                 insideMedium = false;
                 mediumObjectId = 0xFFFFFFFFu;
                 mediumSigmaA = float4(0.0f);
@@ -285,8 +282,7 @@ float3 sampleRadiance(
                 mediumEmission = float4(0.0f);
                 mediumAnisotropy = 0.0f;
             }
-            surfaceRay.origin =
-                P + surfaceRay.direction * rayOffsetDistance(P);
+            surfaceRay.origin = P + surfaceRay.direction * rayOffsetDistance(P);
             surfaceRay.min_distance = 0.0f;
             surfaceRay.max_distance = 1.0e30f;
             continue;
@@ -305,8 +301,11 @@ float3 sampleRadiance(
         if (!deltaDielectric && !deltaMirror) {
             float4 direct = evalDirectLightingPBR(
                 isect, sceneAS, P, N, Ng, V, albedo, metallic, roughness,
-                reflectivity, ior, transmittance, rng, spectralPath, dirLight,
-                sceneData, pointLights, spotLights, areaLights,
+                reflectivity, ior, transmittance, baseIor, abbeNumber,
+                mat.iridescenceFactor, mat.iridescenceIor,
+                mat.iridescenceAbbeNumber, mat.iridescenceThickness, frontFace,
+                rng, spectralPath, dirLight, sceneData, pointLights, spotLights,
+                areaLights,
                 emissiveTriangles, materials, primitiveObjects,
                 blasPrimitiveOffsets, vertices, indices, instanceData,
                 PT_MATERIAL_TEXTURE_ARGS);
@@ -322,11 +321,16 @@ float3 sampleRadiance(
             float aoVisibility = mix(0.2, 1.0, ao);
             float4 dielectricF0 = pow((ior - 1.0f) / (ior + 1.0f), 2.0f);
             float4 ambientF0 = mix(float4(dielectricF0), albedo, metallic);
-            float4 ambientF = F_Schlick(max(dot(N, V), 0.0), ambientF0);
+            float4 ambientOrdinaryF = F_Schlick(max(dot(N, V), 0.0), ambientF0);
+            float4 ambientF = evalIridescence(
+                max(dot(N, V), 0.0), ambientOrdinaryF, 1.0f, baseIor,
+                abbeNumber, mat.iridescenceFactor, mat.iridescenceIor,
+                mat.iridescenceAbbeNumber, mat.iridescenceThickness, frontFace,
+                spectralPath);
             float4 ambientDiffuse = (1.0 - ambientF) * (1.0 - metallic) *
                                     albedo * (1.0 - transmittance);
             float4 ambientSpecular =
-                ambientF * mix(1.0, 0.35, roughness) * (1.0 - transmittance);
+                ambientF * mix(1.0, 0.35, roughness);
             float4 ambientRadiance =
                 evaluateEmission(sceneData.ambientColor, spectralPath) *
                 sceneData.ambientIntensity;
@@ -341,9 +345,16 @@ float3 sampleRadiance(
         float interfaceNdotV = max(dot(interfaceN, V), 1e-4f);
         float4 etaPacket = frontFace ? 1.0f / ior : ior;
 
-        float4 viewFresnel = deltaDielectric
-                                 ? dielectricFresnel(interfaceNdotV, etaPacket)
-                                 : F_Schlick(NdotV, F0);
+        float4 ordinaryViewFresnel =
+            deltaDielectric ? dielectricFresnel(interfaceNdotV, etaPacket)
+                            : F_Schlick(NdotV, F0);
+
+        float4 viewFresnel =
+            evalIridescence(interfaceNdotV, ordinaryViewFresnel, 1.0f, baseIor,
+                            abbeNumber, mat.iridescenceFactor,
+                            mat.iridescenceIor, mat.iridescenceAbbeNumber,
+                            mat.iridescenceThickness, frontFace, spectralPath);
+
         float fresnelProbability =
             clamp(spectralAverage(viewFresnel), 0.001f, 0.999f);
         float specProb = fresnelProbability;
@@ -386,7 +397,14 @@ float3 sampleRadiance(
                 float3 H = normalizeOr(V + environmentDirection, N);
                 float NdotH = max(dot(N, H), 1e-5);
                 float VdotH = max(dot(V, H), 1e-5);
-                float4 F = F_Schlick(VdotH, F0);
+                float4 ordinaryF = F_Schlick(VdotH, F0);
+
+                float4 F = evalIridescence(
+                    VdotH, ordinaryF, 1.0f, baseIor, abbeNumber,
+                    mat.iridescenceFactor, mat.iridescenceIor,
+                    mat.iridescenceAbbeNumber, mat.iridescenceThickness,
+                    frontFace, spectralPath);
+
                 float4 kD =
                     (1.0 - F) * (1.0 - metallic) * (1.0 - transmittance);
                 float diffuseFactor = disneyDiffuseFactor(
@@ -395,7 +413,7 @@ float3 sampleRadiance(
                 float4 reflectionBsdf = kD * albedo * diffuseFactor / M_PI_F;
                 float environmentPdf = NdotEnvironment / M_PI_F;
                 float bsdfPdf = diffuseProb * environmentPdf;
-                if (roughness > 0.025 && specProb > 1e-4) {
+                if (specProb > 1e-4) {
                     float D = D_GGX(NdotH, roughness);
                     float G1V = G1_SmithGGX(NdotV, roughness);
                     float G1L = G1_SmithGGX(NdotEnvironment, roughness);
@@ -450,7 +468,13 @@ float3 sampleRadiance(
                     float D = D_GGX(NdotH, roughness);
                     float G1V = G1_SmithGGX(NdotV, roughness);
                     float G1L = G1_SmithGGX(NdotL, roughness);
-                    float4 F = F_Schlick(VdotH, F0);
+                    float4 ordinaryF = F_Schlick(VdotH, F0);
+                    float4 F = evalIridescence(
+                        VdotH, ordinaryF, 1.0f, baseIor, abbeNumber,
+                        mat.iridescenceFactor, mat.iridescenceIor,
+                        mat.iridescenceAbbeNumber, mat.iridescenceThickness,
+                        frontFace, spectralPath);
+
                     float4 specularBsdf =
                         D * G1V * G1L * F / max(4.0 * NdotV * NdotL, 1e-6);
                     float conditionalPdf = D * G1V / max(4.0 * NdotV, 1e-6);
@@ -481,7 +505,12 @@ float3 sampleRadiance(
                     fresnelCosine = max(dot(V, H), 0.0);
                 }
             }
-            float4 F = dielectricFresnel(fresnelCosine, etaPacket);
+            float4 ordinaryF = dielectricFresnel(fresnelCosine, etaPacket);
+            float4 F = evalIridescence(
+                fresnelCosine, ordinaryF, 1.0f, baseIor, abbeNumber,
+                mat.iridescenceFactor, mat.iridescenceIor,
+                mat.iridescenceAbbeNumber, mat.iridescenceThickness, frontFace,
+                spectralPath);
             bounceWeight = (1.0 - F) * transmittance * (1.0 - metallic) *
                            etaPacket * etaPacket / max(transmitProb, 1e-4);
 
@@ -534,7 +563,12 @@ float3 sampleRadiance(
             nextDirection = normalizeOr(basis * localDirection, N);
             float NdotL = max(dot(N, nextDirection), 0.0);
             float3 H = normalizeOr(V + nextDirection, N);
-            float4 F = F_Schlick(max(dot(V, H), 0.0), F0);
+            float4 ordinaryF = F_Schlick(max(dot(V, H), 0.0), F0);
+            float4 F = evalIridescence(
+                max(dot(N, H), 0.0), ordinaryF, 1.0f, baseIor, abbeNumber,
+                mat.iridescenceFactor, mat.iridescenceIor,
+                mat.iridescenceAbbeNumber, mat.iridescenceThickness, frontFace,
+                spectralPath);
             float4 kD = (1.0 - F) * (1.0 - metallic) * (1.0 - transmittance);
             float diffuseFactor = disneyDiffuseFactor(
                 NdotV, NdotL, max(dot(nextDirection, H), 0.0), roughness);
