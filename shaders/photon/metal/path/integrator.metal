@@ -381,6 +381,11 @@ float3 sampleRadiance(
         specProb /= probabilitySum;
         transmitProb /= probabilitySum;
         diffuseProb /= probabilitySum;
+        if (transmittance < 0.001f && roughness < 0.35f &&
+            specProb > 0.0f && diffuseProb > 0.0f) {
+            specProb = max(specProb, 0.25f);
+            diffuseProb = 1.0f - specProb;
+        }
 
         float3x3 basis = buildOrthonormalBasis(N);
         if (sceneData.environmentEnabled != 0 &&
@@ -609,7 +614,7 @@ float3 sampleRadiance(
             hasNonDeltaVertex = false;
             causticConnection = false;
         } else if (!sampledEventWasDelta) {
-            hasNonDeltaVertex = true;
+            hasNonDeltaVertex = depth == 0 && sampledEventWasDiffuse;
             causticConnection = false;
         } else if (hasNonDeltaVertex) {
             causticConnection = true;

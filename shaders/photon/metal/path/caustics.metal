@@ -149,6 +149,8 @@ float3 gatherCausticsXYZ(float3 P, float3 N, float3 Ng, uint objectId,
                          device const uint *photonSlots) {
     float3 resultXYZ = float3(0.0f);
     uint acceptedPhotons = 0u;
+    float contributionSum = 0.0f;
+    float contributionSquaredSum = 0.0f;
 
     if (caustics.radius <= 0.0f) {
         return resultXYZ;
@@ -249,19 +251,28 @@ float3 gatherCausticsXYZ(float3 P, float3 N, float3 Ng, uint objectId,
 
                     float spectralRadiance = irradiance * bsdf;
 
-                    resultXYZ += spectralRadiance * cieXYZ1931(wavelengthNm) /
-                                 PHOTON_CIE_Y_INTEGRAL;
-                    acceptedPhotons++;
+                    float3 contribution =
+                        spectralRadiance * cieXYZ1931(wavelengthNm) /
+                        PHOTON_CIE_Y_INTEGRAL;
+                    float weight = max(contribution.y, 0.0f);
+                    if (all(isfinite(contribution)) && weight > 0.0f) {
+                        resultXYZ += contribution;
+                        contributionSum += weight;
+                        contributionSquaredSum += weight * weight;
+                        acceptedPhotons++;
+                    }
                 }
             }
         }
     }
 
-    float3 neutralXYZ =
-        resultXYZ.y * float3(0.95047f, 1.0f, 1.08883f);
-    float chromaConfidence =
-        mix(0.2f, 1.0f, smoothstep(6.0f, 24.0f, float(acceptedPhotons)));
-    return mix(neutralXYZ, resultXYZ, chromaConfidence);
+    if (acceptedPhotons < 16u || contributionSquaredSum <= 0.0f) {
+        return float3(0.0f);
+    }
+    float effectivePhotonCount = contributionSum * contributionSum /
+                                 contributionSquaredSum;
+    float confidence = smoothstep(12.0f, 32.0f, effectivePhotonCount);
+    return resultXYZ * confidence;
 }
 
 kernel void clearCaustics(device atomic_uint *photonSlots [[buffer(16)]],
