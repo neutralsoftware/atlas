@@ -17,6 +17,9 @@ float4 evalEmissiveTriangleLighting(
     intersector<triangle_data> isect, primitive_acceleration_structure sceneAS,
     float3 P, float3 N, float3 Ng, float3 V, float4 albedo, float metallic,
     float roughness, float reflectivity, float4 ior, float transmittance,
+    float substrateIor, float substrateAbbe, float iridescenceFactor,
+    float iridescenceIor, float iridescenceAbbe,
+    float iridescenceThickness, bool isFront,
     thread uint &rng, thread const SpectralPath &path,
     constant SceneData &sceneData, constant EmissiveTriangle *emissiveTriangles,
     constant Material *materials, constant uint *primitiveObjects,
@@ -67,7 +70,9 @@ float4 evalEmissiveTriangleLighting(
     float4 lightRadiance = evaluateEmission(float3(light.emission), path);
     return evalPBR(albedo, metallic, roughness, reflectivity, ior,
                    transmittance, N, V, L, lightRadiance,
-                   1.0 / max(solidAnglePdf, 1e-8)) *
+                   1.0 / max(solidAnglePdf, 1e-8), substrateIor,
+                   substrateAbbe, iridescenceFactor, iridescenceIor,
+                   iridescenceAbbe, iridescenceThickness, isFront, path) *
            visibility;
 }
 
@@ -75,6 +80,9 @@ float4 evalDirectLightingPBR(
     intersector<triangle_data> isect, primitive_acceleration_structure sceneAS,
     float3 P, float3 N, float3 Ng, float3 V, float4 albedo, float metallic,
     float roughness, float reflectivity, float4 ior, float transmittance,
+    float substrateIor, float substrateAbbe, float iridescenceFactor,
+    float iridescenceIor, float iridescenceAbbe,
+    float iridescenceThickness, bool isFront,
     thread uint &rng, thread const SpectralPath &path,
     constant DirectionalLightData &dirLight, constant SceneData &sceneData,
     constant PointLight *pointLights, constant SpotLight *spotLights,
@@ -89,7 +97,9 @@ float4 evalDirectLightingPBR(
         float4 lightRadiance = evaluateEmission(dirLight.color, path);
         float4 contribution = evalPBR(
             albedo, metallic, roughness, reflectivity, ior, transmittance, N, V,
-            L, lightRadiance, max(dirLight.intensity, 0.0));
+            L, lightRadiance, max(dirLight.intensity, 0.0), substrateIor,
+            substrateAbbe, iridescenceFactor, iridescenceIor,
+            iridescenceAbbe, iridescenceThickness, isFront, path);
         float4 visibility = traceShadowVisibility(
             isect, sceneAS, P, Ng, L, 1e30, rng, materials, primitiveObjects,
             blasPrimitiveOffsets, vertices, indices, instanceData, sceneData,
@@ -111,7 +121,10 @@ float4 evalDirectLightingPBR(
             evaluateEmission(float3(pointLights[i].color), path);
         float4 contribution =
             evalPBR(albedo, metallic, roughness, reflectivity, ior,
-                    transmittance, N, V, L, lightRadiance, intensity);
+                    transmittance, N, V, L, lightRadiance, intensity,
+                    substrateIor, substrateAbbe, iridescenceFactor,
+                    iridescenceIor, iridescenceAbbe, iridescenceThickness,
+                    isFront, path);
         float4 visibility = traceShadowVisibility(
             isect, sceneAS, P, Ng, L, dist, rng, materials, primitiveObjects,
             blasPrimitiveOffsets, vertices, indices, instanceData, sceneData,
@@ -137,7 +150,10 @@ float4 evalDirectLightingPBR(
             evaluateEmission(float3(spotLights[i].color), path);
         float4 contribution =
             evalPBR(albedo, metallic, roughness, reflectivity, ior,
-                    transmittance, N, V, L, lightRadiance, intensity);
+                    transmittance, N, V, L, lightRadiance, intensity,
+                    substrateIor, substrateAbbe, iridescenceFactor,
+                    iridescenceIor, iridescenceAbbe, iridescenceThickness,
+                    isFront, path);
         float4 visibility = traceShadowVisibility(
             isect, sceneAS, P, Ng, L, dist, rng, materials, primitiveObjects,
             blasPrimitiveOffsets, vertices, indices, instanceData, sceneData,
@@ -171,7 +187,10 @@ float4 evalDirectLightingPBR(
             evaluateEmission(float3(areaLights[i].color), path);
         float4 contribution =
             evalPBR(albedo, metallic, roughness, reflectivity, ior,
-                    transmittance, N, V, L, lightRadiance, intensity);
+                    transmittance, N, V, L, lightRadiance, intensity,
+                    substrateIor, substrateAbbe, iridescenceFactor,
+                    iridescenceIor, iridescenceAbbe, iridescenceThickness,
+                    isFront, path);
         float4 visibility = traceShadowVisibility(
             isect, sceneAS, P, Ng, L, dist, rng, materials, primitiveObjects,
             blasPrimitiveOffsets, vertices, indices, instanceData, sceneData,
@@ -181,9 +200,11 @@ float4 evalDirectLightingPBR(
 
     lighting += evalEmissiveTriangleLighting(
         isect, sceneAS, P, N, Ng, V, albedo, metallic, roughness, reflectivity,
-        ior, transmittance, rng, path, sceneData, emissiveTriangles, materials,
-        primitiveObjects, blasPrimitiveOffsets, vertices, indices, instanceData,
-        PT_MATERIAL_TEXTURE_ARGS);
+        ior, transmittance, substrateIor, substrateAbbe, iridescenceFactor,
+        iridescenceIor, iridescenceAbbe, iridescenceThickness, isFront, rng,
+        path, sceneData, emissiveTriangles, materials,
+        primitiveObjects, blasPrimitiveOffsets, vertices, indices,
+        instanceData, PT_MATERIAL_TEXTURE_ARGS);
 
     return lighting;
 }

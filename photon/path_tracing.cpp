@@ -116,6 +116,12 @@ uint64_t pathTracingObjectStateHash(const CoreObject *object,
     append(&material.volumeEmissionColor, sizeof(material.volumeEmissionColor));
     append(&material.volumeEmissionStrength,
            sizeof(material.volumeEmissionStrength));
+    append(&material.iridescenceFactor, sizeof(material.iridescenceFactor));
+    append(&material.iridescenceIor, sizeof(material.iridescenceIor));
+    append(&material.iridescenceThickness,
+           sizeof(material.iridescenceThickness));
+    append(&material.iridescenceAbbeNumber,
+           sizeof(material.iridescenceAbbeNumber));
     append(&model, sizeof(model));
     const size_t vertexCount = object->vertices.size();
     const size_t indexCount = object->indices.size();
