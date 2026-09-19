@@ -27,6 +27,7 @@ float4 materialF0(float4 albedo, float metallic, float reflectivity,
 
     float4 dielectricF0 =
         pow((safeIor - 1.0f) / (safeIor + 1.0f), float4(2.0f));
+    dielectricF0 = max(dielectricF0, float4(clamp(reflectivity, 0.0f, 1.0f)));
 
     return mix(dielectricF0, albedo, float4(clamp(metallic, 0.0f, 1.0f)));
 }

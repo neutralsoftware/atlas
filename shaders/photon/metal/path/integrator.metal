@@ -321,8 +321,7 @@ float3 sampleRadiance(
 
         if (depth == 0 && sceneData.ambientIntensity > 0.0f) {
             float aoVisibility = mix(0.2f, 1.0f, ao);
-            float4 dielectricF0 = pow((ior - 1.0f) / (ior + 1.0f), 2.0f);
-            float4 ambientF0 = mix(float4(dielectricF0), albedo, metallic);
+            float4 ambientF0 = materialF0(albedo, metallic, reflectivity, ior);
             float4 ambientOrdinaryF = F_Schlick(max(dot(N, V), 0.0f), ambientF0);
             float4 ambientF = evalIridescence(
                 max(dot(N, V), 0.0f), ambientOrdinaryF, 1.0f, baseIor,
@@ -384,7 +383,7 @@ float3 sampleRadiance(
         if (transmittance < 0.001f && roughness < 0.35f &&
             specProb > 0.0f && diffuseProb > 0.0f) {
             specProb = max(specProb, 0.25f);
-            diffuseProb = 1.0f - specProb;
+            diffuseProb = max(1.0f - specProb - transmitProb, 0.0f);
         }
 
         float3x3 basis = buildOrthonormalBasis(N);
