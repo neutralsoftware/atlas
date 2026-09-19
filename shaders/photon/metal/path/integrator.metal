@@ -41,6 +41,7 @@ float3 sampleRadiance(
     float previousBsdfPdf = 0.0;
     float previousEnvironmentPdf = 0.0;
     bool previousEventWasDelta = true;
+    bool previousEventWasDiffuse = false;
     bool wavelengthSelected = false;
     bool causticConnection = false;
     bool hasNonDeltaVertex = false;
@@ -109,7 +110,7 @@ float3 sampleRadiance(
                 normalizeOr(cross(p1 - p0, p2 - p0), localN);
 
             geometricNormal = normalizeOr(
-                normalMatrix * localGeometricNormal,
+                localGeometricNormal,
                 normalizeOr(normalMatrix * localN, float3(0.0, 1.0, 0.0)));
 
             float alpha = resolveMaterialOpacity(mat, texUV,
@@ -127,20 +128,6 @@ float3 sampleRadiance(
                 surfaceRay.direction * rayOffsetDistance(rejectedPosition);
             surfaceRay.min_distance = 0.0;
             hit = isect.intersect(surfaceRay, sceneAS);
-        }
-
-        bool foundAreaEmitter;
-        float3 areaEmission = intersectAreaEmitters(
-            surfaceRay, foundSurface ? hit.distance : 1e30f, sceneData,
-            areaLights, foundAreaEmitter);
-        if (foundAreaEmitter) {
-            if ((depth == 0 || previousEventWasDelta) &&
-                !(sceneData.causticsEnabled != 0 && causticConnection)) {
-                spectralPath.radiance +=
-                    spectralPath.throughput *
-                    evaluateEmission(areaEmission, spectralPath);
-            }
-            break;
         }
 
         if (!foundSurface) {
@@ -186,6 +173,7 @@ float3 sampleRadiance(
                     mediumAnisotropy);
                 previousEnvironmentPdf = 0.0f;
                 previousEventWasDelta = false;
+                previousEventWasDiffuse = false;
                 hasNonDeltaVertex = true;
                 causticConnection = false;
                 surfaceRay.origin =
@@ -305,8 +293,7 @@ float3 sampleRadiance(
                 mat.iridescenceFactor, mat.iridescenceIor,
                 mat.iridescenceAbbeNumber, mat.iridescenceThickness, frontFace,
                 rng, spectralPath, dirLight, sceneData, pointLights, spotLights,
-                areaLights,
-                emissiveTriangles, materials, primitiveObjects,
+                areaLights, emissiveTriangles, materials, primitiveObjects,
                 blasPrimitiveOffsets, vertices, indices, instanceData,
                 PT_MATERIAL_TEXTURE_ARGS);
             spectralPath.radiance += spectralPath.throughput * direct;
@@ -317,20 +304,19 @@ float3 sampleRadiance(
             spectralPath.radiance += spectralPath.throughput * emissive;
         }
 
-        if (depth == 0 && sceneData.ambientIntensity > 0.0) {
-            float aoVisibility = mix(0.2, 1.0, ao);
-            float4 dielectricF0 = pow((ior - 1.0f) / (ior + 1.0f), 2.0f);
-            float4 ambientF0 = mix(float4(dielectricF0), albedo, metallic);
-            float4 ambientOrdinaryF = F_Schlick(max(dot(N, V), 0.0), ambientF0);
+        if (depth == 0 && sceneData.ambientIntensity > 0.0f) {
+            float aoVisibility = mix(0.2f, 1.0f, ao);
+            float4 ambientF0 = materialF0(albedo, metallic, reflectivity, ior);
+            float4 ambientOrdinaryF =
+                F_Schlick(max(dot(N, V), 0.0f), ambientF0);
             float4 ambientF = evalIridescence(
-                max(dot(N, V), 0.0), ambientOrdinaryF, 1.0f, baseIor,
+                max(dot(N, V), 0.0f), ambientOrdinaryF, 1.0f, baseIor,
                 abbeNumber, mat.iridescenceFactor, mat.iridescenceIor,
                 mat.iridescenceAbbeNumber, mat.iridescenceThickness, frontFace,
                 spectralPath);
-            float4 ambientDiffuse = (1.0 - ambientF) * (1.0 - metallic) *
-                                    albedo * (1.0 - transmittance);
-            float4 ambientSpecular =
-                ambientF * mix(1.0, 0.35, roughness);
+            float4 ambientDiffuse = (1.0f - ambientF) * (1.0f - metallic) *
+                                    albedo * (1.0f - transmittance);
+            float4 ambientSpecular = ambientF * mix(1.0f, 0.35f, roughness);
             float4 ambientRadiance =
                 evaluateEmission(sceneData.ambientColor, spectralPath) *
                 sceneData.ambientIntensity;
@@ -341,7 +327,7 @@ float3 sampleRadiance(
 
         float4 F0 = materialF0(albedo, metallic, reflectivity, ior);
         float NdotV = max(dot(N, V), 1e-4f);
-        float3 interfaceN = deltaDielectric ? Ng : N;
+        float3 interfaceN = N;
         float interfaceNdotV = max(dot(interfaceN, V), 1e-4f);
         float4 etaPacket = frontFace ? 1.0f / ior : ior;
 
@@ -379,6 +365,11 @@ float3 sampleRadiance(
         specProb /= probabilitySum;
         transmitProb /= probabilitySum;
         diffuseProb /= probabilitySum;
+        if (transmittance < 0.001f && roughness < 0.35f && specProb > 0.0f &&
+            diffuseProb > 0.0f) {
+            specProb = max(specProb, 0.25f);
+            diffuseProb = max(1.0f - specProb - transmitProb, 0.0f);
+        }
 
         float3x3 basis = buildOrthonormalBasis(N);
         if (sceneData.environmentEnabled != 0 &&
@@ -444,6 +435,7 @@ float3 sampleRadiance(
         float sampledEnvironmentPdf = 0.0;
         bool sampledEventWasDelta = true;
         bool sampledRoughTransmission = false;
+        bool sampledEventWasDiffuse = false;
 
         if (choice < specProb && specProb > 1e-4) {
             if (deltaDielectric || totalInternalReflection) {
@@ -558,6 +550,7 @@ float3 sampleRadiance(
                 wavelengthSelected = true;
             }
         } else {
+            sampledEventWasDiffuse = true;
             float3 localDirection =
                 cosineSampleHemisphere(float2(rand(rng), rand(rng)));
             nextDirection = normalizeOr(basis * localDirection, N);
@@ -605,7 +598,7 @@ float3 sampleRadiance(
             hasNonDeltaVertex = false;
             causticConnection = false;
         } else if (!sampledEventWasDelta) {
-            hasNonDeltaVertex = true;
+            hasNonDeltaVertex = depth == 0 && sampledEventWasDiffuse;
             causticConnection = false;
         } else if (hasNonDeltaVertex) {
             causticConnection = true;
@@ -613,6 +606,7 @@ float3 sampleRadiance(
         previousBsdfPdf = sampledBsdfPdf;
         previousEnvironmentPdf = sampledEnvironmentPdf;
         previousEventWasDelta = sampledEventWasDelta;
+        previousEventWasDiffuse = sampledEventWasDiffuse;
 
         surfaceRay.origin = offsetRayOrigin(P, Ng, nextDirection);
         surfaceRay.direction = normalizeOr(nextDirection, N);

@@ -102,6 +102,9 @@ uint64_t pathTracingObjectStateHash(const CoreObject *object,
     append(&material.textureOffset, sizeof(material.textureOffset));
     append(&material.transmittance, sizeof(material.transmittance));
     append(&material.ior, sizeof(material.ior));
+    append(&material.abbeNumber, sizeof(material.abbeNumber));
+    append(&material.attenuationColor, sizeof(material.attenuationColor));
+    append(&material.attenuationDistance, sizeof(material.attenuationDistance));
     append(&material.isVolume, sizeof(material.isVolume));
     append(&material.volumeDensity, sizeof(material.volumeDensity));
     append(&material.volumeAbsorptionColor,
@@ -178,6 +181,9 @@ void collectPathTracingObject(Renderable *renderable,
         return;
     }
     if (auto *object = dynamic_cast<CoreObject *>(renderable)) {
+        if (!object->isVisible) {
+            return;
+        }
         if (seen.insert(object).second) {
             objects.push_back(object);
         }
@@ -362,7 +368,7 @@ void photon::PathTracing::resizeOutput(int width, int height) {
 
 void photon::PathTracing::configure(int samplesPerPixel, int bounceLimit,
                                     bool useDenoising, int historyFrames) {
-    const int newSamples = std::clamp(samplesPerPixel, 1, 64);
+    const int newSamples = std::clamp(samplesPerPixel, 1, 256);
     const int newBounces = std::clamp(bounceLimit, 1, 16);
     const int newHistoryFrames = std::clamp(historyFrames, 1, 2048);
     if (raysPerPixel == newSamples && maxBounces == newBounces &&
@@ -1372,8 +1378,10 @@ bool photon::PathTracing::render(
     }
     pathTracingPipeline->setUniform1i(
         "sceneData.environmentEnabled",
-        skyboxTexture != fallbackSkyboxTexture || atmosphereEnabled != 0 ? 1
-                                                                         : 0);
+        skyboxTexture != fallbackSkyboxTexture || atmosphereEnabled != 0 ||
+                ambientIntensity > 0.0f
+            ? 1
+            : 0);
     pathTracingPipeline->bindTexture("skybox", skyboxTexture,
                                      kPathTracerSkyboxTextureUnit);
     auto skyboxTextureId = skyboxTexture->textureID;
@@ -1472,7 +1480,9 @@ bool photon::PathTracing::render(
     pathTracingPipeline->setUniform1f("caustics.radius", causticRadius);
     pathTracingPipeline->bindBuffer("photons", causticPhotons, 15);
     pathTracingPipeline->bindBuffer("photonSlots", causticSlots, 16);
-    if (causticsEnabled && causticMapDirty) {
+    const bool refineCaustics =
+        causticsEnabled && !interactive;
+    if (causticsEnabled && (causticMapDirty || refineCaustics)) {
         commandBuffer->bindPipeline(causticClearPipeline);
         causticClearPipeline->bindBuffer("photonSlots", causticSlots, 16);
         commandBuffer->dispatch(kCausticBucketCount, 1, 1);

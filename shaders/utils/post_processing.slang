@@ -521,13 +521,39 @@ float4 mapToLUT(float4  color)
 
 float3 acesToneMapping(float3  color)
 {
-    float a = 2.50999999;
-    float b = 0.0299999993;
-    float c = 2.43000007;
-    float d = 0.589999974;
-    float e = 0.140000001;
     color = max(color, float3(0.0));
-    return clamp((color * ((color * a) + float3(b))) /
-                 ((color * ((color * c) + float3(d))) + float3(e)),
-                 float3(0.0), float3(1.0));
+    float sceneLuminance = dot(color, float3(0.2126, 0.7152, 0.0722));
+    float warmth = smoothstep(0.02, 0.18, sceneLuminance) *
+                   (1.0 - smoothstep(2.0, 8.0, sceneLuminance));
+    float3 balancedColor = color *
+        lerp(float3(1.0), float3(1.025, 1.0, 0.975), warmth);
+    float balancedLuminance =
+        dot(balancedColor, float3(0.2126, 0.7152, 0.0722));
+    color = balancedColor *
+        (sceneLuminance / max(balancedLuminance, 1e-10));
+    color = float3(
+        0.8424790623 * color.x + 0.0784336000 * color.y +
+            0.0792237451 * color.z,
+        0.0423282423 * color.x + 0.8784686365 * color.y +
+            0.0791661275 * color.z,
+        0.0423756549 * color.x + 0.0784336000 * color.y +
+            0.8791429738 * color.z);
+    const float minimumEv = -12.47393;
+    const float maximumEv = 4.026069;
+    color = clamp(log2(max(color, float3(1e-10))),
+                  float3(minimumEv), float3(maximumEv));
+    color = (color - float3(minimumEv)) / (maximumEv - minimumEv);
+    float3 color2 = color * color;
+    float3 color4 = color2 * color2;
+    color = 15.5 * color4 * color2 - 40.14 * color4 * color +
+            31.96 * color4 - 6.868 * color2 * color +
+            0.4298 * color2 + 0.1191 * color - 0.00232;
+    color = float3(
+        1.1968790051 * color.x - 0.0980208811 * color.y -
+            0.0990297441 * color.z,
+        -0.0528968518 * color.x + 1.1519031299 * color.y -
+            0.0989611768 * color.z,
+        -0.0529716355 * color.x - 0.0980434501 * color.y +
+            1.1510736726 * color.z);
+    return pow(clamp(color, float3(0.0), float3(1.0)), float3(2.2));
 }

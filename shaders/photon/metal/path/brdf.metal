@@ -11,8 +11,9 @@ using namespace metal;
 float D_GGX(float NdotH, float roughness) {
     float a = max(roughness * roughness, 1e-4);
     float a2 = a * a;
-    float d = (NdotH * NdotH) * (a2 - 1.0) + 1.0;
-    return a2 / max(M_PI_F * d * d, 1e-6);
+    float cosineSquared = NdotH * NdotH;
+    float d = max(1.0f - cosineSquared, 0.0f) + cosineSquared * a2;
+    return a2 / max(M_PI_F * d * d, 1e-20f);
 }
 
 float4 F_Schlick(float cosTheta, float4 F0) {
@@ -26,6 +27,7 @@ float4 materialF0(float4 albedo, float metallic, float reflectivity,
 
     float4 dielectricF0 =
         pow((safeIor - 1.0f) / (safeIor + 1.0f), float4(2.0f));
+    dielectricF0 = max(dielectricF0, float4(clamp(reflectivity, 0.0f, 1.0f)));
 
     return mix(dielectricF0, albedo, float4(clamp(metallic, 0.0f, 1.0f)));
 }
@@ -73,7 +75,7 @@ float3 sampleGGX(float2 u, float roughness) {
 }
 
 float3 sampleGGXVNDF(float3 localView, float roughness, float2 u) {
-    float alpha = max(roughness * roughness, 1e-3);
+    float alpha = max(roughness * roughness, 1e-4);
     float3 stretchedView =
         normalizeOr(float3(alpha * localView.x, alpha * localView.y,
                            max(localView.z, 1e-5)),
@@ -106,7 +108,8 @@ float4 evalPBR(float4 albedo, float metallic, float roughness,
                float substrateIor, float substrateAbbe,
                float iridescenceFactor, float iridescenceIor,
                float iridescenceAbbe, float iridescenceThickness,
-               bool isFront, thread const SpectralPath &spectralPath) {
+               bool isFront, thread const SpectralPath &spectralPath,
+               bool includeSpecular = true) {
     float3 H = normalize(V + L);
 
     float NdotL = max(dot(N, L), 0.0);
@@ -132,7 +135,8 @@ float4 evalPBR(float4 albedo, float metallic, float roughness,
                                               clampedRoughness);
     float4 diffuse = (kD * albedo * diffuseFactor) / M_PI_F;
 
-    return (diffuse + specular) * lightRadiance * intensity * NdotL;
+    return (diffuse + (includeSpecular ? specular : float4(0.0f))) *
+           lightRadiance * intensity * NdotL;
 }
 
 float4 evalTransmission(float4 albedo, float3 N, float3 V, float3 L,

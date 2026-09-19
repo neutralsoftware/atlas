@@ -181,7 +181,7 @@ float4 evalDirectLightingPBR(
             continue;
         float lightPdfArea = 1.0 / max(area, 1e-6);
         float distSq = max(dist * dist, 1e-6);
-        float intensity = max(areaLights[i].intensity, 0.0) * cosLight /
+        float intensity = max(areaLights[i].intensity, 0.0f) * cosLight /
                           max(distSq * lightPdfArea, 1e-6);
         float4 lightRadiance =
             evaluateEmission(float3(areaLights[i].color), path);
@@ -190,7 +190,7 @@ float4 evalDirectLightingPBR(
                     transmittance, N, V, L, lightRadiance, intensity,
                     substrateIor, substrateAbbe, iridescenceFactor,
                     iridescenceIor, iridescenceAbbe, iridescenceThickness,
-                    isFront, path);
+                    isFront, path, false);
         float4 visibility = traceShadowVisibility(
             isect, sceneAS, P, Ng, L, dist, rng, materials, primitiveObjects,
             blasPrimitiveOffsets, vertices, indices, instanceData, sceneData,

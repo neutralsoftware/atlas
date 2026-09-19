@@ -449,6 +449,7 @@ QJsonObject lightSchema(const QString &type) {
         common.insert("cutoff", 35.0);
         common.insert("outerCutoff", 40.0);
     } else if (normalized == "arealight") {
+        common.insert("addDebugObject", true);
         common.insert("right", QJsonArray{1.0, 0.0, 0.0});
         common.insert("up", QJsonArray{0.0, 1.0, 0.0});
         common.insert("size", QJsonArray{1.0, 1.0});

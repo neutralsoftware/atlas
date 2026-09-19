@@ -1404,7 +1404,7 @@ void EditorWindow::showProjectSettings() {
     }
     upscalingQuality->setCurrentIndex(matchingScale);
     auto *samplesPerPixel = new QSpinBox(&dialog);
-    samplesPerPixel->setRange(1, 64);
+    samplesPerPixel->setRange(1, 256);
     samplesPerPixel->setValue(samplesValid ? configuredSamples : 4);
     auto *maxBounces = new QSpinBox(&dialog);
     maxBounces->setRange(1, 16);

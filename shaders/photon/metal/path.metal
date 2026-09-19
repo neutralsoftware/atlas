@@ -156,19 +156,6 @@ kernel void main0(texture2d<float, access::write> outTex [[texture(0)]],
         prevColor = float4(0.0);
         previousMoments = float4(0.0);
     }
-    float previousMean = historyValid ? previousMoments.x : 0.0;
-    float previousVariance =
-        historyValid
-            ? max(previousMoments.y - previousMean * previousMean, 0.0)
-            : 0.0;
-    float sampleLuminanceLimit = max(sceneData.fireflyClamp, 1.0);
-    if (historyValid && prevColor.w >= 4.0) {
-        float statisticalLimit = previousMean +
-                                 max(0.5, 6.0 * sqrt(previousVariance));
-        sampleLuminanceLimit =
-            min(sampleLuminanceLimit, max(4.0, statisticalLimit));
-    }
-    color = clampLuminance(color, sampleLuminanceLimit);
     float historyLimit = max(float(sceneData.accumulationFrameLimit), 1.0);
     float previousWeight =
         historyValid ? min(prevColor.w, max(historyLimit - 1.0, 0.0)) : 0.0;

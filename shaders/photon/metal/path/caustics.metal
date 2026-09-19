@@ -148,6 +148,9 @@ float3 gatherCausticsXYZ(float3 P, float3 N, float3 Ng, uint objectId,
                          device const CausticPhoton *photons,
                          device const uint *photonSlots) {
     float3 resultXYZ = float3(0.0f);
+    uint acceptedPhotons = 0u;
+    float contributionSum = 0.0f;
+    float contributionSquaredSum = 0.0f;
 
     if (caustics.radius <= 0.0f) {
         return resultXYZ;
@@ -248,14 +251,28 @@ float3 gatherCausticsXYZ(float3 P, float3 N, float3 Ng, uint objectId,
 
                     float spectralRadiance = irradiance * bsdf;
 
-                    resultXYZ += spectralRadiance * cieXYZ1931(wavelengthNm) /
-                                 PHOTON_CIE_Y_INTEGRAL;
+                    float3 contribution =
+                        spectralRadiance * cieXYZ1931(wavelengthNm) /
+                        PHOTON_CIE_Y_INTEGRAL;
+                    float weight = max(contribution.y, 0.0f);
+                    if (all(isfinite(contribution)) && weight > 0.0f) {
+                        resultXYZ += contribution;
+                        contributionSum += weight;
+                        contributionSquaredSum += weight * weight;
+                        acceptedPhotons++;
+                    }
                 }
             }
         }
     }
 
-    return resultXYZ;
+    if (acceptedPhotons < 16u || contributionSquaredSum <= 0.0f) {
+        return float3(0.0f);
+    }
+    float effectivePhotonCount = contributionSum * contributionSum /
+                                 contributionSquaredSum;
+    float confidence = smoothstep(12.0f, 32.0f, effectivePhotonCount);
+    return resultXYZ * confidence;
 }
 
 kernel void clearCaustics(device atomic_uint *photonSlots [[buffer(16)]],
@@ -509,11 +526,6 @@ kernel void emitCaustics(primitive_acceleration_structure sceneAS [[buffer(0)]],
                                       sourceDistance);
         }
         ++interactions;
-        InstanceData inst = instanceData[objectId];
-
-        float3x3 normalMatrix = float3x3(
-            inst.normalCol0.xyz, inst.normalCol1.xyz, inst.normalCol2.xyz);
-
         float3 p0 = float3(vertices[i0].position);
         float3 p1 = float3(vertices[i1].position);
         float3 p2 = float3(vertices[i2].position);
@@ -522,7 +534,7 @@ kernel void emitCaustics(primitive_acceleration_structure sceneAS [[buffer(0)]],
             normalizeOr(cross(p1 - p0, p2 - p0), float3(0.0, 1.0, 0.0));
 
         float3 worldGeometricNormal = normalizeOr(
-            normalMatrix * localGeometricNormal, float3(0.0, 1.0, 0.0));
+            localGeometricNormal, float3(0.0, 1.0, 0.0));
 
         bool frontFace = dot(worldGeometricNormal, photonRay.direction) < 0.0f;
         float3 Ng = frontFace ? worldGeometricNormal : -worldGeometricNormal;
@@ -572,7 +584,7 @@ kernel void emitCaustics(primitive_acceleration_structure sceneAS [[buffer(0)]],
         }
         if (!causticTransportSurface)
             return;
-        float3 opticalNormal = deltaSurface ? Ng : N;
+        float3 opticalNormal = N;
         float3 interfaceNormal = opticalNormal;
 
         if (!deltaSurface) {
