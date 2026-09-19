@@ -522,6 +522,15 @@ float4 mapToLUT(float4  color)
 float3 acesToneMapping(float3  color)
 {
     color = max(color, float3(0.0));
+    float sceneLuminance = dot(color, float3(0.2126, 0.7152, 0.0722));
+    float warmth = smoothstep(0.02, 0.18, sceneLuminance) *
+                   (1.0 - smoothstep(2.0, 8.0, sceneLuminance));
+    float3 balancedColor = color *
+        lerp(float3(1.0), float3(1.025, 1.0, 0.975), warmth);
+    float balancedLuminance =
+        dot(balancedColor, float3(0.2126, 0.7152, 0.0722));
+    color = balancedColor *
+        (sceneLuminance / max(balancedLuminance, 1e-10));
     color = float3(
         0.8424790623 * color.x + 0.0784336000 * color.y +
             0.0792237451 * color.z,
