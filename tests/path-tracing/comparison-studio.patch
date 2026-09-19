@@ -1,0 +1,87 @@
+--- a/assets/materials/Ground.amat
++++ b/assets/materials/Ground.amat
+@@ -3,7 +3,7 @@
+         "abbeNumber": 0,
+         "albedo": [
+-            0.885969340801239,
+-            0.885969340801239,
+-            0.885969340801239,
++            0.65,
++            0.60,
++            0.51,
+             1
+         ],
+@@ -31,5 +31,5 @@
+         "metallic": 0,
+         "normalMapStrength": 1,
+-        "reflectivity": 0,
++        "reflectivity": 0.2,
+         "roughness": 0.18,
+         "textureOffset": [
+@@ -32,5 +32,5 @@
+         "normalMapStrength": 1,
+         "reflectivity": 0,
+-        "roughness": 0.18,
++        "roughness": 0.12,
+         "textureOffset": [
+             0,
+--- a/assets/materials/Gold.amat
++++ b/assets/materials/Gold.amat
+@@ -3,7 +3,7 @@
+         "abbeNumber": 0,
+         "albedo": [
+-            0.9568780064582825,
+-            0.7255207300186157,
+-            0.32625314593315125,
++            0.95,
++            0.60,
++            0.20,
+             1
+         ],
+@@ -32,5 +32,5 @@
+         "normalMapStrength": 1,
+         "reflectivity": 0,
+-        "roughness": 0.15,
++        "roughness": 0.12,
+         "textureOffset": [
+             0,
+--- a/main.ascene
++++ b/main.ascene
+@@ -76,5 +76,5 @@
+             ],
+             "id": "631201849",
+-            "intensity": 3.0,
++            "intensity": 5.0,
+             "name": "Area Light",
+             "position": [
+@@ -81,5 +81,5 @@
+                 1.3165550231933594,
+                 5.292729377746582,
+-                -0.5515890121459961
++                -7.0
+             ],
+             "range": 50.0,
+@@ -94,8 +94,8 @@
+                 0
+             ],
+-            "scale": [
+-                34.78199005126953,
+-                34.78199005126953,
+-                34.78199005126953
++            "scale": [
++                1.0,
++                1.0,
++                1.0
+             ],
+             "shineColor": [
+@@ -105,7 +105,7 @@
+                 1.0
+             ],
+-            "size": [
+-                34.78199005126953,
+-                34.78199005126953
++            "size": [
++                8.0,
++                6.0
+             ],
+             "type": "areaLight",
