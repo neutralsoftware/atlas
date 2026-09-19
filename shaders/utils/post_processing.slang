@@ -527,7 +527,16 @@ float3 acesToneMapping(float3  color)
     float d = 0.589999974;
     float e = 0.140000001;
     color = max(color, float3(0.0));
-    return clamp((color * ((color * a) + float3(b))) /
-                 ((color * ((color * c) + float3(d))) + float3(e)),
-                 float3(0.0), float3(1.0));
+    float inputLuminance =
+        max(dot(color, float3(0.2126, 0.7152, 0.0722)), 1e-6);
+    float mappedLuminance =
+        clamp((inputLuminance * (inputLuminance * a + b)) /
+                  (inputLuminance * (inputLuminance * c + d) + e),
+              0.0, 1.0);
+    float3 mappedColor = color * (mappedLuminance / inputLuminance);
+    float highlightSaturation =
+        lerp(1.0, 0.72, smoothstep(1.0, 16.0, inputLuminance));
+    mappedColor = lerp(float3(mappedLuminance), mappedColor,
+                       float3(highlightSaturation));
+    return clamp(mappedColor, float3(0.0), float3(1.0));
 }
