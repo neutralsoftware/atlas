@@ -841,7 +841,9 @@ void ViewportPanel::dragEnterEvent(QDragEnterEvent *event) {
                 .toLower();
         const bool model = suffix == "obj" || suffix == "fbx" ||
                            suffix == "gltf" || suffix == "glb" ||
-                           suffix == "dae";
+                           suffix == "dae" || suffix == "blend" ||
+                           suffix == "usd" || suffix == "usda" ||
+                           suffix == "usdc" || suffix == "usdz";
         if (model || (selectedRuntimeObjectId() >= 0 &&
                       (suffix == "amat" || suffix == "material" ||
                        suffix == "ts" || suffix == "js" || suffix == "wav" ||
@@ -861,7 +863,9 @@ void ViewportPanel::dropEvent(QDropEvent *event) {
             : QString();
     const QString suffix = QFileInfo(path).suffix().toLower();
     if ((suffix == "obj" || suffix == "fbx" || suffix == "gltf" ||
-         suffix == "glb" || suffix == "dae") &&
+         suffix == "glb" || suffix == "dae" || suffix == "blend" ||
+         suffix == "usd" || suffix == "usda" || suffix == "usdc" ||
+         suffix == "usdz") &&
         importRuntimeModel(path)) {
         event->acceptProposedAction();
         return;

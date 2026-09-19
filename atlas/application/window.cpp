@@ -5059,6 +5059,12 @@ void Window::useDeferredRendering() {
 }
 
 void Window::renderPhysicalBloom(RenderTarget *target) {
+    if (this->renderToExternalMetalView) {
+        if (target != nullptr) {
+            target->blurredTexture = Texture();
+        }
+        return;
+    }
     if (target == nullptr || target->brightTexture.id == 0 ||
         this->currentScene == nullptr ||
         this->currentScene->environment.lightBloom.radius <= 0.0f ||

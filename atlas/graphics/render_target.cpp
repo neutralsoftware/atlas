@@ -364,14 +364,16 @@ RenderTarget::RenderTarget(Window &window, RenderTargetType type,
         gMaterial.creationData.height = scaledHeight;
         gMaterial.type = TextureType::Color;
 
-        const uint depthMipLevels = static_cast<uint>(
-            std::floor(std::log2(std::max(width, height)))) + 1;
+        const uint depthMipLevels =
+            static_cast<uint>(std::floor(std::log2(std::max(width, height)))) +
+            1;
         auto gbufferDepth = opal::Texture::create(
             opal::TextureType::Texture2D, opal::TextureFormat::DepthComponent24,
             width, height, opal::TextureDataFormat::DepthComponent, nullptr,
             depthMipLevels);
-        gbufferDepth->setFilterMode(opal::TextureFilterMode::NearestMipmapNearest,
-                                    opal::TextureFilterMode::Nearest);
+        gbufferDepth->setFilterMode(
+            opal::TextureFilterMode::NearestMipmapNearest,
+            opal::TextureFilterMode::Nearest);
         gbufferDepth->setWrapMode(opal::TextureAxis::S,
                                   opal::TextureWrapMode::ClampToEdge);
         gbufferDepth->setWrapMode(opal::TextureAxis::T,
@@ -497,28 +499,16 @@ void RenderTarget::display(Window &window, float zindex) {
 #ifdef METAL
             {{1.0f, 1.0f, zindex}, Color::white(), {1.0f, 0.0f}},
             {{-1.0f, 1.0f, zindex}, Color::white(), {0.0f, 0.0f}},
-            {{1.0f, -1.0f, zindex},
-             Color::white(),
-             {1.0f, 1.0f}},
-            {{1.0f, -1.0f, zindex},
-             Color::white(),
-             {1.0f, 1.0f}},
+            {{1.0f, -1.0f, zindex}, Color::white(), {1.0f, 1.0f}},
+            {{1.0f, -1.0f, zindex}, Color::white(), {1.0f, 1.0f}},
             {{-1.0f, 1.0f, zindex}, Color::white(), {0.0f, 0.0f}},
-            {{-1.0f, -1.0f, zindex},
-             Color::white(),
-             {0.0f, 1.0f}}
+            {{-1.0f, -1.0f, zindex}, Color::white(), {0.0f, 1.0f}}
 #else
             {{1.0f, 1.0f, zindex}, Color::white(), {1.0f, 1.0f}},
-            {{1.0f, -1.0f, zindex},
-             Color::white(),
-             {1.0f, 0.0f}},
+            {{1.0f, -1.0f, zindex}, Color::white(), {1.0f, 0.0f}},
             {{-1.0f, 1.0f, zindex}, Color::white(), {0.0f, 1.0f}},
-            {{1.0f, -1.0f, zindex},
-             Color::white(),
-             {1.0f, 0.0f}},
-            {{-1.0f, -1.0f, zindex},
-             Color::white(),
-             {0.0f, 0.0f}},
+            {{1.0f, -1.0f, zindex}, Color::white(), {1.0f, 0.0f}},
+            {{-1.0f, -1.0f, zindex}, Color::white(), {0.0f, 0.0f}},
             {{-1.0f, 1.0f, zindex}, Color::white(), {0.0f, 1.0f}}
 #endif
         };
@@ -780,9 +770,9 @@ void RenderTarget::render(float dt,
         renderTargetPipeline->setUniform1i("hasBrightTexture",
                                            blurredTexture.id != 0 ? 1 : 0);
 
-        const bool hasDepth = depthTexture.id != 0 &&
-                              (Window::mainWindow == nullptr ||
-                               !Window::mainWindow->usePathTracing);
+        const bool hasDepth =
+            depthTexture.id != 0 && (Window::mainWindow == nullptr ||
+                                     !Window::mainWindow->usePathTracing);
         uint depthTextureId = hasDepth ? depthTexture.id : 0;
         renderTargetPipeline->bindTexture2D("DepthTexture", depthTextureId, 2,
                                             obj->id);
@@ -851,8 +841,6 @@ void RenderTarget::render(float dt,
         renderTargetPipeline->setUniform3f(
             "environment.fogColor", scene->environment.fog.color.r,
             scene->environment.fog.color.g, scene->environment.fog.color.b);
-
-
     }
 
     renderTargetPipeline->setUniform1i("TextureType",
@@ -879,11 +867,10 @@ void RenderTarget::render(float dt,
     if (TracerServices::getInstance().isOk()) {
         DebugObjectPacket debugPacket;
         debugPacket.drawCallsForObject = 1;
-        debugPacket.frameCount =
-            Window::mainWindow != nullptr &&
-                    Window::mainWindow->device != nullptr
-                ? Window::mainWindow->device->frameCount
-                : 0;
+        debugPacket.frameCount = Window::mainWindow != nullptr &&
+                                         Window::mainWindow->device != nullptr
+                                     ? Window::mainWindow->device->frameCount
+                                     : 0;
         debugPacket.triangleCount = 2;
         debugPacket.vertexBufferSizeMb =
             static_cast<float>(sizeof(CoreVertex) * 6) / (1024.0f * 1024.0f);

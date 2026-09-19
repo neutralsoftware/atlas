@@ -216,7 +216,7 @@ def notarize(artifact, profile):
     run(["/usr/bin/xcrun", "stapler", "validate", artifact])
 
 
-def validate_dmg(dmg, mountpoint):
+def validate_dmg(dmg, mountpoint, app_name):
     if mountpoint.exists():
         shutil.rmtree(mountpoint)
     mountpoint.mkdir(parents=True)
@@ -232,7 +232,7 @@ def validate_dmg(dmg, mountpoint):
         ]
     )
     try:
-        mounted_app = mountpoint / "Atlas Engine.app"
+        mounted_app = mountpoint / app_name
         if not mounted_app.is_dir():
             raise RuntimeError("DMG does not contain Atlas Engine.app")
         if not (mountpoint / "Applications").is_symlink():
@@ -291,9 +291,15 @@ def main():
     build_directory = root / "build" / "package" / f"macos-{mode}-{architecture_tag}"
     assets_directory = build_directory / "package-assets"
     dist_directory = root / "dist" / "macOS" / mode
-    app_name = "Atlas Engine.app"
-    built_app = build_directory / "bin" / app_name
-    packaged_app = dist_directory / app_name
+    built_app_name = "Atlas Engine.app"
+    packaged_app_name = (
+        "Atlas Engine.app"
+        if args.release
+        else "Atlas Engine (Development).app"
+    )
+
+    built_app = build_directory / "bin" / built_app_name
+    packaged_app = dist_directory / packaged_app_name
     assets_directory.mkdir(parents=True, exist_ok=True)
     dist_directory.mkdir(parents=True, exist_ok=True)
     icon_source = (
@@ -368,17 +374,27 @@ def main():
     modern_icon = resources_directory / "Assets.car"
     with plist_path.open("rb") as stream:
         plist = plistlib.load(stream)
+
     for bundled_icon in resources_directory.glob("*.icns"):
         if bundled_icon.name != icon.name:
             bundled_icon.unlink()
+
     plist["CFBundleIconFile"] = icon.stem
     shutil.copy2(icon_assets, modern_icon)
     plist["CFBundleIconName"] = "AtlasEngine"
     plist["CFBundleVersion"] = build_number
+
+    if args.debug:
+        plist["CFBundleName"] = "Atlas Engine (Development)"
+        plist["CFBundleDisplayName"] = "Atlas Engine (Development)"
+    else:
+        plist["CFBundleName"] = "Atlas Engine"
+        plist["CFBundleDisplayName"] = "Atlas Engine"
+
     with plist_path.open("wb") as stream:
         plistlib.dump(plist, stream)
-    sign_bundle(packaged_app, signing_identity)
 
+    sign_bundle(packaged_app, signing_identity)
     if plist.get("CFBundleIdentifier") != "neutralsoftware.atlas":
         raise RuntimeError("Packaged app has the wrong bundle identifier")
     if plist.get("LSMinimumSystemVersion") != deployment_target:
@@ -428,7 +444,7 @@ def main():
                 dmg,
             ]
         )
-    validate_dmg(dmg, build_directory / "dmg-mount")
+    validate_dmg(dmg, build_directory / "dmg-mount", packaged_app.name)
     signature = "ad-hoc development signature"
     if notary_profile:
         signature = "Developer ID signature and notarization"

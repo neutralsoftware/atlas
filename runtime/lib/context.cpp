@@ -1636,6 +1636,35 @@ bool isEditorLightObject(const Context &context, GameObject &object) {
            context.editorLightSourceData.contains(id);
 }
 
+void updateEditorAreaLightProxy(AreaLight &light) {
+    if (light.debugObject == nullptr || light.debugObject->vertices.size() < 4) {
+        return;
+    }
+    const auto proxyScale = light.debugObject->getScale();
+    const float scaleX = std::max(std::abs(proxyScale.x), 0.001f);
+    const float scaleY = std::max(std::abs(proxyScale.y), 0.001f);
+    const float halfWidth =
+        std::max(static_cast<float>(light.size.width) / scaleX * 0.5f, 0.001f);
+    const float halfHeight = std::max(
+        static_cast<float>(light.size.height) / scaleY * 0.5f, 0.001f);
+    auto vertices = light.debugObject->vertices;
+    vertices[0].position = {-halfWidth, -halfHeight, 0.0f};
+    vertices[1].position = {halfWidth, -halfHeight, 0.0f};
+    vertices[2].position = {halfWidth, halfHeight, 0.0f};
+    vertices[3].position = {-halfWidth, halfHeight, 0.0f};
+    Color emissiveColor = light.color * 2.5f;
+    emissiveColor.a = light.color.a;
+    for (auto &vertex : vertices) {
+        vertex.color = emissiveColor;
+    }
+    light.debugObject->attachVertices(vertices);
+    light.debugObject->material.albedo = light.color;
+    light.debugObject->material.emissiveColor = light.color;
+    light.debugObject->material.emissiveIntensity =
+        std::clamp(light.intensity * 0.2f, 1.0f, 8.0f);
+    light.debugObject->setPosition(light.position);
+}
+
 void syncEditorLightObject(Context &context, GameObject &object) {
     const int id = static_cast<int>(object.getId());
     const auto sourceIt = context.editorLightSourceData.find(id);
@@ -1705,10 +1734,12 @@ void syncEditorLightObject(Context &context, GameObject &object) {
             if (tryReadVec3Any(*source, {"up"}, axis)) {
                 it->second->up = axis.normalized();
             }
-            Position2d size;
-            if (tryReadVec2Any(*source, {"size"}, size)) {
-                it->second->size = Size2d{size.x, size.y};
-            }
+            Position2d size{1.0f, 1.0f};
+            tryReadVec2Any(*source, {"size"}, size);
+            const auto scale = object.getScale();
+            it->second->size =
+                Size2d{std::max(std::abs(size.x * scale.x), 0.001f),
+                       std::max(std::abs(size.y * scale.y), 0.001f)};
             tryReadColorAny(*source, {"color"}, it->second->color);
             tryReadColorAny(*source, {"shineColor"}, it->second->shineColor);
             tryReadFloatAny(*source, {"intensity"}, it->second->intensity);
@@ -1725,6 +1756,7 @@ void syncEditorLightObject(Context &context, GameObject &object) {
                 it->second->castShadows(*context.window, resolution);
             }
         }
+        updateEditorAreaLightProxy(*it->second);
     }
     if (auto it = context.editorDirectionalLights.find(id);
         it != context.editorDirectionalLights.end() && it->second != nullptr) {
@@ -1936,7 +1968,15 @@ json serializeEditorLightObject(Context &context, GameObject &object) {
         node["position"] = vec3ToJson(light.position);
         node["right"] = vec3ToJson(light.right);
         node["up"] = vec3ToJson(light.up);
-        node["size"] = sizeToJson(light.size);
+        Size2d serializedSize = light.size;
+        if (auto source = context.editorLightSourceData.find(id);
+            source != context.editorLightSourceData.end()) {
+            Position2d sourceSize;
+            if (tryReadVec2Any(source->second, {"size"}, sourceSize)) {
+                serializedSize = Size2d{sourceSize.x, sourceSize.y};
+            }
+        }
+        node["size"] = sizeToJson(serializedSize);
         node["color"] = colorToJson(light.color);
         node["shineColor"] = colorToJson(light.shineColor);
         node["intensity"] = light.intensity;
@@ -5654,6 +5694,15 @@ bool Context::setObjectProperty(int id, const std::string &component,
         }
         setJsonProperty(editorObjectSourceData[id], "/" + property,
                         property == "scale" ? vec3ToJson(vector) : value);
+        if (editorLightSourceData.contains(id)) {
+            json &lightSource = editorLightSourceData[id];
+            setJsonProperty(lightSource, "/" + property,
+                            property == "scale" ? vec3ToJson(vector) : value);
+            if (property == "rotation" && editorAreaLights.contains(id)) {
+                lightSource.erase("right");
+                lightSource.erase("up");
+            }
+        }
         syncEditorLightObject(*this, *object);
         applyPropertySyncs(*this, true);
         return true;
