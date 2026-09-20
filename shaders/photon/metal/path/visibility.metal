@@ -147,6 +147,59 @@ float4 traceShadowVisibility(
     return float4(0.0f);
 }
 
+float4 traceSubsurfaceVisibility(
+    intersector<triangle_data> isect, primitive_acceleration_structure sceneAS,
+    float3 P, float3 L, float maxDistance, uint boundaryObject, float4 sigmaT,
+    thread uint &rng, constant Material *materials,
+    constant uint *primitiveObjects, constant uint *blasPrimitiveOffsets,
+    constant VertexData *vertices, constant uint *indices,
+    constant InstanceData *instanceData, constant SceneData &sceneData,
+    thread const SpectralPath &path, PT_MATERIAL_TEXTURE_PARAMS) {
+    ray boundaryRay;
+    boundaryRay.origin = P + L * rayOffsetDistance(P);
+    boundaryRay.direction = L;
+    boundaryRay.min_distance = 0.0f;
+    boundaryRay.max_distance = maxDistance;
+    auto boundaryHit = isect.intersect(boundaryRay, sceneAS);
+    if (boundaryHit.type == intersection_type::none)
+        return float4(0.0f);
+
+    uint primitiveIndex = blasPrimitiveOffsets[boundaryHit.geometry_id] +
+                          boundaryHit.primitive_id;
+    uint objectIndex = primitiveObjects[primitiveIndex];
+    if (objectIndex != boundaryObject)
+        return float4(0.0f);
+
+    uint i0 = indices[primitiveIndex * 3 + 0];
+    uint i1 = indices[primitiveIndex * 3 + 1];
+    uint i2 = indices[primitiveIndex * 3 + 2];
+    float3 p0 = float3(vertices[i0].position);
+    float3 p1 = float3(vertices[i1].position);
+    float3 p2 = float3(vertices[i2].position);
+    float3 geometricNormal =
+        normalizeOr(cross(p1 - p0, p2 - p0), -L);
+    float cosine = abs(dot(geometricNormal, L));
+    Material material = materials[objectIndex];
+    float4 ior = evaluateIorAtWavelength(
+        max(material.ior, 1.0001f), max(material.abbeNumber, 0.0f), path);
+    float4 boundaryTransmission =
+        exp(-sigmaT * boundaryHit.distance) *
+        (1.0f - dielectricFresnel(cosine, ior));
+    float3 boundaryPosition =
+        boundaryRay.origin + L * boundaryHit.distance;
+    float remainingDistance = maxDistance >= 1.0e29f
+                                  ? maxDistance
+                                  : max(maxDistance - boundaryHit.distance,
+                                        rayOffsetDistance(boundaryPosition));
+    return boundaryTransmission * traceShadowVisibility(
+                                      isect, sceneAS, boundaryPosition,
+                                      geometricNormal, L, remainingDistance,
+                                      rng, materials, primitiveObjects,
+                                      blasPrimitiveOffsets, vertices, indices,
+                                      instanceData, sceneData, path,
+                                      PT_MATERIAL_TEXTURE_ARGS);
+}
+
 float3 sampleDirectionalLightDirection(DirectionalLightData light,
                                        thread uint &rng) {
     float3 baseL = normalize(-light.direction);

@@ -125,6 +125,12 @@ uint64_t pathTracingObjectStateHash(const CoreObject *object,
            sizeof(material.iridescenceThickness));
     append(&material.iridescenceAbbeNumber,
            sizeof(material.iridescenceAbbeNumber));
+    append(&material.subsurfaceWeight, sizeof(material.subsurfaceWeight));
+    append(&material.subsurfaceScale, sizeof(material.subsurfaceScale));
+    append(&material.subsurfaceAnisotropy,
+           sizeof(material.subsurfaceAnisotropy));
+    append(&material.subsurfaceColor, sizeof(material.subsurfaceColor));
+    append(&material.subsurfaceRadius, sizeof(material.subsurfaceRadius));
     append(&model, sizeof(model));
     const size_t vertexCount = object->vertices.size();
     const size_t indexCount = object->indices.size();
@@ -433,6 +439,15 @@ bool photon::PathTracing::buildAccelerationStructure(
         float iridescenceIor;
         float iridescenceThickness;
         float iridescenceAbbeNumber;
+
+        float subsurfaceWeight;
+        float subsurfaceScale;
+        float subsurfaceAnisotropy;
+        float _pad4;
+        float subsurfaceColor[3];
+        float _pad5;
+        float subsurfaceRadius[3];
+        float _pad6;
     };
 
     struct VertexData {
@@ -455,7 +470,7 @@ bool photon::PathTracing::buildAccelerationStructure(
         float _pad[2];
     };
 
-    static_assert(sizeof(MaterialData) == 208);
+    static_assert(sizeof(MaterialData) == 256);
     static_assert(offsetof(MaterialData, isVolume) == 128);
     static_assert(offsetof(MaterialData, volumeAbsorptionColor) == 136);
     static_assert(offsetof(MaterialData, volumeEmissionStrength) == 184);
@@ -463,6 +478,9 @@ bool photon::PathTracing::buildAccelerationStructure(
     static_assert(offsetof(MaterialData, iridescenceIor) == 196);
     static_assert(offsetof(MaterialData, iridescenceThickness) == 200);
     static_assert(offsetof(MaterialData, iridescenceAbbeNumber) == 204);
+    static_assert(offsetof(MaterialData, subsurfaceWeight) == 208);
+    static_assert(offsetof(MaterialData, subsurfaceColor) == 224);
+    static_assert(offsetof(MaterialData, subsurfaceRadius) == 240);
     static_assert(sizeof(VertexData) == 56);
     static_assert(sizeof(EmissiveTriangleData) == 96);
 
@@ -750,6 +768,18 @@ bool photon::PathTracing::buildAccelerationStructure(
             data.iridescenceIor = object->material.iridescenceIor;
             data.iridescenceThickness = object->material.iridescenceThickness;
             data.iridescenceAbbeNumber = object->material.iridescenceAbbeNumber;
+            data.subsurfaceWeight = object->material.subsurfaceWeight;
+            data.subsurfaceScale = object->material.subsurfaceScale;
+            data.subsurfaceAnisotropy = object->material.subsurfaceAnisotropy;
+            data._pad4 = 0.0f;
+            data.subsurfaceColor[0] = object->material.subsurfaceColor.r;
+            data.subsurfaceColor[1] = object->material.subsurfaceColor.g;
+            data.subsurfaceColor[2] = object->material.subsurfaceColor.b;
+            data._pad5 = 0.0f;
+            data.subsurfaceRadius[0] = object->material.subsurfaceRadius.r;
+            data.subsurfaceRadius[1] = object->material.subsurfaceRadius.g;
+            data.subsurfaceRadius[2] = object->material.subsurfaceRadius.b;
+            data._pad6 = 0.0f;
             materialData.push_back(data);
 
             const glm::vec3 emission =

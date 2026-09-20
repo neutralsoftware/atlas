@@ -459,6 +459,11 @@ declare module "atlas" {
         volumeAnisotropy: number;
         volumeEmissionColor: Color;
         volumeEmissionStrength: number;
+        subsurfaceWeight: number;
+        subsurfaceScale: number;
+        subsurfaceAnisotropy: number;
+        subsurfaceColor: Color;
+        subsurfaceRadius: Color;
     }
 
     /**

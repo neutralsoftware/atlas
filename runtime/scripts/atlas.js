@@ -168,6 +168,11 @@ export class Material {
         this.volumeAnisotropy = 0;
         this.volumeEmissionColor = Color.black();
         this.volumeEmissionStrength = 0;
+        this.subsurfaceWeight = 0;
+        this.subsurfaceScale = 1;
+        this.subsurfaceAnisotropy = 0;
+        this.subsurfaceColor = Color.white();
+        this.subsurfaceRadius = Color.white();
     }
 }
 

@@ -12,6 +12,115 @@ using namespace raytracing;
 #include "materials.metal"
 #include "visibility.metal"
 #include "brdf.metal"
+#include "volumes.metal"
+
+float4 evalSubsurfaceDirectLighting(
+    intersector<triangle_data> isect, primitive_acceleration_structure sceneAS,
+    float3 P, float3 incomingDirection, float anisotropy, uint boundaryObject,
+    float4 sigmaT,
+    thread uint &rng, thread const SpectralPath &path,
+    constant DirectionalLightData &dirLight, constant SceneData &sceneData,
+    constant PointLight *pointLights, constant SpotLight *spotLights,
+    constant AreaLight *areaLights, constant Material *materials,
+    constant uint *primitiveObjects, constant uint *blasPrimitiveOffsets,
+    constant VertexData *vertices, constant uint *indices,
+    constant InstanceData *instanceData, PT_MATERIAL_TEXTURE_PARAMS) {
+    float4 lighting = float4(0.0f);
+    if (sceneData.numDirectionalLights > 0) {
+        float3 L = sampleDirectionalLightDirection(dirLight, rng);
+        float phase = henyeyGreensteinPhase(dot(incomingDirection, L),
+                                            anisotropy);
+        float4 visibility = traceSubsurfaceVisibility(
+            isect, sceneAS, P, L, 1.0e30f, boundaryObject, sigmaT, rng,
+            materials,
+            primitiveObjects, blasPrimitiveOffsets, vertices, indices,
+            instanceData, sceneData, path, PT_MATERIAL_TEXTURE_ARGS);
+        lighting += evaluateEmission(dirLight.color, path) *
+                    max(dirLight.intensity, 0.0f) * phase * visibility;
+    }
+
+    for (uint i = 0; i < sceneData.numPointLights; ++i) {
+        float3 toLight = float3(pointLights[i].position) - P;
+        float distance = max(length(toLight), 1e-4f);
+        float3 L = toLight / distance;
+        float range = max(pointLights[i].range, 1e-4f);
+        float minimumDistance = max(range * 0.08f, 0.15f);
+        float rangeFade = 1.0f - smoothstep(range * 0.75f, range, distance);
+        float intensity = max(pointLights[i].intensity, 0.0f) * rangeFade /
+                          max(distance * distance +
+                                  minimumDistance * minimumDistance,
+                              1e-4f);
+        float phase = henyeyGreensteinPhase(dot(incomingDirection, L),
+                                            anisotropy);
+        float4 visibility = traceSubsurfaceVisibility(
+            isect, sceneAS, P, L, distance, boundaryObject, sigmaT, rng,
+            materials,
+            primitiveObjects, blasPrimitiveOffsets, vertices, indices,
+            instanceData, sceneData, path, PT_MATERIAL_TEXTURE_ARGS);
+        lighting += evaluateEmission(float3(pointLights[i].color), path) *
+                    intensity * phase * visibility;
+    }
+
+    for (uint i = 0; i < sceneData.numSpotLights; ++i) {
+        float3 toLight = float3(spotLights[i].position) - P;
+        float distance = max(length(toLight), 1e-4f);
+        float3 L = toLight / distance;
+        float range = max(spotLights[i].range, 1e-4f);
+        float minimumDistance = max(range * 0.08f, 0.15f);
+        float spotCosine =
+            dot(-L, normalize(float3(spotLights[i].direction)));
+        float spot = smoothstep(spotLights[i].outerCos,
+                                spotLights[i].innerCos, spotCosine);
+        float rangeFade = 1.0f - smoothstep(range * 0.75f, range, distance);
+        float intensity = max(spotLights[i].intensity, 0.0f) * spot *
+                          rangeFade /
+                          max(distance * distance +
+                                  minimumDistance * minimumDistance,
+                              1e-4f);
+        float phase = henyeyGreensteinPhase(dot(incomingDirection, L),
+                                            anisotropy);
+        float4 visibility = traceSubsurfaceVisibility(
+            isect, sceneAS, P, L, distance, boundaryObject, sigmaT, rng,
+            materials,
+            primitiveObjects, blasPrimitiveOffsets, vertices, indices,
+            instanceData, sceneData, path, PT_MATERIAL_TEXTURE_ARGS);
+        lighting += evaluateEmission(float3(spotLights[i].color), path) *
+                    intensity * phase * visibility;
+    }
+
+    for (uint i = 0; i < sceneData.numAreaLights; ++i) {
+        float2 lightSample = float2(rand(rng), rand(rng)) * 2.0f - 1.0f;
+        float3 lightPosition =
+            float3(areaLights[i].position) +
+            float3(areaLights[i].right) *
+                (lightSample.x * areaLights[i].halfWidth) +
+            float3(areaLights[i].up) *
+                (lightSample.y * areaLights[i].halfHeight);
+        float3 toLight = lightPosition - P;
+        float distance = max(length(toLight), 1e-4f);
+        float3 L = toLight / distance;
+        float3 lightNormal = normalize(
+            cross(float3(areaLights[i].right), float3(areaLights[i].up)));
+        float lightCosine = areaLights[i].twoSided > 0.5f
+                                ? abs(dot(lightNormal, -L))
+                                : max(dot(lightNormal, -L), 0.0f);
+        if (lightCosine < areaLights[i].emissionCos)
+            continue;
+        float area = 4.0f * areaLights[i].halfWidth * areaLights[i].halfHeight;
+        float intensity = max(areaLights[i].intensity, 0.0f) * lightCosine *
+                          area / max(distance * distance, 1e-6f);
+        float phase = henyeyGreensteinPhase(dot(incomingDirection, L),
+                                            anisotropy);
+        float4 visibility = traceSubsurfaceVisibility(
+            isect, sceneAS, P, L, distance, boundaryObject, sigmaT, rng,
+            materials,
+            primitiveObjects, blasPrimitiveOffsets, vertices, indices,
+            instanceData, sceneData, path, PT_MATERIAL_TEXTURE_ARGS);
+        lighting += evaluateEmission(float3(areaLights[i].color), path) *
+                    intensity * phase * visibility;
+    }
+    return lighting;
+}
 
 float4 evalEmissiveTriangleLighting(
     intersector<triangle_data> isect, primitive_acceleration_structure sceneAS,

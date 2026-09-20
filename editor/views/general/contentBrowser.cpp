@@ -627,7 +627,12 @@ void ContentBrowserPanel::createMaterial() {
         "        \"volumeScatteringStrength\": 0.0,\n"
         "        \"volumeAnisotropy\": 0.0,\n"
         "        \"volumeEmissionColor\": [0.0, 0.0, 0.0, 1.0],\n"
-        "        \"volumeEmissionStrength\": 0.0\n"
+        "        \"volumeEmissionStrength\": 0.0,\n"
+        "        \"subsurfaceWeight\": 0.0,\n"
+        "        \"subsurfaceScale\": 1.0,\n"
+        "        \"subsurfaceAnisotropy\": 0.0,\n"
+        "        \"subsurfaceColor\": [1.0, 1.0, 1.0, 1.0],\n"
+        "        \"subsurfaceRadius\": [1.0, 1.0, 1.0, 1.0]\n"
         "    }\n"
         "}\n";
     if (writeNewFile(path, material)) {

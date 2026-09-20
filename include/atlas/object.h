@@ -122,6 +122,11 @@ struct Material {
     float iridescenceIor = 1.0f;
     float iridescenceAbbeNumber = 0.0f;
     float iridescenceThickness = 400.0f; // in nanometers
+    float subsurfaceWeight = 0.0f;
+    float subsurfaceScale = 1.0f;
+    float subsurfaceAnisotropy = 0.0f;
+    Color subsurfaceColor = {1.0, 1.0, 1.0, 1.0};
+    Color subsurfaceRadius = {1.0, 1.0, 1.0, 1.0};
 };
 
 /**

@@ -452,6 +452,16 @@ MaterialEditorPanel::normalizedMaterial(const QJsonObject &source) const {
         result.insert("volumeEmissionColor", QJsonArray{0.0, 0.0, 0.0, 1.0});
     if (!result.value("volumeEmissionStrength").isDouble())
         result.insert("volumeEmissionStrength", 0.0);
+    if (!result.value("subsurfaceWeight").isDouble())
+        result.insert("subsurfaceWeight", 0.0);
+    if (!result.value("subsurfaceScale").isDouble())
+        result.insert("subsurfaceScale", 1.0);
+    if (!result.value("subsurfaceAnisotropy").isDouble())
+        result.insert("subsurfaceAnisotropy", 0.0);
+    if (!result.value("subsurfaceColor").isArray())
+        result.insert("subsurfaceColor", QJsonArray{1.0, 1.0, 1.0, 1.0});
+    if (!result.value("subsurfaceRadius").isArray())
+        result.insert("subsurfaceRadius", QJsonArray{1.0, 1.0, 1.0, 1.0});
     if (!result.value("iridescenceFactor").isDouble())
         result.insert("iridescenceFactor", 0.0);
     if (!result.value("iridescenceIor").isDouble())
@@ -679,6 +689,30 @@ void MaterialEditorPanel::showMaterial() {
     mediumForm->addRow("Emission Strength", volumeEmissionStrengthField);
     propertiesLayout->addWidget(medium);
 
+    auto *subsurface = new QGroupBox("Subsurface Scattering", properties);
+    auto *subsurfaceForm = new QFormLayout(subsurface);
+    subsurfaceWeightField = scalarField(0.0, 1.0, 0.01, subsurface);
+    subsurfaceWeightField->setValue(
+        material.value("subsurfaceWeight").toDouble());
+    subsurfaceScaleField = scalarField(0.001, 100.0, 0.01, subsurface);
+    subsurfaceScaleField->setValue(
+        material.value("subsurfaceScale").toDouble());
+    subsurfaceAnisotropyField = scalarField(-0.99, 0.99, 0.01, subsurface);
+    subsurfaceAnisotropyField->setValue(
+        material.value("subsurfaceAnisotropy").toDouble());
+    subsurfaceColorButton = new styling::Button(subsurface);
+    displayColor(subsurfaceColorButton,
+                 jsonColor(material.value("subsurfaceColor"), Qt::white));
+    subsurfaceRadiusButton = new styling::Button(subsurface);
+    displayColor(subsurfaceRadiusButton,
+                 jsonColor(material.value("subsurfaceRadius"), Qt::white));
+    subsurfaceForm->addRow("Weight", subsurfaceWeightField);
+    subsurfaceForm->addRow("Color", subsurfaceColorButton);
+    subsurfaceForm->addRow("Radius", subsurfaceRadiusButton);
+    subsurfaceForm->addRow("Scale", subsurfaceScaleField);
+    subsurfaceForm->addRow("Anisotropy", subsurfaceAnisotropyField);
+    propertiesLayout->addWidget(subsurface);
+
     auto *iridescence = new QGroupBox("Iridescence", properties);
     auto *iridescenceForm = new QFormLayout(iridescence);
     iridescenceFactorField = scalarField(0.0, 1.0, 0.01, iridescence);
@@ -799,6 +833,12 @@ void MaterialEditorPanel::showMaterial() {
     connect(volumeEmissionColorButton, &QPushButton::clicked, this, [this] {
         setColor("volumeEmissionColor", volumeEmissionColorButton);
     });
+    connect(subsurfaceColorButton, &QPushButton::clicked, this, [this] {
+        setColor("subsurfaceColor", subsurfaceColorButton);
+    });
+    connect(subsurfaceRadiusButton, &QPushButton::clicked, this, [this] {
+        setColor("subsurfaceRadius", subsurfaceRadiusButton);
+    });
     const QList<QDoubleSpinBox *> scalars{metallicField,
                                           roughnessField,
                                           aoField,
@@ -818,6 +858,9 @@ void MaterialEditorPanel::showMaterial() {
                                           volumeScatteringStrengthField,
                                           volumeAnisotropyField,
                                           volumeEmissionStrengthField,
+                                          subsurfaceWeightField,
+                                          subsurfaceScaleField,
+                                          subsurfaceAnisotropyField,
                                           iridescenceFactorField,
                                           iridescenceIorField,
                                           iridescenceAbbeNumberField,
@@ -933,6 +976,18 @@ void MaterialEditorPanel::materialChanged() {
                       .value<QColor>()));
     material.insert("volumeEmissionStrength",
                     volumeEmissionStrengthField->value());
+    material.insert("subsurfaceWeight", subsurfaceWeightField->value());
+    material.insert("subsurfaceScale", subsurfaceScaleField->value());
+    material.insert("subsurfaceAnisotropy",
+                    subsurfaceAnisotropyField->value());
+    material.insert(
+        "subsurfaceColor",
+        colorJson(subsurfaceColorButton->property("materialColor")
+                      .value<QColor>()));
+    material.insert(
+        "subsurfaceRadius",
+        colorJson(subsurfaceRadiusButton->property("materialColor")
+                      .value<QColor>()));
     material.insert("iridescenceFactor", iridescenceFactorField->value());
     material.insert("iridescenceIor", iridescenceIorField->value());
     material.insert("iridescenceAbbeNumber",

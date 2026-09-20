@@ -47,6 +47,7 @@ float3 sampleRadiance(
     bool hasNonDeltaVertex = false;
 
     bool insideMedium = false;
+    bool insideSubsurface = false;
     uint mediumObjectId = 0xFFFFFFFFu;
     float4 mediumSigmaA = float4(0.0);
     float4 mediumSigmaS = float4(0.0);
@@ -165,6 +166,17 @@ float3 sampleRadiance(
                     spectralTransmittance * mediumSigmaS / samplingPdf;
                 float3 scatteringPosition =
                     surfaceRay.origin + surfaceRay.direction * sampledDistance;
+                if (insideSubsurface) {
+                    spectralPath.radiance +=
+                        spectralPath.throughput * evalSubsurfaceDirectLighting(
+                            isect, sceneAS, scatteringPosition,
+                            surfaceRay.direction, mediumAnisotropy,
+                            mediumObjectId, mediumSigmaT, rng, spectralPath,
+                            dirLight, sceneData, pointLights, spotLights,
+                            areaLights, materials, primitiveObjects,
+                            blasPrimitiveOffsets, vertices, indices, instanceData,
+                            PT_MATERIAL_TEXTURE_ARGS);
+                }
                 float3 scatteringDirection = sampleHenyeyGreenstein(
                     surfaceRay.direction, mediumAnisotropy,
                     float2(rand(rng), rand(rng)));
@@ -231,9 +243,61 @@ float3 sampleRadiance(
         float4 albedo = evaluateReflectance(albedoRgb, spectralPath);
         float4 emissive = evaluateEmission(emissiveRgb, spectralPath);
         float4 ior = evaluateIorAtWavelength(baseIor, abbeNumber, spectralPath);
+        float subsurfaceWeight =
+            frontFace ? clamp(mat.subsurfaceWeight, 0.0f, 1.0f) : 0.0f;
+
+        if (insideSubsurface && mediumObjectId == surfaceObjectIndex) {
+            float4 etaPacket = ior;
+            float cosine = max(dot(N, V), 1e-4f);
+            float4 fresnel = dielectricFresnel(cosine, etaPacket);
+            float reflectProbability =
+                clamp(spectralAverage(fresnel), 0.001f, 0.999f);
+            float3 nextDirection;
+            float4 boundaryWeight;
+            if (rand(rng) < reflectProbability) {
+                nextDirection = reflect(-V, N);
+                boundaryWeight = fresnel / reflectProbability;
+            } else {
+                nextDirection =
+                    refract(-V, N, etaPacket[spectralPath.heroIndex]);
+                if (dot(nextDirection, nextDirection) < 1e-8f) {
+                    nextDirection = reflect(-V, N);
+                    boundaryWeight = float4(1.0f);
+                } else {
+                    boundaryWeight = (1.0f - fresnel) * etaPacket * etaPacket /
+                                     (1.0f - reflectProbability);
+                    insideMedium = false;
+                    insideSubsurface = false;
+                    mediumObjectId = 0xFFFFFFFFu;
+                    mediumSigmaA = float4(0.0f);
+                    mediumSigmaS = float4(0.0f);
+                    mediumSigmaT = float4(0.0f);
+                    mediumEmission = float4(0.0f);
+                    mediumAnisotropy = 0.0f;
+                }
+            }
+            spectralPath.throughput *=
+                clamp(boundaryWeight, float4(0.0f), float4(16.0f));
+            if (!all(isfinite(spectralPath.throughput)) ||
+                spectralMax(spectralPath.throughput) < 1e-5f) {
+                break;
+            }
+            previousBsdfPdf = 0.0f;
+            previousEnvironmentPdf = 0.0f;
+            previousEventWasDelta = true;
+            previousEventWasDiffuse = false;
+            surfaceRay.origin = offsetRayOrigin(P, Ng, nextDirection);
+            surfaceRay.direction = normalizeOr(nextDirection, -Ng);
+            surfaceRay.min_distance = 0.0f;
+            surfaceRay.max_distance = 1.0e30f;
+            continue;
+        }
 
         if (depth == 0) {
-            primaryAlbedo = albedoRgb;
+            primaryAlbedo = mix(
+                albedoRgb, clamp(float3(mat.subsurfaceColor), float3(0.0f),
+                                 float3(1.0f)),
+                subsurfaceWeight);
             primaryNormal = N;
             primaryPosition = P;
             primaryDepth = length(P - primaryRay.origin);
@@ -251,6 +315,7 @@ float3 sampleRadiance(
                     max(mat.volumeScatteringStrength, 0.0f),
                     max(mat.volumeDensity, 0.0f), spectralPath);
                 insideMedium = true;
+                insideSubsurface = false;
                 mediumObjectId = surfaceObjectIndex;
                 mediumSigmaA = coefficients.sigmaA;
                 mediumSigmaS = coefficients.sigmaS;
@@ -263,6 +328,7 @@ float3 sampleRadiance(
                 mediumAnisotropy = clamp(mat.volumeAnisotropy, -0.99f, 0.99f);
             } else if (insideMedium && mediumObjectId == surfaceObjectIndex) {
                 insideMedium = false;
+                insideSubsurface = false;
                 mediumObjectId = 0xFFFFFFFFu;
                 mediumSigmaA = float4(0.0f);
                 mediumSigmaS = float4(0.0f);
@@ -277,6 +343,8 @@ float3 sampleRadiance(
         }
 
         float reflectivity = clamp(mat.reflectivity, 0.0, 1.0);
+        float surfaceTransmission =
+            1.0f - (1.0f - transmittance) * (1.0f - subsurfaceWeight);
         bool deltaDielectric =
             roughness <= 0.005f && transmittance > 0.999f && metallic < 0.001f;
         bool deltaMirror = roughness <= 0.005f && metallic > 0.999f;
@@ -289,7 +357,7 @@ float3 sampleRadiance(
         if (!deltaDielectric && !deltaMirror) {
             float4 direct = evalDirectLightingPBR(
                 isect, sceneAS, P, N, Ng, V, albedo, metallic, roughness,
-                reflectivity, ior, transmittance, baseIor, abbeNumber,
+                reflectivity, ior, surfaceTransmission, baseIor, abbeNumber,
                 mat.iridescenceFactor, mat.iridescenceIor,
                 mat.iridescenceAbbeNumber, mat.iridescenceThickness, frontFace,
                 rng, spectralPath, dirLight, sceneData, pointLights, spotLights,
@@ -315,7 +383,7 @@ float3 sampleRadiance(
                 mat.iridescenceAbbeNumber, mat.iridescenceThickness, frontFace,
                 spectralPath);
             float4 ambientDiffuse = (1.0f - ambientF) * (1.0f - metallic) *
-                                    albedo * (1.0f - transmittance);
+                                    albedo * (1.0f - surfaceTransmission);
             float4 ambientSpecular = ambientF * mix(1.0f, 0.35f, roughness);
             float4 ambientRadiance =
                 evaluateEmission(sceneData.ambientColor, spectralPath) *
@@ -347,8 +415,12 @@ float3 sampleRadiance(
         float transmitProb =
             transmittance * (1.0f - metallic) * (1.0f - fresnelProbability);
 
-        float diffuseProb = (1.0f - metallic) * (1.0f - transmittance) *
-                            (1.0f - fresnelProbability);
+        float diffuseLobeProbability =
+            (1.0f - metallic) * (1.0f - transmittance) *
+            (1.0f - fresnelProbability);
+        float subsurfaceProb = diffuseLobeProbability * subsurfaceWeight;
+        float diffuseProb =
+            diffuseLobeProbability * (1.0f - subsurfaceWeight);
 
         uint heroIndex = spectralPath.heroIndex;
         float eta = etaPacket[heroIndex];
@@ -361,14 +433,21 @@ float3 sampleRadiance(
             specProb += transmitProb;
             transmitProb = 0.0f;
         }
-        float probabilitySum = max(specProb + transmitProb + diffuseProb, 1e-4);
+        float probabilitySum =
+            max(specProb + transmitProb + subsurfaceProb + diffuseProb, 1e-4);
         specProb /= probabilitySum;
         transmitProb /= probabilitySum;
+        subsurfaceProb /= probabilitySum;
         diffuseProb /= probabilitySum;
         if (transmittance < 0.001f && roughness < 0.35f && specProb > 0.0f &&
             diffuseProb > 0.0f) {
             specProb = max(specProb, 0.25f);
-            diffuseProb = max(1.0f - specProb - transmitProb, 0.0f);
+            float diffuseAndSubsurface =
+                max(1.0f - specProb - transmitProb, 0.0f);
+            float lobeSum = max(diffuseProb + subsurfaceProb, 1e-6f);
+            diffuseProb = diffuseAndSubsurface * diffuseProb / lobeSum;
+            subsurfaceProb =
+                diffuseAndSubsurface * subsurfaceProb / lobeSum;
         }
 
         float3x3 basis = buildOrthonormalBasis(N);
@@ -396,8 +475,8 @@ float3 sampleRadiance(
                     mat.iridescenceAbbeNumber, mat.iridescenceThickness,
                     frontFace, spectralPath);
 
-                float4 kD =
-                    (1.0 - F) * (1.0 - metallic) * (1.0 - transmittance);
+                float4 kD = (1.0 - F) * (1.0 - metallic) *
+                            (1.0 - surfaceTransmission);
                 float diffuseFactor = disneyDiffuseFactor(
                     NdotV, NdotEnvironment,
                     max(dot(environmentDirection, H), 0.0), roughness);
@@ -509,6 +588,7 @@ float3 sampleRadiance(
             if (hasVolume) {
                 if (frontFace) {
                     insideMedium = true;
+                    insideSubsurface = false;
                     mediumObjectId = surfaceObjectIndex;
 
                     float3 attenuationColor =
@@ -533,6 +613,7 @@ float3 sampleRadiance(
                            mediumObjectId == surfaceObjectIndex) {
 
                     insideMedium = false;
+                    insideSubsurface = false;
                     mediumObjectId = 0xFFFFFFFFu;
                     mediumSigmaA = float4(0.0f);
                     mediumSigmaS = float4(0.0f);
@@ -549,6 +630,35 @@ float3 sampleRadiance(
                 bounceWeight *= heroMask * float(PHOTON_SPECTRAL_LANE_COUNT);
                 wavelengthSelected = true;
             }
+        } else if (choice < specProb + transmitProb + subsurfaceProb &&
+                   subsurfaceProb > 1e-4f) {
+            sampledEventWasDiffuse = true;
+            float3 inwardNormal = -Ng;
+            float3x3 inwardBasis = buildOrthonormalBasis(inwardNormal);
+            float3 localDirection =
+                cosineSampleHemisphere(float2(rand(rng), rand(rng)));
+            nextDirection =
+                normalizeOr(inwardBasis * localDirection, inwardNormal);
+            float4 entryWeight = (1.0f - viewFresnel) * (1.0f - metallic) *
+                                 (1.0f - transmittance) * subsurfaceWeight;
+            bounceWeight = entryWeight / max(subsurfaceProb, 1e-4f);
+            VolumeCoefficients coefficients = calculateSubsurfaceCoefficients(
+                float3(mat.subsurfaceColor), float3(mat.subsurfaceRadius),
+                mat.subsurfaceScale, spectralPath);
+            insideMedium = true;
+            insideSubsurface = true;
+            mediumObjectId = surfaceObjectIndex;
+            mediumSigmaA = coefficients.sigmaA;
+            mediumSigmaS = coefficients.sigmaS;
+            mediumSigmaT = coefficients.sigmaT;
+            mediumEmission = float4(0.0f);
+            mediumAnisotropy =
+                clamp(mat.subsurfaceAnisotropy, -0.99f, 0.99f);
+            sampledBsdfPdf = subsurfaceProb *
+                             max(dot(inwardNormal, nextDirection), 0.0f) /
+                             M_PI_F;
+            sampledEnvironmentPdf = 0.0f;
+            sampledEventWasDelta = false;
         } else {
             sampledEventWasDiffuse = true;
             float3 localDirection =
@@ -562,7 +672,8 @@ float3 sampleRadiance(
                 mat.iridescenceFactor, mat.iridescenceIor,
                 mat.iridescenceAbbeNumber, mat.iridescenceThickness, frontFace,
                 spectralPath);
-            float4 kD = (1.0 - F) * (1.0 - metallic) * (1.0 - transmittance);
+            float4 kD = (1.0 - F) * (1.0 - metallic) *
+                        (1.0 - transmittance) * (1.0 - subsurfaceWeight);
             float diffuseFactor = disneyDiffuseFactor(
                 NdotV, NdotL, max(dot(nextDirection, H), 0.0), roughness);
             float4 diffuseBsdf = kD * albedo * diffuseFactor / M_PI_F;
