@@ -54,9 +54,18 @@ struct Material {
     float iridescenceIor;
     float iridescenceThickness;  // in nanometers
     float iridescenceAbbeNumber; // optional, for spectral dispersion
+
+    float subsurfaceWeight;
+    float subsurfaceScale;
+    float subsurfaceAnisotropy;
+    float _pad4;
+    packed_float3 subsurfaceColor;
+    float _pad5;
+    packed_float3 subsurfaceRadius;
+    float _pad6;
 };
 
-static_assert(sizeof(Material) == 208);
+static_assert(sizeof(Material) == 256);
 static_assert(__builtin_offsetof(Material, emissiveColor) == 32);
 static_assert(__builtin_offsetof(Material, albedoTextureIndex) == 48);
 static_assert(__builtin_offsetof(Material, transmittance) == 80);
@@ -68,6 +77,9 @@ static_assert(__builtin_offsetof(Material, iridescenceFactor) == 192);
 static_assert(__builtin_offsetof(Material, iridescenceIor) == 196);
 static_assert(__builtin_offsetof(Material, iridescenceThickness) == 200);
 static_assert(__builtin_offsetof(Material, iridescenceAbbeNumber) == 204);
+static_assert(__builtin_offsetof(Material, subsurfaceWeight) == 208);
+static_assert(__builtin_offsetof(Material, subsurfaceColor) == 224);
+static_assert(__builtin_offsetof(Material, subsurfaceRadius) == 240);
 
 struct VertexData {
     packed_float3 position;

@@ -62,6 +62,8 @@ class MaterialEditorPanel : public QWidget {
     QPushButton *volumeAbsorptionColorButton = nullptr;
     QPushButton *volumeScatteringColorButton = nullptr;
     QPushButton *volumeEmissionColorButton = nullptr;
+    QPushButton *subsurfaceColorButton = nullptr;
+    QPushButton *subsurfaceRadiusButton = nullptr;
     QDoubleSpinBox *metallicField = nullptr;
     QDoubleSpinBox *roughnessField = nullptr;
     QDoubleSpinBox *aoField = nullptr;
@@ -81,6 +83,9 @@ class MaterialEditorPanel : public QWidget {
     QDoubleSpinBox *volumeScatteringStrengthField = nullptr;
     QDoubleSpinBox *volumeAnisotropyField = nullptr;
     QDoubleSpinBox *volumeEmissionStrengthField = nullptr;
+    QDoubleSpinBox *subsurfaceWeightField = nullptr;
+    QDoubleSpinBox *subsurfaceScaleField = nullptr;
+    QDoubleSpinBox *subsurfaceAnisotropyField = nullptr;
     QDoubleSpinBox *iridescenceFactorField = nullptr;
     QDoubleSpinBox *iridescenceIorField = nullptr;
     QDoubleSpinBox *iridescenceAbbeNumberField = nullptr;

@@ -32,6 +32,21 @@ calculateVolumeCoefficients(float3 absorptionColor, float absorptionStrength,
     return result;
 }
 
+VolumeCoefficients
+calculateSubsurfaceCoefficients(float3 color, float3 radius, float scale,
+                                thread const SpectralPath &spectralPath) {
+    VolumeCoefficients result;
+    float4 spectralColor = clamp(evaluateReflectance(color, spectralPath),
+                                 float4(1e-4f), float4(0.999f));
+    float4 spectralRadius =
+        max(evaluateReflectance(radius, spectralPath), float4(1e-3f)) *
+        max(scale, 1e-4f);
+    result.sigmaT = 1.0f / spectralRadius;
+    result.sigmaS = spectralColor * result.sigmaT;
+    result.sigmaA = result.sigmaT - result.sigmaS;
+    return result;
+}
+
 float henyeyGreensteinPhase(float cosTheta, float g) {
     g = clamp(g, -0.99f, 0.99f);
 

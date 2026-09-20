@@ -1304,6 +1304,9 @@ bool parseMaterial(JSContext *ctx, JSValueConst value, Material &out) {
     double volumeScatteringStrength = out.volumeScatteringStrength;
     double volumeAnisotropy = out.volumeAnisotropy;
     double volumeEmissionStrength = out.volumeEmissionStrength;
+    double subsurfaceWeight = out.subsurfaceWeight;
+    double subsurfaceScale = out.subsurfaceScale;
+    double subsurfaceAnisotropy = out.subsurfaceAnisotropy;
     bool useNormalMap = out.useNormalMap;
     bool isVolume = out.isVolume;
     Color emissiveColor = out.emissiveColor;
@@ -1311,6 +1314,8 @@ bool parseMaterial(JSContext *ctx, JSValueConst value, Material &out) {
     Color volumeAbsorptionColor = out.volumeAbsorptionColor;
     Color volumeScatteringColor = out.volumeScatteringColor;
     Color volumeEmissionColor = out.volumeEmissionColor;
+    Color subsurfaceColor = out.subsurfaceColor;
+    Color subsurfaceRadius = out.subsurfaceRadius;
 
     readNumberProperty(ctx, value, "metallic", metallic);
     readNumberProperty(ctx, value, "roughness", roughness);
@@ -1330,6 +1335,10 @@ bool parseMaterial(JSContext *ctx, JSValueConst value, Material &out) {
     readNumberProperty(ctx, value, "volumeAnisotropy", volumeAnisotropy);
     readNumberProperty(ctx, value, "volumeEmissionStrength",
                        volumeEmissionStrength);
+    readNumberProperty(ctx, value, "subsurfaceWeight", subsurfaceWeight);
+    readNumberProperty(ctx, value, "subsurfaceScale", subsurfaceScale);
+    readNumberProperty(ctx, value, "subsurfaceAnisotropy",
+                       subsurfaceAnisotropy);
     readBoolProperty(ctx, value, "useNormalMap", useNormalMap);
     readBoolProperty(ctx, value, "isVolume", isVolume);
 
@@ -1371,6 +1380,22 @@ bool parseMaterial(JSContext *ctx, JSValueConst value, Material &out) {
     }
     JS_FreeValue(ctx, volumeEmissionValue);
 
+    JSValue subsurfaceColorValue =
+        JS_GetPropertyStr(ctx, value, "subsurfaceColor");
+    if (!JS_IsException(subsurfaceColorValue) &&
+        !JS_IsUndefined(subsurfaceColorValue)) {
+        parseColor(ctx, subsurfaceColorValue, subsurfaceColor);
+    }
+    JS_FreeValue(ctx, subsurfaceColorValue);
+
+    JSValue subsurfaceRadiusValue =
+        JS_GetPropertyStr(ctx, value, "subsurfaceRadius");
+    if (!JS_IsException(subsurfaceRadiusValue) &&
+        !JS_IsUndefined(subsurfaceRadiusValue)) {
+        parseColor(ctx, subsurfaceRadiusValue, subsurfaceRadius);
+    }
+    JS_FreeValue(ctx, subsurfaceRadiusValue);
+
     out.metallic = static_cast<float>(metallic);
     out.roughness = static_cast<float>(roughness);
     out.ao = static_cast<float>(ao);
@@ -1393,6 +1418,11 @@ bool parseMaterial(JSContext *ctx, JSValueConst value, Material &out) {
     out.volumeAnisotropy = static_cast<float>(volumeAnisotropy);
     out.volumeEmissionColor = volumeEmissionColor;
     out.volumeEmissionStrength = static_cast<float>(volumeEmissionStrength);
+    out.subsurfaceWeight = static_cast<float>(subsurfaceWeight);
+    out.subsurfaceScale = static_cast<float>(subsurfaceScale);
+    out.subsurfaceAnisotropy = static_cast<float>(subsurfaceAnisotropy);
+    out.subsurfaceColor = subsurfaceColor;
+    out.subsurfaceRadius = subsurfaceRadius;
     return true;
 }
 
@@ -4206,6 +4236,16 @@ JSValue makeMaterial(JSContext *ctx, ScriptHost &host,
                 makeColor(ctx, host, material.volumeEmissionColor));
     setProperty(ctx, result, "volumeEmissionStrength",
                 JS_NewFloat64(ctx, material.volumeEmissionStrength));
+    setProperty(ctx, result, "subsurfaceWeight",
+                JS_NewFloat64(ctx, material.subsurfaceWeight));
+    setProperty(ctx, result, "subsurfaceScale",
+                JS_NewFloat64(ctx, material.subsurfaceScale));
+    setProperty(ctx, result, "subsurfaceAnisotropy",
+                JS_NewFloat64(ctx, material.subsurfaceAnisotropy));
+    setProperty(ctx, result, "subsurfaceColor",
+                makeColor(ctx, host, material.subsurfaceColor));
+    setProperty(ctx, result, "subsurfaceRadius",
+                makeColor(ctx, host, material.subsurfaceRadius));
     return result;
 }
 

@@ -838,6 +838,16 @@ MaterialDefinition loadMaterialDefinition(const json &value,
                     loaded.material.iridescenceAbbeNumber);
     tryReadFloatAny(materialData, {"iridescenceThickness"},
                     loaded.material.iridescenceThickness);
+    tryReadFloatAny(materialData, {"subsurfaceWeight"},
+                    loaded.material.subsurfaceWeight);
+    tryReadFloatAny(materialData, {"subsurfaceScale"},
+                    loaded.material.subsurfaceScale);
+    tryReadFloatAny(materialData, {"subsurfaceAnisotropy"},
+                    loaded.material.subsurfaceAnisotropy);
+    tryReadColorAny(materialData, {"subsurfaceColor"},
+                    loaded.material.subsurfaceColor);
+    tryReadColorAny(materialData, {"subsurfaceRadius"},
+                    loaded.material.subsurfaceRadius);
 
     auto appendTexture = [&](std::initializer_list<const char *> keys,
                              TextureType type, bool allowTypeOverride) {
