@@ -71,12 +71,14 @@
 #include <QFormLayout>
 #include <QHBoxLayout>
 #include <QGridLayout>
+#include <QGroupBox>
 #include <QInputDialog>
 #include <QImageReader>
 #include <QSizePolicy>
 #include <QVBoxLayout>
 #include <QUrl>
 
+#include <array>
 #include <functional>
 #include <limits>
 
@@ -1198,7 +1200,7 @@ void EditorWindow::showProjectSettings() {
     QDialog dialog(this);
     dialog.setObjectName("projectSettingsDialog");
     dialog.setWindowTitle("Project Settings");
-    dialog.resize(720, 520);
+    dialog.resize(820, 680);
     auto *layout = new QVBoxLayout(&dialog);
     auto *header = new QFrame(&dialog);
     header->setObjectName("dialogHero");
@@ -1282,6 +1284,10 @@ void EditorWindow::showProjectSettings() {
             .toInt(&accumulationValid);
     const QString denoisingValue =
         tomlValue(projectLines, "renderer", "denoising");
+    auto photonFeatureEnabled = [&projectLines](const QString &key) {
+        const QString value = tomlValue(projectLines, "renderer", key);
+        return value.isEmpty() || value == "true";
+    };
     auto addPage = [tabs](const QString &name, styling::Icon icon,
                           const QColor &color) {
         auto *page = new QWidget(tabs);
@@ -1415,6 +1421,79 @@ void EditorWindow::showProjectSettings() {
     accumulationFrames->setRange(1, 2048);
     accumulationFrames->setValue(accumulationValid ? configuredAccumulation
                                                    : 512);
+    auto *photonFeatures = new QGroupBox("Photon Features", &dialog);
+    auto *photonFeaturesLayout = new QGridLayout(photonFeatures);
+    auto createPhotonFeature = [&](const QString &label, const QString &key,
+                                   int row, int column) {
+        auto *checkbox = new QCheckBox(label, photonFeatures);
+        checkbox->setChecked(photonFeatureEnabled(key));
+        photonFeaturesLayout->addWidget(checkbox, row, column);
+        return checkbox;
+    };
+    auto *directLighting =
+        createPhotonFeature("Direct lighting", "direct_lighting", 0, 0);
+    auto *shadows = createPhotonFeature("Shadows", "shadows", 0, 1);
+    auto *environmentLighting = createPhotonFeature(
+        "Environment lighting", "environment_lighting", 0, 2);
+    auto *emissiveLighting = createPhotonFeature(
+        "Emissive lighting", "emissive_lighting", 1, 0);
+    auto *indirectLighting = createPhotonFeature(
+        "Indirect lighting", "indirect_lighting", 1, 1);
+    auto *transmission = createPhotonFeature(
+        "Transmission / refraction", "transmission", 1, 2);
+    auto *dispersion =
+        createPhotonFeature("Spectral dispersion", "dispersion", 2, 0);
+    auto *iridescence =
+        createPhotonFeature("Iridescence", "iridescence", 2, 1);
+    auto *caustics = createPhotonFeature("Caustics", "caustics", 2, 2);
+    auto *volumes = createPhotonFeature("Volumes", "volumes", 3, 0);
+    auto *subsurfaceScattering = createPhotonFeature(
+        "Subsurface scattering", "subsurface_scattering", 3, 1);
+    auto *normalMaps =
+        createPhotonFeature("Normal maps", "normal_maps", 3, 2);
+    auto *materialTextures =
+        createPhotonFeature("Material textures", "material_textures", 4, 0);
+    auto *alphaTransparency = createPhotonFeature(
+        "Alpha transparency", "alpha_transparency", 4, 1);
+    const std::array<QCheckBox *, 14> photonFeatureControls = {
+        directLighting,       shadows,       environmentLighting,
+        emissiveLighting,     indirectLighting,
+        transmission,         dispersion,    iridescence,
+        caustics,              volumes,       subsurfaceScattering,
+        normalMaps,            materialTextures,
+        alphaTransparency};
+    auto currentPhotonFeatureFlags = [=] {
+        uint32_t flags = 0;
+        if (directLighting->isChecked())
+            flags |= photon::DirectLighting;
+        if (shadows->isChecked())
+            flags |= photon::Shadows;
+        if (environmentLighting->isChecked())
+            flags |= photon::EnvironmentLighting;
+        if (emissiveLighting->isChecked())
+            flags |= photon::EmissiveLighting;
+        if (indirectLighting->isChecked())
+            flags |= photon::IndirectLighting;
+        if (transmission->isChecked())
+            flags |= photon::Transmission;
+        if (dispersion->isChecked())
+            flags |= photon::Dispersion;
+        if (iridescence->isChecked())
+            flags |= photon::Iridescence;
+        if (caustics->isChecked())
+            flags |= photon::Caustics;
+        if (volumes->isChecked())
+            flags |= photon::Volumes;
+        if (subsurfaceScattering->isChecked())
+            flags |= photon::SubsurfaceScattering;
+        if (normalMaps->isChecked())
+            flags |= photon::NormalMaps;
+        if (materialTextures->isChecked())
+            flags |= photon::MaterialTextures;
+        if (alphaTransparency->isChecked())
+            flags |= photon::AlphaTransparency;
+        return flags;
+    };
     auto *internalResolution = new QLabel(&dialog);
     auto updateInternalResolution = [=] {
         const int scale = upscaling->isChecked() ? internalScale->value() : 100;
@@ -1464,6 +1543,7 @@ void EditorWindow::showProjectSettings() {
     rendering->addRow("Maximum light bounces", maxBounces);
     rendering->addRow(QString(), denoising);
     rendering->addRow("Temporal accumulation", accumulationFrames);
+    rendering->addRow(photonFeatures);
     rendering->addRow("Frame limit (0 = unlimited)", frameLimit);
     auto updatePathTracingControls = [=] {
         const bool enabled = renderer->currentText() == "Path Tracing";
@@ -1471,6 +1551,8 @@ void EditorWindow::showProjectSettings() {
         maxBounces->setEnabled(enabled);
         denoising->setEnabled(enabled);
         accumulationFrames->setEnabled(enabled);
+        for (auto *control : photonFeatureControls)
+            control->setEnabled(enabled);
     };
     connect(renderer, &QComboBox::currentTextChanged, &dialog,
             updatePathTracingControls);
@@ -1502,11 +1584,14 @@ void EditorWindow::showProjectSettings() {
         &dialog);
     build->addRow("Build command", buildCommand);
     build->addRow("Run command", runCommand);
-#ifdef Q_OS_MACOS
-    auto *metalHud = new QCheckBox("Display Metal HUD when running", &dialog);
-    metalHud->setChecked(settings.value("project/metalHud", false).toBool());
-    build->addRow(QString(), metalHud);
-#endif
+    auto *atlasHud =
+        new QCheckBox("Display Atlas performance HUD when running", &dialog);
+    atlasHud->setChecked(
+        settings
+            .value("project/atlasHud",
+                   settings.value("project/metalHud", false))
+            .toBool());
+    build->addRow(QString(), atlasHud);
     auto *editor = addPage("Editor", styling::Icon::Layout, "#7E929C");
     auto *autosave = new QSpinBox(&dialog);
     autosave->setRange(0, 120);
@@ -1559,15 +1644,16 @@ void EditorWindow::showProjectSettings() {
     settings.setValue("project/pathTracingDenoising", denoising->isChecked());
     settings.setValue("project/pathTracingAccumulation",
                       accumulationFrames->value());
+    settings.setValue("project/pathTracingFeatureFlags",
+                      currentPhotonFeatureFlags());
     settings.setValue("project/gravity", gravity->text());
     settings.setValue("project/fixedStep", fixedStep->text());
     settings.setValue("project/inputMap", inputMap->text());
     settings.setValue("project/controller", controller->currentText());
     settings.setValue("project/buildCommand", buildCommand->text());
     settings.setValue("project/runCommand", runCommand->text());
-#ifdef Q_OS_MACOS
-    settings.setValue("project/metalHud", metalHud->isChecked());
-#endif
+    settings.setValue("project/atlasHud", atlasHud->isChecked());
+    settings.remove("project/metalHud");
     settings.setValue("project/autosaveMinutes", autosave->value());
     settings.setValue("project/snapIncrement", snap->text());
     settings.setValue("project/bundleIdentifier", identifier->text());
@@ -1619,6 +1705,34 @@ void EditorWindow::showProjectSettings() {
                      denoising->isChecked() ? "true" : "false");
         setTomlValue(&lines, "renderer", "accumulation_frames",
                      QString::number(accumulationFrames->value()));
+        setTomlValue(&lines, "renderer", "direct_lighting",
+                     directLighting->isChecked() ? "true" : "false");
+        setTomlValue(&lines, "renderer", "shadows",
+                     shadows->isChecked() ? "true" : "false");
+        setTomlValue(&lines, "renderer", "environment_lighting",
+                     environmentLighting->isChecked() ? "true" : "false");
+        setTomlValue(&lines, "renderer", "emissive_lighting",
+                     emissiveLighting->isChecked() ? "true" : "false");
+        setTomlValue(&lines, "renderer", "indirect_lighting",
+                     indirectLighting->isChecked() ? "true" : "false");
+        setTomlValue(&lines, "renderer", "transmission",
+                     transmission->isChecked() ? "true" : "false");
+        setTomlValue(&lines, "renderer", "dispersion",
+                     dispersion->isChecked() ? "true" : "false");
+        setTomlValue(&lines, "renderer", "iridescence",
+                     iridescence->isChecked() ? "true" : "false");
+        setTomlValue(&lines, "renderer", "caustics",
+                     caustics->isChecked() ? "true" : "false");
+        setTomlValue(&lines, "renderer", "volumes",
+                     volumes->isChecked() ? "true" : "false");
+        setTomlValue(&lines, "renderer", "subsurface_scattering",
+                     subsurfaceScattering->isChecked() ? "true" : "false");
+        setTomlValue(&lines, "renderer", "normal_maps",
+                     normalMaps->isChecked() ? "true" : "false");
+        setTomlValue(&lines, "renderer", "material_textures",
+                     materialTextures->isChecked() ? "true" : "false");
+        setTomlValue(&lines, "renderer", "alpha_transparency",
+                     alphaTransparency->isChecked() ? "true" : "false");
         QSaveFile outputFile(projectFile);
         const QByteArray contents = lines.join('\n').toUtf8();
         if (!outputFile.open(QIODevice::WriteOnly) ||
@@ -1634,7 +1748,8 @@ void EditorWindow::showProjectSettings() {
         viewportPanel->applyPathTracingSettings(
             samplesPerPixel->value(), maxBounces->value(),
             denoising->isChecked(), accumulationFrames->value(),
-            upscaling->isChecked(), internalScale->value() / 100.0f);
+            upscaling->isChecked(), internalScale->value() / 100.0f,
+            currentPhotonFeatureFlags());
     }
 }
 
@@ -2221,11 +2336,9 @@ void EditorWindow::runProjectCommand(bool buildOnly) {
     }
     const QString workingDirectory = QFileInfo(projectFile).absolutePath();
     auto launchEnvironment = QProcessEnvironment::systemEnvironment();
-#ifdef Q_OS_MACOS
-    if (!buildOnly && settings.value("project/metalHud", false).toBool()) {
-        launchEnvironment.insert("MTL_HUD_ENABLED", "1");
+    if (!buildOnly && settings.value("project/atlasHud", false).toBool()) {
+        launchEnvironment.insert("ATLAS_HUD_ENABLED", "1");
     }
-#endif
     if (!settings.contains(settingsKey) || command == defaultCommand) {
         const QString executable = ToolchainInstaller::executablePath();
         if (executable.isEmpty()) {

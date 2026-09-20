@@ -24,15 +24,20 @@
 #include "bezel/jolt/world.h"
 #endif
 #include "finewave/audio.h"
+#include "graphite/text.h"
 #include <atlas/window.h>
 #include <algorithm>
 #include <array>
 #include <cmath>
 #include <cstdint>
+#include <cstdlib>
+#include <filesystem>
+#include <iomanip>
 #include <iostream>
 #include <limits>
 #include <memory>
 #include <optional>
+#include <sstream>
 #include <string>
 #include <unordered_set>
 #include <glm/glm.hpp>
@@ -1060,6 +1065,296 @@ class RenderingContextScope {
     opal::Device *previousDevice;
 };
 } // namespace
+
+struct Window::AtlasHudState {
+    static constexpr size_t historySize = 120;
+
+    std::array<float, historySize> frameHistory{};
+    std::array<float, historySize> cpuHistory{};
+    std::array<float, historySize> renderHistory{};
+    size_t historyCursor = 0;
+    size_t historyCount = 0;
+    float textRefresh = 0.0f;
+    double lastCpuSeconds = 0.0;
+    float cpuPercent = 0.0f;
+    float peakMemoryMb = 0.0f;
+    bool initialized = false;
+    bool fontReady = false;
+    Font font;
+    std::unique_ptr<CoreObject> panel;
+    std::unique_ptr<CoreObject> graph;
+    std::array<Text, 7> labels;
+
+    static CoreVertex vertex(float x, float y, const Color &color) {
+        return CoreVertex{{x, y, 0.0f}, color};
+    }
+
+    static void appendQuad(std::vector<CoreVertex> &vertices, float x, float y,
+                           float width, float height, const Color &color) {
+        vertices.push_back(vertex(x, y, color));
+        vertices.push_back(vertex(x + width, y, color));
+        vertices.push_back(vertex(x + width, y + height, color));
+        vertices.push_back(vertex(x, y, color));
+        vertices.push_back(vertex(x + width, y + height, color));
+        vertices.push_back(vertex(x, y + height, color));
+    }
+
+    static void appendLine(std::vector<CoreVertex> &vertices, float x0,
+                           float y0, float x1, float y1,
+                           const Color &color) {
+        vertices.push_back(vertex(x0, y0, color));
+        vertices.push_back(vertex(x1, y1, color));
+    }
+
+    float historyValue(const std::array<float, historySize> &history,
+                       size_t index) const {
+        if (historyCount < historySize) {
+            return history[index];
+        }
+        return history[(historyCursor + index) % historySize];
+    }
+
+    void initialize(Window &window) {
+        if (initialized) {
+            return;
+        }
+
+        std::vector<CoreVertex> panelVertices;
+        panelVertices.reserve(24);
+        appendQuad(panelVertices, 12.0f, 12.0f, 410.0f, 286.0f,
+                   Color(0.025f, 0.03f, 0.045f, 0.92f));
+        appendQuad(panelVertices, 12.0f, 12.0f, 410.0f, 3.0f,
+                   Color(0.25f, 0.76f, 1.0f, 1.0f));
+        appendQuad(panelVertices, 22.0f, 164.0f, 390.0f, 82.0f,
+                   Color(0.01f, 0.015f, 0.025f, 0.82f));
+        appendQuad(panelVertices, 22.0f, 257.0f, 390.0f, 1.0f,
+                   Color(1.0f, 1.0f, 1.0f, 0.12f));
+
+        panel = std::make_unique<CoreObject>();
+        panel->attachVertices(panelVertices);
+        panel->attachProgram(ShaderProgram::fromDefaultShaders(
+            AtlasVertexShader::Color, AtlasFragmentShader::Color));
+        panel->renderOnlyColor();
+        panel->useDeferredRendering = false;
+        panel->castsShadows = false;
+        panel->initialize();
+
+        std::vector<CoreVertex> graphVertices;
+        graphVertices.resize((historySize - 1) * 4 + 8,
+                             vertex(0.0f, 0.0f, Color::transparent()));
+        graph = std::make_unique<CoreObject>();
+        graph->attachVertices(graphVertices);
+        graph->attachProgram(ShaderProgram::fromDefaultShaders(
+            AtlasVertexShader::Color, AtlasFragmentShader::Color));
+        graph->renderOnlyColor();
+        graph->useDeferredRendering = false;
+        graph->castsShadows = false;
+        graph->initialize();
+
+        const std::array<std::filesystem::path, 5> fontPaths = {
+            "/System/Library/Fonts/SFNSMono.ttf",
+            "/System/Library/Fonts/SFNS.ttf",
+            "C:/Windows/Fonts/consola.ttf",
+            "/usr/share/fonts/truetype/dejavu/DejaVuSansMono.ttf",
+            "/usr/share/fonts/truetype/liberation2/LiberationMono-Regular.ttf"};
+        for (const auto &path : fontPaths) {
+            if (!std::filesystem::exists(path)) {
+                continue;
+            }
+            Resource resource{.path = path,
+                              .name = "Atlas HUD",
+                              .type = ResourceType::Font};
+            font = Font::fromResource("Atlas HUD", resource, 15);
+            fontReady = font.texture != nullptr;
+            break;
+        }
+
+        if (fontReady) {
+            const std::array<Position2d, 7> positions = {
+                Position2d(22.0f, 20.0f), Position2d(22.0f, 48.0f),
+                Position2d(22.0f, 70.0f), Position2d(22.0f, 92.0f),
+                Position2d(22.0f, 114.0f), Position2d(22.0f, 142.0f),
+                Position2d(22.0f, 268.0f)};
+            for (size_t index = 0; index < labels.size(); ++index) {
+                labels[index] =
+                    Text("", font, Color(0.82f, 0.87f, 0.94f, 1.0f),
+                         positions[index]);
+                labels[index].fontSize = index == 0 ? 18.0f : 13.0f;
+                labels[index].initialize();
+            }
+            labels[0].color = Color(0.92f, 0.97f, 1.0f, 1.0f);
+            labels[5].color = Color(0.55f, 0.65f, 0.78f, 1.0f);
+            labels[6].color = Color(0.55f, 0.65f, 0.78f, 1.0f);
+        }
+
+        rusage usage{};
+        getrusage(RUSAGE_SELF, &usage);
+        lastCpuSeconds = usage.ru_utime.tv_sec + usage.ru_utime.tv_usec / 1e6 +
+                         usage.ru_stime.tv_sec + usage.ru_stime.tv_usec / 1e6;
+        (void)window;
+        initialized = true;
+    }
+
+    void update(Window &window, float cpuTimeMs, float renderTimeMs) {
+        const float frameTimeMs = window.frameTime * 1000.0f;
+        frameHistory[historyCursor] = frameTimeMs;
+        cpuHistory[historyCursor] = cpuTimeMs;
+        renderHistory[historyCursor] = renderTimeMs;
+        historyCursor = (historyCursor + 1) % historySize;
+        historyCount = std::min(historyCount + 1, historySize);
+
+        rusage usage{};
+        getrusage(RUSAGE_SELF, &usage);
+        const double cpuSeconds =
+            usage.ru_utime.tv_sec + usage.ru_utime.tv_usec / 1e6 +
+            usage.ru_stime.tv_sec + usage.ru_stime.tv_usec / 1e6;
+        if (window.frameTime > 0.0f && lastCpuSeconds > 0.0) {
+            cpuPercent = static_cast<float>(
+                ((cpuSeconds - lastCpuSeconds) / window.frameTime) * 100.0);
+        }
+        lastCpuSeconds = cpuSeconds;
+#ifdef __APPLE__
+        peakMemoryMb = static_cast<float>(usage.ru_maxrss) / (1024.0f * 1024.0f);
+#else
+        peakMemoryMb = static_cast<float>(usage.ru_maxrss) / 1024.0f;
+#endif
+
+        textRefresh += window.frameTime;
+    }
+
+    void updateText(Window &window, int drawCalls, float frameAllocMb) {
+        if (!fontReady || (textRefresh < 0.15f && !labels[0].content.empty())) {
+            return;
+        }
+        textRefresh = 0.0f;
+
+        float averageFrameMs = 0.0f;
+        std::vector<float> fpsSamples;
+        fpsSamples.reserve(historyCount);
+        for (size_t index = 0; index < historyCount; ++index) {
+            const float sample = historyValue(frameHistory, index);
+            if (sample <= 0.0f) {
+                continue;
+            }
+            averageFrameMs += sample;
+            fpsSamples.push_back(1000.0f / sample);
+        }
+        if (!fpsSamples.empty()) {
+            averageFrameMs /= static_cast<float>(fpsSamples.size());
+        }
+        std::sort(fpsSamples.begin(), fpsSamples.end());
+        const float onePercentLow =
+            fpsSamples.empty()
+                ? 0.0f
+                : fpsSamples[std::min(fpsSamples.size() - 1,
+                                      fpsSamples.size() / 100)];
+        const float averageFps =
+            averageFrameMs > 0.0f ? 1000.0f / averageFrameMs : 0.0f;
+
+        std::ostringstream line;
+        labels[0].content = "ATLAS PERFORMANCE";
+        line << std::fixed << std::setprecision(1) << window.framesPerSecond
+             << " FPS   " << window.frameTime * 1000.0f << " ms   AVG "
+             << averageFps << "   1% LOW " << onePercentLow;
+        labels[1].content = line.str();
+
+        line.str("");
+        line.clear();
+        line << std::fixed << std::setprecision(2) << "CPU UPDATE "
+             << historyValue(cpuHistory, historyCount - 1) << " ms   RENDER CPU "
+             << historyValue(renderHistory, historyCount - 1) << " ms   CPU "
+             << cpuPercent << "%";
+        labels[2].content = line.str();
+
+        line.str("");
+        line.clear();
+        line << "RENDERER ";
+#ifdef METAL
+        line << "METAL";
+#elif defined(VULKAN)
+        line << "VULKAN";
+#else
+        line << "OPENGL";
+#endif
+        line << (window.usePathTracing ? " / PHOTON" : " / RASTER")
+             << "   " << window.viewportWidth << "x" << window.viewportHeight
+             << "   SCALE " << std::fixed << std::setprecision(2)
+             << window.renderScale;
+        labels[3].content = line.str();
+
+        line.str("");
+        line.clear();
+        line << "COMMANDS " << drawCalls << "   OBJECTS "
+             << window.renderables.size() << "   UI "
+             << window.uiRenderables.size() << "   FRAME "
+             << window.device->frameCount;
+        labels[4].content = line.str();
+
+        labels[5].content = "FRAME TIME     CPU UPDATE     RENDER CPU";
+
+        line.str("");
+        line.clear();
+        line << std::fixed << std::setprecision(1) << "PEAK RSS "
+             << peakMemoryMb << " MB   FRAME ALLOC " << frameAllocMb
+             << " MB   HISTORY " << historyCount << " FRAMES";
+        labels[6].content = line.str();
+    }
+
+    void updateGraph() {
+        std::vector<CoreVertex> vertices;
+        vertices.reserve((historySize - 1) * 4 + 8);
+        const float x = 28.0f;
+        const float y = 170.0f;
+        const float width = 378.0f;
+        const float height = 68.0f;
+        float maximum = 33.333f;
+        for (size_t index = 0; index < historyCount; ++index) {
+            maximum = std::max(maximum, historyValue(frameHistory, index));
+            maximum = std::max(maximum, historyValue(cpuHistory, index));
+            maximum = std::max(maximum, historyValue(renderHistory, index));
+        }
+        maximum = std::min(maximum * 1.1f, 100.0f);
+
+        const auto graphY = [&](float value) {
+            return y + height -
+                   std::clamp(value / maximum, 0.0f, 1.0f) * height;
+        };
+        appendLine(vertices, x, graphY(16.667f), x + width,
+                   graphY(16.667f), Color(1.0f, 1.0f, 1.0f, 0.12f));
+        appendLine(vertices, x, graphY(33.333f), x + width,
+                   graphY(33.333f), Color(1.0f, 1.0f, 1.0f, 0.08f));
+        appendLine(vertices, x, y, x, y + height,
+                   Color(1.0f, 1.0f, 1.0f, 0.14f));
+        appendLine(vertices, x, y + height, x + width, y + height,
+                   Color(1.0f, 1.0f, 1.0f, 0.14f));
+
+        const auto appendHistory = [&](const auto &history,
+                                       const Color &color) {
+            for (size_t index = 1; index < historySize; ++index) {
+                const float x0 =
+                    x + width * static_cast<float>(index - 1) /
+                            static_cast<float>(historySize - 1);
+                const float x1 =
+                    x + width * static_cast<float>(index) /
+                            static_cast<float>(historySize - 1);
+                const float value0 = index - 1 < historyCount
+                                         ? historyValue(history, index - 1)
+                                         : 0.0f;
+                const float value1 = index < historyCount
+                                         ? historyValue(history, index)
+                                         : value0;
+                appendLine(vertices, x0, graphY(value0), x1, graphY(value1),
+                           color);
+            }
+        };
+        appendHistory(frameHistory, Color(0.25f, 0.76f, 1.0f, 0.95f));
+        appendHistory(cpuHistory, Color(1.0f, 0.64f, 0.22f, 0.9f));
+        appendHistory(renderHistory, Color(0.67f, 0.42f, 1.0f, 0.9f));
+
+        graph->vertices = std::move(vertices);
+        graph->updateVertices();
+    }
+};
 
 Window::Window(const WindowConfiguration &config)
     : title(config.title), width(config.width), height(config.height) {

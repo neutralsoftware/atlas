@@ -502,6 +502,15 @@ kernel void emitCaustics(primitive_acceleration_structure sceneAS [[buffer(0)]],
             blasPrimitiveOffsets[hit.geometry_id] + hit.primitive_id;
         uint objectId = primitiveObjects[primitive];
         Material mat = materials[objectId];
+        if (mat.isVolume != 0 &&
+            !photonFeatureEnabled(sceneData, PHOTON_FEATURE_VOLUMES)) {
+            float3 skippedPosition =
+                photonRay.origin + hit.distance * photonRay.direction;
+            photonRay.origin = skippedPosition +
+                               photonRay.direction *
+                                   rayOffsetDistance(skippedPosition);
+            continue;
+        }
         uint i0 = indices[primitive * 3], i1 = indices[primitive * 3 + 1],
              i2 = indices[primitive * 3 + 2];
         float2 bary = hit.triangle_barycentric_coord;
@@ -513,6 +522,9 @@ kernel void emitCaustics(primitive_acceleration_structure sceneAS [[buffer(0)]],
         float3 P = photonRay.origin + hit.distance * photonRay.direction;
         float opacity = resolveMaterialOpacity(
             mat, uv, sceneData.materialTextureCount, PT_MATERIAL_TEXTURE_ARGS);
+        if (!photonFeatureEnabled(sceneData,
+                                  PHOTON_FEATURE_ALPHA_TRANSPARENCY))
+            opacity = 1.0f;
         if (rand(rng) >= opacity) {
             photonRay.origin = P + photonRay.direction * rayOffsetDistance(P);
             continue;

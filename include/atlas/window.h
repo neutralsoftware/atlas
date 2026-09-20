@@ -963,13 +963,18 @@ class Window {
     float lastMouseX;
     float lastMouseY;
 
-    float lastTime = 0.0f;
+    double lastTime = 0.0;
     float deltaTime = 0.0f;
+    float frameTime = 0.0f;
     float framesPerSecond = 0.0f;
     bool shouldClose = false;
     bool runLoopInitialized = false;
     SDL_WindowID runLoopWindowID = 0;
     std::shared_ptr<opal::RenderPass> runLoopRenderPass = nullptr;
+    struct AtlasHudState;
+    std::unique_ptr<AtlasHudState> atlasHud;
+    void renderAtlasHud(const std::shared_ptr<opal::CommandBuffer> &commandBuffer,
+                        float cpuTimeMs, float renderTimeMs);
 
     ShaderProgram depthProgram;
     ShaderProgram pointDepthProgram;

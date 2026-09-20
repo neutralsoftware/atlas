@@ -68,4 +68,8 @@ inline float atlasGetTimeSeconds() {
     return static_cast<float>(SDL_GetTicksNS()) / 1'000'000'000.0f;
 }
 
+inline double atlasGetTimeSecondsPrecise() {
+    return static_cast<double>(SDL_GetTicksNS()) / 1'000'000'000.0;
+}
+
 #endif
