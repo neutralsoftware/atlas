@@ -1068,6 +1068,10 @@ class RenderingContextScope {
 
 struct Window::AtlasHudState {
     static constexpr size_t historySize = 120;
+    static constexpr float cardX = 18.0f;
+    static constexpr float cardY = 18.0f;
+    static constexpr float cardWidth = 820.0f;
+    static constexpr float cardHeight = 500.0f;
 
     std::array<float, historySize> frameHistory{};
     std::array<float, historySize> cpuHistory{};
@@ -1083,7 +1087,7 @@ struct Window::AtlasHudState {
     Font font;
     std::unique_ptr<CoreObject> panel;
     std::unique_ptr<CoreObject> graph;
-    std::array<Text, 7> labels;
+    std::array<Text, 10> labels;
 
     static CoreVertex vertex(float x, float y, const Color &color) {
         return CoreVertex{{x, y, 0.0f}, color};
@@ -1121,13 +1125,13 @@ struct Window::AtlasHudState {
 
         std::vector<CoreVertex> panelVertices;
         panelVertices.reserve(24);
-        appendQuad(panelVertices, 12.0f, 12.0f, 410.0f, 286.0f,
+        appendQuad(panelVertices, cardX, cardY, cardWidth, cardHeight,
                    Color{0.025f, 0.03f, 0.045f, 0.92f});
-        appendQuad(panelVertices, 12.0f, 12.0f, 410.0f, 3.0f,
+        appendQuad(panelVertices, cardX, cardY, cardWidth, 4.0f,
                    Color{0.25f, 0.76f, 1.0f, 1.0f});
-        appendQuad(panelVertices, 22.0f, 164.0f, 390.0f, 82.0f,
+        appendQuad(panelVertices, 30.0f, 270.0f, 796.0f, 166.0f,
                    Color{0.01f, 0.015f, 0.025f, 0.82f});
-        appendQuad(panelVertices, 22.0f, 257.0f, 390.0f, 1.0f,
+        appendQuad(panelVertices, 30.0f, 452.0f, 796.0f, 1.0f,
                    Color{1.0f, 1.0f, 1.0f, 0.12f});
 
         panel = std::make_unique<CoreObject>();
@@ -1164,27 +1168,28 @@ struct Window::AtlasHudState {
             Resource resource{.path = path,
                               .name = "Atlas HUD",
                               .type = ResourceType::Font};
-            font = Font::fromResource("Atlas HUD", resource, 15);
+            font = Font::fromResource("Atlas HUD", resource, 14);
             fontReady = font.texture != nullptr;
             break;
         }
 
         if (fontReady) {
-            const std::array<Position2d, 7> positions = {
-                Position2d{22.0f, 20.0f}, Position2d{22.0f, 48.0f},
-                Position2d{22.0f, 70.0f}, Position2d{22.0f, 92.0f},
-                Position2d{22.0f, 114.0f}, Position2d{22.0f, 142.0f},
-                Position2d{22.0f, 268.0f}};
+            const std::array<Position2d, 10> positions = {
+                Position2d{34.0f, 34.0f},  Position2d{34.0f, 82.0f},
+                Position2d{386.0f, 82.0f}, Position2d{34.0f, 126.0f},
+                Position2d{386.0f, 126.0f}, Position2d{34.0f, 170.0f},
+                Position2d{386.0f, 170.0f}, Position2d{34.0f, 214.0f},
+                Position2d{34.0f, 248.0f}, Position2d{34.0f, 470.0f}};
             for (size_t index = 0; index < labels.size(); ++index) {
                 labels[index] =
                     Text("", font, Color{0.82f, 0.87f, 0.94f, 1.0f},
                          positions[index]);
-                labels[index].fontSize = index == 0 ? 18.0f : 13.0f;
+                labels[index].fontSize = index == 0 ? 16.0f : 11.0f;
                 labels[index].initialize();
             }
             labels[0].color = Color{0.92f, 0.97f, 1.0f, 1.0f};
-            labels[5].color = Color{0.55f, 0.65f, 0.78f, 1.0f};
-            labels[6].color = Color{0.55f, 0.65f, 0.78f, 1.0f};
+            labels[8].color = Color{0.55f, 0.65f, 0.78f, 1.0f};
+            labels[9].color = Color{0.55f, 0.65f, 0.78f, 1.0f};
         }
 
         rusage usage{};
@@ -1254,21 +1259,30 @@ struct Window::AtlasHudState {
         std::ostringstream line;
         labels[0].content = "ATLAS PERFORMANCE";
         line << std::fixed << std::setprecision(1) << window.framesPerSecond
-             << " FPS   " << window.frameTime * 1000.0f << " ms   AVG "
-             << averageFps << "   1% LOW " << onePercentLow;
+             << " FPS   " << window.frameTime * 1000.0f << " ms";
         labels[1].content = line.str();
 
         line.str("");
         line.clear();
-        line << std::fixed << std::setprecision(2) << "CPU UPDATE "
-             << historyValue(cpuHistory, historyCount - 1) << " ms   RENDER CPU "
-             << historyValue(renderHistory, historyCount - 1) << " ms   CPU "
-             << cpuPercent << "%";
+        line << std::fixed << std::setprecision(1) << "AVG " << averageFps
+             << " FPS   1% LOW " << onePercentLow << " FPS";
         labels[2].content = line.str();
 
         line.str("");
         line.clear();
-        line << "RENDERER ";
+        line << std::fixed << std::setprecision(2) << "CPU UPDATE "
+             << historyValue(cpuHistory, historyCount - 1) << " ms";
+        labels[3].content = line.str();
+
+        line.str("");
+        line.clear();
+        line << std::fixed << std::setprecision(2) << "RENDER CPU "
+             << historyValue(renderHistory, historyCount - 1) << " ms   CPU "
+             << cpuPercent << "%";
+        labels[4].content = line.str();
+
+        line.str("");
+        line.clear();
 #ifdef METAL
         line << "METAL";
 #elif defined(VULKAN)
@@ -1276,11 +1290,15 @@ struct Window::AtlasHudState {
 #else
         line << "OPENGL";
 #endif
-        line << (window.usePathTracing ? " / PHOTON" : " / RASTER")
-             << "   " << window.viewportWidth << "x" << window.viewportHeight
+        line << (window.usePathTracing ? " / PHOTON" : " / RASTER");
+        labels[5].content = line.str();
+
+        line.str("");
+        line.clear();
+        line << window.viewportWidth << " x " << window.viewportHeight
              << "   SCALE " << std::fixed << std::setprecision(2)
              << window.renderScale;
-        labels[3].content = line.str();
+        labels[6].content = line.str();
 
         line.str("");
         line.clear();
@@ -1288,25 +1306,25 @@ struct Window::AtlasHudState {
              << window.renderables.size() << "   UI "
              << window.uiRenderables.size() << "   FRAME "
              << window.device->frameCount;
-        labels[4].content = line.str();
+        labels[7].content = line.str();
 
-        labels[5].content = "FRAME TIME     CPU UPDATE     RENDER CPU";
+        labels[8].content = "FRAME TIME     CPU UPDATE     RENDER CPU";
 
         line.str("");
         line.clear();
         line << std::fixed << std::setprecision(1) << "PEAK RSS "
              << peakMemoryMb << " MB   FRAME ALLOC " << frameAllocMb
              << " MB   HISTORY " << historyCount << " FRAMES";
-        labels[6].content = line.str();
+        labels[9].content = line.str();
     }
 
     void updateGraph() {
         std::vector<CoreVertex> vertices;
         vertices.reserve((historySize - 1) * 6 + 8);
-        const float x = 28.0f;
-        const float y = 170.0f;
-        const float width = 378.0f;
-        const float height = 68.0f;
+        const float x = 38.0f;
+        const float y = 280.0f;
+        const float width = 780.0f;
+        const float height = 146.0f;
         float maximum = 33.333f;
         for (size_t index = 0; index < historyCount; ++index) {
             maximum = std::max(maximum, historyValue(frameHistory, index));

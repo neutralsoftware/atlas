@@ -1587,11 +1587,7 @@ void EditorWindow::showProjectSettings() {
     build->addRow("Run command", runCommand);
     auto *atlasHud =
         new QCheckBox("Display Atlas performance HUD when running", &dialog);
-    atlasHud->setChecked(
-        settings
-            .value("project/atlasHud",
-                   settings.value("project/metalHud", false))
-            .toBool());
+    atlasHud->setChecked(settings.value("project/atlasHud", false).toBool());
     build->addRow(QString(), atlasHud);
     auto *editor = addPage("Editor", styling::Icon::Layout, "#7E929C");
     auto *autosave = new QSpinBox(&dialog);
@@ -2337,11 +2333,8 @@ void EditorWindow::runProjectCommand(bool buildOnly) {
     }
     const QString workingDirectory = QFileInfo(projectFile).absolutePath();
     auto launchEnvironment = QProcessEnvironment::systemEnvironment();
-    if (!buildOnly &&
-        settings
-            .value("project/atlasHud",
-                   settings.value("project/metalHud", false))
-            .toBool()) {
+    launchEnvironment.remove("ATLAS_HUD_ENABLED");
+    if (!buildOnly && settings.value("project/atlasHud", false).toBool()) {
         launchEnvironment.insert("ATLAS_HUD_ENABLED", "1");
     }
     if (!settings.contains(settingsKey) || command == defaultCommand) {
