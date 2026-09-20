@@ -26,6 +26,24 @@ class Window;
 
 namespace photon {
 
+enum PathTracingFeature : uint32_t {
+    DirectLighting = 1u << 0,
+    Shadows = 1u << 1,
+    EnvironmentLighting = 1u << 2,
+    EmissiveLighting = 1u << 3,
+    IndirectLighting = 1u << 4,
+    Transmission = 1u << 5,
+    Dispersion = 1u << 6,
+    Iridescence = 1u << 7,
+    Caustics = 1u << 8,
+    Volumes = 1u << 9,
+    SubsurfaceScattering = 1u << 10,
+    NormalMaps = 1u << 11,
+    MaterialTextures = 1u << 12,
+    AlphaTransparency = 1u << 13,
+    AllPathTracingFeatures = (1u << 14) - 1u,
+};
+
 /**
  * @brief Spatial layout and atlas packing configuration for DDGI probes.
  */
@@ -89,7 +107,7 @@ class PathTracing {
     /** @brief Resizes path tracing output and history textures. */
     void resizeOutput(int width, int height);
     void configure(int samplesPerPixel, int bounceLimit, bool useDenoising,
-                   int historyFrames);
+                   int historyFrames, uint32_t enabledFeatures);
     void resetAccumulation();
     const std::string &getLastError() const { return lastError; }
 
@@ -106,6 +124,7 @@ class PathTracing {
     bool denoisingEnabled = true;
     int accumulationFrames = 512;
     float fireflyClamp = 32.0f;
+    uint32_t featureFlags = AllPathTracingFeatures;
 
   private:
     std::shared_ptr<opal::Buffer> pointLights;

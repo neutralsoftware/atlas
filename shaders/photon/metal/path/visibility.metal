@@ -19,6 +19,8 @@ float4 traceShadowVisibility(
     constant uint *indices, constant InstanceData *instanceData,
     constant SceneData &sceneData, thread const SpectralPath &path,
     PT_MATERIAL_TEXTURE_PARAMS) {
+    if (!photonFeatureEnabled(sceneData, PHOTON_FEATURE_SHADOWS))
+        return float4(1.0f);
     float shadowBias = rayOffsetDistance(P);
     float4 visibility = float4(1.0);
     ray shadowRay;
@@ -45,6 +47,17 @@ float4 traceShadowVisibility(
         uint objectIndex = primitiveObjects[primitiveIndex];
         Material material = materials[objectIndex];
 
+        if (material.isVolume != 0 &&
+            !photonFeatureEnabled(sceneData, PHOTON_FEATURE_VOLUMES)) {
+            float advance =
+                shadowHit.distance + rayOffsetDistance(shadowRay.origin);
+            shadowRay.origin += shadowRay.direction * advance;
+            shadowRay.max_distance -= advance;
+            if (shadowRay.max_distance <= shadowBias)
+                return visibility;
+            continue;
+        }
+
         uint i0 = indices[primitiveIndex * 3 + 0];
         uint i1 = indices[primitiveIndex * 3 + 1];
         uint i2 = indices[primitiveIndex * 3 + 2];
@@ -63,6 +76,10 @@ float4 traceShadowVisibility(
             material, uv, sceneData.materialTextureCount,
             PT_MATERIAL_TEXTURE_ARGS);
 
+        if (!photonFeatureEnabled(sceneData,
+                                  PHOTON_FEATURE_ALPHA_TRANSPARENCY))
+            opacity = 1.0f;
+
         if (material.isVolume == 0 && opacity < 0.999f &&
             rand(rng) >= opacity) {
             float advance =
@@ -74,7 +91,8 @@ float4 traceShadowVisibility(
             continue;
         }
 
-        if (material.isVolume != 0) {
+        if (material.isVolume != 0 &&
+            photonFeatureEnabled(sceneData, PHOTON_FEATURE_VOLUMES)) {
             if (volumeObject == objectIndex) {
                 volumeObject = 0xFFFFFFFFu;
                 volumeSigmaA = float4(0.0f);
@@ -92,7 +110,9 @@ float4 traceShadowVisibility(
             }
         } else {
             float transmission =
-                clamp(material.transmittance, 0.0f, 1.0f) *
+                (photonFeatureEnabled(sceneData, PHOTON_FEATURE_TRANSMISSION)
+                     ? clamp(material.transmittance, 0.0f, 1.0f)
+                     : 0.0f) *
                 (1.0f - clamp(material.metallic, 0.0f, 1.0f));
             if (transmission <= 0.001f)
                 return float4(0.0f);
@@ -107,7 +127,10 @@ float4 traceShadowVisibility(
             bool frontFace = dot(geometricNormal, shadowRay.direction) < 0.0f;
             float cosine = abs(dot(geometricNormal, shadowRay.direction));
             float4 ior = evaluateIorAtWavelength(
-                max(material.ior, 1.0001f), max(material.abbeNumber, 0.0f),
+                max(material.ior, 1.0001f),
+                photonFeatureEnabled(sceneData, PHOTON_FEATURE_DISPERSION)
+                    ? max(material.abbeNumber, 0.0f)
+                    : 0.0f,
                 path);
             float4 eta = frontFace ? 1.0f / ior : ior;
             visibility *=
@@ -155,6 +178,8 @@ float4 traceSubsurfaceVisibility(
     constant VertexData *vertices, constant uint *indices,
     constant InstanceData *instanceData, constant SceneData &sceneData,
     thread const SpectralPath &path, PT_MATERIAL_TEXTURE_PARAMS) {
+    if (!photonFeatureEnabled(sceneData, PHOTON_FEATURE_SHADOWS))
+        return float4(1.0f);
     ray boundaryRay;
     boundaryRay.origin = P + L * rayOffsetDistance(P);
     boundaryRay.direction = L;

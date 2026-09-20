@@ -512,7 +512,9 @@ class Window {
     void enableGlobalIllumination();
     void enablePathTracing();
     void configurePathTracing(int samplesPerPixel, int bounceLimit,
-                              bool denoising, int accumulationFrames);
+                              bool denoising, int accumulationFrames,
+                              uint32_t featureFlags =
+                                  photon::AllPathTracingFeatures);
     void resetPathTracingAccumulation();
     bool setEditorPathTracingPreview(bool enabled);
     const std::string &getPathTracingError() const;

@@ -544,6 +544,10 @@ kernel void emitCaustics(primitive_acceleration_structure sceneAS [[buffer(0)]],
                                   PT_MATERIAL_TEXTURE_ARGS, albedo, metallic,
                                   roughness, ao, emissive, baseIor,
                                   transmission, abbe);
+        if (!photonFeatureEnabled(sceneData, PHOTON_FEATURE_TRANSMISSION))
+            transmission = 0.0f;
+        if (!photonFeatureEnabled(sceneData, PHOTON_FEATURE_DISPERSION))
+            abbe = 0.0f;
         float b0 = 1.0f - bary.x - bary.y;
         float3 localN = float3(vertices[i0].normal) * b0 +
                         float3(vertices[i1].normal) * bary.x +
@@ -556,7 +560,9 @@ kernel void emitCaustics(primitive_acceleration_structure sceneAS [[buffer(0)]],
                         float3(vertices[i2].bitangent) * bary.y;
         float3 N = resolveShadingNormal(
             mat, uv, localN, localT, localB, instanceData[objectId],
-            sceneData.materialTextureCount, PT_MATERIAL_TEXTURE_ARGS);
+            sceneData.materialTextureCount,
+            photonFeatureEnabled(sceneData, PHOTON_FEATURE_NORMAL_MAPS),
+            PT_MATERIAL_TEXTURE_ARGS);
         N = dot(N, Ng) >= 0.0f ? N : -N;
         if (dot(N, Ng) < 0.1f)
             N = normalizeOr(N + Ng * (0.1f - dot(N, Ng)), Ng);
@@ -601,7 +607,14 @@ kernel void emitCaustics(primitive_acceleration_structure sceneAS [[buffer(0)]],
             interfaceNormal = normalizeOr(basis * localH, opticalNormal);
         }
 
-        float ior = evaluateIorAtWavelength(baseIor, abbe, path).x;
+        float ior = evaluateIorAtWavelength(
+                        baseIor,
+                        photonFeatureEnabled(sceneData,
+                                             PHOTON_FEATURE_DISPERSION)
+                            ? abbe
+                            : 0.0f,
+                        path)
+                        .x;
         float eta = frontFace ? 1.0f / ior : ior;
         float cosine = max(dot(-photonRay.direction, interfaceNormal), 0.0f);
         float fresnel = dielectricFresnel(cosine, float4(eta)).x;
@@ -609,7 +622,11 @@ kernel void emitCaustics(primitive_acceleration_structure sceneAS [[buffer(0)]],
             mix(fresnel, rgbToReflectanceAtWavelength(albedo, wavelength.x),
                 metallic);
         float transmittance =
-            (1.0f - fresnel) * transmission * (1.0f - metallic);
+            (1.0f - fresnel) *
+            (photonFeatureEnabled(sceneData, PHOTON_FEATURE_TRANSMISSION)
+                 ? transmission
+                 : 0.0f) *
+            (1.0f - metallic);
         float choice = rand(rng);
 
         float3 nextDirection;

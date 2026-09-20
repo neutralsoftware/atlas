@@ -373,19 +373,25 @@ void photon::PathTracing::resizeOutput(int width, int height) {
 }
 
 void photon::PathTracing::configure(int samplesPerPixel, int bounceLimit,
-                                    bool useDenoising, int historyFrames) {
+                                    bool useDenoising, int historyFrames,
+                                    uint32_t enabledFeatures) {
     const int newSamples = std::clamp(samplesPerPixel, 1, 256);
     const int newBounces = std::clamp(bounceLimit, 1, 16);
     const int newHistoryFrames = std::clamp(historyFrames, 1, 2048);
     if (raysPerPixel == newSamples && maxBounces == newBounces &&
         denoisingEnabled == useDenoising &&
-        accumulationFrames == newHistoryFrames) {
+        accumulationFrames == newHistoryFrames &&
+        featureFlags == enabledFeatures) {
         return;
+    }
+    if ((featureFlags & Caustics) != (enabledFeatures & Caustics)) {
+        causticMapDirty = true;
     }
     raysPerPixel = newSamples;
     maxBounces = newBounces;
     denoisingEnabled = useDenoising;
     accumulationFrames = newHistoryFrames;
+    featureFlags = enabledFeatures;
     resetAccumulation();
 }
 
@@ -1339,7 +1345,11 @@ bool photon::PathTracing::render(
     pathTracingPipeline->setUniform1i("sceneData.numAreaLights",
                                       areaLightCount);
     pathTracingPipeline->setUniform1f("sceneData.indirectStrength",
-                                      this->indirectStrength);
+                                      (featureFlags & IndirectLighting) != 0
+                                          ? this->indirectStrength
+                                          : 0.0f);
+    pathTracingPipeline->setUniform1i("sceneData.featureFlags",
+                                      static_cast<int>(featureFlags));
 
     const std::string previousError = lastError;
     try {
@@ -1414,8 +1424,9 @@ bool photon::PathTracing::render(
     }
     pathTracingPipeline->setUniform1i(
         "sceneData.environmentEnabled",
-        skyboxTexture != fallbackSkyboxTexture || atmosphereEnabled != 0 ||
-                ambientIntensity > 0.0f
+        (featureFlags & EnvironmentLighting) != 0 &&
+                (skyboxTexture != fallbackSkyboxTexture ||
+                 atmosphereEnabled != 0 || ambientIntensity > 0.0f)
             ? 1
             : 0);
     pathTracingPipeline->bindTexture("skybox", skyboxTexture,
@@ -1476,7 +1487,9 @@ bool photon::PathTracing::render(
         "sceneData.bloomThreshold",
         std::max(scene->getEnvironment().lightBloom.threshold, 0.0f));
     pathTracingPipeline->setUniform1i("sceneData.numEmissiveTriangles",
-                                      emissiveTriangleCount);
+                                      (featureFlags & EmissiveLighting) != 0
+                                          ? emissiveTriangleCount
+                                          : 0);
 
     commandBuffer->bindPrimitiveAccelerationStructure(this->sceneBLAS, 0);
 
@@ -1493,8 +1506,10 @@ bool photon::PathTracing::render(
     pathTracingPipeline->bindBuffer("emissiveTriangles", emissiveTriangles, 14);
     pathTracingPipeline->setUniform1i(
         "sceneData.materialTextureCount",
-        std::min<int>(static_cast<int>(materialTextures.size()),
-                      kPathTracerMaxMaterialTextures));
+        (featureFlags & MaterialTextures) != 0
+            ? std::min<int>(static_cast<int>(materialTextures.size()),
+                            kPathTracerMaxMaterialTextures)
+            : 0);
 
     if (materialTextureBindings.size() != kPathTracerMaxMaterialTextures) {
         static std::shared_ptr<opal::Texture> fallbackMaterialTexture =
@@ -1506,10 +1521,12 @@ bool photon::PathTracing::render(
     pathTracingPipeline->bindTextureArray(materialTextureBindings, 12);
 
     const bool causticsEnabled =
-        causticGeometryPresent && directionalLightCount + pointLightCount +
-                                          spotLightCount + areaLightCount +
-                                          emissiveTriangleCount >
-                                      0;
+        (featureFlags & Caustics) != 0 && causticGeometryPresent &&
+        directionalLightCount + pointLightCount + spotLightCount +
+                areaLightCount +
+                ((featureFlags & EmissiveLighting) != 0 ? emissiveTriangleCount
+                                                        : 0) >
+            0;
     if (causticPhotons == nullptr || causticSlots == nullptr) {
         return fail("Caustic photon buffers are unavailable");
     }
@@ -1533,10 +1550,16 @@ bool photon::PathTracing::render(
         pipeline->setUniform1i("sceneData.numSpotLights", spotLightCount);
         pipeline->setUniform1i("sceneData.numAreaLights", areaLightCount);
         pipeline->setUniform1i("sceneData.numEmissiveTriangles",
-                               emissiveTriangleCount);
+                               (featureFlags & EmissiveLighting) != 0
+                                   ? emissiveTriangleCount
+                                   : 0);
         pipeline->setUniform1i("sceneData.materialTextureCount",
-                               std::min<int>(materialTextures.size(),
-                                             kPathTracerMaxMaterialTextures));
+                               (featureFlags & MaterialTextures) != 0
+                                   ? std::min<int>(materialTextures.size(),
+                                                   kPathTracerMaxMaterialTextures)
+                                   : 0);
+        pipeline->setUniform1i("sceneData.featureFlags",
+                               static_cast<int>(featureFlags));
         pipeline->setUniform3f(
             "dirLight.direction", directionalLightDirection.x,
             directionalLightDirection.y, directionalLightDirection.z);

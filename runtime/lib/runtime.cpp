@@ -24,7 +24,8 @@ void RuntimeScene::initialize(Window &window) {
                 runtimeContext->config.pathTracingSamples,
                 runtimeContext->config.pathTracingBounces,
                 runtimeContext->config.pathTracingDenoising,
-                runtimeContext->config.pathTracingAccumulationFrames);
+                runtimeContext->config.pathTracingAccumulationFrames,
+                runtimeContext->config.pathTracingFeatureFlags);
         } else {
             window.useDeferredRendering();
         }
@@ -53,7 +54,8 @@ void RuntimeScene::initialize(Window &window) {
             runtimeContext->config.pathTracingSamples,
             runtimeContext->config.pathTracingBounces,
             runtimeContext->config.pathTracingDenoising,
-            runtimeContext->config.pathTracingAccumulationFrames);
+            runtimeContext->config.pathTracingAccumulationFrames,
+            runtimeContext->config.pathTracingFeatureFlags);
     }
 
     if (runtimeContext->config.useUpscaling) {

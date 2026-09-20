@@ -78,6 +78,18 @@ float3 sampleRadiance(
             mat = materials[surfaceObjectIndex];
             inst = instanceData[surfaceObjectIndex];
 
+            if (mat.isVolume != 0 &&
+                !photonFeatureEnabled(sceneData, PHOTON_FEATURE_VOLUMES)) {
+                float3 rejectedPosition =
+                    surfaceRay.origin + surfaceRay.direction * hit.distance;
+                surfaceRay.origin =
+                    rejectedPosition +
+                    surfaceRay.direction * rayOffsetDistance(rejectedPosition);
+                surfaceRay.min_distance = 0.0f;
+                hit = isect.intersect(surfaceRay, sceneAS);
+                continue;
+            }
+
             uint i0 = indices[primitiveIndex * 3 + 0];
             uint i1 = indices[primitiveIndex * 3 + 1];
             uint i2 = indices[primitiveIndex * 3 + 2];
@@ -117,6 +129,9 @@ float3 sampleRadiance(
             float alpha = resolveMaterialOpacity(mat, texUV,
                                                  sceneData.materialTextureCount,
                                                  PT_MATERIAL_TEXTURE_ARGS);
+            if (!photonFeatureEnabled(sceneData,
+                                      PHOTON_FEATURE_ALPHA_TRANSPARENCY))
+                alpha = 1.0f;
             if (alpha >= 0.999 || rand(rng) < alpha) {
                 foundSurface = true;
                 break;
@@ -136,9 +151,12 @@ float3 sampleRadiance(
                 previousEventWasDelta
                     ? 1.0
                     : powerHeuristic(previousBsdfPdf, previousEnvironmentPdf);
-            spectralPath.radiance += spectralPath.throughput * misWeight *
-                                     skyColor(surfaceRay.direction, 0.0, skybox,
-                                              sceneData, spectralPath);
+            if (sceneData.environmentEnabled != 0) {
+                spectralPath.radiance += spectralPath.throughput * misWeight *
+                                         skyColor(surfaceRay.direction, 0.0,
+                                                  skybox, sceneData,
+                                                  spectralPath);
+            }
             break;
         }
 
@@ -214,7 +232,9 @@ float3 sampleRadiance(
 
         float3 shadingNormal = resolveShadingNormal(
             mat, texUV, localN, localT, localB, inst,
-            sceneData.materialTextureCount, PT_MATERIAL_TEXTURE_ARGS);
+            sceneData.materialTextureCount,
+            photonFeatureEnabled(sceneData, PHOTON_FEATURE_NORMAL_MAPS),
+            PT_MATERIAL_TEXTURE_ARGS);
         float3 P = surfaceRay.origin + surfaceRay.direction * hit.distance;
         float3 V = normalize(-surfaceRay.direction);
         bool frontFace = dot(geometricNormal, V) >= 0.0;
@@ -238,13 +258,30 @@ float3 sampleRadiance(
                                   PT_MATERIAL_TEXTURE_ARGS, albedoRgb, metallic,
                                   roughness, ao, emissiveRgb, baseIor,
                                   transmittance, abbeNumber);
+        if (!photonFeatureEnabled(sceneData, PHOTON_FEATURE_EMISSIVE_LIGHTING))
+            emissiveRgb = float3(0.0f);
+        if (!photonFeatureEnabled(sceneData, PHOTON_FEATURE_TRANSMISSION))
+            transmittance = 0.0f;
+        if (!photonFeatureEnabled(sceneData, PHOTON_FEATURE_DISPERSION))
+            abbeNumber = 0.0f;
+        float iridescenceFactor =
+            photonFeatureEnabled(sceneData, PHOTON_FEATURE_IRIDESCENCE)
+                ? mat.iridescenceFactor
+                : 0.0f;
+        float iridescenceAbbeNumber =
+            photonFeatureEnabled(sceneData, PHOTON_FEATURE_DISPERSION)
+                ? mat.iridescenceAbbeNumber
+                : 0.0f;
         bool hasVolume =
             transmittance > 0.001f && mat.attenuationDistance > 0.001f;
         float4 albedo = evaluateReflectance(albedoRgb, spectralPath);
         float4 emissive = evaluateEmission(emissiveRgb, spectralPath);
         float4 ior = evaluateIorAtWavelength(baseIor, abbeNumber, spectralPath);
         float subsurfaceWeight =
-            frontFace ? clamp(mat.subsurfaceWeight, 0.0f, 1.0f) : 0.0f;
+            frontFace && photonFeatureEnabled(
+                             sceneData, PHOTON_FEATURE_SUBSURFACE)
+                ? clamp(mat.subsurfaceWeight, 0.0f, 1.0f)
+                : 0.0f;
 
         if (insideSubsurface && mediumObjectId == surfaceObjectIndex) {
             float4 etaPacket = ior;
@@ -306,7 +343,8 @@ float3 sampleRadiance(
             primaryObjectId = surfaceObjectIndex;
         }
 
-        if (mat.isVolume != 0) {
+        if (mat.isVolume != 0 &&
+            photonFeatureEnabled(sceneData, PHOTON_FEATURE_VOLUMES)) {
             if (frontFace) {
                 VolumeCoefficients coefficients = calculateVolumeCoefficients(
                     float3(mat.volumeAbsorptionColor),
@@ -354,12 +392,13 @@ float3 sampleRadiance(
                 gatherCausticsXYZ(P, N, Ng, surfaceObjectIndex, albedoRgb,
                                   caustics, photons, photonSlots);
         }
-        if (!deltaDielectric && !deltaMirror) {
+        if (!deltaDielectric && !deltaMirror &&
+            photonFeatureEnabled(sceneData, PHOTON_FEATURE_DIRECT_LIGHTING)) {
             float4 direct = evalDirectLightingPBR(
                 isect, sceneAS, P, N, Ng, V, albedo, metallic, roughness,
                 reflectivity, ior, surfaceTransmission, baseIor, abbeNumber,
-                mat.iridescenceFactor, mat.iridescenceIor,
-                mat.iridescenceAbbeNumber, mat.iridescenceThickness, frontFace,
+                iridescenceFactor, mat.iridescenceIor,
+                iridescenceAbbeNumber, mat.iridescenceThickness, frontFace,
                 rng, spectralPath, dirLight, sceneData, pointLights, spotLights,
                 areaLights, emissiveTriangles, materials, primitiveObjects,
                 blasPrimitiveOffsets, vertices, indices, instanceData,
@@ -372,15 +411,17 @@ float3 sampleRadiance(
             spectralPath.radiance += spectralPath.throughput * emissive;
         }
 
-        if (depth == 0 && sceneData.ambientIntensity > 0.0f) {
+        if (depth == 0 && sceneData.ambientIntensity > 0.0f &&
+            photonFeatureEnabled(sceneData,
+                                 PHOTON_FEATURE_ENVIRONMENT_LIGHTING)) {
             float aoVisibility = mix(0.2f, 1.0f, ao);
             float4 ambientF0 = materialF0(albedo, metallic, reflectivity, ior);
             float4 ambientOrdinaryF =
                 F_Schlick(max(dot(N, V), 0.0f), ambientF0);
             float4 ambientF = evalIridescence(
                 max(dot(N, V), 0.0f), ambientOrdinaryF, 1.0f, baseIor,
-                abbeNumber, mat.iridescenceFactor, mat.iridescenceIor,
-                mat.iridescenceAbbeNumber, mat.iridescenceThickness, frontFace,
+                abbeNumber, iridescenceFactor, mat.iridescenceIor,
+                iridescenceAbbeNumber, mat.iridescenceThickness, frontFace,
                 spectralPath);
             float4 ambientDiffuse = (1.0f - ambientF) * (1.0f - metallic) *
                                     albedo * (1.0f - surfaceTransmission);
@@ -392,6 +433,9 @@ float3 sampleRadiance(
                                      (ambientDiffuse + ambientSpecular) *
                                      ambientRadiance * aoVisibility;
         }
+
+        if (!photonFeatureEnabled(sceneData, PHOTON_FEATURE_INDIRECT_LIGHTING))
+            break;
 
         float4 F0 = materialF0(albedo, metallic, reflectivity, ior);
         float NdotV = max(dot(N, V), 1e-4f);
@@ -405,8 +449,8 @@ float3 sampleRadiance(
 
         float4 viewFresnel =
             evalIridescence(interfaceNdotV, ordinaryViewFresnel, 1.0f, baseIor,
-                            abbeNumber, mat.iridescenceFactor,
-                            mat.iridescenceIor, mat.iridescenceAbbeNumber,
+                            abbeNumber, iridescenceFactor,
+                            mat.iridescenceIor, iridescenceAbbeNumber,
                             mat.iridescenceThickness, frontFace, spectralPath);
 
         float fresnelProbability =
@@ -471,8 +515,8 @@ float3 sampleRadiance(
 
                 float4 F = evalIridescence(
                     VdotH, ordinaryF, 1.0f, baseIor, abbeNumber,
-                    mat.iridescenceFactor, mat.iridescenceIor,
-                    mat.iridescenceAbbeNumber, mat.iridescenceThickness,
+                    iridescenceFactor, mat.iridescenceIor,
+                    iridescenceAbbeNumber, mat.iridescenceThickness,
                     frontFace, spectralPath);
 
                 float4 kD = (1.0 - F) * (1.0 - metallic) *
@@ -542,8 +586,8 @@ float3 sampleRadiance(
                     float4 ordinaryF = F_Schlick(VdotH, F0);
                     float4 F = evalIridescence(
                         VdotH, ordinaryF, 1.0f, baseIor, abbeNumber,
-                        mat.iridescenceFactor, mat.iridescenceIor,
-                        mat.iridescenceAbbeNumber, mat.iridescenceThickness,
+                        iridescenceFactor, mat.iridescenceIor,
+                        iridescenceAbbeNumber, mat.iridescenceThickness,
                         frontFace, spectralPath);
 
                     float4 specularBsdf =
@@ -579,8 +623,8 @@ float3 sampleRadiance(
             float4 ordinaryF = dielectricFresnel(fresnelCosine, etaPacket);
             float4 F = evalIridescence(
                 fresnelCosine, ordinaryF, 1.0f, baseIor, abbeNumber,
-                mat.iridescenceFactor, mat.iridescenceIor,
-                mat.iridescenceAbbeNumber, mat.iridescenceThickness, frontFace,
+                iridescenceFactor, mat.iridescenceIor,
+                iridescenceAbbeNumber, mat.iridescenceThickness, frontFace,
                 spectralPath);
             bounceWeight = (1.0 - F) * transmittance * (1.0 - metallic) *
                            etaPacket * etaPacket / max(transmitProb, 1e-4);
@@ -669,8 +713,8 @@ float3 sampleRadiance(
             float4 ordinaryF = F_Schlick(max(dot(V, H), 0.0), F0);
             float4 F = evalIridescence(
                 max(dot(N, H), 0.0), ordinaryF, 1.0f, baseIor, abbeNumber,
-                mat.iridescenceFactor, mat.iridescenceIor,
-                mat.iridescenceAbbeNumber, mat.iridescenceThickness, frontFace,
+                iridescenceFactor, mat.iridescenceIor,
+                iridescenceAbbeNumber, mat.iridescenceThickness, frontFace,
                 spectralPath);
             float4 kD = (1.0 - F) * (1.0 - metallic) *
                         (1.0 - transmittance) * (1.0 - subsurfaceWeight);

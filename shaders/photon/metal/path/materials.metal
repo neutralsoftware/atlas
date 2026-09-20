@@ -320,7 +320,8 @@ void resolveMaterialParameters(Material mat, float2 uv, uint textureCount,
 
 float3 resolveShadingNormal(Material mat, float2 uv, float3 localN,
                             float3 localT, float3 localB, InstanceData inst,
-                            uint textureCount, PT_MATERIAL_TEXTURE_PARAMS) {
+                            uint textureCount, bool normalMapsEnabled,
+                            PT_MATERIAL_TEXTURE_PARAMS) {
     float3x3 normalMatrix =
         float3x3(inst.normalCol0.xyz, inst.normalCol1.xyz, inst.normalCol2.xyz);
     float3 N = normalizeOr(normalMatrix * localN, float3(0.0, 1.0, 0.0));
@@ -337,7 +338,7 @@ float3 resolveShadingNormal(Material mat, float2 uv, float3 localN,
         B = basis[1];
     }
 
-    bool useNormalMap = mat.useNormalMap != 0;
+    bool useNormalMap = normalMapsEnabled && mat.useNormalMap != 0;
     float normalStrength = max(mat._pad0, 0.0f);
     if (useNormalMap && normalStrength > 0.0 && mat.normalTextureIndex >= 0 &&
         uint(mat.normalTextureIndex) < textureCount) {

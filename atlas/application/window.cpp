@@ -5816,12 +5816,13 @@ void Window::enablePathTracing() {
 }
 
 void Window::configurePathTracing(int samplesPerPixel, int bounceLimit,
-                                  bool denoising, int accumulationFrames) {
+                                  bool denoising, int accumulationFrames,
+                                  uint32_t featureFlags) {
     if (pathTracer == nullptr) {
         return;
     }
     pathTracer->configure(samplesPerPixel, bounceLimit, denoising,
-                          accumulationFrames);
+                          accumulationFrames, featureFlags);
 }
 
 void Window::resetPathTracingAccumulation() {

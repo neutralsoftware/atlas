@@ -51,6 +51,7 @@ class ProjectConfig {
     int pathTracingBounces = 8;
     bool pathTracingDenoising = true;
     int pathTracingAccumulationFrames = 512;
+    uint32_t pathTracingFeatureFlags = photon::AllPathTracingFeatures;
     bool screenSpaceReflections = false;
     int screenSpaceReflectionQuality = 1;
     bool screenSpaceReflectionDebug = false;
@@ -140,7 +141,8 @@ class Context {
     bool setEditorPathTracingPreview(bool enabled);
     bool configurePathTracing(int samplesPerPixel, int bounceLimit,
                               bool denoising, int accumulationFrames,
-                              bool useUpscaling, float upscalingRatio);
+                              bool useUpscaling, float upscalingRatio,
+                              uint32_t featureFlags);
     std::string getPathTracingError() const;
     float frameRate() const;
     bool editorPointerEvent(int action, float x, float y, int button,

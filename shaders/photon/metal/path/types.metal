@@ -3,6 +3,21 @@
 #include <metal_stdlib>
 using namespace metal;
 
+constant uint PHOTON_FEATURE_DIRECT_LIGHTING = 1u << 0;
+constant uint PHOTON_FEATURE_SHADOWS = 1u << 1;
+constant uint PHOTON_FEATURE_ENVIRONMENT_LIGHTING = 1u << 2;
+constant uint PHOTON_FEATURE_EMISSIVE_LIGHTING = 1u << 3;
+constant uint PHOTON_FEATURE_INDIRECT_LIGHTING = 1u << 4;
+constant uint PHOTON_FEATURE_TRANSMISSION = 1u << 5;
+constant uint PHOTON_FEATURE_DISPERSION = 1u << 6;
+constant uint PHOTON_FEATURE_IRIDESCENCE = 1u << 7;
+constant uint PHOTON_FEATURE_CAUSTICS = 1u << 8;
+constant uint PHOTON_FEATURE_VOLUMES = 1u << 9;
+constant uint PHOTON_FEATURE_SUBSURFACE = 1u << 10;
+constant uint PHOTON_FEATURE_NORMAL_MAPS = 1u << 11;
+constant uint PHOTON_FEATURE_MATERIAL_TEXTURES = 1u << 12;
+constant uint PHOTON_FEATURE_ALPHA_TRANSPARENCY = 1u << 13;
+
 struct CameraUniforms {
     float4x4 invViewProj;
     float4x4 prevViewProj;
@@ -181,6 +196,7 @@ struct SceneData {
     float bloomThreshold;
     uint causticsEnabled;
     uint atmosphereSkyEnabled;
+    uint featureFlags;
 };
 
 static_assert(sizeof(SceneData) == 160);
@@ -194,6 +210,11 @@ static_assert(__builtin_offsetof(SceneData, numEmissiveTriangles) == 140);
 static_assert(__builtin_offsetof(SceneData, bloomThreshold) == 144);
 static_assert(__builtin_offsetof(SceneData, causticsEnabled) == 148);
 static_assert(__builtin_offsetof(SceneData, atmosphereSkyEnabled) == 152);
+static_assert(__builtin_offsetof(SceneData, featureFlags) == 156);
+
+bool photonFeatureEnabled(constant SceneData &sceneData, uint feature) {
+    return (sceneData.featureFlags & feature) != 0;
+}
 
 struct CausticPhoton {
     float4 positionWavelength;

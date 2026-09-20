@@ -5044,7 +5044,8 @@ bool Context::setEditorPathTracingPreview(bool enabled) {
 
 bool Context::configurePathTracing(int samplesPerPixel, int bounceLimit,
                                    bool denoising, int accumulationFrames,
-                                   bool useUpscaling, float upscalingRatio) {
+                                   bool useUpscaling, float upscalingRatio,
+                                   uint32_t featureFlags) {
     if (window == nullptr) {
         return false;
     }
@@ -5053,13 +5054,15 @@ bool Context::configurePathTracing(int samplesPerPixel, int bounceLimit,
     config.pathTracingDenoising = denoising;
     config.pathTracingAccumulationFrames =
         std::clamp(accumulationFrames, 1, 2048);
+    config.pathTracingFeatureFlags = featureFlags;
     config.useUpscaling = useUpscaling;
     config.upscalingRatio = std::clamp(upscalingRatio, 0.25f, 1.0f);
 #ifdef METAL
     window->useMetalUpscaling(useUpscaling ? config.upscalingRatio : 1.0f);
     window->configurePathTracing(
         config.pathTracingSamples, config.pathTracingBounces,
-        config.pathTracingDenoising, config.pathTracingAccumulationFrames);
+        config.pathTracingDenoising, config.pathTracingAccumulationFrames,
+        config.pathTracingFeatureFlags);
     return true;
 #else
     return false;
@@ -7015,6 +7018,7 @@ void Context::loadProject() {
     int pathTracingBounces = 8;
     bool pathTracingDenoising = true;
     int pathTracingAccumulationFrames = 512;
+    uint32_t pathTracingFeatureFlags = photon::AllPathTracingFeatures;
     bool screenSpaceReflections = false;
     int screenSpaceReflectionQuality = 1;
     bool screenSpaceReflectionDebug = false;
@@ -7031,6 +7035,34 @@ void Context::loadProject() {
         pathTracingDenoising = (*renderer)["denoising"].value_or(true);
         pathTracingAccumulationFrames = std::clamp(
             (*renderer)["accumulation_frames"].value_or(512), 1, 2048);
+        if (!(*renderer)["direct_lighting"].value_or(true))
+            pathTracingFeatureFlags &= ~photon::DirectLighting;
+        if (!(*renderer)["shadows"].value_or(true))
+            pathTracingFeatureFlags &= ~photon::Shadows;
+        if (!(*renderer)["environment_lighting"].value_or(true))
+            pathTracingFeatureFlags &= ~photon::EnvironmentLighting;
+        if (!(*renderer)["emissive_lighting"].value_or(true))
+            pathTracingFeatureFlags &= ~photon::EmissiveLighting;
+        if (!(*renderer)["indirect_lighting"].value_or(true))
+            pathTracingFeatureFlags &= ~photon::IndirectLighting;
+        if (!(*renderer)["transmission"].value_or(true))
+            pathTracingFeatureFlags &= ~photon::Transmission;
+        if (!(*renderer)["dispersion"].value_or(true))
+            pathTracingFeatureFlags &= ~photon::Dispersion;
+        if (!(*renderer)["iridescence"].value_or(true))
+            pathTracingFeatureFlags &= ~photon::Iridescence;
+        if (!(*renderer)["caustics"].value_or(true))
+            pathTracingFeatureFlags &= ~photon::Caustics;
+        if (!(*renderer)["volumes"].value_or(true))
+            pathTracingFeatureFlags &= ~photon::Volumes;
+        if (!(*renderer)["subsurface_scattering"].value_or(true))
+            pathTracingFeatureFlags &= ~photon::SubsurfaceScattering;
+        if (!(*renderer)["normal_maps"].value_or(true))
+            pathTracingFeatureFlags &= ~photon::NormalMaps;
+        if (!(*renderer)["material_textures"].value_or(true))
+            pathTracingFeatureFlags &= ~photon::MaterialTextures;
+        if (!(*renderer)["alpha_transparency"].value_or(true))
+            pathTracingFeatureFlags &= ~photon::AlphaTransparency;
         screenSpaceReflections = (*renderer)["ssr"].value_or(false);
         screenSpaceReflectionQuality =
             std::clamp((*renderer)["ssr_quality"].value_or(1), 0, 2);
@@ -7073,6 +7105,7 @@ void Context::loadProject() {
     config.pathTracingBounces = pathTracingBounces;
     config.pathTracingDenoising = pathTracingDenoising;
     config.pathTracingAccumulationFrames = pathTracingAccumulationFrames;
+    config.pathTracingFeatureFlags = pathTracingFeatureFlags;
     config.screenSpaceReflections = screenSpaceReflections;
     config.screenSpaceReflectionQuality = screenSpaceReflectionQuality;
     config.screenSpaceReflectionDebug = screenSpaceReflectionDebug;

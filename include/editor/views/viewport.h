@@ -103,7 +103,8 @@ class ViewportPanel : public QWidget {
     void setPathTracingPreview(bool enabled);
     bool applyPathTracingSettings(int samplesPerPixel, int bounceLimit,
                                   bool denoising, int accumulationFrames,
-                                  bool upscaling, float internalScale);
+                                  bool upscaling, float internalScale,
+                                  uint32_t featureFlags);
     void setRuntimeControlMode(int mode);
     void toggleTransformSpace();
     void toggleTransformSnapping();
