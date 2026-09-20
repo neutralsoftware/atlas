@@ -1502,6 +1502,11 @@ void EditorWindow::showProjectSettings() {
         &dialog);
     build->addRow("Build command", buildCommand);
     build->addRow("Run command", runCommand);
+#ifdef Q_OS_MACOS
+    auto *metalHud = new QCheckBox("Display Metal HUD when running", &dialog);
+    metalHud->setChecked(settings.value("project/metalHud", false).toBool());
+    build->addRow(QString(), metalHud);
+#endif
     auto *editor = addPage("Editor", styling::Icon::Layout, "#7E929C");
     auto *autosave = new QSpinBox(&dialog);
     autosave->setRange(0, 120);
@@ -1560,6 +1565,9 @@ void EditorWindow::showProjectSettings() {
     settings.setValue("project/controller", controller->currentText());
     settings.setValue("project/buildCommand", buildCommand->text());
     settings.setValue("project/runCommand", runCommand->text());
+#ifdef Q_OS_MACOS
+    settings.setValue("project/metalHud", metalHud->isChecked());
+#endif
     settings.setValue("project/autosaveMinutes", autosave->value());
     settings.setValue("project/snapIncrement", snap->text());
     settings.setValue("project/bundleIdentifier", identifier->text());
@@ -2212,6 +2220,12 @@ void EditorWindow::runProjectCommand(bool buildOnly) {
         }
     }
     const QString workingDirectory = QFileInfo(projectFile).absolutePath();
+    auto launchEnvironment = QProcessEnvironment::systemEnvironment();
+#ifdef Q_OS_MACOS
+    if (!buildOnly && settings.value("project/metalHud", false).toBool()) {
+        launchEnvironment.insert("MTL_HUD_ENABLED", "1");
+    }
+#endif
     if (!settings.contains(settingsKey) || command == defaultCommand) {
         const QString executable = ToolchainInstaller::executablePath();
         if (executable.isEmpty()) {
@@ -2228,15 +2242,14 @@ void EditorWindow::runProjectCommand(bool buildOnly) {
         process.setProgram(executable);
         process.setArguments(arguments);
         process.setWorkingDirectory(workingDirectory);
-        auto environment = QProcessEnvironment::systemEnvironment();
         const QFileInfo bundledRuntime(
             QDir(QCoreApplication::applicationDirPath())
                 .filePath("../Frameworks/runtime.dylib"));
         if (!buildOnly && bundledRuntime.isFile()) {
-            environment.insert("ATLAS_RUNTIME_LIB",
-                               bundledRuntime.absoluteFilePath());
+            launchEnvironment.insert("ATLAS_RUNTIME_LIB",
+                                     bundledRuntime.absoluteFilePath());
         }
-        process.setProcessEnvironment(environment);
+        process.setProcessEnvironment(launchEnvironment);
         if (!process.startDetached()) {
             QMessageBox::warning(this,
                                  buildOnly ? "Build Project" : "Run Project",
@@ -2244,7 +2257,16 @@ void EditorWindow::runProjectCommand(bool buildOnly) {
         }
         return;
     }
-    QProcess::startDetached("/bin/zsh", {"-lc", command}, workingDirectory);
+    QProcess process;
+    process.setProgram("/bin/zsh");
+    process.setArguments({"-lc", command});
+    process.setWorkingDirectory(workingDirectory);
+    process.setProcessEnvironment(launchEnvironment);
+    if (!process.startDetached()) {
+        QMessageBox::warning(this,
+                             buildOnly ? "Build Project" : "Run Project",
+                             process.errorString());
+    }
 }
 
 void EditorWindow::takeViewportScreenshot() {

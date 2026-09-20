@@ -22,7 +22,9 @@ float4 skyColor(float3 dir, float intensity, texturecube<float> skybox,
     }
 
     float3 skyRGB = skybox.sample(skyboxSampler, sampleDir).xyz;
-    skyRGB += sceneData.ambientColor * max(sceneData.ambientIntensity, 0.0f);
+    if (sceneData.atmosphereSkyEnabled == 0) {
+        skyRGB += sceneData.ambientColor * max(sceneData.ambientIntensity, 0.0f);
+    }
 
     if (sceneData.atmosphereEnabled != 0) {
         float horizon = pow(clamp(1.0 - abs(sampleDir.y), 0.0, 1.0), 4.0);
@@ -38,6 +40,11 @@ float4 skyColor(float3 dir, float intensity, texturecube<float> skybox,
             mix(zenith, horizonColor, horizon) * max(daylight, 0.08);
 
         skyRGB = max(skyRGB, proceduralSky);
+    }
+
+    if (sceneData.atmosphereSkyEnabled != 0) {
+        skyRGB = max((skyRGB - 0.25f) * 1.22f + 0.25f, float3(0.0f)) *
+                 0.82f;
     }
 
     if (sceneData.atmosphereEnabled != 0 &&

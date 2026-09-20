@@ -1231,12 +1231,14 @@ bool photon::PathTracing::render(
     float atmosphereSunIntensity = 0.0f;
     float atmosphereSunSize = 1.0f;
     int atmosphereEnabled = 0;
+    int atmosphereSkyEnabled = 0;
 
     Scene *scene = (Window::mainWindow != nullptr)
                        ? Window::mainWindow->getCurrentScene()
                        : nullptr;
 
     if (scene != nullptr) {
+        atmosphereSkyEnabled = scene->isUsingAtmosphereSkybox() ? 1 : 0;
         if (scene->atmosphere.isEnabled()) {
             atmosphereEnabled = 1;
             atmosphereSunDirection = scene->atmosphere.getSunAngle().toGlm();
@@ -1245,9 +1247,11 @@ bool photon::PathTracing::render(
             atmosphereSunIntensity = scene->atmosphere.getLightIntensity();
             atmosphereSunSize = scene->atmosphere.sunSize;
         }
-        ambientIntensity = scene->isAutomaticAmbientEnabled()
-                               ? scene->getAutomaticAmbientIntensity()
-                               : scene->getAmbientIntensity();
+        ambientIntensity =
+            scene->isAutomaticAmbientEnabled()
+                ? scene->getAutomaticAmbientIntensity() *
+                      (atmosphereSkyEnabled != 0 ? 0.3f : 1.0f)
+                : scene->getAmbientIntensity();
         Color sceneAmbientColor = scene->isAutomaticAmbientEnabled()
                                       ? scene->getAutomaticAmbientColor()
                                       : scene->getAmbientColor();
@@ -1316,6 +1320,8 @@ bool photon::PathTracing::render(
                                       ambientColor.y, ambientColor.z);
     pathTracingPipeline->setUniform1i("sceneData.atmosphereEnabled",
                                       atmosphereEnabled);
+    pathTracingPipeline->setUniform1i("sceneData.atmosphereSkyEnabled",
+                                      atmosphereSkyEnabled);
     pathTracingPipeline->setUniform1f("sceneData.atmosphereSunSize",
                                       atmosphereSunSize);
     pathTracingPipeline->setUniform3f(
@@ -1426,6 +1432,7 @@ bool photon::PathTracing::render(
         glm::length(cachedAmbientColor - ambientColor) > 0.0001f ||
         std::fabs(cachedAmbientIntensity - ambientIntensity) > 0.0001f ||
         cachedAtmosphereEnabled != atmosphereEnabled ||
+        cachedAtmosphereSkyEnabled != atmosphereSkyEnabled ||
         glm::length(cachedAtmosphereSunDirection - atmosphereSunDirection) >
             0.0001f ||
         glm::length(cachedAtmosphereSunColor - atmosphereSunColor) > 0.0001f ||
@@ -1445,6 +1452,7 @@ bool photon::PathTracing::render(
     cachedAmbientIntensity = ambientIntensity;
     cachedSkyboxTextureId = skyboxTextureId;
     cachedAtmosphereEnabled = atmosphereEnabled;
+    cachedAtmosphereSkyEnabled = atmosphereSkyEnabled;
     cachedAtmosphereSunDirection = atmosphereSunDirection;
     cachedAtmosphereSunColor = atmosphereSunColor;
     cachedAtmosphereSunIntensity = atmosphereSunIntensity;

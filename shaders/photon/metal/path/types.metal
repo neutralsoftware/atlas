@@ -180,6 +180,7 @@ struct SceneData {
     uint numEmissiveTriangles;
     float bloomThreshold;
     uint causticsEnabled;
+    uint atmosphereSkyEnabled;
 };
 
 static_assert(sizeof(SceneData) == 160);
@@ -192,6 +193,7 @@ static_assert(__builtin_offsetof(SceneData, accumulationFrameLimit) == 132);
 static_assert(__builtin_offsetof(SceneData, numEmissiveTriangles) == 140);
 static_assert(__builtin_offsetof(SceneData, bloomThreshold) == 144);
 static_assert(__builtin_offsetof(SceneData, causticsEnabled) == 148);
+static_assert(__builtin_offsetof(SceneData, atmosphereSkyEnabled) == 152);
 
 struct CausticPhoton {
     float4 positionWavelength;

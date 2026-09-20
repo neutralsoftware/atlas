@@ -172,6 +172,7 @@ class PathTracing {
     float cachedAtmosphereSunIntensity = -1.0f;
     float cachedAtmosphereSunSize = -1.0f;
     int cachedAtmosphereEnabled = -1;
+    int cachedAtmosphereSkyEnabled = -1;
 
     friend class ::Window;
 #endif
