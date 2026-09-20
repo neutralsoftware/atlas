@@ -88,6 +88,7 @@
 #include "editor/debug.h"
 #include "editor/styling/icons.h"
 #include "editor/views/fileExplorer.h"
+#include "photon/illuminate.h"
 #include "editor/views/hierarchyPanel.h"
 #include "editor/views/inspectorView.h"
 #include "editor/views/inputActionsDialog.h"
@@ -2336,7 +2337,11 @@ void EditorWindow::runProjectCommand(bool buildOnly) {
     }
     const QString workingDirectory = QFileInfo(projectFile).absolutePath();
     auto launchEnvironment = QProcessEnvironment::systemEnvironment();
-    if (!buildOnly && settings.value("project/atlasHud", false).toBool()) {
+    if (!buildOnly &&
+        settings
+            .value("project/atlasHud",
+                   settings.value("project/metalHud", false))
+            .toBool()) {
         launchEnvironment.insert("ATLAS_HUD_ENABLED", "1");
     }
     if (!settings.contains(settingsKey) || command == defaultCommand) {

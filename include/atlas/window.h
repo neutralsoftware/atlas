@@ -974,7 +974,7 @@ class Window {
     struct AtlasHudState;
     std::unique_ptr<AtlasHudState> atlasHud;
     void renderAtlasHud(const std::shared_ptr<opal::CommandBuffer> &commandBuffer,
-                        float cpuTimeMs, float renderTimeMs);
+                        float cpuTimeMs, float renderTimeMs, int drawCalls);
 
     ShaderProgram depthProgram;
     ShaderProgram pointDepthProgram;

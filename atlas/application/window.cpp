@@ -1122,13 +1122,13 @@ struct Window::AtlasHudState {
         std::vector<CoreVertex> panelVertices;
         panelVertices.reserve(24);
         appendQuad(panelVertices, 12.0f, 12.0f, 410.0f, 286.0f,
-                   Color(0.025f, 0.03f, 0.045f, 0.92f));
+                   Color{0.025f, 0.03f, 0.045f, 0.92f});
         appendQuad(panelVertices, 12.0f, 12.0f, 410.0f, 3.0f,
-                   Color(0.25f, 0.76f, 1.0f, 1.0f));
+                   Color{0.25f, 0.76f, 1.0f, 1.0f});
         appendQuad(panelVertices, 22.0f, 164.0f, 390.0f, 82.0f,
-                   Color(0.01f, 0.015f, 0.025f, 0.82f));
+                   Color{0.01f, 0.015f, 0.025f, 0.82f});
         appendQuad(panelVertices, 22.0f, 257.0f, 390.0f, 1.0f,
-                   Color(1.0f, 1.0f, 1.0f, 0.12f));
+                   Color{1.0f, 1.0f, 1.0f, 0.12f});
 
         panel = std::make_unique<CoreObject>();
         panel->attachVertices(panelVertices);
@@ -1140,7 +1140,7 @@ struct Window::AtlasHudState {
         panel->initialize();
 
         std::vector<CoreVertex> graphVertices;
-        graphVertices.resize((historySize - 1) * 4 + 8,
+        graphVertices.resize((historySize - 1) * 6 + 8,
                              vertex(0.0f, 0.0f, Color::transparent()));
         graph = std::make_unique<CoreObject>();
         graph->attachVertices(graphVertices);
@@ -1171,20 +1171,20 @@ struct Window::AtlasHudState {
 
         if (fontReady) {
             const std::array<Position2d, 7> positions = {
-                Position2d(22.0f, 20.0f), Position2d(22.0f, 48.0f),
-                Position2d(22.0f, 70.0f), Position2d(22.0f, 92.0f),
-                Position2d(22.0f, 114.0f), Position2d(22.0f, 142.0f),
-                Position2d(22.0f, 268.0f)};
+                Position2d{22.0f, 20.0f}, Position2d{22.0f, 48.0f},
+                Position2d{22.0f, 70.0f}, Position2d{22.0f, 92.0f},
+                Position2d{22.0f, 114.0f}, Position2d{22.0f, 142.0f},
+                Position2d{22.0f, 268.0f}};
             for (size_t index = 0; index < labels.size(); ++index) {
                 labels[index] =
-                    Text("", font, Color(0.82f, 0.87f, 0.94f, 1.0f),
+                    Text("", font, Color{0.82f, 0.87f, 0.94f, 1.0f},
                          positions[index]);
                 labels[index].fontSize = index == 0 ? 18.0f : 13.0f;
                 labels[index].initialize();
             }
-            labels[0].color = Color(0.92f, 0.97f, 1.0f, 1.0f);
-            labels[5].color = Color(0.55f, 0.65f, 0.78f, 1.0f);
-            labels[6].color = Color(0.55f, 0.65f, 0.78f, 1.0f);
+            labels[0].color = Color{0.92f, 0.97f, 1.0f, 1.0f};
+            labels[5].color = Color{0.55f, 0.65f, 0.78f, 1.0f};
+            labels[6].color = Color{0.55f, 0.65f, 0.78f, 1.0f};
         }
 
         rusage usage{};
@@ -1302,7 +1302,7 @@ struct Window::AtlasHudState {
 
     void updateGraph() {
         std::vector<CoreVertex> vertices;
-        vertices.reserve((historySize - 1) * 4 + 8);
+        vertices.reserve((historySize - 1) * 6 + 8);
         const float x = 28.0f;
         const float y = 170.0f;
         const float width = 378.0f;
@@ -1320,13 +1320,13 @@ struct Window::AtlasHudState {
                    std::clamp(value / maximum, 0.0f, 1.0f) * height;
         };
         appendLine(vertices, x, graphY(16.667f), x + width,
-                   graphY(16.667f), Color(1.0f, 1.0f, 1.0f, 0.12f));
+                   graphY(16.667f), Color{1.0f, 1.0f, 1.0f, 0.12f});
         appendLine(vertices, x, graphY(33.333f), x + width,
-                   graphY(33.333f), Color(1.0f, 1.0f, 1.0f, 0.08f));
+                   graphY(33.333f), Color{1.0f, 1.0f, 1.0f, 0.08f});
         appendLine(vertices, x, y, x, y + height,
-                   Color(1.0f, 1.0f, 1.0f, 0.14f));
+                   Color{1.0f, 1.0f, 1.0f, 0.14f});
         appendLine(vertices, x, y + height, x + width, y + height,
-                   Color(1.0f, 1.0f, 1.0f, 0.14f));
+                   Color{1.0f, 1.0f, 1.0f, 0.14f});
 
         const auto appendHistory = [&](const auto &history,
                                        const Color &color) {
@@ -1347,9 +1347,9 @@ struct Window::AtlasHudState {
                            color);
             }
         };
-        appendHistory(frameHistory, Color(0.25f, 0.76f, 1.0f, 0.95f));
-        appendHistory(cpuHistory, Color(1.0f, 0.64f, 0.22f, 0.9f));
-        appendHistory(renderHistory, Color(0.67f, 0.42f, 1.0f, 0.9f));
+        appendHistory(frameHistory, Color{0.25f, 0.76f, 1.0f, 0.95f});
+        appendHistory(cpuHistory, Color{1.0f, 0.64f, 0.22f, 0.9f});
+        appendHistory(renderHistory, Color{0.67f, 0.42f, 1.0f, 0.9f});
 
         graph->vertices = std::move(vertices);
         graph->updateVertices();
@@ -1559,6 +1559,12 @@ Window::Window(const WindowConfiguration &config)
         TracerServices::getInstance().startTracing(TRACER_PORT);
         atlas_log("Atlas Tracer initialized.");
     }
+
+    const char *hudEnvironment = std::getenv("ATLAS_HUD_ENABLED");
+    if (hudEnvironment != nullptr && std::string(hudEnvironment) != "0" &&
+        std::string(hudEnvironment) != "false") {
+        this->atlasHud = std::make_unique<AtlasHudState>();
+    }
 }
 
 std::tuple<int, int> Window::getCursorPosition() {
@@ -1665,7 +1671,7 @@ void Window::initializeRunLoop() {
     }
 
     this->activeCommandBuffer = device->acquireCommandBuffer();
-    this->lastTime = atlasGetTimeSeconds();
+    this->lastTime = atlasGetTimeSecondsPrecise();
 
     updatePipelineStateField(useMultisampling, this->useMultisampling);
     updatePipelineStateField(this->useDepth, true);
@@ -1677,6 +1683,9 @@ void Window::initializeRunLoop() {
     auto defaultFramebuffer = device->getDefaultFramebuffer();
     this->runLoopRenderPass = opal::RenderPass::create();
     this->runLoopRenderPass->setFramebuffer(defaultFramebuffer);
+    if (this->atlasHud != nullptr) {
+        this->atlasHud->initialize(*this);
+    }
     this->firstFrame = true;
     this->runLoopInitialized = true;
 }
@@ -1859,20 +1868,22 @@ bool Window::stepFrame() {
         this->hasPendingSceneChange = false;
     }
 
-    float currentTime = atlasGetTimeSeconds();
-    float rawDelta = currentTime - this->lastTime;
+    const double currentTime = atlasGetTimeSecondsPrecise();
+    const float rawDelta =
+        static_cast<float>(std::max(currentTime - this->lastTime, 0.0));
     this->lastTime = currentTime;
 
     const bool isFirstFrame = this->firstFrame;
     if (isFirstFrame) {
         this->deltaTime = 0.0f;
+        this->frameTime = 0.0f;
     } else {
-        rawDelta = std::max(rawDelta, 0.0f);
+        this->frameTime = rawDelta;
         this->deltaTime = std::min(rawDelta, MAX_DELTA_TIME);
     }
 
-    if (this->deltaTime > 0.0f) {
-        this->framesPerSecond = 1.0f / this->deltaTime;
+    if (this->frameTime > 0.0f) {
+        this->framesPerSecond = 1.0f / this->frameTime;
     }
 
     bool runSimulation =
@@ -2313,6 +2324,14 @@ bool Window::stepFrame() {
         }
     }
 
+    const int frameDrawCallCount = commandBuffer->getAndResetDrawCallCount();
+    if (this->atlasHud != nullptr) {
+        this->renderAtlasHud(commandBuffer,
+                             static_cast<float>(cpuTime) / 1000.0f,
+                             static_cast<float>(gpuTimer.stop()) / 1000.0f,
+                             frameDrawCallCount);
+    }
+
     this->lastViewMatrix = screenView;
 
     commandBuffer->endPass();
@@ -2326,8 +2345,8 @@ bool Window::stepFrame() {
 
     if (TracerServices::getInstance().isOk()) {
         FrameDrawInfo frameInfo{};
-        frameInfo.drawCallCount = commandBuffer->getAndResetDrawCallCount();
-        frameInfo.frameTimeMs = this->deltaTime * 1000.0f;
+        frameInfo.drawCallCount = frameDrawCallCount;
+        frameInfo.frameTimeMs = this->frameTime * 1000.0f;
         frameInfo.frameNumber = device->frameCount;
         frameInfo.fps = this->framesPerSecond;
         frameInfo.send();
@@ -2388,9 +2407,8 @@ bool Window::stepFrame() {
         timingPacket.send();
 
         frameResourcesInfo.send();
-    } else {
-        commandBuffer->getAndResetDrawCallCount();
     }
+    commandBuffer->getAndResetDrawCallCount();
 
     ResourceTracker::getInstance().createdResources = 0;
     ResourceTracker::getInstance().loadedResources = 0;
@@ -4074,6 +4092,79 @@ void Window::renderEditorControls(
     renderEditorOverlays(commandBuffer);
 }
 
+void Window::renderAtlasHud(
+    const std::shared_ptr<opal::CommandBuffer> &commandBuffer, float cpuTimeMs,
+    float renderTimeMs, int drawCalls) {
+    if (atlasHud == nullptr || commandBuffer == nullptr) {
+        return;
+    }
+    atlasHud->initialize(*this);
+    atlasHud->update(*this, cpuTimeMs, renderTimeMs);
+    atlasHud->updateText(*this, drawCalls,
+                         ResourceTracker::getInstance().totalMemoryMb);
+    atlasHud->updateGraph();
+
+    const opal::PrimitiveStyle previousPrimitiveStyle = primitiveStyle;
+    const opal::CullMode previousCullMode = cullMode;
+    const opal::CompareOp previousDepthCompare = depthCompareOp;
+    const bool previousDepth = useDepth;
+    const bool previousWriteDepth = writeDepth;
+    const bool previousBlending = useBlending;
+    const opal::BlendFunc previousSrcBlend = srcBlend;
+    const opal::BlendFunc previousDstBlend = dstBlend;
+    const float previousLineWidth = lineWidth;
+    const int previousViewportX = viewportX;
+    const int previousViewportY = viewportY;
+    const int previousViewportWidth = viewportWidth;
+    const int previousViewportHeight = viewportHeight;
+
+    int framebufferWidth = 0;
+    int framebufferHeight = 0;
+    queryDrawableSizeInPixels(&framebufferWidth, &framebufferHeight);
+    setViewportState(0, 0, framebufferWidth, framebufferHeight);
+    updatePipelineStateField(cullMode, opal::CullMode::None);
+    updatePipelineStateField(useDepth, false);
+    updatePipelineStateField(writeDepth, false);
+    updatePipelineStateField(depthCompareOp, opal::CompareOp::Always);
+    updatePipelineStateField(useBlending, true);
+    updatePipelineStateField(srcBlend, opal::BlendFunc::SrcAlpha);
+    updatePipelineStateField(dstBlend, opal::BlendFunc::OneMinusSrcAlpha);
+
+    const glm::mat4 identity(1.0f);
+    const glm::mat4 projection =
+        glm::ortho(0.0f, static_cast<float>(framebufferWidth),
+                   static_cast<float>(framebufferHeight), 0.0f, -1.0f, 1.0f);
+
+    updatePipelineStateField(primitiveStyle, opal::PrimitiveStyle::Triangles);
+    atlasHud->panel->setViewMatrix(identity);
+    atlasHud->panel->setProjectionMatrix(projection);
+    atlasHud->panel->render(0.0f, commandBuffer, true);
+
+    updatePipelineStateField(primitiveStyle, opal::PrimitiveStyle::Lines);
+    updatePipelineStateField(lineWidth, 1.25f);
+    atlasHud->graph->setViewMatrix(identity);
+    atlasHud->graph->setProjectionMatrix(projection);
+    atlasHud->graph->render(0.0f, commandBuffer, true);
+
+    if (atlasHud->fontReady) {
+        for (auto &label : atlasHud->labels) {
+            label.render(0.0f, commandBuffer, false);
+        }
+    }
+
+    updatePipelineStateField(primitiveStyle, previousPrimitiveStyle);
+    updatePipelineStateField(cullMode, previousCullMode);
+    updatePipelineStateField(depthCompareOp, previousDepthCompare);
+    updatePipelineStateField(useDepth, previousDepth);
+    updatePipelineStateField(writeDepth, previousWriteDepth);
+    updatePipelineStateField(useBlending, previousBlending);
+    updatePipelineStateField(srcBlend, previousSrcBlend);
+    updatePipelineStateField(dstBlend, previousDstBlend);
+    updatePipelineStateField(lineWidth, previousLineWidth);
+    setViewportState(previousViewportX, previousViewportY, previousViewportWidth,
+                     previousViewportHeight);
+}
+
 void Window::endRunLoop() {
     if (!this->runLoopInitialized) {
         return;
@@ -4400,6 +4491,7 @@ void Window::applyScene(Scene *scene) {
     this->currentScene = scene;
     this->firstFrame = true;
     this->deltaTime = 0.0f;
+    this->frameTime = 0.0f;
     this->framesPerSecond = 0.0f;
 
     if (scene != nullptr) {
