@@ -519,9 +519,7 @@ void CoreObject::refreshPipeline() {
 void CoreObject::render(float dt,
                         std::shared_ptr<opal::CommandBuffer> commandBuffer,
                         bool updatePipeline) {
-    for (auto &component : components) {
-        component->update(dt);
-    }
+
     if (!isVisible) {
         return;
     }
@@ -533,10 +531,10 @@ void CoreObject::render(float dt,
     if (TracerServices::getInstance().isOk()) {
         DebugObjectPacket debugPacket{};
         debugPacket.drawCallsForObject = 1;
-        debugPacket.frameCount =
-            Window::mainWindow != nullptr && Window::mainWindow->device != nullptr
-                ? Window::mainWindow->device->frameCount
-                : 0;
+        debugPacket.frameCount = Window::mainWindow != nullptr &&
+                                         Window::mainWindow->device != nullptr
+                                     ? Window::mainWindow->device->frameCount
+                                     : 0;
         debugPacket.triangleCount = static_cast<uint32_t>(
             indices.empty() ? vertices.size() / 3 : indices.size() / 3);
         debugPacket.vertexBufferSizeMb =
@@ -1013,9 +1011,13 @@ void CoreObject::updateVertices() {
     vbo->unbind();
 }
 
-void CoreObject::update(Window &) {
+void CoreObject::update(Window &window) {
     if (!hasPhysics)
         return;
+
+    for (auto &component : components) {
+        component->update(window.getDeltaTime());
+    }
 
     DebugTimer physicsTimer("Physics Update");
 
