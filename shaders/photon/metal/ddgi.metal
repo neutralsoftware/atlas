@@ -49,6 +49,13 @@ struct Material {
 
     packed_float3 emissiveColor;
     float _pad1;
+
+    float4 optical;
+    float4 attenuation;
+    float4 volume;
+    float4 volumeAbsorption;
+    float4 volumeScattering;
+    float4 volumeEmission;
 };
 
 struct Triangle {

@@ -196,6 +196,59 @@ uint64_t computeDdgiLayoutSignature(const std::vector<CoreObject *> &objects,
         signature = hashCombineU64(
             signature,
             hashFloat(static_cast<float>(object->material.normalMapStrength)));
+        signature = hashCombineU64(
+            signature,
+            hashFloat(static_cast<float>(object->material.reflectivity)));
+        signature = hashCombineU64(
+            signature,
+            hashFloat(static_cast<float>(object->material.transmittance)));
+        signature = hashCombineU64(
+            signature, hashFloat(static_cast<float>(object->material.ior)));
+        signature = hashCombineU64(
+            signature,
+            hashFloat(static_cast<float>(object->material.abbeNumber)));
+        signature = hashCombineU64(
+            signature,
+            hashFloat(static_cast<float>(object->material.attenuationColor.r)));
+        signature = hashCombineU64(
+            signature,
+            hashFloat(static_cast<float>(object->material.attenuationColor.g)));
+        signature = hashCombineU64(
+            signature,
+            hashFloat(static_cast<float>(object->material.attenuationColor.b)));
+        signature = hashCombineU64(
+            signature,
+            hashFloat(static_cast<float>(object->material.attenuationDistance)));
+        signature = hashCombineU64(
+            signature,
+            static_cast<uint64_t>(object->material.isVolume ? 1 : 0));
+        signature = hashCombineU64(
+            signature,
+            hashFloat(static_cast<float>(object->material.volumeDensity)));
+        signature = hashCombineU64(
+            signature,
+            hashFloat(static_cast<float>(object->material.volumeAnisotropy)));
+        signature = hashCombineU64(
+            signature, hashFloat(static_cast<float>(
+                           object->material.volumeAbsorptionStrength)));
+        signature = hashCombineU64(
+            signature, hashFloat(static_cast<float>(
+                           object->material.volumeScatteringStrength)));
+        signature = hashCombineU64(
+            signature, hashFloat(static_cast<float>(
+                           object->material.volumeEmissionStrength)));
+        const Color volumeColors[] = {
+            object->material.volumeAbsorptionColor,
+            object->material.volumeScatteringColor,
+            object->material.volumeEmissionColor};
+        for (const auto &color : volumeColors) {
+            signature = hashCombineU64(
+                signature, hashFloat(static_cast<float>(color.r)));
+            signature = hashCombineU64(
+                signature, hashFloat(static_cast<float>(color.g)));
+            signature = hashCombineU64(
+                signature, hashFloat(static_cast<float>(color.b)));
+        }
         for (const auto &texture : object->textures) {
             signature =
                 hashCombineU64(signature, static_cast<uint64_t>(texture.type));
@@ -394,6 +447,25 @@ void photon::GlobalIllumination::updateProbeLayout() {
         baseMaterial.roughness = object->material.roughness;
         baseMaterial.emissiveColor = object->material.emissiveColor.toGlm();
         baseMaterial.emissiveIntensity = object->material.emissiveIntensity;
+        baseMaterial.optical = glm::vec4(
+            object->material.reflectivity, object->material.transmittance,
+            object->material.ior, object->material.abbeNumber);
+        baseMaterial.attenuation = glm::vec4(
+            object->material.attenuationColor.toGlm(),
+            object->material.attenuationDistance);
+        baseMaterial.volume = glm::vec4(
+            object->material.isVolume ? 1.0f : 0.0f,
+            object->material.volumeDensity,
+            object->material.volumeAnisotropy,
+            object->material.volumeEmissionStrength);
+        baseMaterial.volumeAbsorption = glm::vec4(
+            object->material.volumeAbsorptionColor.toGlm(),
+            object->material.volumeAbsorptionStrength);
+        baseMaterial.volumeScattering = glm::vec4(
+            object->material.volumeScatteringColor.toGlm(),
+            object->material.volumeScatteringStrength);
+        baseMaterial.volumeEmission = glm::vec4(
+            object->material.volumeEmissionColor.toGlm(), 0.0f);
         const bool useNormalMap =
             object->material.useNormalMap && sampleNormalMaps;
         const float normalStrength = std::max(

@@ -277,6 +277,13 @@ class GlobalIllumination {
         /** @brief Emissive color. */
         glm::vec3 emissiveColor;
         float _pad1;
+
+        glm::vec4 optical;
+        glm::vec4 attenuation;
+        glm::vec4 volume;
+        glm::vec4 volumeAbsorption;
+        glm::vec4 volumeScattering;
+        glm::vec4 volumeEmission;
     };
 
     /**
