@@ -403,6 +403,161 @@ float4 evalSampledDirectLightingPBR(
            float(candidateCount);
 }
 
+DirectReservoir emptyDirectReservoir() {
+    DirectReservoir reservoir{};
+    reservoir.sample.type = 0xFFFFFFFFu;
+    return reservoir;
+}
+
+void updateDirectReservoir(thread DirectReservoir &reservoir,
+                           DirectLightSample sample, float target,
+                           float candidateWeight, float candidateCount,
+                           float candidateAge, thread uint &rng) {
+    if (target <= 1e-8f || candidateWeight <= 1e-8f ||
+        candidateCount <= 0.0f) {
+        return;
+    }
+    float newWeightSum = reservoir.weightSum + candidateWeight;
+    if (rand(rng) * newWeightSum < candidateWeight) {
+        reservoir.sample = sample;
+        reservoir.target = target;
+        reservoir.age = candidateAge;
+    }
+    reservoir.weightSum = newWeightSum;
+    reservoir.sampleCount += candidateCount;
+}
+
+DirectReservoir loadDirectReservoir(
+    uint2 pixel, texture2d<float, access::read> sampleTexture,
+    texture2d<float, access::read> statsTexture) {
+    float4 packedSample = sampleTexture.read(pixel);
+    float4 packedStats = statsTexture.read(pixel);
+    DirectReservoir reservoir = emptyDirectReservoir();
+    if (packedStats.x <= 1e-8f || packedStats.y <= 1e-8f ||
+        packedStats.z <= 0.0f) {
+        return reservoir;
+    }
+    reservoir.sample.type = uint(max(round(packedSample.x), 0.0f));
+    reservoir.sample.index = uint(max(round(packedSample.y), 0.0f));
+    reservoir.sample.uv = packedSample.zw;
+    reservoir.target = packedStats.x;
+    reservoir.weightSum = packedStats.y;
+    reservoir.sampleCount = packedStats.z;
+    reservoir.age = packedStats.w;
+    return reservoir;
+}
+
+bool directReservoirSurfaceCompatible(float4 previousGuide, float3 normal,
+                                      float depth, uint objectIndex) {
+    if (previousGuide.w < 0.0f ||
+        abs(previousGuide.w - float(objectIndex)) > 0.5f) {
+        return false;
+    }
+    float2 encodedNormal = encodeNormal(normal);
+    float depthThreshold = max(0.03f, depth * 0.02f);
+    return abs(previousGuide.z - depth) <= depthThreshold &&
+           distance(previousGuide.xy, encodedNormal) <= 0.08f;
+}
+
+float4 evalReSTIRDirectLightingPBR(
+    uint2 pixel, float surfaceDepth, uint objectIndex,
+    thread DirectReservoir &reservoir,
+    texture2d<float, access::read> reservoirSampleTexture,
+    texture2d<float, access::read> reservoirStatsTexture,
+    texture2d<float, access::read> historyGuideTexture,
+    intersector<triangle_data> isect, primitive_acceleration_structure sceneAS,
+    float3 P, float3 N, float3 Ng, float3 V, float4 albedo, float metallic,
+    float roughness, float reflectivity, float4 ior, float transmittance,
+    float substrateIor, float substrateAbbe, float iridescenceFactor,
+    float iridescenceIor, float iridescenceAbbe,
+    float iridescenceThickness, bool isFront, thread uint &rng,
+    thread const SpectralPath &path, constant DirectionalLightData &dirLight,
+    constant SceneData &sceneData, constant PointLight *pointLights,
+    constant SpotLight *spotLights, constant AreaLight *areaLights,
+    constant EmissiveTriangle *emissiveTriangles, constant Material *materials,
+    constant uint *primitiveObjects, constant uint *blasPrimitiveOffsets,
+    constant VertexData *vertices, constant uint *indices,
+    constant InstanceData *instanceData, PT_MATERIAL_TEXTURE_PARAMS) {
+    uint candidateCount = directLightCandidateCount(sceneData);
+    if (candidateCount == 0) {
+        return float4(0.0f);
+    }
+
+    DirectLightSample freshSample =
+        sampleDirectLight(rng, sceneData, emissiveTriangles);
+    float4 freshContribution = evaluateDirectLightSample(
+        freshSample, false, isect, sceneAS, P, N, Ng, V, albedo, metallic,
+        roughness, reflectivity, ior, transmittance, substrateIor,
+        substrateAbbe, iridescenceFactor, iridescenceIor, iridescenceAbbe,
+        iridescenceThickness, isFront, rng, path, dirLight, sceneData,
+        pointLights, spotLights, areaLights, emissiveTriangles, materials,
+        primitiveObjects, blasPrimitiveOffsets, vertices, indices, instanceData,
+        PT_MATERIAL_TEXTURE_ARGS);
+    float freshTarget =
+        max(spectralAverage(max(freshContribution, float4(0.0f))), 0.0f);
+    updateDirectReservoir(reservoir, freshSample, freshTarget,
+                          freshTarget * float(candidateCount), 1.0f, 0.0f,
+                          rng);
+
+    if (sceneData.frameIndex > 0) {
+        const int2 offsets[5] = {int2(0, 0), int2(4, 0), int2(-4, 0),
+                                 int2(0, 4), int2(0, -4)};
+        int2 maximumPixel =
+            int2(reservoirSampleTexture.get_width() - 1,
+                 reservoirSampleTexture.get_height() - 1);
+        for (uint i = 0; i < 5; ++i) {
+            uint2 historyPixel = uint2(clamp(int2(pixel) + offsets[i],
+                                             int2(0), maximumPixel));
+            float4 previousGuide = historyGuideTexture.read(historyPixel);
+            if (!directReservoirSurfaceCompatible(previousGuide, N,
+                                                   surfaceDepth, objectIndex)) {
+                continue;
+            }
+            DirectReservoir previous = loadDirectReservoir(
+                historyPixel, reservoirSampleTexture, reservoirStatsTexture);
+            if (previous.sample.type == 0xFFFFFFFFu || previous.age >= 30.0f) {
+                continue;
+            }
+            float4 reusedContribution = evaluateDirectLightSample(
+                previous.sample, false, isect, sceneAS, P, N, Ng, V, albedo,
+                metallic, roughness, reflectivity, ior, transmittance,
+                substrateIor, substrateAbbe, iridescenceFactor,
+                iridescenceIor, iridescenceAbbe, iridescenceThickness, isFront,
+                rng, path, dirLight, sceneData, pointLights, spotLights,
+                areaLights, emissiveTriangles, materials, primitiveObjects,
+                blasPrimitiveOffsets, vertices, indices, instanceData,
+                PT_MATERIAL_TEXTURE_ARGS);
+            float reusedTarget =
+                max(spectralAverage(max(reusedContribution, float4(0.0f))),
+                    0.0f);
+            float reusedCount = min(previous.sampleCount, 8.0f);
+            float reusedWeight = previous.weightSum * reusedTarget /
+                                 max(previous.target, 1e-8f) *
+                                 reusedCount /
+                                 max(previous.sampleCount, 1.0f);
+            updateDirectReservoir(reservoir, previous.sample, reusedTarget,
+                                  reusedWeight, reusedCount,
+                                  previous.age + 1.0f, rng);
+        }
+    }
+
+    if (reservoir.sample.type == 0xFFFFFFFFu || reservoir.target <= 1e-8f ||
+        reservoir.sampleCount <= 0.0f) {
+        return float4(0.0f);
+    }
+    float4 selectedContribution = evaluateDirectLightSample(
+        reservoir.sample, true, isect, sceneAS, P, N, Ng, V, albedo, metallic,
+        roughness, reflectivity, ior, transmittance, substrateIor,
+        substrateAbbe, iridescenceFactor, iridescenceIor, iridescenceAbbe,
+        iridescenceThickness, isFront, rng, path, dirLight, sceneData,
+        pointLights, spotLights, areaLights, emissiveTriangles, materials,
+        primitiveObjects, blasPrimitiveOffsets, vertices, indices, instanceData,
+        PT_MATERIAL_TEXTURE_ARGS);
+    float normalization = reservoir.weightSum /
+                          max(reservoir.sampleCount * reservoir.target, 1e-8f);
+    return selectedContribution * min(normalization, 32.0f);
+}
+
 float4 evalDirectLightingPBR(
     intersector<triangle_data> isect, primitive_acceleration_structure sceneAS,
     float3 P, float3 N, float3 Ng, float3 V, float4 albedo, float metallic,

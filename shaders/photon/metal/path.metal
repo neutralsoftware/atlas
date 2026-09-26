@@ -44,6 +44,10 @@ kernel void main0(texture2d<float, access::write> outTex [[texture(0)]],
                   PT_MATERIAL_TEXTURE_BINDINGS,
                   constant uint *blasPrimitiveOffsets [[buffer(13)]],
                   texturecube<float> skybox [[texture(60)]],
+                  texture2d<float, access::read> directReservoirSampleTex [[texture(61)]],
+                  texture2d<float, access::read> directReservoirStatsTex [[texture(62)]],
+                  texture2d<float, access::write> directReservoirSampleOutTex [[texture(63)]],
+                  texture2d<float, access::write> directReservoirStatsOutTex [[texture(64)]],
                   uint2 gid [[thread_position_in_grid]]) {
     uint w = outTex.get_width();
     uint h = outTex.get_height();
@@ -67,6 +71,7 @@ kernel void main0(texture2d<float, access::write> outTex [[texture(0)]],
     float primaryRoughness = 1.0;
     float primaryHitDistance = 0.0;
     uint primaryObjectId = 0xFFFFFFFFu;
+    DirectReservoir directReservoir = emptyDirectReservoir();
 
     uint spp = max(sceneData.raysPerPixel, 1u);
     for (uint s = 0; s < spp; ++s) {
@@ -102,7 +107,9 @@ kernel void main0(texture2d<float, access::write> outTex [[texture(0)]],
             blasPrimitiveOffsets, vertices, indices, instanceData, dirLight,
             sceneData, pointLights, spotLights, areaLights,
             emissiveTriangles, photons, photonSlots, caustics,
-            PT_MATERIAL_TEXTURE_ARGS, skybox, sampleAlbedo,
+            PT_MATERIAL_TEXTURE_ARGS, skybox, directReservoir,
+            directReservoirSampleTex, directReservoirStatsTex,
+            historyGuideTex, sampleAlbedo,
             sampleNormal, samplePosition, sampleDepth, sampleRoughness,
             sampleHitDistance, sampleObjectId);
         if (!all(isfinite(sample))) {
@@ -185,6 +192,22 @@ kernel void main0(texture2d<float, access::write> outTex [[texture(0)]],
                          max(brightness, 0.00001);
     float3 brightColor = presentColor * contribution;
     float2 motion = previousUvValid ? uv - previousUv : float2(0.0);
+    bool directReservoirValid =
+        directReservoir.sample.type != 0xFFFFFFFFu &&
+        directReservoir.target > 1e-8f &&
+        directReservoir.weightSum > 1e-8f &&
+        directReservoir.sampleCount > 0.0f;
+    float4 packedDirectSample =
+        directReservoirValid
+            ? float4(float(directReservoir.sample.type),
+                     float(directReservoir.sample.index),
+                     directReservoir.sample.uv)
+            : float4(0.0f);
+    float4 packedDirectStats =
+        directReservoirValid
+            ? float4(directReservoir.target, directReservoir.weightSum,
+                     directReservoir.sampleCount, directReservoir.age)
+            : float4(0.0f);
 
     for (uint y = 0; y < pixelStride; ++y) {
         for (uint x = 0; x < pixelStride; ++x) {
@@ -202,6 +225,8 @@ kernel void main0(texture2d<float, access::write> outTex [[texture(0)]],
                 float4(accumulatedMoment, accumulatedMomentSquared, variance,
                        primaryHitDistance),
                 pixel);
+            directReservoirSampleOutTex.write(packedDirectSample, pixel);
+            directReservoirStatsOutTex.write(packedDirectStats, pixel);
             outTex.write(float4(presentColor, 1.0), pixel);
             brightTex.write(float4(brightColor, 1.0), pixel);
         }

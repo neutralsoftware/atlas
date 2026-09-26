@@ -1430,6 +1430,18 @@ bool photon::PathTracing::render(
     pathTracingPipeline->bindTexture(
         "historyMomentsOutTex",
         pathTracingHistoryMoments[historyWriteIndex]->texture, 10);
+    pathTracingPipeline->bindTexture(
+        "directReservoirSampleTex",
+        directReservoirSamples[historyReadIndex]->texture, 61);
+    pathTracingPipeline->bindTexture(
+        "directReservoirStatsTex",
+        directReservoirStats[historyReadIndex]->texture, 62);
+    pathTracingPipeline->bindTexture(
+        "directReservoirSampleOutTex",
+        directReservoirSamples[historyWriteIndex]->texture, 63);
+    pathTracingPipeline->bindTexture(
+        "directReservoirStatsOutTex",
+        directReservoirStats[historyWriteIndex]->texture, 64);
 
     static std::shared_ptr<opal::Texture> fallbackSkyboxTexture = nullptr;
     if (fallbackSkyboxTexture == nullptr) {

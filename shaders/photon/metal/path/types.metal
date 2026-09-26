@@ -176,6 +176,14 @@ struct DirectLightSample {
     float2 uv;
 };
 
+struct DirectReservoir {
+    DirectLightSample sample;
+    float target;
+    float weightSum;
+    float sampleCount;
+    float age;
+};
+
 struct SceneData {
     uint numDirectionalLights;
     uint numPointLights;
