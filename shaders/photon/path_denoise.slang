@@ -20,9 +20,9 @@ void computeMain(uint3 dispatchThreadID : SV_DispatchThreadID) {
     if (gid.x >= width || gid.y >= height)
         return;
 
-    const int2 offsets[9] = {int2(0, 0),  int2(1, 0),  int2(-1, 0),
-                                 int2(0, 1),  int2(0, -1), int2(1, 1),
-                                 int2(-1, 1), int2(1, -1), int2(-1, -1)};
+    const int2 offsets[9] = {int2(0, 0), int2(1, 0), int2(-1, 0),
+                             int2(0, 1), int2(0, -1), int2(1, 1),
+                             int2(-1, 1), int2(1, -1), int2(-1, -1)};
     const float weights[9] = {0.28, 0.12, 0.12, 0.12, 0.12,
                                   0.06, 0.06, 0.06, 0.06};
     float3 center = inputTexture.Load(int3(gid, 0)).xyz;
@@ -32,28 +32,12 @@ void computeMain(uint3 dispatchThreadID : SV_DispatchThreadID) {
     bool centerSurface = centerGuide.w > 0.0;
     float centerNormalLength = dot(centerGuide.xyz, centerGuide.xyz);
     float centerLuminance = dot(center, float3(0.2126, 0.7152, 0.0722));
-    float neighborLuminance = 0.0;
-    float neighborWeight = 0.0;
-    for (int i = 1; i < 9; ++i) {
-        int2 samplePosition =
-            clamp(int2(gid) + offsets[i] * parameters.stepWidth, int2(0),
-                  int2(width - 1, height - 1));
-        float4 sampleGuide = guideTexture.Load(int3(uint2(samplePosition), 0));
-        bool sampleSurface = sampleGuide.w > 0.0;
-        if (sampleSurface != centerSurface)
-            continue;
-        float sampleLuminance = dot(
-            inputTexture.Load(int3(uint2(samplePosition), 0)).xyz,
-            float3(0.2126, 0.7152, 0.0722));
-        neighborLuminance += sampleLuminance;
-        neighborWeight += 1.0;
-    }
-    if (neighborWeight > 1.0) {
-        float localLimit = max(3.0, neighborLuminance / neighborWeight * 3.0);
-        if (centerLuminance > localLimit) {
-            center *= localLimit / max(centerLuminance, 0.00001);
-            centerLuminance = localLimit;
-        }
+    float standardDeviation = sqrt(max(centerMoments.z, 0.0));
+    float temporalMean = max(centerMoments.x, 0.0);
+    float luminanceLimit = max(temporalMean + standardDeviation * 3.0, 3.0);
+    if (centerLuminance > luminanceLimit) {
+        center *= luminanceLimit / max(centerLuminance, 0.00001);
+        centerLuminance = luminanceLimit;
     }
     float3 filtered = float3(0.0);
     float totalWeight = 0.0;
@@ -103,8 +87,7 @@ void computeMain(uint3 dispatchThreadID : SV_DispatchThreadID) {
     float3 spatialResult =
         totalWeight > 0.0001 ? filtered / totalWeight : center;
     float roughness = clamp(centerAlbedoRoughness.w, 0.0, 1.0);
-    float relativeNoise = sqrt(max(centerMoments.z, 0.0)) /
-                          max(centerLuminance, 0.05);
+    float relativeNoise = standardDeviation / max(centerLuminance, 0.05);
     float filterStrength = clamp(relativeNoise * 1.5, 0.02, 1.0) *
                            lerp(0.12, 1.0, roughness * roughness);
     if (!centerSurface) {
