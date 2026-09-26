@@ -451,7 +451,9 @@ void photon::GlobalIllumination::updateProbeLayout() {
             object->material.reflectivity, object->material.transmittance,
             object->material.ior, object->material.abbeNumber);
         baseMaterial.attenuation = glm::vec4(
-            object->material.attenuationColor.toGlm(),
+            object->material.attenuationColor.r,
+            object->material.attenuationColor.g,
+            object->material.attenuationColor.b,
             object->material.attenuationDistance);
         baseMaterial.volume = glm::vec4(
             object->material.isVolume ? 1.0f : 0.0f,
@@ -459,13 +461,19 @@ void photon::GlobalIllumination::updateProbeLayout() {
             object->material.volumeAnisotropy,
             object->material.volumeEmissionStrength);
         baseMaterial.volumeAbsorption = glm::vec4(
-            object->material.volumeAbsorptionColor.toGlm(),
+            object->material.volumeAbsorptionColor.r,
+            object->material.volumeAbsorptionColor.g,
+            object->material.volumeAbsorptionColor.b,
             object->material.volumeAbsorptionStrength);
         baseMaterial.volumeScattering = glm::vec4(
-            object->material.volumeScatteringColor.toGlm(),
+            object->material.volumeScatteringColor.r,
+            object->material.volumeScatteringColor.g,
+            object->material.volumeScatteringColor.b,
             object->material.volumeScatteringStrength);
         baseMaterial.volumeEmission = glm::vec4(
-            object->material.volumeEmissionColor.toGlm(), 0.0f);
+            object->material.volumeEmissionColor.r,
+            object->material.volumeEmissionColor.g,
+            object->material.volumeEmissionColor.b, 0.0f);
         const bool useNormalMap =
             object->material.useNormalMap && sampleNormalMaps;
         const float normalStrength = std::max(
