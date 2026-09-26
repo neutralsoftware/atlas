@@ -332,7 +332,7 @@ void Window::deferredRendering(
 
     auto gBufferRenderPass = opal::RenderPass::create();
     gBufferRenderPass->setFramebuffer(this->gBuffer->getFramebuffer());
-    this->gBuffer->getFramebuffer()->setDrawBuffers(4);
+    this->gBuffer->getFramebuffer()->setDrawBuffers(6);
     commandBuffer->beginPass(gBufferRenderPass);
 
     this->gBuffer->bind();
@@ -602,8 +602,10 @@ void Window::deferredRendering(
     lightPipeline->bindTexture2D("gAlbedoSpec", this->gBuffer->gAlbedoSpec.id,
                                  2);
     lightPipeline->bindTexture2D("gMaterial", this->gBuffer->gMaterial.id, 3);
+    lightPipeline->bindTexture2D("gOptical", this->gBuffer->gOptical.id, 4);
+    lightPipeline->bindTexture2D("gMedium", this->gBuffer->gMedium.id, 5);
 
-    int boundTextures = 4;
+    int boundTextures = 6;
 
     static std::shared_ptr<opal::Texture> fallbackSSAOTexture = nullptr;
     if (fallbackSSAOTexture == nullptr) {

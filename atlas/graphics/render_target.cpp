@@ -364,6 +364,48 @@ RenderTarget::RenderTarget(Window &window, RenderTargetType type,
         gMaterial.creationData.height = scaledHeight;
         gMaterial.type = TextureType::Color;
 
+        auto opticalTex = opal::Texture::create(
+            opal::TextureType::Texture2D, opal::TextureFormat::Rgba16F, width,
+            height, opal::TextureDataFormat::Rgba, nullptr, 1);
+        opticalTex->setFilterMode(opal::TextureFilterMode::Nearest,
+                                  opal::TextureFilterMode::Nearest);
+        opticalTex->setWrapMode(opal::TextureAxis::S,
+                                opal::TextureWrapMode::ClampToEdge);
+        opticalTex->setWrapMode(opal::TextureAxis::T,
+                                opal::TextureWrapMode::ClampToEdge);
+
+        opal::Attachment opticalAttachment;
+        opticalAttachment.texture = opticalTex;
+        opticalAttachment.type = opal::Attachment::Type::Color;
+        fb->addAttachment(opticalAttachment);
+
+        gOptical.texture = opticalTex;
+        gOptical.id = opticalTex->textureID;
+        gOptical.creationData.width = scaledWidth;
+        gOptical.creationData.height = scaledHeight;
+        gOptical.type = TextureType::Color;
+
+        auto mediumTex = opal::Texture::create(
+            opal::TextureType::Texture2D, opal::TextureFormat::Rgba16F, width,
+            height, opal::TextureDataFormat::Rgba, nullptr, 1);
+        mediumTex->setFilterMode(opal::TextureFilterMode::Nearest,
+                                 opal::TextureFilterMode::Nearest);
+        mediumTex->setWrapMode(opal::TextureAxis::S,
+                               opal::TextureWrapMode::ClampToEdge);
+        mediumTex->setWrapMode(opal::TextureAxis::T,
+                               opal::TextureWrapMode::ClampToEdge);
+
+        opal::Attachment mediumAttachment;
+        mediumAttachment.texture = mediumTex;
+        mediumAttachment.type = opal::Attachment::Type::Color;
+        fb->addAttachment(mediumAttachment);
+
+        gMedium.texture = mediumTex;
+        gMedium.id = mediumTex->textureID;
+        gMedium.creationData.width = scaledWidth;
+        gMedium.creationData.height = scaledHeight;
+        gMedium.type = TextureType::Color;
+
         const uint depthMipLevels =
             static_cast<uint>(std::floor(std::log2(std::max(width, height)))) +
             1;

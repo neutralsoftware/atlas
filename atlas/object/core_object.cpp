@@ -641,6 +641,36 @@ void CoreObject::render(float dt,
         this->pipeline->setUniform1f("material.ao", material.ao);
         this->pipeline->setUniform1f("material.reflectivity",
                                      material.reflectivity);
+        this->pipeline->setUniform1f("material.transmittance",
+                                     material.transmittance);
+        this->pipeline->setUniform1f("material.ior", material.ior);
+        this->pipeline->setUniform1f("material.abbeNumber",
+                                     material.abbeNumber);
+        this->pipeline->setUniform3f(
+            "material.attenuationColor", material.attenuationColor.r,
+            material.attenuationColor.g, material.attenuationColor.b);
+        this->pipeline->setUniform1f("material.attenuationDistance",
+                                     material.attenuationDistance);
+        this->pipeline->setUniform1f("material.isVolume",
+                                     material.isVolume ? 1.0f : 0.0f);
+        this->pipeline->setUniform1f("material.volumeDensity",
+                                     material.volumeDensity);
+        this->pipeline->setUniform3f(
+            "material.volumeAbsorptionColor",
+            material.volumeAbsorptionColor.r,
+            material.volumeAbsorptionColor.g,
+            material.volumeAbsorptionColor.b);
+        this->pipeline->setUniform1f(
+            "material.volumeAbsorptionStrength",
+            material.volumeAbsorptionStrength);
+        this->pipeline->setUniform3f(
+            "material.volumeScatteringColor",
+            material.volumeScatteringColor.r,
+            material.volumeScatteringColor.g,
+            material.volumeScatteringColor.b);
+        this->pipeline->setUniform1f(
+            "material.volumeScatteringStrength",
+            material.volumeScatteringStrength);
 
         this->pipeline->setUniform3f("albedo", material.albedo.r,
                                      material.albedo.g, material.albedo.b);
