@@ -602,10 +602,10 @@ void Window::deferredRendering(
     lightPipeline->bindTexture2D("gAlbedoSpec", this->gBuffer->gAlbedoSpec.id,
                                  2);
     lightPipeline->bindTexture2D("gMaterial", this->gBuffer->gMaterial.id, 3);
-    lightPipeline->bindTexture2D("gOptical", this->gBuffer->gOptical.id, 4);
-    lightPipeline->bindTexture2D("gMedium", this->gBuffer->gMedium.id, 5);
+    lightPipeline->bindTexture2D("gOptical", this->gBuffer->gOptical.id, 18);
+    lightPipeline->bindTexture2D("gMedium", this->gBuffer->gMedium.id, 19);
 
-    int boundTextures = 6;
+    int boundTextures = 4;
 
     static std::shared_ptr<opal::Texture> fallbackSSAOTexture = nullptr;
     if (fallbackSSAOTexture == nullptr) {
