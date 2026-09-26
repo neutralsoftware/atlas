@@ -1084,7 +1084,9 @@ kernel void main0(device float4 *probeRadianceOut [[buffer(0)]],
             Material transportMaterial = materials[h.materialID];
             reflectivity = clamp(transportMaterial.optical.x, 0.0f, 1.0f);
             transmission = clamp(transportMaterial.optical.y, 0.0f, 1.0f);
-            materialIor = max(transportMaterial.optical.z, 1.0001f);
+            materialIor = transportMaterial.optical.z > 1.001f
+                              ? transportMaterial.optical.z
+                              : 1.5f;
             abbeNumber = max(transportMaterial.optical.w, 0.0f);
             attenuationColor = clamp(transportMaterial.attenuation.xyz,
                                      float3(0.0f), float3(1.0f));

@@ -309,7 +309,7 @@ float3
 evaluateBRDF(float3 L, float3 radiance,
              float3 N, float3 V,
              float3 F0, float3 albedo,
-             float metallic, float roughness) {
+             float metallic, float roughness, float transmission) {
     float3 H = normalize(V + L);
     float3 param = N;
     float3 param_1 = H;
@@ -324,7 +324,8 @@ evaluateBRDF(float3 L, float3 radiance,
     float3 param_8 = F0;
     float3 F = fresnelSchlick(param_7, param_8);
     float3 kS = F;
-    float3 kD = (float3(1.0) - kS) * (1.0 - metallic);
+    float3 kD = (float3(1.0) - kS) * (1.0 - metallic) *
+                (1.0 - transmission);
     float NdotV = max(dot(N, V), 0.0);
     float NdotL = max(dot(N, L), 0.0);
     float3 numerator = F * (NDF * G);
@@ -340,7 +341,7 @@ float3 calcDirectionalLight(
     DirectionalLight light, float3 N,
     float3 V, float3 F0,
     float3 albedo, float metallic,
-    float roughness) {
+    float roughness, float transmission) {
     float3 L = normalize(-light.direction);
     float3 radiance = light.diffuse * max(light.intensity, 0.0);
     float3 param = L;
@@ -351,15 +352,16 @@ float3 calcDirectionalLight(
     float3 param_5 = albedo;
     float param_6 = metallic;
     float param_7 = roughness;
+    float param_8 = transmission;
     return evaluateBRDF(param, param_1, param_2, param_3, param_4, param_5,
-                        param_6, param_7);
+                        param_6, param_7, param_8);
 }
 
 float3
 calcPointLight(PointLight light, float3 fragPos,
                float3 N, float3 V,
                float3 F0, float3 albedo,
-               float metallic, float roughness) {
+               float metallic, float roughness, float transmission) {
     float3 L = light.position - fragPos;
     float _distance = length(L);
     float3 _1019;
@@ -386,15 +388,16 @@ calcPointLight(PointLight light, float3 fragPos,
     float3 param_5 = albedo;
     float param_6 = metallic;
     float param_7 = roughness;
+    float param_8 = transmission;
     return evaluateBRDF(param, param_1, param_2, param_3, param_4, param_5,
-                        param_6, param_7);
+                        param_6, param_7, param_8);
 }
 
 float3
 calcSpotLight(SpotLight light, float3 fragPos,
               float3 N, float3 V,
               float3 F0, float3 albedo,
-              float metallic, float roughness) {
+              float metallic, float roughness, float transmission) {
     float3 L = light.position - fragPos;
     float _distance = length(L);
     float3 direction = normalize(L);
@@ -421,8 +424,9 @@ calcSpotLight(SpotLight light, float3 fragPos,
     float3 param_5 = albedo;
     float param_6 = metallic;
     float param_7 = roughness;
+    float param_8 = transmission;
     return evaluateBRDF(param, param_1, param_2, param_3, param_4, param_5,
-                        param_6, param_7);
+                        param_6, param_7, param_8);
 }
 
 float3

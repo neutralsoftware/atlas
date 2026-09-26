@@ -93,10 +93,10 @@ sampleProbeDirectionalRadiance(Texture2D<float4> ddgiTexture,
     return sampleDDGITextureBilinear(ddgiTexture, uv);
 }
 
-float3 sampleDDGIIrradiance(Texture2D<float4> ddgiTexture,
-                                          Texture2D<float4> ddgiDistance,
-                                          ProbeSpace ps, float3 posWS,
-                                          float3 normalWS) {
+float3 sampleDDGIDirectionalRadiance(Texture2D<float4> ddgiTexture,
+                                     Texture2D<float4> ddgiDistance,
+                                     ProbeSpace ps, float3 posWS,
+                                     float3 normalWS, float3 directionWS) {
     uint3 counts = uint3((uint)ps.probeCount.x, (uint)ps.probeCount.y,
                          (uint)ps.probeCount.z);
 
@@ -112,6 +112,9 @@ float3 sampleDDGIIrradiance(Texture2D<float4> ddgiTexture,
     float normalLen = length(normalWS);
     float3 safeNormal = (normalLen > 1e-6f) ? (normalWS / float3(normalLen))
                                             : float3(0.0f, 1.0f, 0.0f);
+    float directionLen = length(directionWS);
+    float3 safeDirection =
+        directionLen > 1e-6f ? directionWS / float3(directionLen) : safeNormal;
 
     float3 safeSpacing = max(ps.spacing, float3(1e-4f));
     float spacingScale =
@@ -130,7 +133,7 @@ float3 sampleDDGIIrradiance(Texture2D<float4> ddgiTexture,
                         int(counts.z) - 1));
         uint pIndex = probeIndexFromCoord(nearest, counts);
         float4 nearestSample = sampleProbeDirectionalRadiance(
-            ddgiTexture, ps, pIndex, atlasW, atlasH, safeNormal);
+            ddgiTexture, ps, pIndex, atlasW, atlasH, safeDirection);
         float3 nearestProbePos = ps.origin + float3(nearest) * safeSpacing;
         float3 nearestDirection = safeNormalizeDDGI(
             posWS - nearestProbePos, safeNormal);
@@ -200,7 +203,7 @@ float3 sampleDDGIIrradiance(Texture2D<float4> ddgiTexture,
                 float w = trilinearW * backfaceW * distanceW;
 
                 float4 irrSample = sampleProbeDirectionalRadiance(
-                    ddgiTexture, ps, pIndex, atlasW, atlasH, safeNormal);
+                    ddgiTexture, ps, pIndex, atlasW, atlasH, safeDirection);
                 float3 probeToSurface = -surfaceToProbe;
                 float4 distanceSample = sampleProbeDirectionalRadiance(
                     ddgiDistance, ps, pIndex, atlasW, atlasH,
@@ -247,7 +250,7 @@ float3 sampleDDGIIrradiance(Texture2D<float4> ddgiTexture,
         (uint)clamp(int(floor(clampedGrid.z + 0.5f)), 0, int(counts.z) - 1));
     uint nearestIndex = probeIndexFromCoord(nearest, counts);
     float4 fallbackSample = sampleProbeDirectionalRadiance(
-        ddgiTexture, ps, nearestIndex, atlasW, atlasH, safeNormal);
+        ddgiTexture, ps, nearestIndex, atlasW, atlasH, safeDirection);
     float fallbackValidity =
         isfinite(fallbackSample.w) ? clamp(fallbackSample.w, 0.0f, 1.0f) : 0.0f;
     float3 fallback =
@@ -257,4 +260,11 @@ float3 sampleDDGIIrradiance(Texture2D<float4> ddgiTexture,
         fallback = float3(0.0f);
     }
     return max(fallback, float3(0.0f));
+}
+
+float3 sampleDDGIIrradiance(Texture2D<float4> ddgiTexture,
+                            Texture2D<float4> ddgiDistance, ProbeSpace ps,
+                            float3 posWS, float3 normalWS) {
+    return sampleDDGIDirectionalRadiance(ddgiTexture, ddgiDistance, ps, posWS,
+                                         normalWS, normalWS);
 }
