@@ -9,6 +9,7 @@ struct DenoiseParameters {
 [[vk::binding(3, 2)]] Texture2D<float4> guideTexture;
 [[vk::binding(4, 2)]] Texture2D<float4> albedoRoughnessTexture;
 [[vk::binding(5, 2)]] Texture2D<float4> momentsTexture;
+[[vk::binding(6, 2)]] Texture2D<float4> historyTexture;
 [[vk::binding(0, 0)]] ConstantBuffer<DenoiseParameters> parameters;
 
 [shader("compute")]
@@ -34,11 +35,17 @@ void computeMain(uint3 dispatchThreadID : SV_DispatchThreadID) {
     float centerLuminance = dot(center, float3(0.2126, 0.7152, 0.0722));
     float standardDeviation = sqrt(max(centerMoments.z, 0.0));
     float temporalMean = max(centerMoments.x, 0.0);
-    float luminanceLimit = max(temporalMean + standardDeviation * 3.0, 3.0);
-    if (centerLuminance > luminanceLimit) {
-        center *= luminanceLimit / max(centerLuminance, 0.00001);
-        centerLuminance = luminanceLimit;
+    float historyLength = max(historyTexture.Load(int3(gid, 0)).w, 1.0);
+    float deviationFloor = max(temporalMean * 0.05, 0.02);
+    float luminanceDeviation = max(standardDeviation, deviationFloor);
+    float luminanceMinimum = max(temporalMean - luminanceDeviation * 3.0, 0.0);
+    float luminanceMaximum = max(temporalMean + luminanceDeviation * 3.0, 1.0);
+    float clippedCenterLuminance = clamp(centerLuminance, luminanceMinimum,
+                                         luminanceMaximum);
+    if (centerLuminance > 0.00001) {
+        center *= clippedCenterLuminance / centerLuminance;
     }
+    centerLuminance = clippedCenterLuminance;
     float3 filtered = float3(0.0);
     float totalWeight = 0.0;
     for (int i = 0; i < 9; ++i) {
@@ -51,12 +58,23 @@ void computeMain(uint3 dispatchThreadID : SV_DispatchThreadID) {
             albedoRoughnessTexture.Load(int3(uint2(samplePosition), 0));
         float sampleLuminance =
             dot(sampleColor, float3(0.2126, 0.7152, 0.0722));
+        float clippedSampleLuminance = clamp(
+            sampleLuminance, luminanceMinimum, luminanceMaximum);
+        if (sampleLuminance > 0.00001) {
+            sampleColor *= clippedSampleLuminance / sampleLuminance;
+        }
+        sampleLuminance = clippedSampleLuminance;
         float roughness = clamp(centerAlbedoRoughness.w, 0.0, 1.0);
-        float luminanceScale = lerp(2.5, 7.0, roughness);
+        float luminanceScale = lerp(7.0, 3.0, roughness);
         float luminanceDifference =
             abs(sampleLuminance - centerLuminance) /
-            max(1.0, max(sampleLuminance, centerLuminance));
+            max(luminanceDeviation, max(sampleLuminance, centerLuminance) *
+                                         0.25);
         float edgeWeight = exp(-luminanceDifference * luminanceScale);
+        float3 centerChroma = center / max(centerLuminance, 0.05);
+        float3 sampleChroma = sampleColor / max(sampleLuminance, 0.05);
+        edgeWeight *= exp(-length(sampleChroma - centerChroma) *
+                          lerp(3.0, 1.0, roughness));
         bool sampleSurface = sampleGuide.w > 0.0;
         float normalWeight = centerSurface == sampleSurface ? 1.0 : 0.0;
         float depthWeight = normalWeight;
@@ -67,7 +85,8 @@ void computeMain(uint3 dispatchThreadID : SV_DispatchThreadID) {
                 float normalSimilarity =
                     dot(centerGuide.xyz * rsqrt(centerNormalLength),
                         sampleGuide.xyz * rsqrt(sampleNormalLength));
-                normalWeight *= pow(max(normalSimilarity, 0.0), 24.0);
+                normalWeight *= pow(max(normalSimilarity, 0.0),
+                                    lerp(48.0, 12.0, roughness));
             } else if (i != 0) {
                 normalWeight = 0.0;
             }
@@ -87,9 +106,11 @@ void computeMain(uint3 dispatchThreadID : SV_DispatchThreadID) {
     float3 spatialResult =
         totalWeight > 0.0001 ? filtered / totalWeight : center;
     float roughness = clamp(centerAlbedoRoughness.w, 0.0, 1.0);
-    float relativeNoise = standardDeviation / max(centerLuminance, 0.05);
-    float filterStrength = clamp(relativeNoise * 1.5, 0.02, 1.0) *
-                           lerp(0.12, 1.0, roughness * roughness);
+    float relativeNoise = luminanceDeviation / max(temporalMean, 0.05);
+    float samplingNoise = rsqrt(historyLength);
+    float filterStrength = clamp(max(relativeNoise, samplingNoise) * 1.5,
+                                 0.02, 1.0) *
+                           lerp(0.08, 1.0, roughness * roughness);
     if (!centerSurface) {
         filterStrength *= 0.25;
     }
