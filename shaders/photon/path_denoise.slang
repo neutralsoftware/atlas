@@ -9,6 +9,7 @@ struct DenoiseParameters {
 [[vk::binding(3, 2)]] Texture2D<float4> guideTexture;
 [[vk::binding(4, 2)]] Texture2D<float4> albedoRoughnessTexture;
 [[vk::binding(5, 2)]] Texture2D<float4> momentsTexture;
+[[vk::binding(6, 2)]] Texture2D<float4> historyTexture;
 [[vk::binding(0, 0)]] ConstantBuffer<DenoiseParameters> parameters;
 
 [shader("compute")]
@@ -20,9 +21,9 @@ void computeMain(uint3 dispatchThreadID : SV_DispatchThreadID) {
     if (gid.x >= width || gid.y >= height)
         return;
 
-    const int2 offsets[9] = {int2(0, 0),  int2(1, 0),  int2(-1, 0),
-                                 int2(0, 1),  int2(0, -1), int2(1, 1),
-                                 int2(-1, 1), int2(1, -1), int2(-1, -1)};
+    const int2 offsets[9] = {int2(0, 0), int2(1, 0), int2(-1, 0),
+                             int2(0, 1), int2(0, -1), int2(1, 1),
+                             int2(-1, 1), int2(1, -1), int2(-1, -1)};
     const float weights[9] = {0.28, 0.12, 0.12, 0.12, 0.12,
                                   0.06, 0.06, 0.06, 0.06};
     float3 center = inputTexture.Load(int3(gid, 0)).xyz;
@@ -32,29 +33,19 @@ void computeMain(uint3 dispatchThreadID : SV_DispatchThreadID) {
     bool centerSurface = centerGuide.w > 0.0;
     float centerNormalLength = dot(centerGuide.xyz, centerGuide.xyz);
     float centerLuminance = dot(center, float3(0.2126, 0.7152, 0.0722));
-    float neighborLuminance = 0.0;
-    float neighborWeight = 0.0;
-    for (int i = 1; i < 9; ++i) {
-        int2 samplePosition =
-            clamp(int2(gid) + offsets[i] * parameters.stepWidth, int2(0),
-                  int2(width - 1, height - 1));
-        float4 sampleGuide = guideTexture.Load(int3(uint2(samplePosition), 0));
-        bool sampleSurface = sampleGuide.w > 0.0;
-        if (sampleSurface != centerSurface)
-            continue;
-        float sampleLuminance = dot(
-            inputTexture.Load(int3(uint2(samplePosition), 0)).xyz,
-            float3(0.2126, 0.7152, 0.0722));
-        neighborLuminance += sampleLuminance;
-        neighborWeight += 1.0;
+    float standardDeviation = sqrt(max(centerMoments.z, 0.0));
+    float temporalMean = max(centerMoments.x, 0.0);
+    float historyLength = max(historyTexture.Load(int3(gid, 0)).w, 1.0);
+    float deviationFloor = max(temporalMean * 0.05, 0.02);
+    float luminanceDeviation = max(standardDeviation, deviationFloor);
+    float luminanceMinimum = max(temporalMean - luminanceDeviation * 3.0, 0.0);
+    float luminanceMaximum = max(temporalMean + luminanceDeviation * 3.0, 1.0);
+    float clippedCenterLuminance = clamp(centerLuminance, luminanceMinimum,
+                                         luminanceMaximum);
+    if (centerLuminance > 0.00001) {
+        center *= clippedCenterLuminance / centerLuminance;
     }
-    if (neighborWeight > 1.0) {
-        float localLimit = max(3.0, neighborLuminance / neighborWeight * 3.0);
-        if (centerLuminance > localLimit) {
-            center *= localLimit / max(centerLuminance, 0.00001);
-            centerLuminance = localLimit;
-        }
-    }
+    centerLuminance = clippedCenterLuminance;
     float3 filtered = float3(0.0);
     float totalWeight = 0.0;
     for (int i = 0; i < 9; ++i) {
@@ -67,12 +58,23 @@ void computeMain(uint3 dispatchThreadID : SV_DispatchThreadID) {
             albedoRoughnessTexture.Load(int3(uint2(samplePosition), 0));
         float sampleLuminance =
             dot(sampleColor, float3(0.2126, 0.7152, 0.0722));
+        float clippedSampleLuminance = clamp(
+            sampleLuminance, luminanceMinimum, luminanceMaximum);
+        if (sampleLuminance > 0.00001) {
+            sampleColor *= clippedSampleLuminance / sampleLuminance;
+        }
+        sampleLuminance = clippedSampleLuminance;
         float roughness = clamp(centerAlbedoRoughness.w, 0.0, 1.0);
-        float luminanceScale = lerp(2.5, 7.0, roughness);
+        float luminanceScale = lerp(7.0, 3.0, roughness);
         float luminanceDifference =
             abs(sampleLuminance - centerLuminance) /
-            max(1.0, max(sampleLuminance, centerLuminance));
+            max(luminanceDeviation, max(sampleLuminance, centerLuminance) *
+                                         0.25);
         float edgeWeight = exp(-luminanceDifference * luminanceScale);
+        float3 centerChroma = center / max(centerLuminance, 0.05);
+        float3 sampleChroma = sampleColor / max(sampleLuminance, 0.05);
+        edgeWeight *= exp(-length(sampleChroma - centerChroma) *
+                          lerp(3.0, 1.0, roughness));
         bool sampleSurface = sampleGuide.w > 0.0;
         float normalWeight = centerSurface == sampleSurface ? 1.0 : 0.0;
         float depthWeight = normalWeight;
@@ -83,7 +85,8 @@ void computeMain(uint3 dispatchThreadID : SV_DispatchThreadID) {
                 float normalSimilarity =
                     dot(centerGuide.xyz * rsqrt(centerNormalLength),
                         sampleGuide.xyz * rsqrt(sampleNormalLength));
-                normalWeight *= pow(max(normalSimilarity, 0.0), 24.0);
+                normalWeight *= pow(max(normalSimilarity, 0.0),
+                                    lerp(48.0, 12.0, roughness));
             } else if (i != 0) {
                 normalWeight = 0.0;
             }
@@ -103,10 +106,11 @@ void computeMain(uint3 dispatchThreadID : SV_DispatchThreadID) {
     float3 spatialResult =
         totalWeight > 0.0001 ? filtered / totalWeight : center;
     float roughness = clamp(centerAlbedoRoughness.w, 0.0, 1.0);
-    float relativeNoise = sqrt(max(centerMoments.z, 0.0)) /
-                          max(centerLuminance, 0.05);
-    float filterStrength = clamp(relativeNoise * 1.5, 0.02, 1.0) *
-                           lerp(0.12, 1.0, roughness * roughness);
+    float relativeNoise = luminanceDeviation / max(temporalMean, 0.05);
+    float samplingNoise = rsqrt(historyLength);
+    float filterStrength = clamp(max(relativeNoise, samplingNoise) * 1.5,
+                                 0.02, 1.0) *
+                           lerp(0.08, 1.0, roughness * roughness);
     if (!centerSurface) {
         filterStrength *= 0.25;
     }

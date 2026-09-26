@@ -912,9 +912,7 @@ class Model : public GameObject {
      */
     void render(float dt, std::shared_ptr<opal::CommandBuffer> commandBuffer,
                 bool updatePipeline = false) override {
-        for (auto &component : components) {
-            component->update(dt);
-        }
+
         for (auto &obj : objects) {
             if (obj == nullptr) {
                 continue;
@@ -936,23 +934,7 @@ class Model : public GameObject {
      * @brief Updates all underlying CoreObjects to keep transforms and
      * animations synchronized.
      */
-    void update(Window &window) override {
-        for (auto &obj : objects) {
-            if (obj == nullptr) {
-                continue;
-            }
-            bool hasAnyTexture = !obj->textures.empty();
-            if (!hasAnyTexture) {
-                obj->material = material;
-            }
-            obj->material.useNormalMap = material.useNormalMap;
-            obj->material.normalMapStrength = material.normalMapStrength;
-            obj->material.textureScale = material.textureScale;
-            obj->material.textureOffset = material.textureOffset;
-            obj->useDeferredRendering = useDeferredRendering;
-            obj->update(window);
-        }
-    }
+    void update(Window &window) override;
 
     /**
      * @brief Initializes every CoreObject and attached component within the

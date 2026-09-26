@@ -185,6 +185,379 @@ float4 evalEmissiveTriangleLighting(
            visibility;
 }
 
+uint directLightCandidateCount(constant SceneData &sceneData) {
+    return sceneData.numDirectionalLights + sceneData.numPointLights +
+           sceneData.numSpotLights + sceneData.numAreaLights +
+           (sceneData.numEmissiveTriangles > 0 ? 1u : 0u);
+}
+
+DirectLightSample sampleDirectLight(
+    thread uint &rng, constant SceneData &sceneData,
+    constant EmissiveTriangle *emissiveTriangles) {
+    DirectLightSample sample{};
+    uint candidateCount = directLightCandidateCount(sceneData);
+    if (candidateCount == 0) {
+        sample.type = 0xFFFFFFFFu;
+        return sample;
+    }
+    uint selected = min(uint(rand(rng) * float(candidateCount)),
+                        candidateCount - 1);
+    sample.uv = float2(rand(rng), rand(rng));
+    if (selected < sceneData.numDirectionalLights) {
+        sample.type = 0;
+        sample.index = selected;
+        return sample;
+    }
+    selected -= sceneData.numDirectionalLights;
+    if (selected < sceneData.numPointLights) {
+        sample.type = 1;
+        sample.index = selected;
+        return sample;
+    }
+    selected -= sceneData.numPointLights;
+    if (selected < sceneData.numSpotLights) {
+        sample.type = 2;
+        sample.index = selected;
+        return sample;
+    }
+    selected -= sceneData.numSpotLights;
+    if (selected < sceneData.numAreaLights) {
+        sample.type = 3;
+        sample.index = selected;
+        return sample;
+    }
+    sample.type = 4;
+    uint first = 0;
+    uint last = sceneData.numEmissiveTriangles - 1;
+    float selector = sample.uv.x;
+    while (first < last) {
+        uint middle = first + (last - first) / 2;
+        if (selector <= emissiveTriangles[middle].cdf) {
+            last = middle;
+        } else {
+            first = middle + 1;
+        }
+    }
+    sample.index = first;
+    sample.uv.x = rand(rng);
+    return sample;
+}
+
+float4 evaluateDirectLightSample(
+    DirectLightSample lightSample, bool includeVisibility,
+    intersector<triangle_data> isect, primitive_acceleration_structure sceneAS,
+    float3 P, float3 N, float3 Ng, float3 V, float4 albedo, float metallic,
+    float roughness, float reflectivity, float4 ior, float transmittance,
+    float substrateIor, float substrateAbbe, float iridescenceFactor,
+    float iridescenceIor, float iridescenceAbbe,
+    float iridescenceThickness, bool isFront, thread uint &rng,
+    thread const SpectralPath &path, constant DirectionalLightData &dirLight,
+    constant SceneData &sceneData, constant PointLight *pointLights,
+    constant SpotLight *spotLights, constant AreaLight *areaLights,
+    constant EmissiveTriangle *emissiveTriangles, constant Material *materials,
+    constant uint *primitiveObjects, constant uint *blasPrimitiveOffsets,
+    constant VertexData *vertices, constant uint *indices,
+    constant InstanceData *instanceData, PT_MATERIAL_TEXTURE_PARAMS) {
+    float3 L = float3(0.0f);
+    float distanceToLight = 1.0e30f;
+    float4 lightRadiance = float4(0.0f);
+    float intensity = 0.0f;
+    bool areaContribution = false;
+
+    if (lightSample.type == 0 && sceneData.numDirectionalLights > 0) {
+        L = sampleDirectionalLightDirection(dirLight, lightSample.uv);
+        lightRadiance = evaluateEmission(dirLight.color, path);
+        intensity = max(dirLight.intensity, 0.0f);
+    } else if (lightSample.type == 1 &&
+               lightSample.index < sceneData.numPointLights) {
+        PointLight light = pointLights[lightSample.index];
+        float3 toLight = float3(light.position) - P;
+        distanceToLight = max(length(toLight), 1e-4f);
+        L = toLight / distanceToLight;
+        float range = max(light.range, 1e-4f);
+        float minimumDistance = max(range * 0.08f, 0.15f);
+        float rangeFade =
+            1.0f - smoothstep(range * 0.75f, range, distanceToLight);
+        intensity = max(light.intensity, 0.0f) * rangeFade /
+                    max(distanceToLight * distanceToLight +
+                            minimumDistance * minimumDistance,
+                        1e-4f);
+        lightRadiance = evaluateEmission(float3(light.color), path);
+    } else if (lightSample.type == 2 &&
+               lightSample.index < sceneData.numSpotLights) {
+        SpotLight light = spotLights[lightSample.index];
+        float3 toLight = float3(light.position) - P;
+        distanceToLight = max(length(toLight), 1e-4f);
+        L = toLight / distanceToLight;
+        float range = max(light.range, 1e-4f);
+        float minimumDistance = max(range * 0.08f, 0.15f);
+        float cone = smoothstep(light.outerCos, light.innerCos,
+                                dot(-L, normalize(float3(light.direction))));
+        float rangeFade =
+            1.0f - smoothstep(range * 0.75f, range, distanceToLight);
+        intensity = max(light.intensity, 0.0f) * cone * rangeFade /
+                    max(distanceToLight * distanceToLight +
+                            minimumDistance * minimumDistance,
+                        1e-4f);
+        lightRadiance = evaluateEmission(float3(light.color), path);
+    } else if (lightSample.type == 3 &&
+               lightSample.index < sceneData.numAreaLights) {
+        AreaLight light = areaLights[lightSample.index];
+        float2 offset = lightSample.uv * 2.0f - 1.0f;
+        float3 lightPosition = float3(light.position) +
+                               float3(light.right) *
+                                   (offset.x * light.halfWidth) +
+                               float3(light.up) *
+                                   (offset.y * light.halfHeight);
+        float3 toLight = lightPosition - P;
+        distanceToLight = max(length(toLight), 1e-4f);
+        L = toLight / distanceToLight;
+        float3 lightNormal =
+            normalize(cross(float3(light.right), float3(light.up)));
+        float lightCosine = light.twoSided > 0.5f
+                                ? abs(dot(lightNormal, -L))
+                                : max(dot(lightNormal, -L), 0.0f);
+        if (lightCosine < light.emissionCos) {
+            return float4(0.0f);
+        }
+        float area = 4.0f * light.halfWidth * light.halfHeight;
+        intensity = max(light.intensity, 0.0f) * lightCosine * area /
+                    max(distanceToLight * distanceToLight, 1e-6f);
+        lightRadiance = evaluateEmission(float3(light.color), path);
+        areaContribution = true;
+    } else if (lightSample.type == 4 &&
+               lightSample.index < sceneData.numEmissiveTriangles) {
+        EmissiveTriangle light = emissiveTriangles[lightSample.index];
+        float sqrtU = sqrt(lightSample.uv.x);
+        float b0 = 1.0f - sqrtU;
+        float b1 = sqrtU * (1.0f - lightSample.uv.y);
+        float b2 = sqrtU * lightSample.uv.y;
+        float3 lightPosition =
+            light.p0.xyz * b0 + light.p1.xyz * b1 + light.p2.xyz * b2;
+        float3 toLight = lightPosition - P;
+        float distanceSquared = dot(toLight, toLight);
+        if (distanceSquared <= 1e-8f) {
+            return float4(0.0f);
+        }
+        distanceToLight = sqrt(distanceSquared);
+        L = toLight / distanceToLight;
+        float surfaceCosine = dot(N, L);
+        float lightCosine = abs(dot(light.normal.xyz, -L));
+        if (surfaceCosine <= 0.0f || dot(Ng, L) <= 0.0f ||
+            lightCosine <= 1e-5f || light.area <= 1e-8f ||
+            light.selectionPdf <= 1e-8f) {
+            return float4(0.0f);
+        }
+        float solidAnglePdf = light.selectionPdf * distanceSquared /
+                              max(lightCosine * light.area, 1e-8f);
+        intensity = 1.0f / max(solidAnglePdf, 1e-8f);
+        lightRadiance = evaluateEmission(float3(light.emission), path);
+    } else {
+        return float4(0.0f);
+    }
+
+    float4 contribution = evalPBR(
+        albedo, metallic, roughness, reflectivity, ior, transmittance, N, V, L,
+        lightRadiance, intensity, substrateIor, substrateAbbe,
+        iridescenceFactor, iridescenceIor, iridescenceAbbe,
+        iridescenceThickness, isFront, path, !areaContribution);
+    if (!includeVisibility || spectralMax(contribution) <= 0.0f) {
+        return contribution;
+    }
+    return contribution * traceShadowVisibility(
+                              isect, sceneAS, P, Ng, L, distanceToLight, rng,
+                              materials, primitiveObjects, blasPrimitiveOffsets,
+                              vertices, indices, instanceData, sceneData, path,
+                              PT_MATERIAL_TEXTURE_ARGS);
+}
+
+float4 evalSampledDirectLightingPBR(
+    intersector<triangle_data> isect, primitive_acceleration_structure sceneAS,
+    float3 P, float3 N, float3 Ng, float3 V, float4 albedo, float metallic,
+    float roughness, float reflectivity, float4 ior, float transmittance,
+    float substrateIor, float substrateAbbe, float iridescenceFactor,
+    float iridescenceIor, float iridescenceAbbe,
+    float iridescenceThickness, bool isFront, thread uint &rng,
+    thread const SpectralPath &path, constant DirectionalLightData &dirLight,
+    constant SceneData &sceneData, constant PointLight *pointLights,
+    constant SpotLight *spotLights, constant AreaLight *areaLights,
+    constant EmissiveTriangle *emissiveTriangles, constant Material *materials,
+    constant uint *primitiveObjects, constant uint *blasPrimitiveOffsets,
+    constant VertexData *vertices, constant uint *indices,
+    constant InstanceData *instanceData, PT_MATERIAL_TEXTURE_PARAMS) {
+    uint candidateCount = directLightCandidateCount(sceneData);
+    if (candidateCount == 0) {
+        return float4(0.0f);
+    }
+    DirectLightSample lightSample =
+        sampleDirectLight(rng, sceneData, emissiveTriangles);
+    return evaluateDirectLightSample(
+               lightSample, true, isect, sceneAS, P, N, Ng, V, albedo,
+               metallic, roughness, reflectivity, ior, transmittance,
+               substrateIor, substrateAbbe, iridescenceFactor, iridescenceIor,
+               iridescenceAbbe, iridescenceThickness, isFront, rng, path,
+               dirLight, sceneData, pointLights, spotLights, areaLights,
+               emissiveTriangles, materials, primitiveObjects,
+               blasPrimitiveOffsets, vertices, indices, instanceData,
+               PT_MATERIAL_TEXTURE_ARGS) *
+           float(candidateCount);
+}
+
+DirectReservoir emptyDirectReservoir() {
+    DirectReservoir reservoir{};
+    reservoir.sample.type = 0xFFFFFFFFu;
+    return reservoir;
+}
+
+void updateDirectReservoir(thread DirectReservoir &reservoir,
+                           DirectLightSample sample, float target,
+                           float candidateWeight, float candidateCount,
+                           float candidateAge, thread uint &rng) {
+    if (target <= 1e-8f || candidateWeight <= 1e-8f ||
+        candidateCount <= 0.0f) {
+        return;
+    }
+    float newWeightSum = reservoir.weightSum + candidateWeight;
+    if (rand(rng) * newWeightSum < candidateWeight) {
+        reservoir.sample = sample;
+        reservoir.target = target;
+        reservoir.age = candidateAge;
+    }
+    reservoir.weightSum = newWeightSum;
+    reservoir.sampleCount += candidateCount;
+}
+
+DirectReservoir loadDirectReservoir(
+    uint2 pixel, texture2d<float, access::read> sampleTexture,
+    texture2d<float, access::read> statsTexture) {
+    float4 packedSample = sampleTexture.read(pixel);
+    float4 packedStats = statsTexture.read(pixel);
+    DirectReservoir reservoir = emptyDirectReservoir();
+    if (packedStats.x <= 1e-8f || packedStats.y <= 1e-8f ||
+        packedStats.z <= 0.0f) {
+        return reservoir;
+    }
+    reservoir.sample.type = uint(max(round(packedSample.x), 0.0f));
+    reservoir.sample.index = uint(max(round(packedSample.y), 0.0f));
+    reservoir.sample.uv = packedSample.zw;
+    reservoir.target = packedStats.x;
+    reservoir.weightSum = packedStats.y;
+    reservoir.sampleCount = packedStats.z;
+    reservoir.age = packedStats.w;
+    return reservoir;
+}
+
+bool directReservoirSurfaceCompatible(float4 previousGuide, float3 normal,
+                                      float depth, uint objectIndex) {
+    if (previousGuide.w < 0.0f ||
+        abs(previousGuide.w - float(objectIndex)) > 0.5f) {
+        return false;
+    }
+    float2 encodedNormal = encodeNormal(normal);
+    float depthThreshold = max(0.03f, depth * 0.02f);
+    return abs(previousGuide.z - depth) <= depthThreshold &&
+           distance(previousGuide.xy, encodedNormal) <= 0.08f;
+}
+
+float4 evalReSTIRDirectLightingPBR(
+    uint2 pixel, float surfaceDepth, uint objectIndex,
+    thread DirectReservoir &reservoir,
+    texture2d<float, access::read> reservoirSampleTexture,
+    texture2d<float, access::read> reservoirStatsTexture,
+    texture2d<float, access::read> historyGuideTexture,
+    intersector<triangle_data> isect, primitive_acceleration_structure sceneAS,
+    float3 P, float3 N, float3 Ng, float3 V, float4 albedo, float metallic,
+    float roughness, float reflectivity, float4 ior, float transmittance,
+    float substrateIor, float substrateAbbe, float iridescenceFactor,
+    float iridescenceIor, float iridescenceAbbe,
+    float iridescenceThickness, bool isFront, thread uint &rng,
+    thread const SpectralPath &path, constant DirectionalLightData &dirLight,
+    constant SceneData &sceneData, constant PointLight *pointLights,
+    constant SpotLight *spotLights, constant AreaLight *areaLights,
+    constant EmissiveTriangle *emissiveTriangles, constant Material *materials,
+    constant uint *primitiveObjects, constant uint *blasPrimitiveOffsets,
+    constant VertexData *vertices, constant uint *indices,
+    constant InstanceData *instanceData, PT_MATERIAL_TEXTURE_PARAMS) {
+    uint candidateCount = directLightCandidateCount(sceneData);
+    if (candidateCount == 0) {
+        return float4(0.0f);
+    }
+
+    DirectLightSample freshSample =
+        sampleDirectLight(rng, sceneData, emissiveTriangles);
+    float4 freshContribution = evaluateDirectLightSample(
+        freshSample, false, isect, sceneAS, P, N, Ng, V, albedo, metallic,
+        roughness, reflectivity, ior, transmittance, substrateIor,
+        substrateAbbe, iridescenceFactor, iridescenceIor, iridescenceAbbe,
+        iridescenceThickness, isFront, rng, path, dirLight, sceneData,
+        pointLights, spotLights, areaLights, emissiveTriangles, materials,
+        primitiveObjects, blasPrimitiveOffsets, vertices, indices, instanceData,
+        PT_MATERIAL_TEXTURE_ARGS);
+    float freshTarget =
+        max(spectralAverage(max(freshContribution, float4(0.0f))), 0.0f);
+    updateDirectReservoir(reservoir, freshSample, freshTarget,
+                          freshTarget * float(candidateCount), 1.0f, 0.0f,
+                          rng);
+
+    if (sceneData.frameIndex > 0) {
+        const int2 offsets[5] = {int2(0, 0), int2(4, 0), int2(-4, 0),
+                                 int2(0, 4), int2(0, -4)};
+        int2 maximumPixel =
+            int2(reservoirSampleTexture.get_width() - 1,
+                 reservoirSampleTexture.get_height() - 1);
+        for (uint i = 0; i < 5; ++i) {
+            uint2 historyPixel = uint2(clamp(int2(pixel) + offsets[i],
+                                             int2(0), maximumPixel));
+            float4 previousGuide = historyGuideTexture.read(historyPixel);
+            if (!directReservoirSurfaceCompatible(previousGuide, N,
+                                                   surfaceDepth, objectIndex)) {
+                continue;
+            }
+            DirectReservoir previous = loadDirectReservoir(
+                historyPixel, reservoirSampleTexture, reservoirStatsTexture);
+            if (previous.sample.type == 0xFFFFFFFFu || previous.age >= 30.0f) {
+                continue;
+            }
+            float4 reusedContribution = evaluateDirectLightSample(
+                previous.sample, false, isect, sceneAS, P, N, Ng, V, albedo,
+                metallic, roughness, reflectivity, ior, transmittance,
+                substrateIor, substrateAbbe, iridescenceFactor,
+                iridescenceIor, iridescenceAbbe, iridescenceThickness, isFront,
+                rng, path, dirLight, sceneData, pointLights, spotLights,
+                areaLights, emissiveTriangles, materials, primitiveObjects,
+                blasPrimitiveOffsets, vertices, indices, instanceData,
+                PT_MATERIAL_TEXTURE_ARGS);
+            float reusedTarget =
+                max(spectralAverage(max(reusedContribution, float4(0.0f))),
+                    0.0f);
+            float reusedCount = min(previous.sampleCount, 8.0f);
+            float reusedWeight = previous.weightSum * reusedTarget /
+                                 max(previous.target, 1e-8f) *
+                                 reusedCount /
+                                 max(previous.sampleCount, 1.0f);
+            updateDirectReservoir(reservoir, previous.sample, reusedTarget,
+                                  reusedWeight, reusedCount,
+                                  previous.age + 1.0f, rng);
+        }
+    }
+
+    if (reservoir.sample.type == 0xFFFFFFFFu || reservoir.target <= 1e-8f ||
+        reservoir.sampleCount <= 0.0f) {
+        return float4(0.0f);
+    }
+    float4 selectedContribution = evaluateDirectLightSample(
+        reservoir.sample, true, isect, sceneAS, P, N, Ng, V, albedo, metallic,
+        roughness, reflectivity, ior, transmittance, substrateIor,
+        substrateAbbe, iridescenceFactor, iridescenceIor, iridescenceAbbe,
+        iridescenceThickness, isFront, rng, path, dirLight, sceneData,
+        pointLights, spotLights, areaLights, emissiveTriangles, materials,
+        primitiveObjects, blasPrimitiveOffsets, vertices, indices, instanceData,
+        PT_MATERIAL_TEXTURE_ARGS);
+    float normalization = reservoir.weightSum /
+                          max(reservoir.sampleCount * reservoir.target, 1e-8f);
+    return selectedContribution * min(normalization, 32.0f);
+}
+
 float4 evalDirectLightingPBR(
     intersector<triangle_data> isect, primitive_acceleration_structure sceneAS,
     float3 P, float3 N, float3 Ng, float3 V, float4 albedo, float metallic,

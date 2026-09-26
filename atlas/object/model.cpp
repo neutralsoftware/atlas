@@ -365,9 +365,8 @@ DecodedModelTexture decodeModelTexture(const ModelTextureJob &job) {
                     static_cast<size_t>(aoWidth) * aoHeight;
                 decoded.ao.assign(aoPixels, aoPixels + byteCount);
             } else {
-                decoded.ao =
-                    resizeModelTexture(aoPixels, aoWidth, aoHeight, 1,
-                                       targetWidth, targetHeight);
+                decoded.ao = resizeModelTexture(aoPixels, aoWidth, aoHeight, 1,
+                                                targetWidth, targetHeight);
             }
         }
     }
@@ -394,16 +393,15 @@ Texture uploadModelTexture(const ModelTextureJob &job,
     const opal::TextureFormat format = job.textureType == TextureType::Color
                                            ? opal::TextureFormat::sRgba8
                                            : opal::TextureFormat::Rgba8;
-    const uint mipLevels =
-        1u + static_cast<uint>(std::floor(std::log2(
-                 std::max(decoded.width, decoded.height))));
+    const uint mipLevels = 1u + static_cast<uint>(std::floor(std::log2(
+                                    std::max(decoded.width, decoded.height))));
     auto opalTexture = opal::Texture::create(
         opal::TextureType::Texture2D, format, decoded.width, decoded.height,
         opal::TextureDataFormat::Rgba, decoded.pixels.data(), mipLevels);
-    opalTexture->setParameters(
-        opal::TextureWrapMode::Repeat, opal::TextureWrapMode::Repeat,
-        opal::TextureFilterMode::LinearMipmapLinear,
-        opal::TextureFilterMode::Linear);
+    opalTexture->setParameters(opal::TextureWrapMode::Repeat,
+                               opal::TextureWrapMode::Repeat,
+                               opal::TextureFilterMode::LinearMipmapLinear,
+                               opal::TextureFilterMode::Linear);
     opalTexture->automaticallyGenerateMipmaps();
     return Texture{.resource = resource,
                    .creationData = {decoded.width, decoded.height, 4},
@@ -437,8 +435,8 @@ void importMaterialProperties(aiMaterial *material, CoreObject &object) {
         float transparency = 0.0f;
         if (material->Get(AI_MATKEY_TRANSPARENCYFACTOR, transparency) ==
             AI_SUCCESS) {
-            object.material.albedo.a = saturate(
-                object.material.albedo.a * (1.0f - transparency));
+            object.material.albedo.a =
+                saturate(object.material.albedo.a * (1.0f - transparency));
         }
     }
 
@@ -615,8 +613,8 @@ void Model::preloadMaterialTextures(
             if (const aiTexture *embedded =
                     scene->GetEmbeddedTexture(filename.c_str());
                 embedded != nullptr) {
-                const auto *bytes = reinterpret_cast<const unsigned char *>(
-                    embedded->pcData);
+                const auto *bytes =
+                    reinterpret_cast<const unsigned char *>(embedded->pcData);
                 if (embedded->mHeight == 0) {
                     sourceBytes.assign(bytes, bytes + embedded->mWidth);
                 } else {
@@ -625,8 +623,8 @@ void Model::preloadMaterialTextures(
                     sourceBytes.resize(static_cast<std::size_t>(sourceWidth) *
                                        sourceHeight * 4);
                     for (std::size_t pixel = 0;
-                         pixel < static_cast<std::size_t>(sourceWidth) *
-                                     sourceHeight;
+                         pixel <
+                         static_cast<std::size_t>(sourceWidth) * sourceHeight;
                          ++pixel) {
                         sourceBytes[pixel * 4] = embedded->pcData[pixel].r;
                         sourceBytes[pixel * 4 + 1] = embedded->pcData[pixel].g;
@@ -646,11 +644,12 @@ void Model::preloadMaterialTextures(
                                          &aoTexturePath) == AI_SUCCESS) {
                     aoPath =
                         directory + "/" + std::string(aoTexturePath.C_Str());
-                    if (const aiTexture *embedded = scene->GetEmbeddedTexture(
-                            aoTexturePath.C_Str());
+                    if (const aiTexture *embedded =
+                            scene->GetEmbeddedTexture(aoTexturePath.C_Str());
                         embedded != nullptr) {
-                        const auto *bytes = reinterpret_cast<
-                            const unsigned char *>(embedded->pcData);
+                        const auto *bytes =
+                            reinterpret_cast<const unsigned char *>(
+                                embedded->pcData);
                         if (embedded->mHeight == 0) {
                             aoBytes.assign(bytes, bytes + embedded->mWidth);
                         } else {
@@ -925,13 +924,13 @@ Model::processMesh(aiMesh *mesh, const aiScene *scene,
         aiMaterial *material = scene->mMaterials[mesh->mMaterialIndex];
         importMaterialProperties(material, object);
 
-        auto diffuseMaps = loadMaterialTextures(
-            material, std::any(aiTextureType_BASE_COLOR), "texture_diffuse",
-            textureCache);
+        auto diffuseMaps =
+            loadMaterialTextures(material, std::any(aiTextureType_BASE_COLOR),
+                                 "texture_diffuse", textureCache);
         if (diffuseMaps.empty()) {
-            auto legacyDiffuseMaps = loadMaterialTextures(
-                material, std::any(aiTextureType_DIFFUSE), "texture_diffuse",
-                textureCache);
+            auto legacyDiffuseMaps =
+                loadMaterialTextures(material, std::any(aiTextureType_DIFFUSE),
+                                     "texture_diffuse", textureCache);
             diffuseMaps.insert(diffuseMaps.end(), legacyDiffuseMaps.begin(),
                                legacyDiffuseMaps.end());
         }
@@ -1143,16 +1142,17 @@ std::vector<Texture> Model::loadMaterialTextures(
                 }
 
                 const uint mipLevels =
-                    1u + static_cast<uint>(std::floor(std::log2(
-                             std::max(width, height))));
+                    1u + static_cast<uint>(
+                             std::floor(std::log2(std::max(width, height))));
                 auto opalTexture = opal::Texture::create(
                     opal::TextureType::Texture2D, opal::TextureFormat::Rgba8,
                     width, height, opal::TextureDataFormat::Rgba, data.get(),
                     mipLevels);
-                opalTexture->setParameters(opal::TextureWrapMode::Repeat,
-                                           opal::TextureWrapMode::Repeat,
-                                           opal::TextureFilterMode::LinearMipmapLinear,
-                                           opal::TextureFilterMode::Linear);
+                opalTexture->setParameters(
+                    opal::TextureWrapMode::Repeat,
+                    opal::TextureWrapMode::Repeat,
+                    opal::TextureFilterMode::LinearMipmapLinear,
+                    opal::TextureFilterMode::Linear);
                 opalTexture->automaticallyGenerateMipmaps();
                 loadedTexture = Texture{.resource = resource,
                                         .creationData = {width, height, 4},
@@ -1172,4 +1172,25 @@ std::vector<Texture> Model::loadMaterialTextures(
         }
     }
     return textures;
+}
+
+void Model::update(Window &window) {
+    for (auto &component : components) {
+        component->update(window.getDeltaTime());
+    }
+    for (auto &obj : objects) {
+        if (obj == nullptr) {
+            continue;
+        }
+        bool hasAnyTexture = !obj->textures.empty();
+        if (!hasAnyTexture) {
+            obj->material = material;
+        }
+        obj->material.useNormalMap = material.useNormalMap;
+        obj->material.normalMapStrength = material.normalMapStrength;
+        obj->material.textureScale = material.textureScale;
+        obj->material.textureOffset = material.textureOffset;
+        obj->useDeferredRendering = useDeferredRendering;
+        obj->update(window);
+    }
 }

@@ -29,7 +29,11 @@ float3 sampleRadiance(
     constant EmissiveTriangle *emissiveTriangles,
     device const CausticPhoton *photons, device const uint *photonSlots,
     constant CausticSettings &caustics, PT_MATERIAL_TEXTURE_PARAMS,
-    texturecube<float> skybox, thread float3 &primaryAlbedo,
+    texturecube<float> skybox, thread DirectReservoir &directReservoir,
+    texture2d<float, access::read> directReservoirSampleTexture,
+    texture2d<float, access::read> directReservoirStatsTexture,
+    texture2d<float, access::read> historyGuideTexture,
+    thread float3 &primaryAlbedo,
     thread float3 &primaryNormal, thread float3 &primaryPosition,
     thread float &primaryDepth, thread float &primaryRoughness,
     thread float &primaryHitDistance, thread uint &primaryObjectId) {
@@ -394,15 +398,31 @@ float3 sampleRadiance(
         }
         if (!deltaDielectric && !deltaMirror &&
             photonFeatureEnabled(sceneData, PHOTON_FEATURE_DIRECT_LIGHTING)) {
-            float4 direct = evalDirectLightingPBR(
-                isect, sceneAS, P, N, Ng, V, albedo, metallic, roughness,
-                reflectivity, ior, surfaceTransmission, baseIor, abbeNumber,
-                iridescenceFactor, mat.iridescenceIor,
-                iridescenceAbbeNumber, mat.iridescenceThickness, frontFace,
-                rng, spectralPath, dirLight, sceneData, pointLights, spotLights,
-                areaLights, emissiveTriangles, materials, primitiveObjects,
-                blasPrimitiveOffsets, vertices, indices, instanceData,
-                PT_MATERIAL_TEXTURE_ARGS);
+            float4 direct;
+            if (depth == 0 && sampleIndex == 0) {
+                direct = evalReSTIRDirectLightingPBR(
+                    gid, length(P - primaryRay.origin), surfaceObjectIndex,
+                    directReservoir, directReservoirSampleTexture,
+                    directReservoirStatsTexture, historyGuideTexture, isect,
+                    sceneAS, P, N, Ng, V, albedo, metallic, roughness,
+                    reflectivity, ior, surfaceTransmission, baseIor, abbeNumber,
+                    iridescenceFactor, mat.iridescenceIor,
+                    iridescenceAbbeNumber, mat.iridescenceThickness, frontFace,
+                    rng, spectralPath, dirLight, sceneData, pointLights,
+                    spotLights, areaLights, emissiveTriangles, materials,
+                    primitiveObjects, blasPrimitiveOffsets, vertices, indices,
+                    instanceData, PT_MATERIAL_TEXTURE_ARGS);
+            } else {
+                direct = evalSampledDirectLightingPBR(
+                    isect, sceneAS, P, N, Ng, V, albedo, metallic, roughness,
+                    reflectivity, ior, surfaceTransmission, baseIor, abbeNumber,
+                    iridescenceFactor, mat.iridescenceIor,
+                    iridescenceAbbeNumber, mat.iridescenceThickness, frontFace,
+                    rng, spectralPath, dirLight, sceneData, pointLights,
+                    spotLights, areaLights, emissiveTriangles, materials,
+                    primitiveObjects, blasPrimitiveOffsets, vertices, indices,
+                    instanceData, PT_MATERIAL_TEXTURE_ARGS);
+            }
             spectralPath.radiance += spectralPath.throughput * direct;
         }
         if (!(sceneData.causticsEnabled != 0 && causticConnection) &&

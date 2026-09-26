@@ -226,14 +226,18 @@ float4 traceSubsurfaceVisibility(
 }
 
 float3 sampleDirectionalLightDirection(DirectionalLightData light,
-                                       thread uint &rng) {
+                                       float2 u) {
     float3 baseL = normalize(-light.direction);
     float3x3 basis = buildOrthonormalBasis(baseL);
     float sunRadius = 0.0025;
-    float2 u = float2(rand(rng), rand(rng));
     float r = sunRadius * sqrt(u.x);
     float phi = 2.0 * M_PI_F * u.y;
     float3 jittered =
         baseL + basis[0] * (r * cos(phi)) + basis[1] * (r * sin(phi));
     return normalize(jittered);
+}
+
+float3 sampleDirectionalLightDirection(DirectionalLightData light,
+                                       thread uint &rng) {
+    return sampleDirectionalLightDirection(light, float2(rand(rng), rand(rng)));
 }

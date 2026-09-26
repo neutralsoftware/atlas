@@ -314,6 +314,16 @@ void photon::PathTracing::init() {
             outputWidth, outputHeight, opal::TextureFormat::Rgba16F,
             opal::TextureDataFormat::Rgba, TextureType::Color));
     }
+    for (auto &texture : directReservoirSamples) {
+        texture = std::make_shared<Texture>(Texture::create(
+            outputWidth, outputHeight, opal::TextureFormat::Rgba16F,
+            opal::TextureDataFormat::Rgba, TextureType::Color));
+    }
+    for (auto &texture : directReservoirStats) {
+        texture = std::make_shared<Texture>(Texture::create(
+            outputWidth, outputHeight, opal::TextureFormat::Rgba16F,
+            opal::TextureDataFormat::Rgba, TextureType::Color));
+    }
     for (auto &texture : denoiseTextures) {
         texture = std::make_shared<Texture>(Texture::create(
             outputWidth, outputHeight, opal::TextureFormat::Rgba16F,
@@ -352,6 +362,16 @@ void photon::PathTracing::resizeOutput(int width, int height) {
             opal::TextureDataFormat::Rgba, TextureType::Color));
     }
     for (auto &texture : pathTracingHistoryMoments) {
+        texture = std::make_shared<Texture>(Texture::create(
+            outputWidth, outputHeight, opal::TextureFormat::Rgba16F,
+            opal::TextureDataFormat::Rgba, TextureType::Color));
+    }
+    for (auto &texture : directReservoirSamples) {
+        texture = std::make_shared<Texture>(Texture::create(
+            outputWidth, outputHeight, opal::TextureFormat::Rgba16F,
+            opal::TextureDataFormat::Rgba, TextureType::Color));
+    }
+    for (auto &texture : directReservoirStats) {
         texture = std::make_shared<Texture>(Texture::create(
             outputWidth, outputHeight, opal::TextureFormat::Rgba16F,
             opal::TextureDataFormat::Rgba, TextureType::Color));
@@ -1410,6 +1430,18 @@ bool photon::PathTracing::render(
     pathTracingPipeline->bindTexture(
         "historyMomentsOutTex",
         pathTracingHistoryMoments[historyWriteIndex]->texture, 10);
+    pathTracingPipeline->bindTexture(
+        "directReservoirSampleTex",
+        directReservoirSamples[historyReadIndex]->texture, 61);
+    pathTracingPipeline->bindTexture(
+        "directReservoirStatsTex",
+        directReservoirStats[historyReadIndex]->texture, 62);
+    pathTracingPipeline->bindTexture(
+        "directReservoirSampleOutTex",
+        directReservoirSamples[historyWriteIndex]->texture, 63);
+    pathTracingPipeline->bindTexture(
+        "directReservoirStatsOutTex",
+        directReservoirStats[historyWriteIndex]->texture, 64);
 
     static std::shared_ptr<opal::Texture> fallbackSkyboxTexture = nullptr;
     if (fallbackSkyboxTexture == nullptr) {
@@ -1535,8 +1567,9 @@ bool photon::PathTracing::render(
     pathTracingPipeline->setUniform1f("caustics.radius", causticRadius);
     pathTracingPipeline->bindBuffer("photons", causticPhotons, 15);
     pathTracingPipeline->bindBuffer("photonSlots", causticSlots, 16);
-    const bool refineCaustics =
-        causticsEnabled && !interactive;
+    const bool refineCaustics = causticsEnabled && !interactive &&
+                                 refinementFrame > 0 &&
+                                 refinementFrame % 16 == 0;
     if (causticsEnabled && (causticMapDirty || refineCaustics)) {
         commandBuffer->bindPipeline(causticClearPipeline);
         causticClearPipeline->bindBuffer("photonSlots", causticSlots, 16);
@@ -1601,11 +1634,11 @@ bool photon::PathTracing::render(
     commandBuffer->computeBarrier();
     historyReadIndex = historyWriteIndex;
 
-    if (denoisingEnabled && !interactive && pixelStride == 1 &&
-        pathDenoisePipeline != nullptr && denoiseTextures[0] != nullptr &&
-        denoiseTextures[1] != nullptr) {
+    if (denoisingEnabled && pathDenoisePipeline != nullptr &&
+        denoiseTextures[0] != nullptr && denoiseTextures[1] != nullptr) {
         const std::array<int, 3> denoiseSteps = {1, 2, 4};
-        const size_t denoisePassCount = refinementFrame < 32 ? 2 : 3;
+        const size_t denoisePassCount =
+            interactive ? 1 : (refinementFrame < 16 ? 3 : 2);
         for (size_t pass = 0; pass < denoisePassCount; ++pass) {
             const auto &input =
                 pass == 0 ? output : denoiseTextures[(pass - 1) % 2]->texture;
@@ -1626,6 +1659,9 @@ bool photon::PathTracing::render(
             pathDenoisePipeline->bindTexture(
                 "momentsTexture",
                 pathTracingHistoryMoments[historyReadIndex]->texture, 5);
+            pathDenoisePipeline->bindTexture(
+                "historyTexture",
+                pathTracingHistoryTextures[historyReadIndex]->texture, 6);
             pathDenoisePipeline->setUniform1i("parameters.stepWidth",
                                               denoiseSteps[pass]);
             pathDenoisePipeline->setUniform1f(

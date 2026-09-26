@@ -170,6 +170,20 @@ struct EmissiveTriangle {
 
 static_assert(sizeof(EmissiveTriangle) == 96);
 
+struct DirectLightSample {
+    uint type;
+    uint index;
+    float2 uv;
+};
+
+struct DirectReservoir {
+    DirectLightSample sample;
+    float target;
+    float weightSum;
+    float sampleCount;
+    float age;
+};
+
 struct SceneData {
     uint numDirectionalLights;
     uint numPointLights;
