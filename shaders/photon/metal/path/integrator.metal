@@ -394,7 +394,7 @@ float3 sampleRadiance(
         }
         if (!deltaDielectric && !deltaMirror &&
             photonFeatureEnabled(sceneData, PHOTON_FEATURE_DIRECT_LIGHTING)) {
-            float4 direct = evalDirectLightingPBR(
+            float4 direct = evalSampledDirectLightingPBR(
                 isect, sceneAS, P, N, Ng, V, albedo, metallic, roughness,
                 reflectivity, ior, surfaceTransmission, baseIor, abbeNumber,
                 iridescenceFactor, mat.iridescenceIor,
