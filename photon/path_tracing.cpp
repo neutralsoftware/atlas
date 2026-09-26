@@ -1567,8 +1567,9 @@ bool photon::PathTracing::render(
     pathTracingPipeline->setUniform1f("caustics.radius", causticRadius);
     pathTracingPipeline->bindBuffer("photons", causticPhotons, 15);
     pathTracingPipeline->bindBuffer("photonSlots", causticSlots, 16);
-    const bool refineCaustics =
-        causticsEnabled && !interactive;
+    const bool refineCaustics = causticsEnabled && !interactive &&
+                                 refinementFrame > 0 &&
+                                 refinementFrame % 16 == 0;
     if (causticsEnabled && (causticMapDirty || refineCaustics)) {
         commandBuffer->bindPipeline(causticClearPipeline);
         causticClearPipeline->bindBuffer("photonSlots", causticSlots, 16);
