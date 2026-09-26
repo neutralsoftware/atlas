@@ -314,6 +314,16 @@ void photon::PathTracing::init() {
             outputWidth, outputHeight, opal::TextureFormat::Rgba16F,
             opal::TextureDataFormat::Rgba, TextureType::Color));
     }
+    for (auto &texture : directReservoirSamples) {
+        texture = std::make_shared<Texture>(Texture::create(
+            outputWidth, outputHeight, opal::TextureFormat::Rgba32F,
+            opal::TextureDataFormat::Rgba, TextureType::Color));
+    }
+    for (auto &texture : directReservoirStats) {
+        texture = std::make_shared<Texture>(Texture::create(
+            outputWidth, outputHeight, opal::TextureFormat::Rgba32F,
+            opal::TextureDataFormat::Rgba, TextureType::Color));
+    }
     for (auto &texture : denoiseTextures) {
         texture = std::make_shared<Texture>(Texture::create(
             outputWidth, outputHeight, opal::TextureFormat::Rgba16F,
@@ -354,6 +364,16 @@ void photon::PathTracing::resizeOutput(int width, int height) {
     for (auto &texture : pathTracingHistoryMoments) {
         texture = std::make_shared<Texture>(Texture::create(
             outputWidth, outputHeight, opal::TextureFormat::Rgba16F,
+            opal::TextureDataFormat::Rgba, TextureType::Color));
+    }
+    for (auto &texture : directReservoirSamples) {
+        texture = std::make_shared<Texture>(Texture::create(
+            outputWidth, outputHeight, opal::TextureFormat::Rgba32F,
+            opal::TextureDataFormat::Rgba, TextureType::Color));
+    }
+    for (auto &texture : directReservoirStats) {
+        texture = std::make_shared<Texture>(Texture::create(
+            outputWidth, outputHeight, opal::TextureFormat::Rgba32F,
             opal::TextureDataFormat::Rgba, TextureType::Color));
     }
     for (auto &texture : denoiseTextures) {
