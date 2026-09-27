@@ -592,6 +592,7 @@ class Cloth : public Component {
     bool doubleSided = true;
 
     float vertexRadius = 0.0f;
+    float windInfluence = 1.0f;
 
     ClothBendType bendType = ClothBendType::Dihedral;
 
@@ -625,6 +626,7 @@ class Cloth : public Component {
     void setDoubleSided(bool value);
 
     void setVertexRadius(float value);
+    void setWindInfluence(float value);
 
     void setBendType(ClothBendType value);
 

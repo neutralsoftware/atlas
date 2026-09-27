@@ -51,6 +51,7 @@ void Cloth::init() {
     body->allowSleeping = allowSleeping;
     body->doubleSided = doubleSided;
     body->vertexRadius = vertexRadius;
+    body->windInfluence = windInfluence;
     body->bendType = bendType;
     body->setAnchors(anchors);
     body->setObject(coreObject);
@@ -70,11 +71,20 @@ void Cloth::update([[maybe_unused]] float dt) {
 }
 
 void Cloth::beforePhysics() {
-    if (!recreateRequested) {
+    if (recreateRequested) {
+        recreate();
+    }
+
+    if (!createdCloth || !body || Window::mainWindow == nullptr ||
+        Window::mainWindow->physicsWorld == nullptr ||
+        Window::mainWindow->getCurrentScene() == nullptr ||
+        !Window::mainWindow->getCurrentScene()->atmosphere.isEnabled()) {
         return;
     }
 
-    recreate();
+    body->applyWind(Window::mainWindow->physicsWorld,
+                    Window::mainWindow->getCurrentScene()->atmosphere.wind,
+                    Window::mainWindow->getDeltaTime());
 }
 
 void Cloth::requestRecreate() {
@@ -113,6 +123,7 @@ void Cloth::recreate() {
     body->allowSleeping = allowSleeping;
     body->doubleSided = doubleSided;
     body->vertexRadius = vertexRadius;
+    body->windInfluence = windInfluence;
     body->bendType = bendType;
 
     body->setAnchors(anchors);
@@ -150,6 +161,7 @@ std::shared_ptr<Component> Cloth::clone() const {
     result->allowSleeping = allowSleeping;
     result->doubleSided = doubleSided;
     result->vertexRadius = vertexRadius;
+    result->windInfluence = windInfluence;
     result->bendType = bendType;
     result->anchors = anchors;
 
@@ -215,6 +227,14 @@ void Cloth::setDoubleSided(bool value) {
 void Cloth::setVertexRadius(float value) {
     vertexRadius = value;
     requestRecreate();
+}
+
+void Cloth::setWindInfluence(float value) {
+    windInfluence = std::max(0.0f, value);
+
+    if (body) {
+        body->windInfluence = windInfluence;
+    }
 }
 
 void Cloth::setBendType(ClothBendType value) {

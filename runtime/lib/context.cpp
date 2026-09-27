@@ -3142,6 +3142,8 @@ std::shared_ptr<Component> attachComponent(Context &context,
             cloth->setGravityFactor(value);
         if (tryReadFloatAny(pending.data, {"vertexRadius"}, value))
             cloth->setVertexRadius(value);
+        if (tryReadFloatAny(pending.data, {"windInfluence"}, value))
+            cloth->setWindInfluence(value);
 
         int solverIterations = 8;
         if (tryReadIntAny(pending.data, {"solverIterations"},
@@ -3542,6 +3544,8 @@ bool updateAttachedComponent(Context &context, GameObject &object,
             cloth->setGravityFactor(value);
         if (tryReadFloatAny(data, {"vertexRadius"}, value))
             cloth->setVertexRadius(value);
+        if (tryReadFloatAny(data, {"windInfluence"}, value))
+            cloth->setWindInfluence(value);
 
         int solverIterations = 8;
         if (tryReadIntAny(data, {"solverIterations"}, solverIterations))

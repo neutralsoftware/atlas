@@ -802,6 +802,7 @@ class Cloth {
     bool doubleSided = true;
 
     float vertexRadius = 0.0f;
+    float windInfluence = 1.0f;
 
     ClothBendType bendType = ClothBendType::Dihedral;
 
@@ -831,6 +832,8 @@ class Cloth {
     void create(const std::shared_ptr<PhysicsWorld> &world);
     void destroy(const std::shared_ptr<PhysicsWorld> &world);
     void updateVertices(const std::shared_ptr<PhysicsWorld> &world) const;
+    void applyWind(const std::shared_ptr<PhysicsWorld> &world,
+                   Magnitude3d wind, float deltaTime) const;
 
     bool isCreated() const;
 

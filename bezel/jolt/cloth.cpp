@@ -13,6 +13,7 @@
 #include "bezel/jolt/world.h"
 #include "glm/ext/vector_float2.hpp"
 #include <algorithm>
+#include <cmath>
 
 #include <Jolt/Physics/Body/BodyLock.h>
 #include <Jolt/Physics/SoftBody/SoftBodyCreationSettings.h>
@@ -408,6 +409,78 @@ void bezel::Cloth::destroy(const std::shared_ptr<PhysicsWorld> &world) {
 }
 
 bool bezel::Cloth::isCreated() const { return id.joltId != INVALID_JOLT_ID; }
+
+void bezel::Cloth::applyWind(const std::shared_ptr<PhysicsWorld> &world,
+                             Magnitude3d wind, float deltaTime) const {
+    if (!world || id.joltId == INVALID_JOLT_ID || windInfluence <= 0.0f ||
+        deltaTime <= 0.0f) {
+        return;
+    }
+
+    JPH::BodyID bodyId(id.joltId);
+    bool applied = false;
+
+    {
+        JPH::BodyLockWrite lock(world->physicsSystem.GetBodyLockInterface(),
+                                bodyId);
+
+        if (!lock.Succeeded()) {
+            return;
+        }
+
+        JPH::Body &joltBody = lock.GetBody();
+
+        if (!joltBody.IsSoftBody()) {
+            return;
+        }
+
+        auto *motion = static_cast<JPH::SoftBodyMotionProperties *>(
+            joltBody.GetMotionProperties());
+        auto &vertices = motion->GetVertices();
+        const auto &faces = motion->GetFaces();
+        const JPH::Vec3 localWind = joltBody.GetRotation().Conjugated() *
+                                    JPH::Vec3(wind.x, wind.y, wind.z);
+
+        for (const auto &face : faces) {
+            auto &a = vertices[face.mVertex[0]];
+            auto &b = vertices[face.mVertex[1]];
+            auto &c = vertices[face.mVertex[2]];
+            const JPH::Vec3 areaVector =
+                0.5f * (b.mPosition - a.mPosition)
+                           .Cross(c.mPosition - a.mPosition);
+            const float area = areaVector.Length();
+
+            if (area <= 1.0e-8f) {
+                continue;
+            }
+
+            const JPH::Vec3 normal = areaVector / area;
+            const JPH::Vec3 faceVelocity =
+                (a.mVelocity + b.mVelocity + c.mVelocity) / 3.0f;
+            const float normalSpeed = (localWind - faceVelocity).Dot(normal);
+            const JPH::Vec3 impulse =
+                normal * normalSpeed * std::abs(normalSpeed) * area *
+                windInfluence * deltaTime / 3.0f;
+
+            if (impulse.LengthSq() <= 1.0e-12f) {
+                continue;
+            }
+
+            for (uint32_t index : face.mVertex) {
+                auto &vertex = vertices[index];
+
+                if (vertex.mInvMass > 0.0f) {
+                    vertex.mVelocity += vertex.mInvMass * impulse;
+                    applied = true;
+                }
+            }
+        }
+    }
+
+    if (applied) {
+        world->physicsSystem.GetBodyInterface().ActivateBody(bodyId);
+    }
+}
 
 void bezel::Cloth::updateVertices(
     const std::shared_ptr<PhysicsWorld> &world) const {

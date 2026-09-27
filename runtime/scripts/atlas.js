@@ -196,6 +196,7 @@ export class Cloth extends Component {
         this.allowSleeping = true;
         this.doubleSided = true;
         this.vertexRadius = 0;
+        this.windInfluence = 1;
         this.bendType = ClothBendType.Dihedral;
         this.anchors = [];
     }

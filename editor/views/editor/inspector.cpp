@@ -385,6 +385,7 @@ QJsonObject componentSchema(const QString &type) {
                 {"allowSleeping", true},
                 {"doubleSided", true},
                 {"vertexRadius", 0.0},
+                {"windInfluence", 1.0},
                 {"bendType", "dihedral"},
                 {"anchors", QJsonArray{}}};
     }

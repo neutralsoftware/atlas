@@ -2194,6 +2194,7 @@ declare module "atlas" {
         allowSleeping: boolean;
         doubleSided: boolean;
         vertexRadius: number;
+        windInfluence: number;
         bendType: ClothBendType;
         anchors: AnchorPoint[];
 
