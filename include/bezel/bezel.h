@@ -700,7 +700,7 @@ struct SoftbodyRenderBinding {
 
 struct Softbody {
     Position3d position;
-    Position3d rotation;
+    Rotation3d rotation;
     glm::quat rotationQuat = glm::quat(1.0f, 0.0f, 0.0f, 0.0f);
 
     bool isSensor = false;
@@ -737,9 +737,9 @@ struct Softbody {
 
     void updateVertices(const std::shared_ptr<PhysicsWorld> &world);
 
-  private:
     CoreObject *object = nullptr;
 
+  private:
     SoftbodyMesh mesh;
 
     std::vector<SoftbodyRenderBinding> renderBindings;

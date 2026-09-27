@@ -30,6 +30,7 @@ class CoreObject;
 class Window;
 class GameObject;
 class Rigidbody;
+class Softbody;
 
 struct QueryResult;
 
@@ -441,6 +442,9 @@ class GameObject : public Renderable {
     /** @brief Cached rigidbody component pointer when attached. */
     Rigidbody *rigidbody = nullptr;
 
+    /** @brief Cached softbody component pointer when attached. */
+    Softbody *softbody = nullptr;
+
     /**
      * @brief Returns the unique identifier associated with this object.
      */
@@ -470,6 +474,7 @@ class GameObject : public Renderable {
     void copyComponents(const GameObject &other) {
         components.clear();
         rigidbody = nullptr;
+        softbody = nullptr;
 
         components.reserve(other.components.size());
         for (const auto &component : other.components) {
@@ -488,6 +493,9 @@ class GameObject : public Renderable {
             if (static_cast<void *>(component.get()) ==
                 static_cast<void *>(other.rigidbody)) {
                 rigidbody = reinterpret_cast<Rigidbody *>(cloned.get());
+            } else if (static_cast<void *>(component.get()) ==
+                       static_cast<void *>(other.softbody)) {
+                softbody = reinterpret_cast<Softbody *>(cloned.get());
             }
 
             components.push_back(std::move(cloned));
@@ -497,7 +505,9 @@ class GameObject : public Renderable {
     void moveComponents(GameObject &&other) {
         components = std::move(other.components);
         rigidbody = other.rigidbody;
+        softbody = other.softbody;
         other.rigidbody = nullptr;
+        other.softbody = nullptr;
 
         for (auto &component : components) {
             if (!component) {
