@@ -11,6 +11,7 @@
 #define BEZEL_H
 
 #include "atlas/units.h"
+#include "glm/ext/vector_float3.hpp"
 #include <cstdint>
 #include <memory>
 #include <string>
@@ -689,6 +690,14 @@ struct SoftbodyMesh {
     std::vector<SoftbodyTriangle> surface;
 };
 
+struct SoftbodyRenderBinding {
+    uint32_t a;
+    uint32_t b;
+    uint32_t c;
+
+    glm::vec3 weights;
+};
+
 struct Softbody {
     Position3d position;
     Position3d rotation;
@@ -711,6 +720,11 @@ struct Softbody {
     Position3d forcePoint = {0.0f, 0.0f, 0.0f};
     Position3d impulse = {0.0f, 0.0f, 0.0f};
 
+    BodyIdentifier id = {
+        .joltId = INVALID_JOLT_ID,
+        .atlasId = 0,
+    };
+
     Velocity3d
     getLinearVelocity(const std::shared_ptr<PhysicsWorld> &world) const;
     Velocity3d getVelocity(const std::shared_ptr<PhysicsWorld> &world) const;
@@ -721,10 +735,15 @@ struct Softbody {
 
     void createMesh(CoreObject *object);
 
+    void updateVertices(const std::shared_ptr<PhysicsWorld> &world);
+
   private:
     CoreObject *object = nullptr;
 
     SoftbodyMesh mesh;
+
+    std::vector<SoftbodyRenderBinding> renderBindings;
+    void createRenderBindings();
 };
 
 } // namespace bezel
