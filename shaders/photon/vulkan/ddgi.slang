@@ -133,20 +133,34 @@ struct AreaLight {
     float _pad9;
 };
 
-[[vk::binding(10, 3)]] RaytracingAccelerationStructure sceneAS;
-[[vk::binding(0, 1)]] RWStructuredBuffer<float4> probeRadianceOut;
-[[vk::binding(1, 1)]] StructuredBuffer<Triangle> tris;
-[[vk::binding(2, 1)]] StructuredBuffer<Material> materials;
-[[vk::binding(6, 1)]] StructuredBuffer<DirectionalLight> directionalLights;
-[[vk::binding(7, 1)]] StructuredBuffer<PointLight> pointLights;
-[[vk::binding(8, 1)]] StructuredBuffer<SpotLight> spotLights;
-[[vk::binding(9, 1)]] StructuredBuffer<AreaLight> areaLights;
-[[vk::binding(3, 0)]] ConstantBuffer<SceneCounts> sc;
-[[vk::binding(4, 0)]] ConstantBuffer<ProbeSpace> ps;
-[[vk::binding(5, 0)]] ConstantBuffer<RaytracingSettings> rt;
-[[vk::binding(10, 2)]] Sampler2D materialTextures[48];
-[[vk::binding(60, 2)]] SamplerCube skybox;
-[[vk::binding(61, 2)]] Sampler2D previousIrradiance;
+[[vk::binding(10, 3)]]
+RaytracingAccelerationStructure sceneAS;
+[[vk::binding(0, 1)]]
+RWStructuredBuffer<float4> probeRadianceOut;
+[[vk::binding(1, 1)]]
+StructuredBuffer<Triangle> tris;
+[[vk::binding(2, 1)]]
+StructuredBuffer<Material> materials;
+[[vk::binding(6, 1)]]
+StructuredBuffer<DirectionalLight> directionalLights;
+[[vk::binding(7, 1)]]
+StructuredBuffer<PointLight> pointLights;
+[[vk::binding(8, 1)]]
+StructuredBuffer<SpotLight> spotLights;
+[[vk::binding(9, 1)]]
+StructuredBuffer<AreaLight> areaLights;
+[[vk::binding(3, 0)]]
+ConstantBuffer<SceneCounts> sc;
+[[vk::binding(4, 0)]]
+ConstantBuffer<ProbeSpace> ps;
+[[vk::binding(5, 0)]]
+ConstantBuffer<RaytracingSettings> rt;
+[[vk::binding(10, 2)]]
+Sampler2D materialTextures[48];
+[[vk::binding(60, 2)]]
+SamplerCube skybox;
+[[vk::binding(61, 2)]]
+Sampler2D previousIrradiance;
 
 uint hashValue(uint value) {
     value = (value ^ 61u) ^ (value >> 16);
@@ -159,8 +173,8 @@ uint hashValue(uint value) {
 float3 sphericalFibonacci(uint index, uint count, uint frameIndex) {
     float value = float(index) + 0.5;
     float phi = 6.28318530718 * frac(value / 1.61803398875);
-    phi += float(hashValue(frameIndex * 1471u + 5743u) & 0xFFFFu) /
-           65536.0 * 6.28318530718;
+    phi += float(hashValue(frameIndex * 1471u + 5743u) & 0xFFFFu) / 65536.0 *
+           6.28318530718;
     float cosine = 1.0 - 2.0 * value / float(max(count, 1u));
     float sine = sqrt(max(0.0, 1.0 - cosine * cosine));
     return float3(sine * cos(phi), cosine, sine * sin(phi));
@@ -176,7 +190,7 @@ float3 probePosition(uint index) {
 
 float3 skyRadiance(float3 direction) {
     if (rt.useSkybox != 0) {
-        return max(skybox.Sample(direction).xyz, 0.0);
+        return max(skybox.SampleLevel(direction, 0.0).xyz, 0.0);
     }
     return lerp(rt.skyColor * 0.08, rt.skyColor,
                 saturate(direction.y * 0.5 + 0.5));
@@ -186,7 +200,8 @@ float4 sampleMaterialTexture(int index, float2 uv) {
     if (index < 0 || uint(index) >= sc.textureCount) {
         return 1.0;
     }
-    return materialTextures[NonUniformResourceIndex(index)].Sample(frac(uv));
+    return materialTextures[NonUniformResourceIndex(index)].SampleLevel(
+        frac(uv), 0.0);
 }
 
 float3 evaluateLights(float3 position, float3 normal) {
@@ -204,10 +219,11 @@ float3 evaluateLights(float3 position, float3 normal) {
         if (distance >= pointLights[index].radius) {
             continue;
         }
-        float attenuation = 1.0 /
-            max(pointLights[index].constant0 + pointLights[index].linear * distance +
-                    pointLights[index].quadratic * distanceSquared,
-                1e-4);
+        float attenuation =
+            1.0 / max(pointLights[index].constant0 +
+                          pointLights[index].linear * distance +
+                          pointLights[index].quadratic * distanceSquared,
+                      1e-4);
         radiance += pointLights[index].diffuse * pointLights[index].intensity *
                     max(dot(normal, delta / distance), 0.0) * attenuation;
     }
@@ -216,7 +232,7 @@ float3 evaluateLights(float3 position, float3 normal) {
 
 [shader("compute")]
 [numthreads(64, 1, 1)]
-void computeMain(uint3 dispatchThreadID : SV_DispatchThreadID) {
+void computeMain(uint3 dispatchThreadID: SV_DispatchThreadID) {
     uint rayIndex = dispatchThreadID.x;
     uint raysPerProbe = max(rt.raysPerProbe, 1u);
     uint activeProbe = rayIndex / raysPerProbe;
@@ -231,7 +247,8 @@ void computeMain(uint3 dispatchThreadID : SV_DispatchThreadID) {
     }
     uint localRay = rayIndex % raysPerProbe;
     float3 origin = probePosition(probeIndex);
-    float3 direction = sphericalFibonacci(localRay, raysPerProbe, rt.frameIndex);
+    float3 direction =
+        sphericalFibonacci(localRay, raysPerProbe, rt.frameIndex);
     RayDesc ray;
     ray.Origin = origin;
     ray.Direction = direction;
@@ -239,7 +256,8 @@ void computeMain(uint3 dispatchThreadID : SV_DispatchThreadID) {
     ray.TMax = max(rt.maxRayDistance, ray.TMin);
     RayQuery<RAY_FLAG_FORCE_OPAQUE> query;
     query.TraceRayInline(sceneAS, RAY_FLAG_FORCE_OPAQUE, 0xFF, ray);
-    while (query.Proceed()) {}
+    while (query.Proceed()) {
+    }
     float3 radiance = skyRadiance(direction);
     float distance = -1.0;
     if (query.CommittedStatus() == COMMITTED_TRIANGLE_HIT) {
@@ -260,12 +278,13 @@ void computeMain(uint3 dispatchThreadID : SV_DispatchThreadID) {
                             triangle.uv2.xy * weights.z;
                 float3 albedo = material.albedo;
                 if (material.albedoTextureIndex >= 0) {
-                    albedo *= sampleMaterialTexture(
-                                  material.albedoTextureIndex, uv)
-                                  .xyz;
+                    albedo *=
+                        sampleMaterialTexture(material.albedoTextureIndex, uv)
+                            .xyz;
                 }
                 float2 previousUv = frac(direction.xz * 0.5 + 0.5);
-                float3 previous = previousIrradiance.Sample(previousUv).xyz;
+                float3 previous =
+                    previousIrradiance.SampleLevel(previousUv, 0.0).xyz;
                 radiance = material.emissiveColor * material.emissiveIntensity +
                            albedo * evaluateLights(position, normal) *
                                (1.0 / 3.14159265359) +

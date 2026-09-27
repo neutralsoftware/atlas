@@ -22,9 +22,8 @@ uint probeIndexFromCoord(uint3 c, uint3 counts) {
     return c.x + counts.x * (c.y + counts.y * c.z);
 }
 
-float2 ddgiAtlasUV(uint probeIndex, float3 dirWS,
-                                 ProbeSpace ps, uint atlasW,
-                                 uint atlasH) {
+float2 ddgiAtlasUV(uint probeIndex, float3 dirWS, ProbeSpace ps, uint atlasW,
+                   uint atlasH) {
     if (atlasW == 0u || atlasH == 0u) {
         return float2(0.5f);
     }
@@ -54,8 +53,7 @@ float2 ddgiAtlasUV(uint probeIndex, float3 dirWS,
     return (innerPx + 0.5f) / float2((float)atlasW, (float)atlasH);
 }
 
-float4 sampleDDGITextureBilinear(Texture2D<float4> tex,
-                                               float2 uv) {
+float4 sampleDDGITextureBilinear(Texture2D<float4> tex, float2 uv) {
     uint w = textureSize(tex).x;
     uint h = textureSize(tex).y;
     if (w == 0u || h == 0u) {
@@ -85,10 +83,9 @@ float4 sampleDDGITextureBilinear(Texture2D<float4> tex,
     return lerp(cx0, cx1, f.y);
 }
 
-float4
-sampleProbeDirectionalRadiance(Texture2D<float4> ddgiTexture,
-                               ProbeSpace ps, uint probeIndex,
-                               uint atlasW, uint atlasH, float3 dirWS) {
+float4 sampleProbeDirectionalRadiance(Texture2D<float4> ddgiTexture,
+                                      ProbeSpace ps, uint probeIndex,
+                                      uint atlasW, uint atlasH, float3 dirWS) {
     float2 uv = ddgiAtlasUV(probeIndex, dirWS, ps, atlasW, atlasH);
     return sampleDDGITextureBilinear(ddgiTexture, uv);
 }
@@ -135,20 +132,19 @@ float3 sampleDDGIDirectionalRadiance(Texture2D<float4> ddgiTexture,
         float4 nearestSample = sampleProbeDirectionalRadiance(
             ddgiTexture, ps, pIndex, atlasW, atlasH, safeDirection);
         float3 nearestProbePos = ps.origin + float3(nearest) * safeSpacing;
-        float3 nearestDirection = safeNormalizeDDGI(
-            posWS - nearestProbePos, safeNormal);
+        float3 nearestDirection =
+            safeNormalizeDDGI(posWS - nearestProbePos, safeNormal);
         float4 nearestMoments = sampleProbeDirectionalRadiance(
             ddgiDistance, ps, pIndex, atlasW, atlasH, nearestDirection);
         float nearestDistance = length(posWS - nearestProbePos);
-        float nearestVariance = max(nearestMoments.y - nearestMoments.x *
-                                                           nearestMoments.x,
-                                    0.0001f);
+        float nearestVariance = max(
+            nearestMoments.y - nearestMoments.x * nearestMoments.x, 0.0001f);
         float nearestDelta = max(nearestDistance - nearestMoments.x, 0.0f);
-        float nearestVisibility = nearestDelta <= 0.0f
-                                      ? 1.0f
-                                      : nearestVariance /
-                                            (nearestVariance + nearestDelta *
-                                                                   nearestDelta);
+        float nearestVisibility =
+            nearestDelta <= 0.0f
+                ? 1.0f
+                : nearestVariance /
+                      (nearestVariance + nearestDelta * nearestDelta);
         float nearestValidity = isfinite(nearestSample.w)
                                     ? clamp(nearestSample.w, 0.0f, 1.0f)
                                     : 0.0f;
@@ -193,12 +189,10 @@ float3 sampleDDGIDirectionalRadiance(Texture2D<float4> ddgiTexture,
                 float3 dirToProbe = (sDist > 1e-4f) ? surfaceToProbe / sDist
                                                     : float3(0.0f, 1.0f, 0.0f);
                 float frontW = max(dot(safeNormal, dirToProbe), 0.0f);
-                float backfaceW =
-                    lerp(0.180000007, 1.0f, frontW * frontW);
+                float backfaceW = lerp(0.180000007, 1.0f, frontW * frontW);
                 float distNorm = sDist / spacingScale;
                 float distNorm2 = distNorm * distNorm;
-                float distanceW =
-                    1.0f / (1.0f + distNorm2 * 0.850000024);
+                float distanceW = 1.0f / (1.0f + distNorm2 * 0.850000024);
 
                 float w = trilinearW * backfaceW * distanceW;
 
@@ -208,9 +202,9 @@ float3 sampleDDGIDirectionalRadiance(Texture2D<float4> ddgiTexture,
                 float4 distanceSample = sampleProbeDirectionalRadiance(
                     ddgiDistance, ps, pIndex, atlasW, atlasH,
                     safeNormalizeDDGI(probeToSurface, safeNormal));
-                float variance = max(distanceSample.y -
-                                         distanceSample.x * distanceSample.x,
-                                     0.0001f);
+                float variance =
+                    max(distanceSample.y - distanceSample.x * distanceSample.x,
+                        0.0001f);
                 float delta = max(sDist - distanceSample.x, 0.0f);
                 float visibility = delta <= 0.0f
                                        ? 1.0f
