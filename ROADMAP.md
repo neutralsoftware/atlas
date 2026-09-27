@@ -17,8 +17,6 @@
 - Add breaking and fracturing to Bezel Jolt *M11*
 - *Optional:* Revamp Bezel Native
 
-- Add a shader customization and procedural material system *M12*
-
 - Move Photon to slang to be prepared for Windows *M14*
 - Add Vulkan Ray Tracing API support *M15*
 - Build Atlas for Windows and Linux *M16*
@@ -26,3 +24,4 @@
 ## For Beta 3
 - Redesign of the Atlas UI
 - Add animation support and state machines
+- Add a shader customization and procedural material system

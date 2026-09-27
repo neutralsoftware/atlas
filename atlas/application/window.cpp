@@ -1506,8 +1506,7 @@ Window::Window(const WindowConfiguration &config)
 
 #ifdef METAL
     this->shadowUpdateInterval = 1.0f / 6.0f;
-    this->ssaoUpdateInterval = 1.0f / 24.0f;
-    this->ssaoKernelSize = 64;
+    this->ssaoKernelSize = 16;
     this->bloomBlurPasses = 4;
 #endif
 

@@ -67,7 +67,7 @@ constexpr int RuntimeEditorCameraKeyLeft = 2;
 constexpr int RuntimeEditorCameraKeyRight = 3;
 constexpr int RuntimeEditorCameraKeyUp = 4;
 constexpr int RuntimeEditorCameraKeyDown = 5;
-constexpr int RuntimeFrameIntervalMs = 16;
+constexpr int RuntimeFrameIntervalMs = 0;
 constexpr int RuntimeSnapshotIntervalMs = 50;
 constexpr int RuntimeFrameRateIntervalMs = 250;
 

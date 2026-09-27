@@ -993,7 +993,7 @@ class Window {
     bool useSSR = false;
     int ssrQuality = 1;
     bool ssrDebugMode = false;
-    uint32_t realtimePBRFeatureFlags = photon::AllPathTracingFeatures;
+    uint32_t realtimePBRFeatureFlags = photon::NormalRealtimePBRFeatures;
 
     bool clipPlaneEnabled = false;
     glm::vec4 clipPlaneEquation{0.0f};

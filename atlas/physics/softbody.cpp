@@ -81,14 +81,14 @@ void Softbody::init() {
     auto *coreObject = dynamic_cast<CoreObject *>(object);
 
     if (!coreObject) {
-        atlas_error("Softbody initialization failed: "
-                    "Softbody requires a CoreObject.");
+        throw std::runtime_error("Softbody initialization failed: "
+                                 "Softbody requires a CoreObject.");
         return;
     }
 
     if (coreObject->vertices.empty() || coreObject->indices.empty()) {
-        atlas_error("Softbody initialization failed: "
-                    "CoreObject has no mesh geometry.");
+        throw std::runtime_error("Softbody initialization failed: "
+                                 "CoreObject has no mesh geometry.");
         return;
     }
 

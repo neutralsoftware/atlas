@@ -52,7 +52,7 @@ class ProjectConfig {
     bool pathTracingDenoising = true;
     int pathTracingAccumulationFrames = 512;
     uint32_t pathTracingFeatureFlags = photon::AllPathTracingFeatures;
-    uint32_t realtimePBRFeatureFlags = photon::AllPathTracingFeatures;
+    uint32_t realtimePBRFeatureFlags = photon::NormalRealtimePBRFeatures;
     bool screenSpaceReflections = false;
     int screenSpaceReflectionQuality = 1;
     bool screenSpaceReflectionDebug = false;

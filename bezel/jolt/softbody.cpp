@@ -8,11 +8,11 @@
 // SPDX-License-Identifier: MIT
 //
 
-#include "atlas/tracer/log.h"
 #include "atlas/units.h"
 #include "atlas/object.h"
 #include "bezel/bezel.h"
 
+#include <geogram/basic/common.h>
 #include "geogram/mesh/mesh.h"
 
 #include <floattetwild/FloatTetwild.h>
@@ -30,6 +30,9 @@
 #include <array>
 #include <cstddef>
 #include <cstdint>
+#include <chrono>
+#include <iostream>
+#include <mutex>
 #include <unordered_map>
 #include <unordered_set>
 #include <vector>
@@ -96,6 +99,12 @@ EdgeKey makeEdgeKey(uint32_t a, uint32_t b) {
     }
 
     return {.a = a, .b = b};
+}
+
+void initializeGeogram() {
+    static std::once_flag initializationFlag;
+
+    std::call_once(initializationFlag, [] { GEO::initialize(); });
 }
 
 void addFace(std::unordered_map<FaceKey, FaceEntry, FaceKeyHash> &faces,
@@ -232,23 +241,39 @@ ClosestTrianglePoint closestPointOnTriangle(const glm::vec3 &p,
 } // namespace
 
 void Softbody::createMesh(CoreObject *object) {
+    initializeGeogram();
+
+    const auto tetrahedralizationStarted = std::chrono::steady_clock::now();
+    const auto reportProgress = [&](int percent, const char *phase) {
+        const auto elapsed =
+            std::chrono::duration_cast<std::chrono::milliseconds>(
+                std::chrono::steady_clock::now() - tetrahedralizationStarted)
+                .count();
+
+        std::cout << "[softbody] " << percent << "% " << phase << " ("
+                  << (elapsed / 1000.0) << "s)" << std::endl;
+    };
+
     if (!object) {
-        atlas_error("Cannot create softbody mesh from null CoreObject");
+        throw std::runtime_error(
+            "Cannot create softbody mesh from null CoreObject");
         return;
     }
 
     if (object->vertices.empty()) {
-        atlas_error("Cannot create softbody mesh: CoreObject has no vertices");
+        throw std::runtime_error(
+            "Cannot create softbody mesh: CoreObject has no vertices");
         return;
     }
 
     if (object->indices.empty()) {
-        atlas_error("Cannot create softbody mesh: CoreObject has no indices");
+        throw std::runtime_error(
+            "Cannot create softbody mesh: CoreObject has no indices");
         return;
     }
 
     if (object->indices.size() % 3 != 0) {
-        atlas_error(
+        throw std::runtime_error(
             "Cannot create softbody mesh: index count is not divisible by 3");
         return;
     }
@@ -286,7 +311,8 @@ void Softbody::createMesh(CoreObject *object) {
         uint32_t c = static_cast<uint32_t>(object->indices[(i * 3) + 2]);
 
         if (a >= vertexCount || b >= vertexCount || c >= vertexCount) {
-            atlas_error("Cannot create softbody mesh: invalid triangle index");
+            throw std::runtime_error(
+                "Cannot create softbody mesh: invalid triangle index");
             return;
         }
 
@@ -299,9 +325,13 @@ void Softbody::createMesh(CoreObject *object) {
 
     surfaceMesh.facets.connect();
 
+    reportProgress(10, "surface mesh ready; tetrahedralizing");
+
     floatTetWild::Parameters params;
 
-    params.ideal_edge_length_rel = 0.1;
+    params.ideal_edge_length_rel = 0.25;
+    params.max_its = 8;
+    params.stop_energy = 20;
 
     Eigen::MatrixXd verticesOut;
     Eigen::MatrixXi tetrahedraOut;
@@ -309,15 +339,18 @@ void Softbody::createMesh(CoreObject *object) {
     int status = floatTetWild::tetrahedralization(surfaceMesh, params,
                                                   verticesOut, tetrahedraOut);
 
+    reportProgress(90, "tetrahedralization complete; building render surface");
+
     if (status != 0) {
-        atlas_error("Softbody tetrahedralization failed with status: " +
-                    std::to_string(status));
+        throw std::runtime_error(
+            "Softbody tetrahedralization failed with status: " +
+            std::to_string(status));
 
         return;
     }
 
     if (verticesOut.cols() != 3 || tetrahedraOut.cols() != 4) {
-        atlas_error(
+        throw std::runtime_error(
             "Softbody tetrahedralization returned invalid mesh dimensions");
 
         return;
@@ -350,8 +383,9 @@ void Softbody::createMesh(CoreObject *object) {
 
         if (tet.a >= mesh.vertices.size() || tet.b >= mesh.vertices.size() ||
             tet.c >= mesh.vertices.size() || tet.d >= mesh.vertices.size()) {
-            atlas_error("Softbody tetrahedralization produced invalid "
-                        "tetrahedron indices");
+            throw std::runtime_error(
+                "Softbody tetrahedralization produced invalid "
+                "tetrahedron indices");
 
             mesh.vertices.clear();
             mesh.tetrahedra.clear();
@@ -365,31 +399,36 @@ void Softbody::createMesh(CoreObject *object) {
 
     mesh.surface = extractSurfaceTriangles(mesh.tetrahedra);
 
-    atlas_log("Created softbody mesh:" + std::to_string(mesh.vertices.size()) +
-              " vertices, " + std::to_string(mesh.tetrahedra.size()) +
-              " tetrahedra, " + std::to_string(mesh.surface.size()) +
-              " surface triangles");
+    reportProgress(100, "softbody mesh ready");
+
+    std::cout << ("Created softbody mesh:" +
+                  std::to_string(mesh.vertices.size()) + " vertices, " +
+                  std::to_string(mesh.tetrahedra.size()) + " tetrahedra, " +
+                  std::to_string(mesh.surface.size()) + " surface triangles");
 }
 
 void Softbody::create(const std::shared_ptr<PhysicsWorld> &world) {
     if (!world || !world->initialized) {
-        atlas_error("Cannot create softbody: invalid or uninitialized world");
+        throw std::runtime_error(
+            "Cannot create softbody: invalid or uninitialized world");
         return;
     }
 
     if (!object) {
-        atlas_error("Cannot create softbody: no CoreObject attached");
+        throw std::runtime_error(
+            "Cannot create softbody: no CoreObject attached");
         return;
     }
 
     if (mesh.vertices.empty() || mesh.tetrahedra.empty() ||
         mesh.surface.empty()) {
-        atlas_error("Cannot create softbody: mesh is empty");
+        throw std::runtime_error("Cannot create softbody: mesh is empty");
         return;
     }
 
     if (id.joltId != INVALID_JOLT_ID) {
-        atlas_error("Cannot create softbody: already created in world");
+        throw std::runtime_error(
+            "Cannot create softbody: already created in world");
         return;
     }
 
@@ -456,6 +495,7 @@ void Softbody::create(const std::shared_ptr<PhysicsWorld> &world) {
 
     settings->CalculateEdgeLengths();
     settings->CalculateVolumeConstraintVolumes();
+    settings->Optimize();
 
     JPH::RVec3 joltPosition(position.x, position.y, position.z);
 
@@ -483,23 +523,19 @@ void Softbody::create(const std::shared_ptr<PhysicsWorld> &world) {
         creation, JPH::EActivation::Activate);
 
     if (bodyId.IsInvalid()) {
-        atlas_error("Jolt failed to create softbody");
+        throw std::runtime_error("Jolt failed to create softbody");
         return;
     }
 
     id.joltId = bodyId.GetIndexAndSequenceNumber();
 
-    bodyInterface.SetIsSensor(bodyId, isSensor);
-
     createRenderBindings();
-
     object->setScale({1.0f, 1.0f, 1.0f});
-
     updateVertices(world);
 
-    atlas_log("Created Jolt softbody with " +
-              std::to_string(mesh.vertices.size()) + " vertices and " +
-              std::to_string(mesh.tetrahedra.size()) + " tetrahedra");
+    std::cout << ("Created Jolt softbody with " +
+                  std::to_string(mesh.vertices.size()) + " vertices and " +
+                  std::to_string(mesh.tetrahedra.size()) + " tetrahedra");
 }
 
 void Softbody::createRenderBindings() {
@@ -552,7 +588,8 @@ void Softbody::createRenderBindings() {
         }
 
         if (!found) {
-            atlas_error("Failed to bind Atlas vertex to softbody surface");
+            throw std::runtime_error(
+                "Failed to bind Atlas vertex to softbody surface");
 
             renderBindings.clear();
             return;
@@ -564,13 +601,13 @@ void Softbody::createRenderBindings() {
 
 void Softbody::updateVertices(const std::shared_ptr<PhysicsWorld> &world) {
     if (!world || !world->initialized || id.joltId == INVALID_JOLT_ID) {
-        atlas_error(
+        throw std::runtime_error(
             "Cannot update softbody vertices: invalid world or body ID");
         return;
     }
 
     if (renderBindings.size() != object->vertices.size()) {
-        atlas_error(
+        throw std::runtime_error(
             "Cannot update softbody vertices: render bindings not created");
         return;
     }
@@ -579,14 +616,14 @@ void Softbody::updateVertices(const std::shared_ptr<PhysicsWorld> &world) {
     JPH::BodyLockRead lock(world->physicsSystem.GetBodyLockInterface(), bodyId);
 
     if (!lock.Succeeded()) {
-        atlas_error("Failed to lock softbody for reading");
+        throw std::runtime_error("Failed to lock softbody for reading");
         return;
     }
 
     const JPH::Body &body = lock.GetBody();
 
     if (!body.IsSoftBody()) {
-        atlas_error("Body is not a softbody");
+        throw std::runtime_error("Body is not a softbody");
         return;
     }
 

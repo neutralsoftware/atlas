@@ -30,15 +30,12 @@ FragmentOutput fragmentMain(FragmentInput input)
     float y = radius * texelSize.y;
     float2 texCoord = input.TexCoord;
     float2 step1 = float2(x, y);
-    float2 step2 = step1 * 2.0;
     float3 upsampleColor = float3(0.0);
     float totalWeight = 0.0;
 
-    float wCenter = 0.16;
-    float wCardinal1 = 0.11;
-    float wDiagonal1 = 0.075;
-    float wCardinal2 = 0.04;
-    float wDiagonal2 = 0.015;
+    float wCenter = 0.25;
+    float wCardinal1 = 0.125;
+    float wDiagonal1 = 0.0625;
 
     upsampleColor += srcTexture.Sample(texCoord).xyz * wCenter;
     totalWeight += wCenter;
@@ -54,18 +51,6 @@ FragmentOutput fragmentMain(FragmentInput input)
     upsampleColor += srcTexture.Sample(texCoord + float2(step1.x, -step1.y)).xyz * wDiagonal1;
     upsampleColor += srcTexture.Sample(texCoord + float2(-step1.x, -step1.y)).xyz * wDiagonal1;
     totalWeight += wDiagonal1 * 4.0;
-
-    upsampleColor += srcTexture.Sample(texCoord + float2(step2.x, 0.0)).xyz * wCardinal2;
-    upsampleColor += srcTexture.Sample(texCoord + float2(-step2.x, 0.0)).xyz * wCardinal2;
-    upsampleColor += srcTexture.Sample(texCoord + float2(0.0, step2.y)).xyz * wCardinal2;
-    upsampleColor += srcTexture.Sample(texCoord + float2(0.0, -step2.y)).xyz * wCardinal2;
-    totalWeight += wCardinal2 * 4.0;
-
-    upsampleColor += srcTexture.Sample(texCoord + float2(step2.x, step2.y)).xyz * wDiagonal2;
-    upsampleColor += srcTexture.Sample(texCoord + float2(-step2.x, step2.y)).xyz * wDiagonal2;
-    upsampleColor += srcTexture.Sample(texCoord + float2(step2.x, -step2.y)).xyz * wDiagonal2;
-    upsampleColor += srcTexture.Sample(texCoord + float2(-step2.x, -step2.y)).xyz * wDiagonal2;
-    totalWeight += wDiagonal2 * 4.0;
 
     upsampleColor /= float3(max(totalWeight, 1e-5));
     output.upsample = float4(upsampleColor, 1.0);

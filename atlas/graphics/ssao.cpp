@@ -19,7 +19,7 @@
 #include "opal/opal.h"
 
 void Window::setupSSAO() {
-    this->ssaoKernelSize = std::max(this->ssaoKernelSize, 64);
+    this->ssaoKernelSize = std::max(this->ssaoKernelSize, 16);
     atlas_log("Setting up SSAO (kernel size: " +
               std::to_string(this->ssaoKernelSize) + ")");
     std::uniform_real_distribution<float> randomFloats(0.0, 1.0);
@@ -80,39 +80,6 @@ void Window::renderSSAO(std::shared_ptr<opal::CommandBuffer> commandBuffer) {
     if (this->ssaoBuffer == nullptr || this->ssaoBlurBuffer == nullptr) {
         return;
     }
-
-    this->ssaoUpdateCooldown =
-        std::max(0.0f, this->ssaoUpdateCooldown - this->deltaTime);
-
-    bool cameraMoved = false;
-    if (this->camera != nullptr) {
-        glm::vec3 currentPos = this->camera->position.toGlm();
-        glm::vec3 currentDir = this->camera->getFrontVector().toGlm();
-
-        if (!this->lastSSAOCameraPosition.has_value() ||
-            !this->lastSSAOCameraDirection.has_value()) {
-            cameraMoved = true;
-        } else {
-            glm::vec3 lastPos = this->lastSSAOCameraPosition->toGlm();
-            glm::vec3 lastDir = this->lastSSAOCameraDirection->toGlm();
-            if (glm::length(currentPos - lastPos) > 0.15f ||
-                glm::length(currentDir - lastDir) > 0.015f) {
-                cameraMoved = true;
-            }
-        }
-    }
-
-    if (cameraMoved) {
-        this->ssaoMapsDirty = true;
-    }
-
-    if (!this->ssaoMapsDirty && this->ssaoUpdateCooldown > 0.0f &&
-        !cameraMoved) {
-        return;
-    }
-
-    this->ssaoMapsDirty = false;
-    this->ssaoUpdateCooldown = this->ssaoUpdateInterval;
 
     bool ownsCommandBuffer = false;
     auto ssaoCommandBuffer = std::move(commandBuffer);
@@ -246,8 +213,4 @@ void Window::renderSSAO(std::shared_ptr<opal::CommandBuffer> commandBuffer) {
         ssaoCommandBuffer->commit();
     }
 
-    if (this->camera != nullptr) {
-        this->lastSSAOCameraPosition = this->camera->position;
-        this->lastSSAOCameraDirection = this->camera->getFrontVector();
-    }
 }

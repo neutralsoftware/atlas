@@ -29,7 +29,9 @@ void RuntimeScene::initialize(Window &window) {
         } else {
             window.useDeferredRendering();
             window.setRealtimePBRFeatures(
-                runtimeContext->config.realtimePBRFeatureFlags);
+                runtimeContext->config.globalIllumination
+                    ? runtimeContext->config.realtimePBRFeatureFlags
+                    : photon::NormalRealtimePBRFeatures);
         }
         if (runtimeContext->config.useUpscaling) {
 #ifdef METAL
@@ -42,7 +44,9 @@ void RuntimeScene::initialize(Window &window) {
     if (runtimeContext->config.renderer == "deferred") {
         window.useDeferredRendering();
         window.setRealtimePBRFeatures(
-            runtimeContext->config.realtimePBRFeatureFlags);
+            runtimeContext->config.globalIllumination
+                ? runtimeContext->config.realtimePBRFeatureFlags
+                : photon::NormalRealtimePBRFeatures);
 
         if (runtimeContext->config.globalIllumination) {
             window.enableGlobalIllumination();

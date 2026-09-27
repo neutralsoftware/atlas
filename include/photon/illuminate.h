@@ -41,6 +41,9 @@ enum PathTracingFeature : uint32_t {
     NormalMaps = 1u << 11,
     MaterialTextures = 1u << 12,
     AlphaTransparency = 1u << 13,
+    NormalRealtimePBRFeatures = DirectLighting | Shadows | EnvironmentLighting |
+                                EmissiveLighting | NormalMaps |
+                                MaterialTextures | AlphaTransparency,
     AllPathTracingFeatures = (1u << 14) - 1u,
 };
 

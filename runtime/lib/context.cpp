@@ -6978,7 +6978,9 @@ void Context::loadProject() {
     config.pathTracingDenoising = pathTracingDenoising;
     config.pathTracingAccumulationFrames = pathTracingAccumulationFrames;
     config.pathTracingFeatureFlags = pathTracingFeatureFlags;
-    config.realtimePBRFeatureFlags = pathTracingFeatureFlags;
+    config.realtimePBRFeatureFlags =
+        globalIllumination ? pathTracingFeatureFlags
+                          : photon::NormalRealtimePBRFeatures;
     config.screenSpaceReflections = screenSpaceReflections;
     config.screenSpaceReflectionQuality = screenSpaceReflectionQuality;
     config.screenSpaceReflectionDebug = screenSpaceReflectionDebug;

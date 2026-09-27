@@ -73,7 +73,7 @@ struct LightBloom {
     /**
      * @brief Maximum number of blur passes performed.
      */
-    int maxSamples = 5;
+    int maxSamples = 3;
 };
 
 /**

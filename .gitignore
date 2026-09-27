@@ -32,3 +32,4 @@ dist
 node_modules
 .obsidian
 *.app
+__tracked_surfaace.stl

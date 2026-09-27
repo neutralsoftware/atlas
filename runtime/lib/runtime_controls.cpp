@@ -108,7 +108,9 @@ bool Context::configurePathTracing(int samplesPerPixel, int bounceLimit,
     config.pathTracingAccumulationFrames =
         std::clamp(accumulationFrames, 1, 2048);
     config.pathTracingFeatureFlags = featureFlags;
-    config.realtimePBRFeatureFlags = featureFlags;
+    config.realtimePBRFeatureFlags =
+        config.globalIllumination ? featureFlags
+                                 : photon::NormalRealtimePBRFeatures;
     config.useUpscaling = useUpscaling;
     config.upscalingRatio = std::clamp(upscalingRatio, 0.25f, 1.0f);
     window->setRealtimePBRFeatures(config.realtimePBRFeatureFlags);

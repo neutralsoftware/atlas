@@ -12,7 +12,6 @@
 #include "opal/opal.h"
 #include <cstddef>
 #include <cmath>
-#include <cstring>
 #include <memory>
 #include <unordered_map>
 #include <unordered_set>
@@ -88,57 +87,6 @@ std::shared_ptr<opal::Texture> createFallbackShadowCubemapTexture() {
         texture->updateFace(face, white, 1, 1, opal::TextureDataFormat::Rgba);
     }
     return texture;
-}
-
-uint64_t hashCombineU64(uint64_t seed, uint64_t value) {
-    seed ^= value + 0x9e3779b97f4a7c15ULL + (seed << 6) + (seed >> 2);
-    return seed;
-}
-
-uint64_t hashFloat(float value) {
-    uint32_t bits = 0;
-    std::memcpy(&bits, &value, sizeof(float));
-    return static_cast<uint64_t>(bits);
-}
-
-uint64_t
-computeDeferredGeometrySignature(const std::vector<Renderable *> &renderables) {
-    uint64_t signature = 1469598103934665603ULL;
-    for (auto *renderable : renderables) {
-        if (renderable == nullptr) {
-            continue;
-        }
-        signature = hashCombineU64(
-            signature,
-            static_cast<uint64_t>(reinterpret_cast<uintptr_t>(renderable)));
-        Position3d position = renderable->getPosition();
-        Size3d scale = renderable->getScale();
-        signature = hashCombineU64(signature,
-                                   hashFloat(static_cast<float>(position.x)));
-        signature = hashCombineU64(signature,
-                                   hashFloat(static_cast<float>(position.y)));
-        signature = hashCombineU64(signature,
-                                   hashFloat(static_cast<float>(position.z)));
-        signature =
-            hashCombineU64(signature, hashFloat(static_cast<float>(scale.x)));
-        signature =
-            hashCombineU64(signature, hashFloat(static_cast<float>(scale.y)));
-        signature =
-            hashCombineU64(signature, hashFloat(static_cast<float>(scale.z)));
-        if (auto *object = dynamic_cast<CoreObject *>(renderable)) {
-            Rotation3d rotation = object->getRotation();
-            glm::quat rotationQuat = rotation.toGlmQuat();
-            signature = hashCombineU64(signature, hashFloat(rotationQuat.x));
-            signature = hashCombineU64(signature, hashFloat(rotationQuat.y));
-            signature = hashCombineU64(signature, hashFloat(rotationQuat.z));
-            signature = hashCombineU64(signature, hashFloat(rotationQuat.w));
-            signature = hashCombineU64(
-                signature, static_cast<uint64_t>(object->vertices.size()));
-            signature = hashCombineU64(
-                signature, static_cast<uint64_t>(object->indices.size()));
-        }
-    }
-    return signature;
 }
 
 std::vector<GPUDirectionalLight>
@@ -333,7 +281,10 @@ void Window::deferredRendering(
 
     auto gBufferRenderPass = opal::RenderPass::create();
     gBufferRenderPass->setFramebuffer(this->gBuffer->getFramebuffer());
-    this->gBuffer->getFramebuffer()->setDrawBuffers(6);
+    const bool needsPhotonMaterialBuffers =
+        (this->realtimePBRFeatureFlags & photon::Transmission) != 0;
+    this->gBuffer->getFramebuffer()->setDrawBuffers(
+        needsPhotonMaterialBuffers ? 6 : 4);
     commandBuffer->beginPass(gBufferRenderPass);
 
     this->gBuffer->bind();
@@ -396,18 +347,6 @@ void Window::deferredRendering(
     }
     for (auto *obj : this->renderables) {
         collectDeferredRenderable(obj);
-    }
-
-    static uint64_t lastDeferredGeometrySignature = 0;
-    static bool hasDeferredGeometrySignature = false;
-    const uint64_t deferredGeometrySignature =
-        computeDeferredGeometrySignature(orderedDeferredRenderables);
-    if (!hasDeferredGeometrySignature ||
-        deferredGeometrySignature != lastDeferredGeometrySignature) {
-        this->ssaoMapsDirty = true;
-        this->ssaoUpdateCooldown = 0.0f;
-        lastDeferredGeometrySignature = deferredGeometrySignature;
-        hasDeferredGeometrySignature = true;
     }
 
     for (auto it = deferredPrograms.begin(); it != deferredPrograms.end();) {

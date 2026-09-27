@@ -739,16 +739,13 @@ FragmentOutput fragmentMain(FragmentInput input) {
         dot(output.FragColor.xyz,
             float3(0.212599993, 0.715200007,
                    0.0722000003));
-    if (brightness > environment.bloomThreshold) {
-        output.BrightColor = float4(output.FragColor.xyz, 1.0);
-    } else {
-        output.BrightColor = float4(0.0, 0.0, 0.0, 1.0);
-    }
-    float3 param_49 = output.FragColor.xyz;
-    float3 _1897 = acesToneMapping(param_49);
-    output.FragColor.x = _1897.x;
-    output.FragColor.y = _1897.y;
-    output.FragColor.z = _1897.z;
+    float bloomContribution =
+        max(brightness - environment.bloomThreshold, 0.0) /
+        max(brightness, 0.00001);
+    float3 toneMappedColor = acesToneMapping(output.FragColor.xyz);
+    output.BrightColor =
+        float4(toneMappedColor * bloomContribution, 1.0);
+    output.FragColor.xyz = toneMappedColor;
     return output;
 }
 #endif

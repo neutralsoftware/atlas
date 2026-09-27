@@ -340,7 +340,7 @@ float4 composeLighting(float2  uv, float4  baseColor)
     float4 color = baseColor;
     if (parameters.hasBrightTexture == 1)
     {
-        color += sampleBright(uv);
+        color += sampleBright(uv) * 0.12;
     }
     if (parameters.hasVolumetricLightTexture == 1)
     {

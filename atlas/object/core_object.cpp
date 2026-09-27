@@ -381,9 +381,7 @@ void CoreObject::updateModelMatrix() {
 }
 
 void CoreObject::initialize() {
-    for (auto &component : components) {
-        component->init();
-    }
+
     if (vertices.empty()) {
         throw std::runtime_error("No vertices attached to the object");
     }
@@ -470,6 +468,10 @@ void CoreObject::initialize() {
     this->pipeline->setVertexAttributes(vertexAttributes, vertexBinding);
 
     vao->unbind();
+
+    for (auto &component : components) {
+        component->init();
+    }
 }
 
 std::optional<std::shared_ptr<opal::Pipeline>> CoreObject::getPipeline() {
@@ -656,21 +658,15 @@ void CoreObject::render(float dt,
         this->pipeline->setUniform1f("material.volumeDensity",
                                      material.volumeDensity);
         this->pipeline->setUniform3f(
-            "material.volumeAbsorptionColor",
-            material.volumeAbsorptionColor.r,
-            material.volumeAbsorptionColor.g,
-            material.volumeAbsorptionColor.b);
-        this->pipeline->setUniform1f(
-            "material.volumeAbsorptionStrength",
-            material.volumeAbsorptionStrength);
+            "material.volumeAbsorptionColor", material.volumeAbsorptionColor.r,
+            material.volumeAbsorptionColor.g, material.volumeAbsorptionColor.b);
+        this->pipeline->setUniform1f("material.volumeAbsorptionStrength",
+                                     material.volumeAbsorptionStrength);
         this->pipeline->setUniform3f(
-            "material.volumeScatteringColor",
-            material.volumeScatteringColor.r,
-            material.volumeScatteringColor.g,
-            material.volumeScatteringColor.b);
-        this->pipeline->setUniform1f(
-            "material.volumeScatteringStrength",
-            material.volumeScatteringStrength);
+            "material.volumeScatteringColor", material.volumeScatteringColor.r,
+            material.volumeScatteringColor.g, material.volumeScatteringColor.b);
+        this->pipeline->setUniform1f("material.volumeScatteringStrength",
+                                     material.volumeScatteringStrength);
 
         this->pipeline->setUniform3f("albedo", material.albedo.r,
                                      material.albedo.g, material.albedo.b);
@@ -1042,9 +1038,6 @@ void CoreObject::updateVertices() {
 }
 
 void CoreObject::update(Window &window) {
-    if (!hasPhysics)
-        return;
-
     for (auto &component : components) {
         component->update(window.getDeltaTime());
     }
