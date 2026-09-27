@@ -22,6 +22,8 @@
 #endif
 
 #ifndef BEZEL_NATIVE
+class CoreObject;
+
 namespace JPH {
 class VehicleConstraint;
 class WheeledVehicleController;
@@ -651,6 +653,78 @@ class PhysicsWorld {
     void setGravity(const Position3d &gravity);
 
     ~PhysicsWorld();
+};
+
+struct SoftbodyMaterial {
+    float stiffness = 0.8f;
+    float volumeStiffness = 1.0f;
+
+    float damping = 0.1f;
+
+    float friction = 0.2f;
+    float restitution = 0.0f;
+};
+
+struct SoftbodyVertex {
+    Position3d position;
+    float inverseMass = 1.0f;
+};
+
+struct SoftbodyTetrahedron {
+    uint32_t a;
+    uint32_t b;
+    uint32_t c;
+    uint32_t d;
+};
+
+struct SoftbodyTriangle {
+    uint32_t a;
+    uint32_t b;
+    uint32_t c;
+};
+
+struct SoftbodyMesh {
+    std::vector<SoftbodyVertex> vertices;
+    std::vector<SoftbodyTetrahedron> tetrahedra;
+    std::vector<SoftbodyTriangle> surface;
+};
+
+struct Softbody {
+    Position3d position;
+    Position3d rotation;
+    glm::quat rotationQuat = glm::quat(1.0f, 0.0f, 0.0f, 0.0f);
+
+    bool isSensor = false;
+    std::string sensorSignal;
+
+    std::vector<std::string> tags;
+
+    float mass = 1.0f;
+
+    SoftbodyMaterial material;
+
+    uint32_t solverIterations = 8;
+    float gravityFactor = 1.0f;
+    bool allowSleeping = true;
+
+    Position3d force = {0.0f, 0.0f, 0.0f};
+    Position3d forcePoint = {0.0f, 0.0f, 0.0f};
+    Position3d impulse = {0.0f, 0.0f, 0.0f};
+
+    Velocity3d
+    getLinearVelocity(const std::shared_ptr<PhysicsWorld> &world) const;
+    Velocity3d getVelocity(const std::shared_ptr<PhysicsWorld> &world) const;
+
+    void create(const std::shared_ptr<PhysicsWorld> &world);
+
+    void destroy(const std::shared_ptr<PhysicsWorld> &world);
+
+    void createMesh(CoreObject *object);
+
+  private:
+    CoreObject *object = nullptr;
+
+    SoftbodyMesh mesh;
 };
 
 } // namespace bezel
