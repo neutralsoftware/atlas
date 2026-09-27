@@ -280,13 +280,6 @@ FragmentOutput fragmentMain(FragmentInput input) {
     float roughness = clamp(matData.y, 0.0, 1.0);
     float ao = clamp(matData.z, 0.0, 1.0);
     float reflectivity = clamp(matData.w, 0.0, 1.0);
-    uint opticalWidth;
-    uint opticalHeight;
-    gOptical.GetDimensions(opticalWidth, opticalHeight);
-    uint2 opticalCoordinate = min(
-        uint2(input.TexCoord * float2(opticalWidth, opticalHeight)),
-        uint2(opticalWidth - 1, opticalHeight - 1));
-    float4 opticalData = gOptical.Load(int3(opticalCoordinate, 0));
     bool transmissionEnabled =
         (parameters.featureFlags & FEATURE_TRANSMISSION) != 0u;
     bool dispersionEnabled =
@@ -296,13 +289,26 @@ FragmentOutput fragmentMain(FragmentInput input) {
         (parameters.featureFlags & FEATURE_ENVIRONMENT_LIGHTING) != 0u;
     bool indirectEnabled =
         (parameters.featureFlags & FEATURE_INDIRECT_LIGHTING) != 0u;
+    float4 opticalData = float4(0.0, 1.5, 0.0, 1.0);
+    float4 mediumData = float4(1.0, 1.0, 1.0, 0.0);
+    if (transmissionEnabled) {
+        uint opticalWidth;
+        uint opticalHeight;
+        gOptical.GetDimensions(opticalWidth, opticalHeight);
+        uint2 opticalCoordinate = min(
+            uint2(input.TexCoord * float2(opticalWidth, opticalHeight)),
+            uint2(opticalWidth - 1, opticalHeight - 1));
+        opticalData = gOptical.Load(int3(opticalCoordinate, 0));
+        if (opticalData.x > 0.0001) {
+            mediumData = gMedium.Load(int3(opticalCoordinate, 0));
+        }
+    }
     float transmission = transmissionEnabled
                              ? clamp(opticalData.x, 0.0, 1.0)
                              : 0.0;
     float materialIor = opticalData.y > 1.001 ? opticalData.y : 1.5;
     float abbeNumber = dispersionEnabled ? max(opticalData.z, 0.0) : 0.0;
     float attenuationDistance = max(opticalData.w, 0.0001);
-    float4 mediumData = gMedium.Load(int3(opticalCoordinate, 0));
     float3 attenuationColor = clamp(mediumData.xyz, float3(0.0001),
                                     float3(1.0));
     float mediumExtinction =
@@ -618,7 +624,9 @@ FragmentOutput fragmentMain(FragmentInput input) {
     reflectionDirection = normalize(lerp(
         reflectionDirection, N, roughness * roughness * 0.25));
     float3 ddgiReflection = float3(0.0f);
-    if (ddgiEnabled) {
+    bool needsDdgiSpecular = ddgiEnabled && roughness < 0.65 &&
+                             max(metallic, reflectivity) > 0.02;
+    if (needsDdgiSpecular) {
         ddgiReflection = sampleDDGIDirectionalRadiance(
             irradianceMap, ddgiDistanceMap, ps, ddgiSamplePos, ddgiNormal,
             reflectionDirection);
@@ -680,12 +688,9 @@ FragmentOutput fragmentMain(FragmentInput input) {
             blueDirection = dot(blueDirection, blueDirection) > 0.000001
                                 ? normalize(blueDirection)
                                 : greenDirection;
-            float3 probeTransmission = float3(0.0f);
-            if (ddgiEnabled) {
-                probeTransmission = sampleDDGIDirectionalRadiance(
-                    irradianceMap, ddgiDistanceMap, ps, ddgiSamplePos,
-                    ddgiNormal, greenDirection);
-            }
+            float3 probeTransmission = ddgiEnabled
+                                           ? ddgiIrradiance
+                                           : float3(0.0f);
             float3 environmentTransmission = environmentEnabled
                 ? float3(skybox.Sample(redDirection).x,
                          skybox.Sample(greenDirection).y,

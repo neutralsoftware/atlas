@@ -1106,8 +1106,11 @@ void photon::GlobalIllumination::render(
                              static_cast<int>(activeProbeCount));
 
     commandBuffer->bindPipeline(giPipeline);
-    const int dispatchWidth = std::max(1, irradianceMap->creationData.width);
-    const int dispatchHeight = std::max(1, irradianceMap->creationData.height);
+    const int tileResolution = std::max(
+        1, probeSpace->probeResolution + 2 * probeSpace->textureBorderSize);
+    const int dispatchWidth =
+        std::max(1, static_cast<int>(activeProbeCount) * tileResolution);
+    const int dispatchHeight = tileResolution;
     commandBuffer->dispatch(static_cast<uint>(dispatchWidth),
                             static_cast<uint>(dispatchHeight), 1);
     commandBuffer->computeBarrier();
