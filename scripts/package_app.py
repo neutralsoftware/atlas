@@ -329,6 +329,7 @@ def main():
             f"-DCMAKE_OSX_ARCHITECTURES={architectures}",
             f"-DCMAKE_OSX_DEPLOYMENT_TARGET={deployment_target}",
             f"-DATLAS_APP_ICON={icon}",
+            f"-DCMAKE_CXX_FLAGS=\"-Wno-error=function-effects\"",
         ]
     )
     run(
