@@ -413,8 +413,10 @@ float4 applyMotionBlur(float2  texCoord, float  size, float  separation, float4 
     float depthSoftness = 1.0;
     if (parameters.hasDepthTexture == 1)
     {
-        float centerDepthRaw = DepthTexture.Sample(texCoord).x;
-        centerDepth = LinearizeDepth(centerDepthRaw);
+        float centerDepthRaw = readSceneDepth(texCoord);
+        centerDepth = parameters.depthIsLinear == 1
+            ? centerDepthRaw
+            : LinearizeDepth(centerDepthRaw);
         depthSoftness = max(0.00200000009, centerDepth * 0.0199999996);
     }
     float jitter = (frac(sin(dot(texCoord * float2(173.300003, 97.0999985), float2(12.9898005, 78.2330017))) * 43758.546875) - 0.5) * 0.349999994;
@@ -460,8 +462,10 @@ float4 applyMotionBlur(float2  texCoord, float  size, float  separation, float4 
         float depthWeight = 1.0;
         if (parameters.hasDepthTexture == 1)
         {
-            float sampleDepthRaw = DepthTexture.Sample(sampleCoord).x;
-            float sampleDepth = LinearizeDepth(sampleDepthRaw);
+            float sampleDepthRaw = readSceneDepth(sampleCoord);
+            float sampleDepth = parameters.depthIsLinear == 1
+                ? sampleDepthRaw
+                : LinearizeDepth(sampleDepthRaw);
             float depthDelta = abs(sampleDepth - centerDepth);
             depthWeight = 1.0 - smoothstep(depthSoftness, depthSoftness * 2.5, depthDelta);
             if (depthWeight <= 0.0)

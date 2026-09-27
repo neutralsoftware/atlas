@@ -42,6 +42,7 @@ void Scene::updateScene(float dt) {
         } else {
             atmosphere.updateSkyCubemap(getAtmosphereSkybox()->cubemap);
         }
+        skybox = atmosphereSkybox;
 
         if (automaticAmbient) {
             updateAutomaticAmbientFromSkybox();
@@ -60,6 +61,10 @@ void Scene::updateScene(float dt) {
             this->setSkybox(
                 Skybox::create(defaultCubemap, *(Window::mainWindow)));
         }
-    } else {
+    } else if (!atmosphere.isEnabled() && useAtmosphereSkybox) {
+        skybox = userSkybox;
+        if (automaticAmbient) {
+            updateAutomaticAmbientFromSkybox();
+        }
     }
 }

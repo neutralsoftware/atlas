@@ -717,7 +717,8 @@ void Window::deferredRendering(
     if (dirLightCount > 0) {
         gpuDirLights =
             buildGPUDirectionalLights(scene->directionalLights, dirLightCount);
-    } else if (scene->atmosphere.isEnabled()) {
+    } else if (scene->atmosphere.isEnabled() &&
+               scene->isAtmosphereGlobalLightEnabled()) {
         GPUDirectionalLight gpu{};
         glm::vec3 sunDir = scene->atmosphere.getSunAngle().toGlm();
         if (glm::length(sunDir) > 0.0001f) {
@@ -1003,9 +1004,11 @@ void Window::deferredRendering(
     if (scene->skybox != nullptr && scene->skybox->cubemap.id != 0) {
         lightPipeline->bindTextureCubemap("skybox", scene->skybox->cubemap.id,
                                           boundTextures);
+        lightPipeline->setUniform1i("useIBL", 1);
     } else {
         lightPipeline->bindTextureCubemap(
             "skybox", fallbackSkyboxTexture->textureID, boundTextures);
+        lightPipeline->setUniform1i("useIBL", 0);
     }
     boundTextures++;
 
@@ -1068,7 +1071,7 @@ void Window::deferredRendering(
         volumetricPipeline->enableBlending(false);
         volumetricPipeline->bind();
 
-        DirectionalLight *dirLight = scene->directionalLights.at(0);
+        const GPUDirectionalLight &dirLight = gpuDirLights.front();
 
         volumetricPipeline->bindTexture2D("sceneTexture", target->texture.id,
                                           0);
@@ -1079,14 +1082,17 @@ void Window::deferredRendering(
         volumetricPipeline->setUniform1f("exposure",
                                          volumetricSettings.exposure);
         volumetricPipeline->setUniform3f("directionalLight.color",
-                                         dirLight->color.r, dirLight->color.g,
-                                         dirLight->color.b);
-        glm::vec3 lightPos = -dirLight->direction.toGlm() * 1000.f;
+                                         dirLight.diffuse.r,
+                                         dirLight.diffuse.g,
+                                         dirLight.diffuse.b);
+        volumetricPipeline->setUniform1f("directionalLight.intensity",
+                                         dirLight.intensity);
+        glm::vec3 lightPos = -dirLight.direction * 1000.f;
         glm::vec4 clipSpace = calculateProjectionMatrix() *
                               camera->calculateViewMatrix() *
                               glm::vec4(lightPos, 1.0f);
 
-        if (std::abs(clipSpace.w) > 1e-6f) {
+        if (clipSpace.w > 1e-6f) {
             glm::vec3 ndc = glm::vec3(clipSpace) / clipSpace.w;
             glm::vec2 sunUV = (glm::vec2(ndc.x, ndc.y) + 1.0f) * 0.5f;
             if (std::isfinite(sunUV.x) && std::isfinite(sunUV.y) &&

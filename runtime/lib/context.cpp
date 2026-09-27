@@ -1163,9 +1163,10 @@ loadEnvironmentDefinition(const json &sceneData, const std::string &baseDir) {
     }
 
     const bool shouldEnableAtmosphere =
-        loaded.useAtmosphereSkybox || loaded.useGlobalLight ||
-        (explicitAtmosphereEnabled ? atmosphereEnabled
-                                   : hasAtmosphereConfiguration);
+        explicitAtmosphereEnabled
+            ? atmosphereEnabled
+            : loaded.useAtmosphereSkybox || loaded.useGlobalLight ||
+                  hasAtmosphereConfiguration;
 
     if (shouldEnableAtmosphere) {
         loaded.atmosphere.enable();
@@ -5673,8 +5674,36 @@ bool Context::setSceneProperty(const std::string &section, int index,
     if (normalizedSection == "environment") {
         const bool changed =
             setJsonProperty(editorEnvironmentData, propertyPath, value);
-        if (changed)
+        if (changed) {
+            json sceneData = json::object();
+            sceneData["environment"] = editorEnvironmentData;
+            RuntimeEnvironmentDefinition environmentDefinition =
+                loadEnvironmentDefinition(
+                    sceneData, sceneDir.empty() ? projectDir : sceneDir);
+            scene->atmosphere.resetRuntimeState();
+            scene->setEnvironment(std::move(environmentDefinition.environment));
+            scene->atmosphere = environmentDefinition.atmosphere;
+            scene->setUseAtmosphereSkybox(
+                environmentDefinition.useAtmosphereSkybox &&
+                scene->atmosphere.isEnabled());
+            scene->setAtmosphereGlobalLightEnabled(
+                environmentDefinition.useGlobalLight &&
+                scene->atmosphere.isEnabled());
+            scene->setAutomaticAmbient(
+                environmentDefinition.automaticAmbient);
+            if (environmentDefinition.useGlobalLight &&
+                scene->atmosphere.isEnabled()) {
+                scene->atmosphere.useGlobalLight();
+                if (environmentDefinition.atmosphereCastsShadows) {
+                    scene->atmosphere.castShadowsFromSunlight(
+                        environmentDefinition.atmosphereShadowResolution);
+                }
+            }
+            if (window != nullptr) {
+                window->resetPathTracingAccumulation();
+            }
             applyPropertySyncs(*this, true);
+        }
         return changed;
     }
     if (normalizedSection == "target" || normalizedSection == "targets") {
@@ -7076,7 +7105,12 @@ void Context::loadScene(Window &window, const json &sceneData) {
         loadEnvironmentDefinition(sceneData, baseDir);
     scene->setEnvironment(std::move(environmentDefinition.environment));
     scene->atmosphere = environmentDefinition.atmosphere;
-    scene->setUseAtmosphereSkybox(environmentDefinition.useAtmosphereSkybox);
+    scene->setUseAtmosphereSkybox(
+        environmentDefinition.useAtmosphereSkybox &&
+        scene->atmosphere.isEnabled());
+    scene->setAtmosphereGlobalLightEnabled(
+        environmentDefinition.useGlobalLight &&
+        scene->atmosphere.isEnabled());
     scene->setAutomaticAmbient(environmentDefinition.automaticAmbient);
 
     if (sceneData.contains("inputActions")) {
@@ -7424,7 +7458,8 @@ void Context::loadScene(Window &window, const json &sceneData) {
         }
     }
 
-    if (environmentDefinition.useGlobalLight) {
+    if (environmentDefinition.useGlobalLight &&
+        scene->atmosphere.isEnabled()) {
         scene->atmosphere.useGlobalLight();
         if (environmentDefinition.atmosphereCastsShadows) {
             scene->atmosphere.castShadowsFromSunlight(

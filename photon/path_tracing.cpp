@@ -1258,6 +1258,9 @@ bool photon::PathTracing::render(
     float atmosphereSunSize = 1.0f;
     int atmosphereEnabled = 0;
     int atmosphereSkyEnabled = 0;
+    glm::vec4 cloudSettings(0.0f);
+    glm::vec4 cloudLighting(0.0f);
+    int cloudsEnabled = 0;
 
     Scene *scene = (Window::mainWindow != nullptr)
                        ? Window::mainWindow->getCurrentScene()
@@ -1272,6 +1275,17 @@ bool photon::PathTracing::render(
             atmosphereSunColor = glm::vec3(sunColor.r, sunColor.g, sunColor.b);
             atmosphereSunIntensity = scene->atmosphere.getLightIntensity();
             atmosphereSunSize = scene->atmosphere.sunSize;
+            if (scene->atmosphere.clouds != nullptr) {
+                const auto &clouds = *scene->atmosphere.clouds;
+                cloudsEnabled = 1;
+                cloudSettings = glm::vec4(
+                    clouds.scale, clouds.density, clouds.densityMultiplier,
+                    clouds.absorption);
+                cloudLighting = glm::vec4(
+                    clouds.scattering, clouds.phase,
+                    static_cast<float>(clouds.offset.x),
+                    static_cast<float>(clouds.offset.z));
+            }
         }
         ambientIntensity =
             scene->isAutomaticAmbientEnabled()
@@ -1299,7 +1313,8 @@ bool photon::PathTracing::render(
             break;
         }
 
-        if (directionalLightCount == 0 && scene->atmosphere.isEnabled()) {
+        if (directionalLightCount == 0 && scene->atmosphere.isEnabled() &&
+            scene->isAtmosphereGlobalLightEnabled()) {
             glm::vec3 sceneDirection = scene->atmosphere.getSunAngle().toGlm();
             if (glm::length(sceneDirection) > 0.0001f) {
                 directionalLightDirection = -glm::normalize(sceneDirection);
@@ -1348,6 +1363,14 @@ bool photon::PathTracing::render(
                                       atmosphereEnabled);
     pathTracingPipeline->setUniform1i("sceneData.atmosphereSkyEnabled",
                                       atmosphereSkyEnabled);
+    pathTracingPipeline->setUniform4f(
+        "sceneData.cloudSettings", cloudSettings.x, cloudSettings.y,
+        cloudSettings.z, cloudSettings.w);
+    pathTracingPipeline->setUniform4f(
+        "sceneData.cloudLighting", cloudLighting.x, cloudLighting.y,
+        cloudLighting.z, cloudLighting.w);
+    pathTracingPipeline->setUniform1i("sceneData.cloudsEnabled",
+                                      cloudsEnabled);
     pathTracingPipeline->setUniform1f("sceneData.atmosphereSunSize",
                                       atmosphereSunSize);
     pathTracingPipeline->setUniform3f(
@@ -1458,7 +1481,7 @@ bool photon::PathTracing::render(
         "sceneData.environmentEnabled",
         (featureFlags & EnvironmentLighting) != 0 &&
                 (skyboxTexture != fallbackSkyboxTexture ||
-                 atmosphereEnabled != 0 || ambientIntensity > 0.0f)
+                 atmosphereSkyEnabled != 0 || ambientIntensity > 0.0f)
             ? 1
             : 0);
     pathTracingPipeline->bindTexture("skybox", skyboxTexture,
@@ -1481,7 +1504,10 @@ bool photon::PathTracing::render(
         glm::length(cachedAtmosphereSunColor - atmosphereSunColor) > 0.0001f ||
         std::fabs(cachedAtmosphereSunIntensity - atmosphereSunIntensity) >
             0.0001f ||
-        std::fabs(cachedAtmosphereSunSize - atmosphereSunSize) > 0.0001f;
+        std::fabs(cachedAtmosphereSunSize - atmosphereSunSize) > 0.0001f ||
+        glm::length(cachedCloudSettings - cloudSettings) > 0.0001f ||
+        glm::length(cachedCloudLighting - cloudLighting) > 0.0001f ||
+        cachedCloudsEnabled != cloudsEnabled;
     bool skyChanged = cachedSkyboxTextureId != skyboxTextureId;
     if (lightChanged || skyChanged) {
         causticMapDirty = true;
@@ -1500,6 +1526,9 @@ bool photon::PathTracing::render(
     cachedAtmosphereSunColor = atmosphereSunColor;
     cachedAtmosphereSunIntensity = atmosphereSunIntensity;
     cachedAtmosphereSunSize = atmosphereSunSize;
+    cachedCloudSettings = cloudSettings;
+    cachedCloudLighting = cloudLighting;
+    cachedCloudsEnabled = cloudsEnabled;
 
     const int refinementFrame = std::max(frameIndex, 0);
     const int pixelStride = interactive ? 2 : 1;

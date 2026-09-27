@@ -21,6 +21,7 @@ struct PushConstants
 {
     int hasBrightTexture;
     int hasDepthTexture;
+    int depthIsLinear;
     int hasVolumetricLightTexture;
     int hasPositionTexture;
     int hasLUTTexture;
@@ -87,6 +88,21 @@ struct FragmentInput
 [[vk::binding(5, 2)]] Sampler2D LUTTexture;
 [[vk::binding(2, 2)]] Sampler2D DepthTexture;
 
+float readSceneDepth(float2 uv)
+{
+    float4 sample = DepthTexture.Sample(uv);
+    return parameters.depthIsLinear == 1 ? sample.w : sample.x;
+}
+
+float resolveSceneDistance(float2 uv, float depth)
+{
+    if (parameters.depthIsLinear == 1)
+    {
+        return depth > 0.0 ? depth : uniforms.farPlane;
+    }
+    return length(reconstructViewPos(uv, depth));
+}
+
 #include "utils/post_processing.slang"
 
 [shader("fragment")]
@@ -98,12 +114,14 @@ FragmentOutput fragmentMain(FragmentInput input, float4 gl_FragCoord : SV_Positi
     float depth = 1.0;
     if (parameters.hasDepthTexture == 1)
     {
-        depth = DepthTexture.Sample(input.TexCoord).x;
+        depth = readSceneDepth(input.TexCoord);
     }
     float2 param_1 = input.TexCoord;
     float param_2 = depth;
     float3 viewPos = reconstructViewPos(param_1, param_2);
-    float _distance = parameters.hasDepthTexture == 1 ? length(viewPos) : uniforms.farPlane;
+    float _distance = parameters.hasDepthTexture == 1
+        ? resolveSceneDistance(input.TexCoord, depth)
+        : uniforms.farPlane;
     bool useMotionBlur = false;
     float motionBlurSize = 0.0;
     float motionBlurSeparation = 0.0;
@@ -146,9 +164,11 @@ FragmentOutput fragmentMain(FragmentInput input, float4 gl_FragCoord : SV_Positi
     color = _2637;
     if (parameters.hasDepthTexture == 1)
     {
-        float depthValue = DepthTexture.Sample(input.TexCoord).x;
+        float depthValue = readSceneDepth(input.TexCoord);
         float param_6 = depthValue;
-        float linearDepth = LinearizeDepth(param_6);
+        float linearDepth = parameters.depthIsLinear == 1
+            ? param_6
+            : LinearizeDepth(param_6);
         float coc = clamp(abs(linearDepth - uniforms.focusDepth) / uniforms.focusRange, 0.0, 1.0);
         float mip = (coc * float(uniforms.maxMipLevel)) * 1.20000005;
         float4 param_7 = Texture.SampleLevel(input.TexCoord, mip);
@@ -171,8 +191,7 @@ FragmentOutput fragmentMain(FragmentInput input, float4 gl_FragCoord : SV_Positi
         float param_12 = motionBlurSeparation;
         float4 param_13 = color;
         float4 motionBlurred = applyMotionBlur(param_10, param_11, param_12, param_13);
-        output.FragColor = motionBlurred;
-        return output;
+        hdrColor = motionBlurred;
     }
     else
     {

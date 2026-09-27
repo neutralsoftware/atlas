@@ -211,9 +211,12 @@ struct SceneData {
     uint causticsEnabled;
     uint atmosphereSkyEnabled;
     uint featureFlags;
+    float4 cloudSettings;
+    float4 cloudLighting;
+    uint cloudsEnabled;
 };
 
-static_assert(sizeof(SceneData) == 160);
+static_assert(sizeof(SceneData) == 208);
 static_assert(__builtin_offsetof(SceneData, atmosphereSunDirection) == 48);
 static_assert(__builtin_offsetof(SceneData, atmosphereSunIntensity) == 64);
 static_assert(__builtin_offsetof(SceneData, atmosphereSunColor) == 80);
@@ -225,6 +228,9 @@ static_assert(__builtin_offsetof(SceneData, bloomThreshold) == 144);
 static_assert(__builtin_offsetof(SceneData, causticsEnabled) == 148);
 static_assert(__builtin_offsetof(SceneData, atmosphereSkyEnabled) == 152);
 static_assert(__builtin_offsetof(SceneData, featureFlags) == 156);
+static_assert(__builtin_offsetof(SceneData, cloudSettings) == 160);
+static_assert(__builtin_offsetof(SceneData, cloudLighting) == 176);
+static_assert(__builtin_offsetof(SceneData, cloudsEnabled) == 192);
 
 bool photonFeatureEnabled(constant SceneData &sceneData, uint feature) {
     return (sceneData.featureFlags & feature) != 0;

@@ -97,7 +97,9 @@ void Atmosphere::update(float dt) {
     if (!enabled)
         return;
 
-    if (clouds) {
+    if (clouds &&
+        (Window::mainWindow == nullptr ||
+         !Window::mainWindow->usePathTracing)) {
         clouds->offset.x += clouds->wind.x * dt;
         clouds->offset.y += clouds->wind.y * dt;
         clouds->offset.z += clouds->wind.z * dt;
@@ -210,8 +212,6 @@ void Atmosphere::update(float dt) {
         mainLight->color = getLightColor();
         mainLight->shineColor = getLightColor();
         mainLight->intensity = amplifiedIntensity;
-        Window::mainWindow->getCurrentScene()->setAmbientIntensity(
-            getLightIntensity());
     }
 
     timeOfDay += (dt / secondsPerHour);
@@ -235,10 +235,8 @@ void Atmosphere::useGlobalLight() {
     mainLight = std::make_shared<DirectionalLight>(
         getSunAngle().y > 0.0 ? getSunAngle() * -1.0f : getSunAngle(),
         getLightColor(), getLightColor(), amplifiedIntensity);
-
-    Window::mainWindow->getCurrentScene()->addDirectionalLight(mainLight.get());
-    Window::mainWindow->getCurrentScene()->setAmbientIntensity(
-        getLightIntensity());
+    Window::mainWindow->getCurrentScene()->setAtmosphereGlobalLightEnabled(
+        true);
 }
 
 float Atmosphere::getNormalizedTime() const {
