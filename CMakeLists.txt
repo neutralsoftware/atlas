@@ -103,6 +103,7 @@ set(BUILD_SHARED_LIBS OFF CACHE BOOL "Build dependencies as static libraries" FO
 # ─── FetchContent ────────────────────────────────────────────────────────────
 include(FetchContent)
 cmake_policy(SET CMP0135 NEW)
+cmake_policy(SET CMP0169 NEW)
 
 # Doxygen CSS
 FetchContent_Declare(
@@ -159,8 +160,7 @@ FetchContent_Declare(
 
 FetchContent_GetProperties(freetype)
 if (NOT freetype_POPULATED)
-    FetchContent_Populate(freetype)
-    add_subdirectory(${freetype_SOURCE_DIR} ${freetype_BINARY_DIR} EXCLUDE_FROM_ALL)
+    FetchContent_MakeAvailable(freetype)
 endif ()
 
 # Assimp

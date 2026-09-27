@@ -329,7 +329,7 @@ def main():
             f"-DCMAKE_OSX_ARCHITECTURES={architectures}",
             f"-DCMAKE_OSX_DEPLOYMENT_TARGET={deployment_target}",
             f"-DATLAS_APP_ICON={icon}",
-            f"-DCMAKE_CXX_FLAGS=\"-Wno-error=function-effects\"",
+            "-DCMAKE_CXX_FLAGS=-Wno-error=function-effects",
         ]
     )
     run(
@@ -418,14 +418,14 @@ def main():
         raise RuntimeError(f"The app contains non-portable library paths:\n{details}")
 
     archive = dist_directory / (
-        f"Atlas-Engine-beat1rc-macOS-{architecture_tag}-{mode}.zip"
+        f"Atlas-Engine-macOS-{architecture_tag}-{mode}.zip"
     )
     archive_bundle(packaged_app, archive)
     dmg_suffix = ""
     if args.release and allow_unnotarized and not notary_profile:
         dmg_suffix = "-UNNOTARIZED"
     dmg = dist_directory / (
-        f"Atlas-Engine-beta1-macOS-{architecture_tag}-{mode}{dmg_suffix}.dmg"
+        f"Atlas-Engine-macOS-{architecture_tag}-{mode}{dmg_suffix}.dmg"
     )
     create_dmg(packaged_app, dmg, build_directory / "dmg-root")
     sign_dmg(dmg, signing_identity)

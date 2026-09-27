@@ -2,9 +2,7 @@ name: Package platform artifacts
 
 on:
     push:
-        branches:
-            - stable
-            - prerelease
+        branches: [main, prerelease]
 
 permissions:
     contents: read

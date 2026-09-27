@@ -133,7 +133,7 @@ cmake -S . -B build -G Ninja -DBACKEND=AUTO
 cmake --build build --parallel
 ```
 
-`AUTO` selects Vulkan on non-Apple platforms. Pass `-DBACKEND=OPENGL` if you want an OpenGL build and have the corresponding development libraries installed.
+`AUTO` selects Vulkan on non-Apple platforms. Use `-DBACKEND=VULKAN` to select Vulkan explicitly.
 
 ### Select a Rendering Backend
 
@@ -142,10 +142,9 @@ The backend is selected at configure time:
 ```bash
 cmake -S . -B build-metal -G Ninja -DBACKEND=METAL
 cmake -S . -B build-vulkan -G Ninja -DBACKEND=VULKAN
-cmake -S . -B build-opengl -G Ninja -DBACKEND=OPENGL
 ```
 
-Valid values are `AUTO`, `METAL`, `VULKAN`, and `OPENGL`. Metal is available on Apple platforms.
+Valid values are `AUTO`, `METAL`, and `VULKAN`. Metal is available on Apple platforms.
 
 ### Build with `just`
 

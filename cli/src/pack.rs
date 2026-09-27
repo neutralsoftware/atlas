@@ -211,7 +211,7 @@ fn run_cmake(
         .arg("..")
         .arg("-G")
         .arg("Ninja")
-        .arg(format!("-DATLAS_BACKEND={backend}"))
+        .arg(format!("-DBACKEND={backend}"))
         .arg(if release {
             "-DCMAKE_BUILD_TYPE=Release"
         } else {
