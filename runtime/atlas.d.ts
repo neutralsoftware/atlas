@@ -2148,7 +2148,7 @@ declare module "atlas" {
         getActionAxisValue(name: string): AxisPacket;
     }
 
-    enum SubdivisionScheme {
+    export enum SubdivisionScheme {
         Simple,
         Loop,
     }
@@ -2161,6 +2161,47 @@ declare module "atlas" {
         override update(deltaTime: number): void;
 
         clone(): Subdivision;
+    }
+
+    export enum ClothBendType {
+        None = "none",
+        Distance = "distance",
+        Dihedral = "dihedral",
+    }
+
+    export enum AnchorPoint {
+        TopLeft = "topLeft",
+        TopCenter = "topCenter",
+        TopRight = "topRight",
+        CenterLeft = "centerLeft",
+        Center = "center",
+        CenterRight = "centerRight",
+        BottomLeft = "bottomLeft",
+        BottomCenter = "bottomCenter",
+        BottomRight = "bottomRight",
+    }
+
+    export class Cloth extends Component {
+        mass: number;
+        stretchCompliance: number;
+        shearCompliance: number;
+        bendCompliance: number;
+        damping: number;
+        friction: number;
+        restitution: number;
+        gravityFactor: number;
+        solverIterations: number;
+        allowSleeping: boolean;
+        doubleSided: boolean;
+        vertexRadius: number;
+        bendType: ClothBendType;
+        anchors: AnchorPoint[];
+
+        override init(): void;
+        override beforePhysics(): void;
+        override update(deltaTime: number): void;
+
+        clone(): Cloth;
     }
 }
 

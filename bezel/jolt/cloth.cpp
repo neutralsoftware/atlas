@@ -342,9 +342,13 @@ void bezel::Cloth::create(const std::shared_ptr<PhysicsWorld> &world) {
     }
 
     JPH::SoftBodySharedSettings::VertexAttributes attributes;
-    attributes.mCompliance = material.stretchCompliance;
-    attributes.mShearCompliance = material.shearCompliance;
-    attributes.mBendCompliance = material.bendCompliance;
+    constexpr float minimumCompliance = 1.0e-6f;
+    attributes.mCompliance =
+        std::max(material.stretchCompliance, minimumCompliance);
+    attributes.mShearCompliance =
+        std::max(material.shearCompliance, minimumCompliance);
+    attributes.mBendCompliance =
+        std::max(material.bendCompliance, minimumCompliance);
 
     settings->CreateConstraints(&attributes, 1, toJoltBendType(bendType));
     settings->Optimize();
@@ -362,7 +366,7 @@ void bezel::Cloth::create(const std::shared_ptr<PhysicsWorld> &world) {
     creationSettings.mGravityFactor = gravityFactor;
     creationSettings.mAllowSleeping = allowSleeping;
     creationSettings.mFacesDoubleSided = doubleSided;
-    creationSettings.mVertexRadius = vertexRadius;
+    creationSettings.mVertexRadius = std::max(vertexRadius, 0.005f);
     creationSettings.mUserData = id.atlasId;
 
     JPH::BodyInterface &bodyInterface = world->physicsSystem.GetBodyInterface();

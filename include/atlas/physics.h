@@ -576,8 +576,8 @@ class Cloth : public Component {
 
     float mass = 1.0f;
 
-    float stretchCompliance = 0.0f;
-    float shearCompliance = 0.0f;
+    float stretchCompliance = 1.0e-5f;
+    float shearCompliance = 1.0e-5f;
     float bendCompliance = 0.001f;
 
     float damping = 0.05f;

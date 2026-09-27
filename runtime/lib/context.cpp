@@ -327,6 +327,70 @@ std::string normalizeToken(std::string value) {
     return normalized;
 }
 
+bool readClothBendType(const json &value, ClothBendType &target) {
+    if (value.is_string()) {
+        const std::string token = normalizeToken(value.get<std::string>());
+        if (token == "none") {
+            target = ClothBendType::None;
+            return true;
+        }
+        if (token == "distance") {
+            target = ClothBendType::Distance;
+            return true;
+        }
+        if (token == "dihedral") {
+            target = ClothBendType::Dihedral;
+            return true;
+        }
+    }
+    if (value.is_number_integer()) {
+        const int numeric = value.get<int>();
+        if (numeric >= 0 && numeric <= 2) {
+            target = static_cast<ClothBendType>(numeric);
+            return true;
+        }
+    }
+    return false;
+}
+
+bool readAnchorPoint(const json &value, AnchorPoint &target) {
+    if (value.is_string()) {
+        const std::string token = normalizeToken(value.get<std::string>());
+        static const std::array<const char *, 9> names{
+            "topleft",     "topcenter",  "topright",     "centerleft", "center",
+            "centerright", "bottomleft", "bottomcenter", "bottomright"};
+        for (std::size_t index = 0; index < names.size(); ++index) {
+            if (token == names[index]) {
+                target = static_cast<AnchorPoint>(index);
+                return true;
+            }
+        }
+    }
+    if (value.is_number_integer()) {
+        const int numeric = value.get<int>();
+        if (numeric >= 0 && numeric <= 8) {
+            target = static_cast<AnchorPoint>(numeric);
+            return true;
+        }
+    }
+    return false;
+}
+
+std::vector<AnchorPoint> readClothAnchors(const json &node) {
+    std::vector<AnchorPoint> anchors;
+    const json *values = findField(node, {"anchors"});
+    if (values == nullptr || !values->is_array()) {
+        return anchors;
+    }
+    for (const json &value : *values) {
+        AnchorPoint anchor;
+        if (readAnchorPoint(value, anchor)) {
+            anchors.push_back(anchor);
+        }
+    }
+    return anchors;
+}
+
 std::string propertyNameToken(const std::string &path) {
     const std::size_t separator = path.find_last_of('/');
     return normalizeToken(
@@ -3055,6 +3119,52 @@ std::shared_ptr<Component> attachComponent(Context &context,
         return finish(softbody);
     }
 
+    if (token == "cloth") {
+        auto cloth = std::make_shared<Cloth>();
+        pending.object->addComponent(cloth);
+
+        float value = 0.0f;
+        if (tryReadFloatAny(pending.data, {"mass"}, value))
+            cloth->setMass(value);
+        if (tryReadFloatAny(pending.data, {"stretchCompliance"}, value))
+            cloth->setStretchCompliance(value);
+        if (tryReadFloatAny(pending.data, {"shearCompliance"}, value))
+            cloth->setShearCompliance(value);
+        if (tryReadFloatAny(pending.data, {"bendCompliance"}, value))
+            cloth->setBendCompliance(value);
+        if (tryReadFloatAny(pending.data, {"damping"}, value))
+            cloth->setDamping(value);
+        if (tryReadFloatAny(pending.data, {"friction"}, value))
+            cloth->setFriction(value);
+        if (tryReadFloatAny(pending.data, {"restitution"}, value))
+            cloth->setRestitution(value);
+        if (tryReadFloatAny(pending.data, {"gravityFactor"}, value))
+            cloth->setGravityFactor(value);
+        if (tryReadFloatAny(pending.data, {"vertexRadius"}, value))
+            cloth->setVertexRadius(value);
+
+        int solverIterations = 8;
+        if (tryReadIntAny(pending.data, {"solverIterations"},
+                          solverIterations)) {
+            cloth->setSolverIterations(
+                static_cast<uint32_t>(std::max(1, solverIterations)));
+        }
+        bool enabled = true;
+        if (tryReadBoolAny(pending.data, {"allowSleeping"}, enabled))
+            cloth->setAllowSleeping(enabled);
+        if (tryReadBoolAny(pending.data, {"doubleSided"}, enabled))
+            cloth->setDoubleSided(enabled);
+
+        if (const json *bendType = findField(pending.data, {"bendType"});
+            bendType != nullptr) {
+            ClothBendType parsed = cloth->bendType;
+            if (readClothBendType(*bendType, parsed))
+                cloth->setBendType(parsed);
+        }
+        cloth->setAnchors(readClothAnchors(pending.data));
+        return finish(cloth);
+    }
+
     if (token == "subdivision") {
         auto subdivision = std::make_shared<Subdivision>();
         pending.object->addComponent(subdivision);
@@ -3408,6 +3518,48 @@ bool updateAttachedComponent(Context &context, GameObject &object,
         if (softbody->body != nullptr) {
             softbody->body->sensorSignal = softbody->sendSignal;
         }
+        return true;
+    }
+
+    if (auto cloth = std::dynamic_pointer_cast<Cloth>(component);
+        cloth != nullptr) {
+        float value = 0.0f;
+        if (tryReadFloatAny(data, {"mass"}, value))
+            cloth->setMass(value);
+        if (tryReadFloatAny(data, {"stretchCompliance"}, value))
+            cloth->setStretchCompliance(value);
+        if (tryReadFloatAny(data, {"shearCompliance"}, value))
+            cloth->setShearCompliance(value);
+        if (tryReadFloatAny(data, {"bendCompliance"}, value))
+            cloth->setBendCompliance(value);
+        if (tryReadFloatAny(data, {"damping"}, value))
+            cloth->setDamping(value);
+        if (tryReadFloatAny(data, {"friction"}, value))
+            cloth->setFriction(value);
+        if (tryReadFloatAny(data, {"restitution"}, value))
+            cloth->setRestitution(value);
+        if (tryReadFloatAny(data, {"gravityFactor"}, value))
+            cloth->setGravityFactor(value);
+        if (tryReadFloatAny(data, {"vertexRadius"}, value))
+            cloth->setVertexRadius(value);
+
+        int solverIterations = 8;
+        if (tryReadIntAny(data, {"solverIterations"}, solverIterations))
+            cloth->setSolverIterations(
+                static_cast<uint32_t>(std::max(1, solverIterations)));
+        bool enabled = true;
+        if (tryReadBoolAny(data, {"allowSleeping"}, enabled))
+            cloth->setAllowSleeping(enabled);
+        if (tryReadBoolAny(data, {"doubleSided"}, enabled))
+            cloth->setDoubleSided(enabled);
+
+        if (const json *bendType = findField(data, {"bendType"});
+            bendType != nullptr) {
+            ClothBendType parsed = cloth->bendType;
+            if (readClothBendType(*bendType, parsed))
+                cloth->setBendType(parsed);
+        }
+        cloth->setAnchors(readClothAnchors(data));
         return true;
     }
 
@@ -6117,9 +6269,9 @@ int Context::addObjectComponent(int id, const json &component) {
     }
     const std::string normalizedType = normalizeToken(type);
     static const std::unordered_set<std::string> supported{
-        "script",      "traitscript", "rigidbody", "softbody",
-        "subdivision", "audioplayer", "joint",     "fixedjoint",
-        "hingejoint",  "springjoint", "vehicle",
+        "script",     "traitscript", "rigidbody",   "softbody",
+        "cloth",      "subdivision", "audioplayer", "joint",
+        "fixedjoint", "hingejoint",  "springjoint", "vehicle",
     };
     if (!supported.contains(normalizedType)) {
         return -1;

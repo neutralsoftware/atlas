@@ -1165,7 +1165,7 @@ void Instance::scaleBy(const Scale3d &deltaScale) {
 }
 
 void Subdivision::init() {
-    CoreObject *object = getObject();
+    CoreObject *object = dynamic_cast<CoreObject *>(this->object);
     if (object != nullptr && !hasSourceMesh) {
         sourceVertices = object->vertices;
         sourceIndices = object->indices;
@@ -1175,12 +1175,16 @@ void Subdivision::init() {
 }
 
 void Subdivision::subdivide() {
-    CoreObject *object = getObject();
+    CoreObject *object = dynamic_cast<CoreObject *>(this->object);
 
     if (!object)
         return;
 
-    if (hasSourceMesh) {
+    if (!hasSourceMesh) {
+        sourceVertices = object->vertices;
+        sourceIndices = object->indices;
+        hasSourceMesh = true;
+    } else {
         object->vertices = sourceVertices;
         object->indices = sourceIndices;
     }

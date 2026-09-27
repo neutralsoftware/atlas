@@ -525,6 +525,7 @@ void Softbody::create(const std::shared_ptr<PhysicsWorld> &world) {
     creation.mAllowSleeping = allowSleeping;
     creation.mMakeRotationIdentity = true;
     creation.mFacesDoubleSided = true;
+    creation.mVertexRadius = 0.005f;
 
     JPH::BodyInterface &bodyInterface = world->physicsSystem.GetBodyInterface();
 

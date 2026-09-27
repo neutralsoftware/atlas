@@ -372,6 +372,22 @@ QJsonObject componentSchema(const QString &type) {
                 {"solverIterations", 8},
                 {"allowSleeping", true}};
     }
+    if (normalized == "cloth") {
+        return {{"mass", 1.0},
+                {"stretchCompliance", 0.00001},
+                {"shearCompliance", 0.00001},
+                {"bendCompliance", 0.001},
+                {"damping", 0.05},
+                {"friction", 0.2},
+                {"restitution", 0.0},
+                {"gravityFactor", 1.0},
+                {"solverIterations", 8},
+                {"allowSleeping", true},
+                {"doubleSided", true},
+                {"vertexRadius", 0.0},
+                {"bendType", "dihedral"},
+                {"anchors", QJsonArray{}}};
+    }
     if (normalized == "subdivision") {
         return {{"levels", 1}, {"scheme", "loop"}};
     }
@@ -566,8 +582,9 @@ void tagEditor(QWidget *editor, const QString &path, const QString &kind,
                int index = -1) {
     editor->setProperty("inspectorPath", path);
     editor->setProperty("inspectorValueKind", kind);
-    if (index >= 0)
+    if (index >= 0) {
         editor->setProperty("inspectorValueIndex", index);
+    }
 }
 
 bool isEditing(QWidget *editor) {
@@ -611,6 +628,14 @@ void refreshTaggedEditors(QFrame *card, const QJsonObject &properties) {
             if (field != nullptr && value.isString()) {
                 const QSignalBlocker blocker(field);
                 field->setCurrentText(value.toString());
+            }
+        } else if (kind == "choiceArray") {
+            auto *field = qobject_cast<QComboBox *>(editor);
+            const int index = editor->property("inspectorValueIndex").toInt();
+            const QJsonArray array = value.toArray();
+            if (field != nullptr && index >= 0 && index < array.size()) {
+                const QSignalBlocker blocker(field);
+                field->setCurrentText(array.at(index).toString());
             }
         } else if (kind == "text") {
             auto *field = qobject_cast<QLineEdit *>(editor);
@@ -678,8 +703,10 @@ void refreshTaggedEditors(QFrame *card, const QJsonObject &properties) {
 
 QStringList choicesFor(const QString &path) {
     const QString key = path.section('/', -1).toLower();
-    if (key == "scheme" && path.contains("subdivision"))
+    if (key == "scheme")
         return {"simple", "loop"};
+    if (key == "bendtype")
+        return {"none", "distance", "dihedral"};
     if (key == "motiontype")
         return {"static", "dynamic", "kinematic"};
     if (key == "space")
@@ -692,7 +719,7 @@ QStringList choicesFor(const QString &path) {
     if (key == "type" && path.contains("collider")) {
         return {"box", "sphere", "capsule", "mesh"};
     }
-    if (key == "condition" && path.contains("weather"))
+    if (key == "condition")
         return {"clear", "rain", "snow", "storm"};
     return {};
 }
@@ -997,6 +1024,71 @@ QWidget *colorField(const QJsonArray &value, const PropertyChanged &changed,
     return field;
 }
 
+QStringList anchorChoices() {
+    return {"topLeft",     "topCenter",  "topRight",     "centerLeft", "center",
+            "centerRight", "bottomLeft", "bottomCenter", "bottomRight"};
+}
+
+QWidget *enumArrayField(const QJsonArray &value, const QStringList &choices,
+                        const PropertyChanged &changed, const QString &path,
+                        QWidget *parent) {
+    auto *field = new QFrame(parent);
+    field->setObjectName("inspectorEnumArrayField");
+    auto *layout = new QVBoxLayout(field);
+    layout->setContentsMargins(0, 0, 0, 0);
+    layout->setSpacing(4);
+
+    auto *add = new styling::ToolButton(field);
+    add->setIcon(styling::icon(styling::Icon::Plus, "#8498A8"));
+    add->setText("Add Anchor");
+    add->setToolButtonStyle(Qt::ToolButtonTextBesideIcon);
+    add->setToolTip("Add anchor");
+    layout->addWidget(add, 0, Qt::AlignLeft);
+
+    for (int index = 0; index < value.size(); ++index) {
+        auto *row = new QWidget(field);
+        auto *rowLayout = new QHBoxLayout(row);
+        rowLayout->setContentsMargins(0, 0, 0, 0);
+        rowLayout->setSpacing(5);
+        auto *label =
+            new QLabel(QStringLiteral("Anchor %1").arg(index + 1), row);
+        label->setMinimumWidth(70);
+        auto *choice = new QComboBox(row);
+        choice->addItems(choices);
+        choice->setCurrentText(value.at(index).toString());
+        tagEditor(choice, path, "choiceArray", index);
+        auto *remove = new styling::ToolButton(row);
+        remove->setIcon(styling::icon(styling::Icon::Trash, "#A17F7F"));
+        remove->setToolTip("Remove anchor");
+        rowLayout->addWidget(label);
+        rowLayout->addWidget(choice, 1);
+        rowLayout->addWidget(remove);
+        layout->addWidget(row);
+
+        QObject::connect(
+            choice, &QComboBox::currentTextChanged, field,
+            [choice, value, index, changed, path](const QString &) {
+                QJsonArray result = value;
+                result.replace(index, choice->currentText());
+                changed(path, result);
+            });
+        QObject::connect(remove, &QToolButton::clicked, field,
+                         [value, index, changed, path] {
+                             QJsonArray result = value;
+                             result.removeAt(index);
+                             changed(path, result);
+                         });
+    }
+
+    QObject::connect(add, &QToolButton::clicked, field,
+                     [value, choices, changed, path] {
+                         QJsonArray result = value;
+                         result.append(choices.value(0));
+                         changed(path, result);
+                     });
+    return field;
+}
+
 void addPropertyRows(QVBoxLayout *layout, const QJsonObject &properties,
                      const QString &path, const PropertyChanged &changed,
                      const SyncProvider &syncProvider, QWidget *parent);
@@ -1031,6 +1123,10 @@ QWidget *primitiveField(const QString &name, const QString &path,
     }
     if (value.isArray()) {
         const QJsonArray array = value.toArray();
+        if (name.compare("anchors", Qt::CaseInsensitive) == 0) {
+            return enumArrayField(array, anchorChoices(), changed, path,
+                                  parent);
+        }
         if (isColorProperty(name, array)) {
             return colorField(array, changed, path, parent);
         }
@@ -1992,6 +2088,7 @@ void InspectorPanel::showObject(const QJsonObject &object) {
     const QList<QPair<QString, QString>> componentTypes{
         {"Rigidbody", "rigidbody"},
         {"Softbody", "softbody"},
+        {"Cloth", "cloth"},
         {"Subdivision", "subdivision"},
         {"Audio Player", "audio_player"},
         {"Fixed Joint", "fixed_joint"},
