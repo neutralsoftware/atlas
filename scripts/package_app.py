@@ -273,6 +273,9 @@ def main():
     architectures = os.environ.get("ATLAS_MACOS_ARCHITECTURES", platform.machine())
     architecture_tag = "universal" if ";" in architectures else architectures
     deployment_target = os.environ.get("ATLAS_MACOS_DEPLOYMENT_TARGET", "14.0")
+    xcrun = require("xcrun", "/usr/bin/xcrun")
+    c_compiler = run([xcrun, "--find", "clang"], capture=True).stdout.strip()
+    cxx_compiler = run([xcrun, "--find", "clang++"], capture=True).stdout.strip()
     build_number = os.environ.get(
         "ATLAS_BUILD_NUMBER", datetime.now(timezone.utc).strftime("%Y%m%d%H%M%S")
     )
@@ -300,6 +303,12 @@ def main():
 
     built_app = build_directory / "bin" / built_app_name
     packaged_app = dist_directory / packaged_app_name
+    cache = build_directory / "CMakeCache.txt"
+    cmake_files = build_directory / "CMakeFiles"
+    if cache.exists():
+        cache.unlink()
+    if cmake_files.exists():
+        shutil.rmtree(cmake_files)
     assets_directory.mkdir(parents=True, exist_ok=True)
     dist_directory.mkdir(parents=True, exist_ok=True)
     icon_source = (
@@ -328,6 +337,8 @@ def main():
             "-DBACKEND=METAL",
             f"-DCMAKE_OSX_ARCHITECTURES={architectures}",
             f"-DCMAKE_OSX_DEPLOYMENT_TARGET={deployment_target}",
+            f"-DCMAKE_C_COMPILER={c_compiler}",
+            f"-DCMAKE_CXX_COMPILER={cxx_compiler}",
             f"-DATLAS_APP_ICON={icon}",
             "-DCMAKE_CXX_FLAGS=-Wno-error=function-effects",
         ]

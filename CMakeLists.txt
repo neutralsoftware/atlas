@@ -239,24 +239,11 @@ endif ()
 # fTetWild
 set(FTETWILD_BUILD_TESTS OFF CACHE BOOL "" FORCE)
 
-if(UNIX AND NOT APPLE)
-    if(CMAKE_SYSTEM_PROCESSOR MATCHES "^(aarch64|arm64|ARM64)$")
-        set(
-            VORPALINE_PLATFORM
-            "Linux64-gcc-aarch64"
-            CACHE STRING
-            "Geogram platform"
-            FORCE
-        )
-    elseif(CMAKE_SYSTEM_PROCESSOR MATCHES "^(x86_64|amd64|AMD64)$")
-        set(
-            VORPALINE_PLATFORM
-            "Linux64-gcc"
-            CACHE STRING
-            "Geogram platform"
-            FORCE
-        )
-    endif()
+if(UNIX AND NOT APPLE AND CMAKE_SYSTEM_PROCESSOR MATCHES "^(aarch64|arm64|ARM64)$")
+    set(
+        CMAKE_PROJECT_Geogram_INCLUDE
+        "${CMAKE_CURRENT_SOURCE_DIR}/cmake/GeogramPlatform.cmake"
+    )
 endif()
 
 add_subdirectory(
@@ -264,60 +251,44 @@ add_subdirectory(
     ${CMAKE_CURRENT_BINARY_DIR}/extern/fTetWild
 )
 
-if(UNIX AND NOT APPLE AND CMAKE_SYSTEM_PROCESSOR MATCHES "^(aarch64|arm64|ARM64)$")
-    foreach(target geogram geogram_third_party)
-        if(TARGET ${target})
-            get_target_property(_opts ${target} COMPILE_OPTIONS)
+set(GEOGRAM_MEMORY_HEADER
+    "${CMAKE_BINARY_DIR}/_deps/geogram-src/src/lib/geogram/basic/memory.h"
+)
 
-            if(_opts)
-                list(FILTER _opts EXCLUDE REGEX "^-m64$")
-                set_target_properties(
-                    ${target}
-                    PROPERTIES COMPILE_OPTIONS "${_opts}"
-                )
-            endif()
+if(EXISTS "${GEOGRAM_MEMORY_HEADER}")
+    file(READ "${GEOGRAM_MEMORY_HEADER}" GEOGRAM_MEMORY_CONTENT)
 
-            get_target_property(_flags ${target} COMPILE_FLAGS)
-
-            if(_flags)
-                string(REPLACE "-m64" "" _flags "${_flags}")
-                set_target_properties(
-                    ${target}
-                    PROPERTIES COMPILE_FLAGS "${_flags}"
-                )
-            endif()
-        endif()
-    endforeach()
-
-    message(STATUS "Removed Geogram -m64 flags for ARM64")
+    if(NOT GEOGRAM_MEMORY_CONTENT MATCHES "#include <new>")
+        string(
+            REPLACE
+            "#include <vector>"
+            "#include <new>\n#include <vector>"
+            GEOGRAM_MEMORY_CONTENT
+            "${GEOGRAM_MEMORY_CONTENT}"
+        )
+        file(WRITE "${GEOGRAM_MEMORY_HEADER}" "${GEOGRAM_MEMORY_CONTENT}")
+        message(STATUS "Patched Geogram memory header")
+    endif()
 endif()
 
-if(UNIX AND NOT APPLE AND CMAKE_SYSTEM_PROCESSOR MATCHES "^(aarch64|arm64|ARM64)$")
-    foreach(target geogram geogram_third_party)
-        if(TARGET ${target})
-            get_target_property(_opts ${target} COMPILE_OPTIONS)
+set(GEOGRAM_XATLAS_SOURCE
+    "${CMAKE_BINARY_DIR}/_deps/geogram-src/src/lib/geogram/third_party/xatlas/xatlas.cpp"
+)
 
-            if(_opts)
-                list(FILTER _opts EXCLUDE REGEX "^-m64$")
-                set_target_properties(
-                    ${target}
-                    PROPERTIES COMPILE_OPTIONS "${_opts}"
-                )
-            endif()
+if(EXISTS "${GEOGRAM_XATLAS_SOURCE}")
+    file(READ "${GEOGRAM_XATLAS_SOURCE}" GEOGRAM_XATLAS_CONTENT)
 
-            get_target_property(_flags ${target} COMPILE_FLAGS)
-
-            if(_flags)
-                string(REPLACE "-m64" "" _flags "${_flags}")
-                set_target_properties(
-                    ${target}
-                    PROPERTIES COMPILE_FLAGS "${_flags}"
-                )
-            endif()
-        endif()
-    endforeach()
-
-    message(STATUS "Removed Geogram -m64 flags for ARM64")
+    if(NOT GEOGRAM_XATLAS_CONTENT MATCHES "#include <stdlib.h>")
+        string(
+            REPLACE
+            "#include <stdint.h>"
+            "#include <stdint.h>\n#include <stdlib.h>"
+            GEOGRAM_XATLAS_CONTENT
+            "${GEOGRAM_XATLAS_CONTENT}"
+        )
+        file(WRITE "${GEOGRAM_XATLAS_SOURCE}" "${GEOGRAM_XATLAS_CONTENT}")
+        message(STATUS "Patched Geogram xatlas source")
+    endif()
 endif()
 
 if(MSVC)
@@ -339,8 +310,8 @@ if(MSVC)
 
             string(
                 REPLACE
-                "stdext::hash_map"
-                "std::unordered_map"
+                "using stdext::hash_map;"
+                "template<class... Args> using hash_map = std::unordered_map<Args...>;"
                 GEOGRAM_HASH_CONTENT
                 "${GEOGRAM_HASH_CONTENT}"
             )
