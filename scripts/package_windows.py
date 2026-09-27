@@ -87,6 +87,15 @@ def main():
     deploy.extend(["--compiler-runtime", "--no-translations"])
     run(deploy)
 
+    conda_root = os.environ.get("CONDA")
+
+    if conda_root:
+        conda_bin = Path(conda_root) / "Library" / "bin"
+
+        for pattern in ("*gmp*.dll", "*mpir*.dll"):
+            for dll in conda_bin.glob(pattern):
+                shutil.copy2(dll, package_directory / dll.name)
+
     icon = package_directory / "atlas-star.ico"
     run([
         require("magick"), root / "editor" / "assets" / "atlasStarBright.svg",

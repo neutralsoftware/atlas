@@ -32,11 +32,24 @@ jobs:
               run: |
                   choco install ninja imagemagick vulkan-sdk --no-progress -y
                   npm install --global rcedit
+
+                  & "$env:CONDA\Scripts\conda.exe" install -y -c conda-forge gmp
+
+                  "GMP_INC=$env:CONDA\Library\include" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
+                  "GMP_LIB=$env:CONDA\Library\lib" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
+                  "$env:CONDA\Library\bin" | Out-File -FilePath $env:GITHUB_PATH -Encoding utf8 -Append
+
                   $archive = Join-Path $env:RUNNER_TEMP "slang.zip"
                   $directory = Join-Path $env:RUNNER_TEMP "slang"
-                  Invoke-WebRequest "https://github.com/shader-slang/slang/releases/download/v${env:SLANG_VERSION}/slang-${env:SLANG_VERSION}-windows-x86_64.zip" -OutFile $archive
+
+                  Invoke-WebRequest `
+                    "https://github.com/shader-slang/slang/releases/download/v${env:SLANG_VERSION}/slang-${env:SLANG_VERSION}-windows-x86_64.zip" `
+                    -OutFile $archive
+
                   Expand-Archive $archive -DestinationPath $directory
-                  (Join-Path $directory "bin") | Out-File -FilePath $env:GITHUB_PATH -Encoding utf8 -Append
+
+                  (Join-Path $directory "bin") |
+                    Out-File -FilePath $env:GITHUB_PATH -Encoding utf8 -Append
             - name: Package
               shell: pwsh
               run: python scripts/package_windows.py --release
@@ -69,15 +82,52 @@ jobs:
             - name: Install dependencies
               run: |
                   sudo apt-get update
-                  sudo apt-get install -y cmake ninja-build qt6-base-dev libvulkan-dev patchelf libgl1-mesa-dev libxkbcommon-x11-0 libxcb-cursor0
-                  curl --fail --location "https://github.com/shader-slang/slang/releases/download/v${SLANG_VERSION}/${{ matrix.slang_archive }}" -o "$RUNNER_TEMP/slang.tar.gz"
+                  sudo apt-get install -y \
+                  build-essential \
+                  pkg-config \
+                  cmake \
+                  ninja-build \
+                  qt6-base-dev \
+                  libvulkan-dev \
+                  libspirv-cross-c-shared-dev \
+                  libgmp-dev \
+                  patchelf \
+                  libx11-dev \
+                  libxext-dev \
+                  libxrandr-dev \
+                  libxcursor-dev \
+                  libxfixes-dev \
+                  libxi-dev \
+                  libxss-dev \
+                  libwayland-dev \
+                  libxkbcommon-dev \
+                  libdrm-dev \
+                  libgbm-dev \
+                  libgl1-mesa-dev \
+                  libegl1-mesa-dev \
+                  libgles2-mesa-dev \
+                  libdbus-1-dev \
+                  libudev-dev
+
+                  curl --fail --location \
+                    "https://github.com/shader-slang/slang/releases/download/v${SLANG_VERSION}/${{ matrix.slang_archive }}" \
+                    -o "$RUNNER_TEMP/slang.tar.gz"
+
                   mkdir -p "$RUNNER_TEMP/slang"
                   tar -xzf "$RUNNER_TEMP/slang.tar.gz" -C "$RUNNER_TEMP/slang"
                   echo "$RUNNER_TEMP/slang/bin" >> "$GITHUB_PATH"
-                  curl --fail --location "https://github.com/linuxdeploy/linuxdeploy/releases/download/continuous/linuxdeploy-${{ matrix.linuxdeploy_arch }}.AppImage" -o "$RUNNER_TEMP/linuxdeploy"
-                  curl --fail --location "https://github.com/linuxdeploy/linuxdeploy-plugin-qt/releases/download/continuous/linuxdeploy-plugin-qt-${{ matrix.linuxdeploy_arch }}.AppImage" -o "$RUNNER_TEMP/linuxdeploy-plugin-qt-${{ matrix.linuxdeploy_arch }}.AppImage"
+
+                  curl --fail --location \
+                    "https://github.com/linuxdeploy/linuxdeploy/releases/download/continuous/linuxdeploy-${{ matrix.linuxdeploy_arch }}.AppImage" \
+                    -o "$RUNNER_TEMP/linuxdeploy"
+
+                  curl --fail --location \
+                    "https://github.com/linuxdeploy/linuxdeploy-plugin-qt/releases/download/continuous/linuxdeploy-plugin-qt-${{ matrix.linuxdeploy_arch }}.AppImage" \
+                    -o "$RUNNER_TEMP/linuxdeploy-plugin-qt-${{ matrix.linuxdeploy_arch }}.AppImage"
+
                   chmod +x "$RUNNER_TEMP/linuxdeploy"
                   chmod +x "$RUNNER_TEMP/linuxdeploy-plugin-qt-${{ matrix.linuxdeploy_arch }}.AppImage"
+
                   echo "$RUNNER_TEMP" >> "$GITHUB_PATH"
                   echo "ATLAS_LINUXDEPLOY=$RUNNER_TEMP/linuxdeploy" >> "$GITHUB_ENV"
                   echo "APPIMAGE_EXTRACT_AND_RUN=1" >> "$GITHUB_ENV"
@@ -91,7 +141,7 @@ jobs:
 
     macos:
         name: macOS Apple Silicon
-        runs-on: macos-15
+        runs-on: macos-26
         steps:
             - uses: actions/checkout@v5
               with:
@@ -99,7 +149,7 @@ jobs:
             - uses: actions-rust-lang/setup-rust-toolchain@v1
             - name: Install dependencies
               run: |
-                  brew install cmake ninja qt@6 spirv-cross
+                  brew install cmake ninja qt@6 spirv-cross gmp
                   curl --fail --location "https://github.com/shader-slang/slang/releases/download/v${SLANG_VERSION}/slang-${SLANG_VERSION}-macos-aarch64.tar.gz" -o "$RUNNER_TEMP/slang.tar.gz"
                   mkdir -p "$RUNNER_TEMP/slang"
                   tar -xzf "$RUNNER_TEMP/slang.tar.gz" -C "$RUNNER_TEMP/slang"
