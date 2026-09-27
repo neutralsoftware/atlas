@@ -51,6 +51,9 @@
 
 using MotionType = bezel::MotionType;
 
+using AnchorPoint = bezel::AnchorPoint;
+using ClothBendType = bezel::ClothBendType;
+
 /**
  * @brief Single hit returned by a raycast query.
  */
@@ -565,6 +568,84 @@ class Softbody : public Component {
     bool isCreated() const;
 
     bool createdSoftbody = false;
+};
+
+class Cloth : public Component {
+  public:
+    std::shared_ptr<bezel::Cloth> body;
+
+    float mass = 1.0f;
+
+    float stretchCompliance = 0.0f;
+    float shearCompliance = 0.0f;
+    float bendCompliance = 0.001f;
+
+    float damping = 0.05f;
+    float friction = 0.2f;
+    float restitution = 0.0f;
+
+    float gravityFactor = 1.0f;
+
+    uint32_t solverIterations = 8;
+
+    bool allowSleeping = true;
+    bool doubleSided = true;
+
+    float vertexRadius = 0.0f;
+
+    ClothBendType bendType = ClothBendType::Dihedral;
+
+    std::vector<AnchorPoint> anchors;
+
+    Cloth() = default;
+    ~Cloth() override;
+
+    void atAttach() override;
+    void init() override;
+    void beforePhysics() override;
+    void update(float dt) override;
+
+    std::shared_ptr<Component> clone() const override;
+
+    void setMass(float value);
+
+    void setStretchCompliance(float value);
+    void setShearCompliance(float value);
+    void setBendCompliance(float value);
+
+    void setDamping(float value);
+    void setFriction(float value);
+    void setRestitution(float value);
+
+    void setGravityFactor(float value);
+
+    void setSolverIterations(uint32_t value);
+
+    void setAllowSleeping(bool value);
+    void setDoubleSided(bool value);
+
+    void setVertexRadius(float value);
+
+    void setBendType(ClothBendType value);
+
+    void addAnchor(AnchorPoint anchor);
+
+    void setAnchors(const std::vector<AnchorPoint> &anchors);
+
+    void removeAnchor(AnchorPoint anchor);
+    void clearAnchors();
+
+    void pinVertex(uint32_t index);
+    void unpinVertex(uint32_t index);
+
+    bool isCreated() const;
+
+  private:
+    bool createdCloth = false;
+    bool recreateRequested = false;
+
+    void requestRecreate();
+    void recreate();
 };
 
 #endif // ATLAS_PHYSICS_H
