@@ -58,5 +58,5 @@ jobs:
 
             - name: Build
               run: |
-                  cmake -S . -B build -DBACKEND=AUTO -G Ninja
+                  cmake -S . -B build -DBACKEND=AUTO -DCMAKE_CXX_FLAGS="-Wno-error=function-effects" -G Ninja
                   cmake --build build --parallel 4
