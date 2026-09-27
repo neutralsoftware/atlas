@@ -264,6 +264,62 @@ add_subdirectory(
     ${CMAKE_CURRENT_BINARY_DIR}/extern/fTetWild
 )
 
+if(UNIX AND NOT APPLE AND CMAKE_SYSTEM_PROCESSOR MATCHES "^(aarch64|arm64|ARM64)$")
+    foreach(target geogram geogram_third_party)
+        if(TARGET ${target})
+            get_target_property(_opts ${target} COMPILE_OPTIONS)
+
+            if(_opts)
+                list(FILTER _opts EXCLUDE REGEX "^-m64$")
+                set_target_properties(
+                    ${target}
+                    PROPERTIES COMPILE_OPTIONS "${_opts}"
+                )
+            endif()
+
+            get_target_property(_flags ${target} COMPILE_FLAGS)
+
+            if(_flags)
+                string(REPLACE "-m64" "" _flags "${_flags}")
+                set_target_properties(
+                    ${target}
+                    PROPERTIES COMPILE_FLAGS "${_flags}"
+                )
+            endif()
+        endif()
+    endforeach()
+
+    message(STATUS "Removed Geogram -m64 flags for ARM64")
+endif()
+
+if(UNIX AND NOT APPLE AND CMAKE_SYSTEM_PROCESSOR MATCHES "^(aarch64|arm64|ARM64)$")
+    foreach(target geogram geogram_third_party)
+        if(TARGET ${target})
+            get_target_property(_opts ${target} COMPILE_OPTIONS)
+
+            if(_opts)
+                list(FILTER _opts EXCLUDE REGEX "^-m64$")
+                set_target_properties(
+                    ${target}
+                    PROPERTIES COMPILE_OPTIONS "${_opts}"
+                )
+            endif()
+
+            get_target_property(_flags ${target} COMPILE_FLAGS)
+
+            if(_flags)
+                string(REPLACE "-m64" "" _flags "${_flags}")
+                set_target_properties(
+                    ${target}
+                    PROPERTIES COMPILE_FLAGS "${_flags}"
+                )
+            endif()
+        endif()
+    endforeach()
+
+    message(STATUS "Removed Geogram -m64 flags for ARM64")
+endif()
+
 if(MSVC)
     set(GEOGRAM_POISSON_HASH
         "${CMAKE_BINARY_DIR}/_deps/geogram-src/src/lib/geogram/third_party/PoissonRecon/Hash.h"
