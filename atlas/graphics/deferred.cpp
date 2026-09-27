@@ -1168,13 +1168,15 @@ void Window::deferredRendering(
         ssrPipeline->setUniform3f("cameraPosition", camera->position.x,
                                   camera->position.y, camera->position.z);
         static constexpr float maxDistances[] = {20.0f, 32.0f, 48.0f};
-        static constexpr int stepCounts[] = {16, 28, 44};
+        static constexpr int stepCounts[] = {12, 20, 32};
+        static constexpr int binaryStepCounts[] = {3, 4, 5};
         static constexpr float thicknesses[] = {1.5f, 1.0f, 0.65f};
         static constexpr float roughnessLimits[] = {0.3f, 0.45f, 0.6f};
         const int quality = std::clamp(this->ssrQuality, 0, 2);
         ssrPipeline->setUniform1f("maxDistance", maxDistances[quality]);
         ssrPipeline->setUniform1f("resolution", ssrScales[quality]);
         ssrPipeline->setUniform1i("steps", stepCounts[quality]);
+        ssrPipeline->setUniform1i("binarySteps", binaryStepCounts[quality]);
         ssrPipeline->setUniform1f("thickness", thicknesses[quality]);
         ssrPipeline->setUniform1f("maxRoughness", roughnessLimits[quality]);
         float viewDelta = 0.0f;

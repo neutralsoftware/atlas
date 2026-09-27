@@ -13,6 +13,7 @@ struct SSRParameters
     float maxDistance;
     float resolution;
     int steps;
+    int binarySteps;
     float thickness;
     float maxRoughness;
     float historyWeight;
@@ -37,6 +38,14 @@ struct FragmentInput
 float3 fresnelSchlick(float  cosTheta, float3  F0)
 {
     return F0 + ((float3(1.0) - F0) * powr(1.0 - cosTheta, 5.0));
+}
+
+float3 reconstructViewPosition(float2 uv, float depth,
+                               row_major float4x4 inverseProjection)
+{
+    float4 clip = float4(uv * 2.0 - 1.0, depth * 2.0 - 1.0, 1.0);
+    float4 position = mul(clip, inverseProjection);
+    return position.xyz / max(abs(position.w), 0.000001);
 }
 
 float3 sampleSkyReflection(float3  normal, float3  viewDir, float3  albedo, float  metallic, SamplerCube skybox)
@@ -115,7 +124,7 @@ float3 sampleScreenTransmission(float2 uv, float3 normal, float3 viewDir,
     return transmitted * absorption * volumeTransmission;
 }
 
-float4 SSR(float3  worldPos, float3  normal, float3  viewDir, float  roughness, float  metallic, float  reflectivity, float3  albedo, Uniforms  uniforms, SSRParameters  sSRParameters, inout float4  gl_FragCoord, Sampler2D gPosition, Sampler2D sceneColor, Sampler2D gNormal, Sampler2D gDepth, SamplerCube skybox)
+float4 SSR(float3  worldPos, float3  normal, float3  viewDir, float  roughness, float  metallic, float  reflectivity, float3  albedo, Uniforms  uniforms, SSRParameters  sSRParameters, inout float4  gl_FragCoord, Sampler2D sceneColor, Sampler2D gNormal, Sampler2D gDepth, SamplerCube skybox)
 {
     float3 viewPos = (mul(float4(worldPos, 1.0), uniforms.view)).xyz;
     float3 viewNormal = normalize((mul(float4(normal, 0.0), uniforms.view)).xyz);
@@ -199,27 +208,15 @@ float4 SSR(float3  worldPos, float3  normal, float3  viewDir, float  roughness, 
             lastPos = currentPos;
             continue;
         }
-        float3 sampleWorldPos = gPosition.Sample(screenUV).xyz;
-        float3 sampleNormal = gNormal.Sample(screenUV).xyz;
-        if (dot(sampleNormal, sampleNormal) < 0.00999999978)
+        float3 sampleViewPos = reconstructViewPosition(
+            screenUV, rawDepth, uniforms.inverseProjection);
+        if (length(sampleViewPos - viewPos) < 0.0799999982)
         {
             lastPos = currentPos;
             continue;
         }
-        if (length(sampleWorldPos - worldPos) < 0.0799999982)
-        {
-            lastPos = currentPos;
-            continue;
-        }
-        float3 sampleViewPos = (mul(float4(sampleWorldPos, 1.0), uniforms.view)).xyz;
         float sampleDepth = -sampleViewPos.z;
         float currentDepth = -currentPos.z;
-        float3 sampleViewNormal = normalize((mul(float4(sampleNormal, 0.0), uniforms.view)).xyz);
-        if ((dot(sampleViewNormal, viewNormal) > 0.920000017) && (abs(sampleDepth - currentDepth) < (sSRParameters.thickness * 1.5)))
-        {
-            lastPos = currentPos;
-            continue;
-        }
         float depthDiff = sampleDepth - currentDepth;
         bool _265 = depthDiff > 0.0;
         bool _272;
@@ -235,7 +232,7 @@ float4 SSR(float3  worldPos, float3  normal, float3  viewDir, float  roughness, 
         {
             float3 binarySearchStart = lastPos;
             float3 binarySearchEnd = currentPos;
-            for (int j = 0; j < 8; j++)
+            for (int j = 0; j < sSRParameters.binarySteps; j++)
             {
                 float3 midPoint = (binarySearchStart + binarySearchEnd) * 0.5;
                 float4 midProj = mul(float4(midPoint, 1.0), uniforms.projection);
@@ -284,8 +281,8 @@ float4 SSR(float3  worldPos, float3  normal, float3  viewDir, float  roughness, 
                     binarySearchStart = midPoint;
                     continue;
                 }
-                float3 midSampleWorldPos = gPosition.Sample(midUV).xyz;
-                float3 midSampleViewPos = (mul(float4(midSampleWorldPos, 1.0), uniforms.view)).xyz;
+                float3 midSampleViewPos = reconstructViewPosition(
+                    midUV, midRawDepth, uniforms.inverseProjection);
                 float midSampleDepth = -midSampleViewPos.z;
                 float midCurrentDepth = -midPoint.z;
                 if (midCurrentDepth < midSampleDepth)
@@ -366,19 +363,24 @@ float4 SSR(float3  worldPos, float3  normal, float3  viewDir, float  roughness, 
 FragmentOutput fragmentMain(FragmentInput input, float4 gl_FragCoord : SV_Position)
 {
     FragmentOutput output = {};
-    float3 worldPos = gPosition.Sample(input.TexCoord).xyz;
-    float3 normal = normalize(gNormal.Sample(input.TexCoord).xyz);
-    float3 albedo = gAlbedoSpec.Sample(input.TexCoord).xyz;
+    float3 sampledNormal = gNormal.Sample(input.TexCoord).xyz;
+    float normalLengthSquared = dot(sampledNormal, sampledNormal);
+    if (!all(isfinite(sampledNormal)) || normalLengthSquared < 0.000001)
+    {
+        output.FragColor = float4(0.0);
+        return output;
+    }
+    float3 normal = sampledNormal * rsqrt(normalLengthSquared);
     float4 material = gMaterial.Sample(input.TexCoord);
     float metallic = material.x;
     float roughness = material.y;
     float reflectivity = material.w;
-    float4 optical = gOptical.Sample(input.TexCoord);
-    float transmission = clamp(optical.x, 0.0, 1.0);
-    if (length(normal) < 0.00100000005)
+    float4 optical = float4(0.0, 1.5, 0.0, 1.0);
+    float transmission = 0.0;
+    if (sSRParameters.transmissionEnabled != 0)
     {
-        output.FragColor = float4(0.0);
-        return output;
+        optical = gOptical.Sample(input.TexCoord);
+        transmission = clamp(optical.x, 0.0, 1.0);
     }
     bool needsReflection = sSRParameters.reflectionsEnabled != 0 &&
                            roughness <= sSRParameters.maxRoughness &&
@@ -390,7 +392,11 @@ FragmentOutput fragmentMain(FragmentInput input, float4 gl_FragCoord : SV_Positi
         output.FragColor = float4(0.0);
         return output;
     }
+    float3 worldPos = gPosition.Sample(input.TexCoord).xyz;
     float3 viewDir = normalize(uniforms.cameraPosition - worldPos);
+    float3 albedo = needsReflection
+                        ? gAlbedoSpec.Sample(input.TexCoord).xyz
+                        : float3(1.0);
     float3 param = worldPos;
     float3 param_1 = normal;
     float3 param_2 = viewDir;
@@ -400,7 +406,7 @@ FragmentOutput fragmentMain(FragmentInput input, float4 gl_FragCoord : SV_Positi
     float3 param_6 = albedo;
     float4 reflection = needsReflection
         ? SSR(param, param_1, param_2, param_3, param_4, param_5, param_6,
-              uniforms, sSRParameters, gl_FragCoord, gPosition, sceneColor,
+              uniforms, sSRParameters, gl_FragCoord, sceneColor,
               gNormal, gDepth, skybox)
         : float4(0.0);
     if (needsTransmission)
