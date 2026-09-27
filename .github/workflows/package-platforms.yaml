@@ -34,17 +34,34 @@ jobs:
                   $vulkanSdk = Get-ChildItem -Path "C:\VulkanSDK" -Directory |
                     Sort-Object Name -Descending |
                     Select-Object -First 1
+
                   if (-not $vulkanSdk) {
                     throw "Vulkan SDK installation directory was not found"
                   }
-                  "VULKAN_SDK=$($vulkanSdk.FullName)" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
-                  "$($vulkanSdk.FullName)\Bin" | Out-File -FilePath $env:GITHUB_PATH -Encoding utf8 -Append
+
+                  "VULKAN_SDK=$($vulkanSdk.FullName)" |
+                    Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
+
+                  "$($vulkanSdk.FullName)\Bin" |
+                    Out-File -FilePath $env:GITHUB_PATH -Encoding utf8 -Append
 
                   & "$env:CONDA\Scripts\conda.exe" install -y -c conda-forge gmp
 
-                  "GMP_INC=$env:CONDA\Library\include" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
-                  "GMP_LIB=$env:CONDA\Library\lib" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
-                  "$env:CONDA\Library\bin" | Out-File -FilePath $env:GITHUB_PATH -Encoding utf8 -Append
+                  "GMP_INC=$env:CONDA\Library\include" |
+                    Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
+
+                  "GMP_LIB=$env:CONDA\Library\lib" |
+                    Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
+
+                  "$env:CONDA\Library\bin" |
+                    Out-File -FilePath $env:GITHUB_PATH -Encoding utf8 -Append
+
+                  vcpkg install spirv-cross:x64-windows
+
+                  $vcpkgPrefix = Join-Path $env:VCPKG_INSTALLATION_ROOT "installed\x64-windows"
+
+                  "CMAKE_PREFIX_PATH=$vcpkgPrefix" |
+                    Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
 
                   $archive = Join-Path $env:RUNNER_TEMP "slang.zip"
                   $directory = Join-Path $env:RUNNER_TEMP "slang"
@@ -88,7 +105,6 @@ jobs:
             - uses: actions-rust-lang/setup-rust-toolchain@v1
             - name: Install dependencies
               run: |
-                  sudo apt-get update
                   sudo apt-get install -y \
                   build-essential \
                   pkg-config \
@@ -97,7 +113,6 @@ jobs:
                   qt6-base-dev \
                   qt6-base-private-dev \
                   libvulkan-dev \
-                  glslc \
                   glslang-tools \
                   libspirv-cross-c-shared-dev \
                   libgmp-dev \
@@ -118,6 +133,10 @@ jobs:
                   libgles2-mesa-dev \
                   libdbus-1-dev \
                   libudev-dev
+
+                  if apt-cache show glslc >/dev/null 2>&1; then
+                    sudo apt-get install -y glslc
+                  fi
 
                   curl --fail --location \
                     "https://github.com/shader-slang/slang/releases/download/v${SLANG_VERSION}/${{ matrix.slang_archive }}" \
