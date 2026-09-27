@@ -372,6 +372,9 @@ QJsonObject componentSchema(const QString &type) {
                 {"solverIterations", 8},
                 {"allowSleeping", true}};
     }
+    if (normalized == "subdivision") {
+        return {{"levels", 1}, {"scheme", "loop"}};
+    }
     if (normalized == "audioplayer") {
         return {{"source", ""},
                 {"useSpatialization", true},
@@ -632,8 +635,7 @@ void refreshTaggedEditors(QFrame *card, const QJsonObject &properties) {
             if (field == nullptr || !value.isArray())
                 continue;
             const QJsonArray actions = value.toArray();
-            const int index =
-                editor->property("inspectorValueIndex").toInt();
+            const int index = editor->property("inspectorValueIndex").toInt();
             const QString action = index >= 0 && index < actions.size()
                                        ? actions.at(index).toString()
                                        : QString();
@@ -676,6 +678,8 @@ void refreshTaggedEditors(QFrame *card, const QJsonObject &properties) {
 
 QStringList choicesFor(const QString &path) {
     const QString key = path.section('/', -1).toLower();
+    if (key == "scheme" && path.contains("subdivision"))
+        return {"simple", "loop"};
     if (key == "motiontype")
         return {"static", "dynamic", "kinematic"};
     if (key == "space")
@@ -1083,7 +1087,7 @@ QFrame *propertyRow(const QString &label, QWidget *editor, QWidget *parent) {
     const bool wide = editor->objectName() == "inspectorVectorField" ||
                       editor->objectName() == "inspectorColorField";
     QBoxLayout *layout = wide ? static_cast<QBoxLayout *>(new QVBoxLayout(row))
-                             : static_cast<QBoxLayout *>(new QHBoxLayout(row));
+                              : static_cast<QBoxLayout *>(new QHBoxLayout(row));
     layout->setContentsMargins(0, 5, 0, 5);
     layout->setSpacing(wide ? 7 : 12);
     auto *name = new styling::ElidedLabel(label, row);
@@ -1357,8 +1361,7 @@ QFrame *componentCard(const QString &title, const QJsonObject &properties,
 
 QFrame *controllerActionsCard(const QJsonArray &actions, bool automaticMoving,
                               const QString &projectFile,
-                              const PropertyChanged &changed,
-                              QWidget *parent) {
+                              const PropertyChanged &changed, QWidget *parent) {
     auto *card = new QFrame(parent);
     card->setObjectName("inspectorComponent");
     card->setProperty("inspectorScope", "camera:actions");
@@ -1383,10 +1386,9 @@ QFrame *controllerActionsCard(const QJsonArray &actions, bool automaticMoving,
     automatic->setCursor(Qt::PointingHandCursor);
     tagEditor(automatic, "/automaticMoving", "bool");
     bodyLayout->addWidget(automatic);
-    QObject::connect(automatic, &QCheckBox::toggled, body,
-                     [changed](bool checked) {
-                         changed("/automaticMoving", checked);
-                     });
+    QObject::connect(
+        automatic, &QCheckBox::toggled, body,
+        [changed](bool checked) { changed("/automaticMoving", checked); });
     const QStringList labels{"Movement", "Look", "Vertical"};
     QList<QToolButton *> pickers;
     for (int index = 0; index < labels.size(); ++index) {
@@ -1435,13 +1437,12 @@ QFrame *controllerActionsCard(const QJsonArray &actions, bool automaticMoving,
                 QAction *none = menu->addAction("Unassigned");
                 none->setProperty("actionChoice", true);
                 none->setProperty("searchText", "unassigned none");
-                QObject::connect(none, &QAction::triggered, picker,
-                                 [picker, commit] {
-                                     picker->setProperty("actionValue",
-                                                         QString());
-                                     picker->setText("Select Action");
-                                     commit();
-                                 });
+                QObject::connect(
+                    none, &QAction::triggered, picker, [picker, commit] {
+                        picker->setProperty("actionValue", QString());
+                        picker->setText("Select Action");
+                        commit();
+                    });
                 const QStringList names =
                     InputActionsDialog::actionNamesForProject(projectFile);
                 for (const QString &name : names) {
@@ -1465,20 +1466,19 @@ QFrame *controllerActionsCard(const QJsonArray &actions, bool automaticMoving,
                 search->clear();
                 search->setFocus();
             });
-        QObject::connect(search, &QLineEdit::textChanged, menu,
-                         [menu](const QString &text) {
-                             const QString query = text.trimmed().toLower();
-                             for (QAction *action : menu->actions()) {
-                                 if (!action->property("actionChoice").toBool() ||
-                                     !action->isEnabled())
-                                     continue;
-                                 action->setVisible(
-                                     query.isEmpty() ||
-                                     action->property("searchText")
-                                         .toString()
-                                         .contains(query));
-                             }
-                         });
+        QObject::connect(
+            search, &QLineEdit::textChanged, menu, [menu](const QString &text) {
+                const QString query = text.trimmed().toLower();
+                for (QAction *action : menu->actions()) {
+                    if (!action->property("actionChoice").toBool() ||
+                        !action->isEnabled())
+                        continue;
+                    action->setVisible(query.isEmpty() ||
+                                       action->property("searchText")
+                                           .toString()
+                                           .contains(query));
+                }
+            });
         picker->setMenu(menu);
     }
     layout->addWidget(body);
@@ -1539,9 +1539,9 @@ InspectorPanel::InspectorPanel(ViewportPanel *viewport,
     connect(qApp, &QApplication::focusChanged, this,
             [this](QWidget *previous, QWidget *current) {
                 if (rebuilding || previous == nullptr ||
-                    !isAncestorOf(previous) ||
-                    previous == current || fileTarget || cameraTarget ||
-                    environmentTarget || inspectedObjectId < 0) {
+                    !isAncestorOf(previous) || previous == current ||
+                    fileTarget || cameraTarget || environmentTarget ||
+                    inspectedObjectId < 0) {
                     return;
                 }
                 refreshObjectEditors(inspectedObject);
@@ -1618,13 +1618,11 @@ void InspectorPanel::applySceneSnapshot(const QString &snapshot) {
             else if (scope == "camera:controls")
                 refreshTaggedEditors(card, controls);
             else if (scope == "camera:actions")
-                refreshTaggedEditors(card,
-                                     QJsonObject{
-                                         {"automaticMoving",
-                                          inspectedCamera.value(
-                                              "automaticMoving")},
-                                         {"actions", inspectedCamera.value(
-                                                         "actions")}});
+                refreshTaggedEditors(
+                    card,
+                    QJsonObject{{"automaticMoving",
+                                 inspectedCamera.value("automaticMoving")},
+                                {"actions", inspectedCamera.value("actions")}});
         }
         return;
     }
@@ -1650,12 +1648,11 @@ void InspectorPanel::applySceneSnapshot(const QString &snapshot) {
                     .toObject()
                     .value("material")
                     .toString()
-                    .isEmpty() !=
-                inspectedObject.value("properties")
-                    .toObject()
-                    .value("material")
-                    .toString()
-                    .isEmpty() ||
+                    .isEmpty() != inspectedObject.value("properties")
+                                      .toObject()
+                                      .value("material")
+                                      .toString()
+                                      .isEmpty() ||
             componentShape(updated.value("components").toArray()) !=
                 componentShape(inspectedObject.value("components").toArray());
         inspectedObject = updated;
@@ -1715,8 +1712,7 @@ void InspectorPanel::refreshObjectEditors(const QJsonObject &object) {
         } else if (scope == "object") {
             refreshTaggedEditors(card, objectProperties);
         } else if (scope == "material") {
-            refreshTaggedEditors(card,
-                                 QJsonObject{{"source", materialPath}});
+            refreshTaggedEditors(card, QJsonObject{{"source", materialPath}});
         } else if (scope.startsWith("component:")) {
             bool validIndex = false;
             const int index = scope.section(':', 1, 1).toInt(&validIndex);
@@ -1724,8 +1720,8 @@ void InspectorPanel::refreshObjectEditors(const QJsonObject &object) {
                 continue;
             const QJsonObject component = components.at(index).toObject();
             refreshTaggedEditors(
-                card, componentValues(component.value("type").toString(),
-                                      component));
+                card,
+                componentValues(component.value("type").toString(), component));
         }
     }
 }
@@ -1996,6 +1992,7 @@ void InspectorPanel::showObject(const QJsonObject &object) {
     const QList<QPair<QString, QString>> componentTypes{
         {"Rigidbody", "rigidbody"},
         {"Softbody", "softbody"},
+        {"Subdivision", "subdivision"},
         {"Audio Player", "audio_player"},
         {"Fixed Joint", "fixed_joint"},
         {"Hinge Joint", "hinge_joint"},

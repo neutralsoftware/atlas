@@ -1,9 +1,17 @@
-import { AxisTrigger, InputAction, Key, MouseButton, Trigger } from "atlas/input";
+import {
+    AxisTrigger,
+    InputAction,
+    Key,
+    MouseButton,
+    Trigger,
+} from "atlas/input";
 import { Color, Position2d, Position3d } from "atlas/units";
 
 const windowConstants = globalThis.__atlasGetWindowConstants?.() ?? {};
 
-export const ControllerAxis = Object.freeze(windowConstants.ControllerAxis ?? {});
+export const ControllerAxis = Object.freeze(
+    windowConstants.ControllerAxis ?? {},
+);
 export const ControllerButton = Object.freeze(
     windowConstants.ControllerButton ?? {},
 );
@@ -13,8 +21,7 @@ export const NintendoControllerButton = Object.freeze(
 export const SonyControllerButton = Object.freeze(
     windowConstants.SonyControllerButton ?? {},
 );
-export const CONTROLLER_UNDEFINED =
-    windowConstants.CONTROLLER_UNDEFINED ?? -2;
+export const CONTROLLER_UNDEFINED = windowConstants.CONTROLLER_UNDEFINED ?? -2;
 
 function makeControllerAxisTrigger(controllerId, axis) {
     switch (axis) {
@@ -140,6 +147,19 @@ export class Component {
 
     getCamera() {
         return this.getScene()?.getCamera() ?? null;
+    }
+}
+
+export const SubdivisionScheme = Object.freeze({
+    Simple: 0,
+    Loop: 1,
+});
+
+export class Subdivision extends Component {
+    constructor(levels = 1, scheme = SubdivisionScheme.Loop) {
+        super();
+        this.levels = levels;
+        this.scheme = scheme;
     }
 }
 
@@ -817,7 +837,10 @@ export class Window {
     }
 
     getControllerAxisValue(controllerID, axisIndex) {
-        return globalThis.__atlasGetControllerAxisValue(controllerID, axisIndex);
+        return globalThis.__atlasGetControllerAxisValue(
+            controllerID,
+            axisIndex,
+        );
     }
 
     getControllerAxisPairValue(controllerID, axisIndexX, axisIndexY) {

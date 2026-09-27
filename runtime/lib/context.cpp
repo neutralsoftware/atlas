@@ -1162,11 +1162,11 @@ loadEnvironmentDefinition(const json &sceneData, const std::string &baseDir) {
         }
     }
 
-    const bool shouldEnableAtmosphere =
-        explicitAtmosphereEnabled
-            ? atmosphereEnabled
-            : loaded.useAtmosphereSkybox || loaded.useGlobalLight ||
-                  hasAtmosphereConfiguration;
+    const bool shouldEnableAtmosphere = explicitAtmosphereEnabled
+                                            ? atmosphereEnabled
+                                            : loaded.useAtmosphereSkybox ||
+                                                  loaded.useGlobalLight ||
+                                                  hasAtmosphereConfiguration;
 
     if (shouldEnableAtmosphere) {
         loaded.atmosphere.enable();
@@ -1627,7 +1627,8 @@ bool isEditorLightObject(const Context &context, GameObject &object) {
 }
 
 void updateEditorAreaLightProxy(AreaLight &light) {
-    if (light.debugObject == nullptr || light.debugObject->vertices.size() < 4) {
+    if (light.debugObject == nullptr ||
+        light.debugObject->vertices.size() < 4) {
         return;
     }
     const auto proxyScale = light.debugObject->getScale();
@@ -1635,8 +1636,8 @@ void updateEditorAreaLightProxy(AreaLight &light) {
     const float scaleY = std::max(std::abs(proxyScale.y), 0.001f);
     const float halfWidth =
         std::max(static_cast<float>(light.size.width) / scaleX * 0.5f, 0.001f);
-    const float halfHeight = std::max(
-        static_cast<float>(light.size.height) / scaleY * 0.5f, 0.001f);
+    const float halfHeight =
+        std::max(static_cast<float>(light.size.height) / scaleY * 0.5f, 0.001f);
     auto vertices = light.debugObject->vertices;
     vertices[0].position = {-halfWidth, -halfHeight, 0.0f};
     vertices[1].position = {halfWidth, -halfHeight, 0.0f};
@@ -3054,6 +3055,31 @@ std::shared_ptr<Component> attachComponent(Context &context,
         return finish(softbody);
     }
 
+    if (token == "subdivision") {
+        auto subdivision = std::make_shared<Subdivision>();
+        pending.object->addComponent(subdivision);
+
+        int levels = 1;
+        tryReadIntAny(pending.data, {"levels"}, levels);
+        subdivision->levels = static_cast<unsigned int>(std::max(0, levels));
+
+        std::string scheme;
+        if (tryReadStringAny(pending.data, {"scheme"}, scheme)) {
+            subdivision->scheme = normalizeToken(scheme) == "simple"
+                                      ? SubdivisionScheme::Simple
+                                      : SubdivisionScheme::Loop;
+        } else {
+            int schemeValue = 1;
+            if (tryReadIntAny(pending.data, {"scheme"}, schemeValue)) {
+                subdivision->scheme = schemeValue == 0
+                                          ? SubdivisionScheme::Simple
+                                          : SubdivisionScheme::Loop;
+            }
+        }
+
+        return finish(subdivision);
+    }
+
     if (token == "audioplayer") {
         auto component = std::make_shared<AudioPlayer>();
         pending.object->addComponent(component);
@@ -3382,6 +3408,29 @@ bool updateAttachedComponent(Context &context, GameObject &object,
         if (softbody->body != nullptr) {
             softbody->body->sensorSignal = softbody->sendSignal;
         }
+        return true;
+    }
+
+    if (auto subdivision = std::dynamic_pointer_cast<Subdivision>(component);
+        subdivision != nullptr) {
+        int levels = 1;
+        tryReadIntAny(data, {"levels"}, levels);
+        subdivision->levels = static_cast<unsigned int>(std::max(0, levels));
+
+        std::string scheme;
+        if (tryReadStringAny(data, {"scheme"}, scheme)) {
+            subdivision->scheme = normalizeToken(scheme) == "simple"
+                                      ? SubdivisionScheme::Simple
+                                      : SubdivisionScheme::Loop;
+        } else {
+            int schemeValue = 1;
+            if (tryReadIntAny(data, {"scheme"}, schemeValue)) {
+                subdivision->scheme = schemeValue == 0
+                                          ? SubdivisionScheme::Simple
+                                          : SubdivisionScheme::Loop;
+            }
+        }
+        subdivision->subdivide();
         return true;
     }
 
@@ -5689,8 +5738,7 @@ bool Context::setSceneProperty(const std::string &section, int index,
             scene->setAtmosphereGlobalLightEnabled(
                 environmentDefinition.useGlobalLight &&
                 scene->atmosphere.isEnabled());
-            scene->setAutomaticAmbient(
-                environmentDefinition.automaticAmbient);
+            scene->setAutomaticAmbient(environmentDefinition.automaticAmbient);
             if (environmentDefinition.useGlobalLight &&
                 scene->atmosphere.isEnabled()) {
                 scene->atmosphere.useGlobalLight();
@@ -5807,9 +5855,10 @@ bool Context::breakDownModel(int id) {
     json serializedParts = json::array();
     for (std::size_t index = 0; index < parts.size(); ++index) {
         auto &part = parts[index];
-        json partData = index < savedParts.size() && savedParts[index].is_object()
-                            ? savedParts[index]
-                            : json::object();
+        json partData =
+            index < savedParts.size() && savedParts[index].is_object()
+                ? savedParts[index]
+                : json::object();
         if (partData.value("removed", false)) {
             serializedParts.push_back(partData);
             continue;
@@ -5818,8 +5867,8 @@ bool Context::breakDownModel(int id) {
         std::string baseName = part->name.empty()
                                    ? "Part " + std::to_string(index + 1)
                                    : part->name;
-        std::string name = partData.value(
-            "name", uniqueEditorObjectName(*this, baseName));
+        std::string name =
+            partData.value("name", uniqueEditorObjectName(*this, baseName));
         name = uniqueEditorObjectName(*this, name);
         partData["name"] = name;
         partData["type"] = "modelPart";
@@ -6068,9 +6117,9 @@ int Context::addObjectComponent(int id, const json &component) {
     }
     const std::string normalizedType = normalizeToken(type);
     static const std::unordered_set<std::string> supported{
-        "script",     "traitscript", "rigidbody",   "softbody",
-        "audioplayer", "joint",      "fixedjoint",  "hingejoint",
-        "springjoint", "vehicle",
+        "script",      "traitscript", "rigidbody", "softbody",
+        "subdivision", "audioplayer", "joint",     "fixedjoint",
+        "hingejoint",  "springjoint", "vehicle",
     };
     if (!supported.contains(normalizedType)) {
         return -1;
@@ -6978,9 +7027,9 @@ void Context::loadProject() {
     config.pathTracingDenoising = pathTracingDenoising;
     config.pathTracingAccumulationFrames = pathTracingAccumulationFrames;
     config.pathTracingFeatureFlags = pathTracingFeatureFlags;
-    config.realtimePBRFeatureFlags =
-        globalIllumination ? pathTracingFeatureFlags
-                          : photon::NormalRealtimePBRFeatures;
+    config.realtimePBRFeatureFlags = globalIllumination
+                                         ? pathTracingFeatureFlags
+                                         : photon::NormalRealtimePBRFeatures;
     config.screenSpaceReflections = screenSpaceReflections;
     config.screenSpaceReflectionQuality = screenSpaceReflectionQuality;
     config.screenSpaceReflectionDebug = screenSpaceReflectionDebug;
@@ -7107,12 +7156,10 @@ void Context::loadScene(Window &window, const json &sceneData) {
         loadEnvironmentDefinition(sceneData, baseDir);
     scene->setEnvironment(std::move(environmentDefinition.environment));
     scene->atmosphere = environmentDefinition.atmosphere;
-    scene->setUseAtmosphereSkybox(
-        environmentDefinition.useAtmosphereSkybox &&
-        scene->atmosphere.isEnabled());
+    scene->setUseAtmosphereSkybox(environmentDefinition.useAtmosphereSkybox &&
+                                  scene->atmosphere.isEnabled());
     scene->setAtmosphereGlobalLightEnabled(
-        environmentDefinition.useGlobalLight &&
-        scene->atmosphere.isEnabled());
+        environmentDefinition.useGlobalLight && scene->atmosphere.isEnabled());
     scene->setAutomaticAmbient(environmentDefinition.automaticAmbient);
 
     if (sceneData.contains("inputActions")) {
@@ -7460,8 +7507,7 @@ void Context::loadScene(Window &window, const json &sceneData) {
         }
     }
 
-    if (environmentDefinition.useGlobalLight &&
-        scene->atmosphere.isEnabled()) {
+    if (environmentDefinition.useGlobalLight && scene->atmosphere.isEnabled()) {
         scene->atmosphere.useGlobalLight();
         if (environmentDefinition.atmosphereCastsShadows) {
             scene->atmosphere.castShadowsFromSunlight(

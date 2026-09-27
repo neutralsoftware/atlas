@@ -19,6 +19,7 @@ The line references describe this checkout on 2026-07-19. They are deliberately 
 11. [CLI, projects, and packaging](11-cli-projects-and-packaging.md) — manifests, scene files, dynamic runtime loading, builds, and export.
 12. [Specialized systems](12-specialized-systems.md) — Graphite, Photon, Hydra, Aurora, and tracing.
 13. [Source and function index](13-source-and-function-index.md) — a practical “where does this live?” lookup table.
+14. [Adding a class](14-adding-a-class.md) — the complete TypeScript, JavaScript, runtime, scene, and Inspector procedure.
 
 ## The three most important distinctions
 

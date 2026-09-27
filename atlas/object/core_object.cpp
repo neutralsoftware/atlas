@@ -1164,12 +1164,28 @@ void Instance::scaleBy(const Scale3d &deltaScale) {
                      scale.z * deltaScale.z));
 }
 
-void Subdivision::init() { subdivide(); }
+void Subdivision::init() {
+    CoreObject *object = getObject();
+    if (object != nullptr && !hasSourceMesh) {
+        sourceVertices = object->vertices;
+        sourceIndices = object->indices;
+        hasSourceMesh = true;
+    }
+    subdivide();
+}
 
 void Subdivision::subdivide() {
     CoreObject *object = getObject();
 
-    if (!object || levels == 0)
+    if (!object)
+        return;
+
+    if (hasSourceMesh) {
+        object->vertices = sourceVertices;
+        object->indices = sourceIndices;
+    }
+
+    if (levels == 0)
         return;
 
     for (unsigned int i = 0; i < levels; ++i) {

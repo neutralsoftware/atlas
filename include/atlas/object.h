@@ -1133,6 +1133,10 @@ class Subdivision : public TraitComponent<CoreObject> {
     }
 
   private:
+    bool hasSourceMesh = false;
+    std::vector<CoreVertex> sourceVertices;
+    std::vector<Index> sourceIndices;
+
     void subdivideSimple(CoreObject *object);
     void subdivideLoop(CoreObject *object);
 };

@@ -2147,6 +2147,21 @@ declare module "atlas" {
          */
         getActionAxisValue(name: string): AxisPacket;
     }
+
+    enum SubdivisionScheme {
+        Simple,
+        Loop,
+    }
+
+    export class Subdivision extends Component {
+        levels: number;
+        scheme: SubdivisionScheme;
+
+        override init(): void;
+        override update(deltaTime: number): void;
+
+        clone(): Subdivision;
+    }
 }
 
 /**
@@ -2454,7 +2469,7 @@ declare module "atlas/graphics" {
             /**
              * The category or discriminator for this value.
              */
-            type: "Inversion"
+            type: "Inversion";
         };
         /**
          * The grayscale.
@@ -2463,7 +2478,7 @@ declare module "atlas/graphics" {
             /**
              * The category or discriminator for this value.
              */
-            type: "Grayscale"
+            type: "Grayscale";
         };
         /**
          * The sharpen.
@@ -2472,7 +2487,7 @@ declare module "atlas/graphics" {
             /**
              * The category or discriminator for this value.
              */
-            type: "Sharpen"
+            type: "Sharpen";
         };
         /**
          * The blur.
@@ -2485,7 +2500,7 @@ declare module "atlas/graphics" {
             /**
              * The magnitude.
              */
-            magnitude: number
+            magnitude: number;
         };
         /**
          * The edge detection.
@@ -2494,7 +2509,7 @@ declare module "atlas/graphics" {
             /**
              * The category or discriminator for this value.
              */
-            type: "EdgeDetection"
+            type: "EdgeDetection";
         };
         /**
          * The color correction.
@@ -2544,7 +2559,7 @@ declare module "atlas/graphics" {
             /**
              * The separation.
              */
-            separation: number
+            separation: number;
         };
         /**
          * The chromatic aberration.
@@ -2582,7 +2597,7 @@ declare module "atlas/graphics" {
             /**
              * The levels.
              */
-            levels: number
+            levels: number;
         };
         /**
          * The pixelation.
@@ -2595,7 +2610,7 @@ declare module "atlas/graphics" {
             /**
              * The pixel size.
              */
-            pixelSize: number
+            pixelSize: number;
         };
         /**
          * The dialation.
@@ -2612,7 +2627,7 @@ declare module "atlas/graphics" {
             /**
              * The separation.
              */
-            separation: number
+            separation: number;
         };
         /**
          * The dilation.
@@ -2629,7 +2644,7 @@ declare module "atlas/graphics" {
             /**
              * The separation.
              */
-            separation: number
+            separation: number;
         };
         /**
          * The film grain.
@@ -2642,7 +2657,7 @@ declare module "atlas/graphics" {
             /**
              * The amount.
              */
-            amount: number
+            amount: number;
         };
     };
 
