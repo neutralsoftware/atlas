@@ -20,6 +20,7 @@
 #include "atlas/units.h"
 #include "atlas/window.h"
 #include "atlas/workspace.h"
+#include "window_activation_scope.h"
 #include "aurora/procedural.h"
 #include "aurora/terrain.h"
 #include "atlas/runtime/atlasScripts.h"
@@ -91,28 +92,6 @@ struct JsonDefinition {
 struct MaterialDefinition {
     Material material;
     std::vector<Texture> textures;
-};
-
-class WindowActivationScope {
-  public:
-    explicit WindowActivationScope(Window &window)
-        : previousWindow(Window::mainWindow),
-          previousDevice(opal::Device::globalInstance) {
-        window.activateRenderingContext();
-    }
-
-    ~WindowActivationScope() {
-        if (previousWindow != nullptr) {
-            previousWindow->activateRenderingContext();
-            return;
-        }
-        Window::mainWindow = nullptr;
-        opal::Device::globalInstance = previousDevice;
-    }
-
-  private:
-    Window *previousWindow;
-    opal::Device *previousDevice;
 };
 
 void clearRenderTargets(
@@ -3026,6 +3005,54 @@ std::shared_ptr<Component> attachComponent(Context &context,
         return finish(rigidbody);
     }
 
+    if (token == "softbody") {
+        auto softbody = std::make_shared<Softbody>();
+        pending.object->addComponent(softbody);
+
+        tryReadStringAny(pending.data, {"sendSignal", "signal"},
+                         softbody->sendSignal);
+        tryReadBoolAny(pending.data, {"isSensor"}, softbody->isSensor);
+
+        float value = 0.0f;
+        if (tryReadFloatAny(pending.data, {"mass"}, value)) {
+            softbody->setMass(value);
+        }
+        if (tryReadFloatAny(pending.data, {"stiffness"}, value)) {
+            softbody->setStiffness(value);
+        }
+        if (tryReadFloatAny(pending.data, {"volumeStiffness"}, value)) {
+            softbody->setVolumeStiffness(value);
+        }
+        if (tryReadFloatAny(pending.data, {"damping"}, value)) {
+            softbody->setDamping(value);
+        }
+        if (tryReadFloatAny(pending.data, {"friction"}, value)) {
+            softbody->setFriction(value);
+        }
+        if (tryReadFloatAny(pending.data, {"restitution"}, value)) {
+            softbody->setRestitution(value);
+        }
+        if (tryReadFloatAny(pending.data, {"gravityFactor"}, value)) {
+            softbody->setGravityFactor(value);
+        }
+        int solverIterations = 8;
+        if (tryReadIntAny(pending.data, {"solverIterations"},
+                          solverIterations)) {
+            softbody->setSolverIterations(
+                static_cast<uint32_t>(std::max(1, solverIterations)));
+        }
+        bool allowSleeping = true;
+        if (tryReadBoolAny(pending.data, {"allowSleeping"}, allowSleeping)) {
+            softbody->setAllowSleeping(allowSleeping);
+        }
+
+        runtime::scripting::registerNativeSoftbody(
+            context.context, context.scriptHost, pending.object->getId(),
+            softbody);
+
+        return finish(softbody);
+    }
+
     if (token == "audioplayer") {
         auto component = std::make_shared<AudioPlayer>();
         pending.object->addComponent(component);
@@ -3312,6 +3339,47 @@ bool updateAttachedComponent(Context &context, GameObject &object,
                     }
                 }
             }
+        }
+        return true;
+    }
+
+    if (auto softbody = std::dynamic_pointer_cast<Softbody>(component);
+        softbody != nullptr) {
+        tryReadStringAny(data, {"sendSignal", "signal"}, softbody->sendSignal);
+        tryReadBoolAny(data, {"isSensor"}, softbody->isSensor);
+        float value = 0.0f;
+        if (tryReadFloatAny(data, {"mass"}, value)) {
+            softbody->setMass(value);
+        }
+        if (tryReadFloatAny(data, {"stiffness"}, value)) {
+            softbody->setStiffness(value);
+        }
+        if (tryReadFloatAny(data, {"volumeStiffness"}, value)) {
+            softbody->setVolumeStiffness(value);
+        }
+        if (tryReadFloatAny(data, {"damping"}, value)) {
+            softbody->setDamping(value);
+        }
+        if (tryReadFloatAny(data, {"friction"}, value)) {
+            softbody->setFriction(value);
+        }
+        if (tryReadFloatAny(data, {"restitution"}, value)) {
+            softbody->setRestitution(value);
+        }
+        if (tryReadFloatAny(data, {"gravityFactor"}, value)) {
+            softbody->setGravityFactor(value);
+        }
+        int solverIterations = 8;
+        if (tryReadIntAny(data, {"solverIterations"}, solverIterations)) {
+            softbody->setSolverIterations(
+                static_cast<uint32_t>(std::max(1, solverIterations)));
+        }
+        bool allowSleeping = true;
+        if (tryReadBoolAny(data, {"allowSleeping"}, allowSleeping)) {
+            softbody->setAllowSleeping(allowSleeping);
+        }
+        if (softbody->body != nullptr) {
+            softbody->body->sensorSignal = softbody->sendSignal;
         }
         return true;
     }
@@ -4952,234 +5020,6 @@ bool Context::stepFrame() {
     }
 }
 
-bool Context::resize(int width, int height, float scale) {
-    if (window == nullptr) {
-        throw std::runtime_error("Window is not initialized");
-    }
-    WindowActivationScope activeWindow(*window);
-    window->resize(width, height, scale);
-    if (materialPreviewRuntime && camera != nullptr) {
-        const float aspect = static_cast<float>(std::max(1, width)) /
-                             static_cast<float>(std::max(1, height));
-        const float verticalHalfFov = glm::radians(camera->fov * 0.5f);
-        const float horizontalHalfFov =
-            std::atan(std::tan(verticalHalfFov) * aspect);
-        const float limitingHalfFov = std::max(
-            glm::radians(5.0f), std::min(verticalHalfFov, horizontalHalfFov));
-        const float distance = 0.82f / std::sin(limitingHalfFov);
-        camera->setPosition({0.0f, 0.0f, distance});
-        camera->lookAt(Position3d::zero());
-    }
-    return true;
-}
-
-bool Context::setEditorControlsEnabled(bool enabled) {
-    if (window == nullptr) {
-        throw std::runtime_error("Window is not initialized");
-    }
-    window->setEditorControlsEnabled(enabled);
-    return true;
-}
-
-bool Context::setEditorSimulationEnabled(bool enabled) {
-    if (window == nullptr) {
-        throw std::runtime_error("Window is not initialized");
-    }
-    window->setEditorSimulationEnabled(enabled);
-    if (editorRuntime) {
-        window->setCamera(enabled || editorCameraFocused ||
-                                  editorViewCamera == nullptr
-                              ? camera.get()
-                              : editorViewCamera.get());
-        window->setEditorCameraFocused(enabled || editorCameraFocused);
-    }
-    return true;
-}
-
-bool Context::setEditorCameraFocused(bool focused) {
-    if (window == nullptr || !editorRuntime || camera == nullptr ||
-        editorViewCamera == nullptr) {
-        return false;
-    }
-    editorCameraFocused = focused;
-    window->setCamera(focused ? camera.get() : editorViewCamera.get());
-    window->setEditorCameraFocused(focused);
-    return true;
-}
-
-bool Context::setEditorControlMode(int mode) {
-    if (window == nullptr) {
-        throw std::runtime_error("Window is not initialized");
-    }
-    if (mode < 0 || mode > 3) {
-        return false;
-    }
-    window->setEditorControlMode(static_cast<EditorControlMode>(mode));
-    return true;
-}
-
-bool Context::setEditorShadingMode(int mode) {
-    if (window == nullptr) {
-        throw std::runtime_error("Window is not initialized");
-    }
-    if (mode < 0 || mode > 2) {
-        return false;
-    }
-    window->setEditorShadingMode(static_cast<EditorShadingMode>(mode));
-    return true;
-}
-
-bool Context::setEditorPathTracingPreview(bool enabled) {
-    editorPathTracingPreview = enabled;
-    if (window == nullptr || !editorRuntime) {
-        return false;
-    }
-#ifdef METAL
-    return window->setEditorPathTracingPreview(enabled);
-#else
-    (void)enabled;
-    return false;
-#endif
-}
-
-bool Context::configurePathTracing(int samplesPerPixel, int bounceLimit,
-                                   bool denoising, int accumulationFrames,
-                                   bool useUpscaling, float upscalingRatio,
-                                   uint32_t featureFlags) {
-    if (window == nullptr) {
-        return false;
-    }
-    config.pathTracingSamples = std::clamp(samplesPerPixel, 1, 256);
-    config.pathTracingBounces = std::clamp(bounceLimit, 1, 16);
-    config.pathTracingDenoising = denoising;
-    config.pathTracingAccumulationFrames =
-        std::clamp(accumulationFrames, 1, 2048);
-    config.pathTracingFeatureFlags = featureFlags;
-    config.realtimePBRFeatureFlags = featureFlags;
-    config.useUpscaling = useUpscaling;
-    config.upscalingRatio = std::clamp(upscalingRatio, 0.25f, 1.0f);
-    window->setRealtimePBRFeatures(config.realtimePBRFeatureFlags);
-#ifdef METAL
-    window->useMetalUpscaling(useUpscaling ? config.upscalingRatio : 1.0f);
-    window->configurePathTracing(
-        config.pathTracingSamples, config.pathTracingBounces,
-        config.pathTracingDenoising, config.pathTracingAccumulationFrames,
-        config.pathTracingFeatureFlags);
-    return true;
-#else
-    return false;
-#endif
-}
-
-std::string Context::getPathTracingError() const {
-#ifdef METAL
-    return window != nullptr ? window->getPathTracingError() : std::string();
-#else
-    return {};
-#endif
-}
-
-float Context::frameRate() const {
-    return window != nullptr ? window->getFramesPerSecond() : 0.0f;
-}
-
-bool Context::editorPointerEvent(int action, float x, float y, int button,
-                                 float scale) {
-    if (window == nullptr) {
-        throw std::runtime_error("Window is not initialized");
-    }
-    window->editorPointerEvent(action, x, y, button, scale);
-    return true;
-}
-
-bool Context::editorScrollEvent(float delta, float scale) {
-    if (window == nullptr) {
-        throw std::runtime_error("Window is not initialized");
-    }
-    window->editorScrollEvent(delta, scale);
-    return true;
-}
-
-bool Context::editorKeyEvent(int key, bool pressed) {
-    if (window == nullptr) {
-        throw std::runtime_error("Window is not initialized");
-    }
-    window->editorKeyEvent(key, pressed);
-    return true;
-}
-
-bool Context::editorRuntimeKeyEvent(int key, bool pressed) {
-    if (window == nullptr)
-        return false;
-    window->editorRuntimeKeyEvent(key, pressed);
-    return true;
-}
-
-bool Context::editorRuntimeMouseMove(float x, float y, float deltaX,
-                                     float deltaY) {
-    if (window == nullptr)
-        return false;
-    window->editorRuntimeMouseMove(x, y, deltaX, deltaY);
-    return true;
-}
-
-bool Context::editorRuntimeMouseButtonEvent(int action, int button) {
-    if (window == nullptr)
-        return false;
-    window->editorRuntimeMouseButtonEvent(action, button);
-    return true;
-}
-
-bool Context::editorRuntimeScrollEvent(float x, float y) {
-    if (window == nullptr)
-        return false;
-    window->editorRuntimeScrollEvent(x, y);
-    return true;
-}
-
-bool Context::clearEditorRuntimeInput() {
-    if (window == nullptr)
-        return false;
-    window->clearEditorRuntimeInput();
-    return true;
-}
-
-bool Context::beginEditorKeyboardTransform(int mode, float x, float y,
-                                           float scale) {
-    if (window == nullptr || mode < 1 || mode > 3)
-        return false;
-    return window->beginEditorKeyboardTransform(
-        static_cast<EditorControlMode>(mode), x, y, scale);
-}
-
-bool Context::setEditorKeyboardTransformAxes(int axes) {
-    if (window == nullptr || axes < 1 || axes > 7)
-        return false;
-    window->setEditorKeyboardTransformAxes(axes);
-    return true;
-}
-
-bool Context::finishEditorKeyboardTransform(bool commit) {
-    if (window == nullptr)
-        return false;
-    window->finishEditorKeyboardTransform(commit);
-    return true;
-}
-
-bool Context::toggleEditorTransformSpace() {
-    return window != nullptr && window->toggleEditorTransformSpace();
-}
-
-bool Context::toggleEditorTransformSnapping() {
-    return window != nullptr && window->toggleEditorTransformSnapping();
-}
-
-float Context::changeEditorTransformSnapIncrement(float factor) {
-    return window != nullptr
-               ? window->changeEditorTransformSnapIncrement(factor)
-               : 0.0f;
-}
-
 int Context::selectedObjectId() const {
     if (window == nullptr || window->getSelectedEditorObject() == nullptr) {
         return -1;
@@ -6199,8 +6039,9 @@ int Context::addObjectComponent(int id, const json &component) {
     }
     const std::string normalizedType = normalizeToken(type);
     static const std::unordered_set<std::string> supported{
-        "script",     "traitscript", "rigidbody",   "audioplayer", "joint",
-        "fixedjoint", "hingejoint",  "springjoint", "vehicle",
+        "script",     "traitscript", "rigidbody",   "softbody",
+        "audioplayer", "joint",      "fixedjoint",  "hingejoint",
+        "springjoint", "vehicle",
     };
     if (!supported.contains(normalizedType)) {
         return -1;
@@ -7115,61 +6956,6 @@ void Context::loadProject() {
 
     Workspace::get().setRootPath(projectDir);
     initializeScripting();
-}
-
-void RuntimeScene::update(Window &window) {
-    auto runtimeContext = context.lock();
-    if (runtimeContext == nullptr || runtimeContext->camera == nullptr ||
-        !runtimeContext->cameraAutomaticMoving) {
-        if (runtimeContext != nullptr && runtimeContext->context != nullptr) {
-            runtime::scripting::dispatchInteractiveFrame(
-                runtimeContext->context, runtimeContext->scriptHost, window,
-                window.getDeltaTime());
-        }
-        return;
-    }
-
-    static const std::string emptyAction;
-    const auto actionAt = [&](std::size_t index) -> const std::string & {
-        return index < runtimeContext->cameraActions.size()
-                   ? runtimeContext->cameraActions[index]
-                   : emptyAction;
-    };
-    runtimeContext->camera->updateWithActions(window, actionAt(0), actionAt(1),
-                                              actionAt(2));
-
-    if (runtimeContext->context != nullptr) {
-        runtime::scripting::dispatchInteractiveFrame(
-            runtimeContext->context, runtimeContext->scriptHost, window,
-            window.getDeltaTime());
-    }
-}
-
-void RuntimeScene::onMouseMove(Window &window, Movement2d movement) {
-    auto runtimeContext = context.lock();
-    if (runtimeContext != nullptr && runtimeContext->context != nullptr) {
-        const auto [x, y] = window.getCursorPosition();
-        MousePacket packet;
-        packet.xpos = static_cast<float>(x);
-        packet.ypos = static_cast<float>(y);
-        packet.xoffset = movement.x;
-        packet.yoffset = movement.y;
-        packet.constrainPitch = true;
-        packet.firstMouse = runtimeContext->scriptHost.interactiveFirstMouse;
-        runtime::scripting::dispatchInteractiveMouseMove(
-            runtimeContext->context, runtimeContext->scriptHost, window, packet,
-            window.getDeltaTime());
-    }
-}
-
-void RuntimeScene::onMouseScroll(Window &window, Movement2d offset) {
-    auto runtimeContext = context.lock();
-    if (runtimeContext != nullptr && runtimeContext->context != nullptr) {
-        MouseScrollPacket packet{offset.x, offset.y};
-        runtime::scripting::dispatchInteractiveMouseScroll(
-            runtimeContext->context, runtimeContext->scriptHost, packet,
-            window.getDeltaTime());
-    }
 }
 
 void Context::loadMainScene(Window &window) {

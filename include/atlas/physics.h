@@ -13,6 +13,7 @@
 #include "atlas/units.h"
 #include <bezel/bezel.h>
 #include <atlas/component.h>
+#include <cstdint>
 #include <memory>
 #include <string>
 #include <vector>
@@ -526,6 +527,42 @@ class Sensor final : public Rigidbody {
 
     /** @brief Sets the signal string emitted when the sensor is triggered. */
     void setSignal(const std::string &signal) { sendSignal = signal; }
+};
+
+class Softbody : public Component {
+  public:
+    std::shared_ptr<bezel::Softbody> body;
+
+    std::string sendSignal;
+    bool isSensor = false;
+
+    Softbody() = default;
+    ~Softbody() override;
+
+    void atAttach() override;
+    void init() override;
+    void beforePhysics() override;
+    void update(float dt) override;
+
+    std::shared_ptr<Component> clone() const override;
+
+    void setMass(float mass);
+
+    void setStiffness(float stiffness);
+    void setVolumeStiffness(float volumeStiffness);
+
+    void setDamping(float damping);
+    void setFriction(float friction);
+    void setRestitution(float restitution);
+
+    void setGravityFactor(float gravityFactor);
+    void setSolverIterations(uint32_t solverIterations);
+    void setAllowSleeping(bool allowSleep);
+
+    Velocity3d getLinearVelocity();
+    Velocity3d getVelocity();
+
+    bool isCreated() const;
 };
 
 #endif // ATLAS_PHYSICS_H

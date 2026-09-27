@@ -10,3 +10,6 @@
 [submodule "opal"]
 	path = opal
 	url = https://github.com/neutralsoftware/opal.git
+[submodule "extern/fTetWild"]
+	path = extern/fTetWild
+	url = https://github.com/wildmeshing/fTetWild.git

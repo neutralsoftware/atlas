@@ -60,6 +60,7 @@ constexpr const char *ATLAS_ECHO_ID_PROP = "__atlasEchoId";
 constexpr const char *ATLAS_DISTORTION_ID_PROP = "__atlasDistortionId";
 constexpr const char *ATLAS_FONT_ID_PROP = "__atlasFontId";
 constexpr const char *ATLAS_RIGIDBODY_ID_PROP = "__atlasRigidbodyId";
+constexpr const char *ATLAS_SOFTBODY_ID_PROP = "__atlasSoftbodyId";
 constexpr const char *ATLAS_VEHICLE_ID_PROP = "__atlasVehicleId";
 constexpr const char *ATLAS_FIXED_JOINT_ID_PROP = "__atlasFixedJointId";
 constexpr const char *ATLAS_HINGE_JOINT_ID_PROP = "__atlasHingeJointId";
@@ -842,6 +843,8 @@ bool ensureBuiltins(JSContext *ctx, ScriptHost &host) {
                    host.compoundGeneratorPrototype);
     cachePrototype(ctx, host.atlasBezelNamespace, "Rigidbody",
                    host.rigidbodyPrototype);
+    cachePrototype(ctx, host.atlasBezelNamespace, "Softbody",
+                   host.softbodyPrototype);
     cachePrototype(ctx, host.atlasBezelNamespace, "Sensor",
                    host.sensorPrototype);
     cachePrototype(ctx, host.atlasBezelNamespace, "Vehicle",
@@ -1991,6 +1994,15 @@ ScriptRigidbodyState *findRigidbodyState(ScriptHost &host,
                                          std::uint64_t rigidbodyId) {
     auto it = host.rigidbodies.find(rigidbodyId);
     if (it == host.rigidbodies.end()) {
+        return nullptr;
+    }
+    return &it->second;
+}
+
+ScriptSoftbodyState *findSoftbodyState(ScriptHost &host,
+                                       std::uint64_t softbodyId) {
+    auto it = host.softbodies.find(softbodyId);
+    if (it == host.softbodies.end()) {
         return nullptr;
     }
     return &it->second;
@@ -6516,6 +6528,50 @@ std::shared_ptr<bezel::Rigidbody> ensureBezelBody(Rigidbody &component) {
     return component.body;
 }
 
+bool applySoftbody(JSContext *ctx, JSValueConst wrapper,
+                   Softbody &component) {
+    readStringProperty(ctx, wrapper, "sendSignal", component.sendSignal);
+    readBoolProperty(ctx, wrapper, "isSensor", component.isSensor);
+
+    if (!component.body) {
+        component.body = std::make_shared<bezel::Softbody>();
+    }
+
+    double value = component.body->mass;
+    readNumberProperty(ctx, wrapper, "mass", value);
+    component.setMass(static_cast<float>(value));
+    value = component.body->material.stiffness;
+    readNumberProperty(ctx, wrapper, "stiffness", value);
+    component.setStiffness(static_cast<float>(value));
+    value = component.body->material.volumeStiffness;
+    readNumberProperty(ctx, wrapper, "volumeStiffness", value);
+    component.setVolumeStiffness(static_cast<float>(value));
+    value = component.body->material.damping;
+    readNumberProperty(ctx, wrapper, "damping", value);
+    component.setDamping(static_cast<float>(value));
+    value = component.body->material.friction;
+    readNumberProperty(ctx, wrapper, "friction", value);
+    component.setFriction(static_cast<float>(value));
+    value = component.body->material.restitution;
+    readNumberProperty(ctx, wrapper, "restitution", value);
+    component.setRestitution(static_cast<float>(value));
+    value = component.body->gravityFactor;
+    readNumberProperty(ctx, wrapper, "gravityFactor", value);
+    component.setGravityFactor(static_cast<float>(value));
+    std::int64_t iterations = component.body->solverIterations;
+    readIntProperty(ctx, wrapper, "solverIterations", iterations);
+    component.setSolverIterations(
+        static_cast<uint32_t>(std::max<std::int64_t>(1, iterations)));
+    bool allowSleeping = component.body->allowSleeping;
+    readBoolProperty(ctx, wrapper, "allowSleeping", allowSleeping);
+    component.setAllowSleeping(allowSleeping);
+    component.body->sensorSignal = component.sendSignal;
+    if (component.object != nullptr) {
+        component.body->id.atlasId = component.object->getId();
+    }
+    return true;
+}
+
 bool applyVehicle(JSContext *ctx, JSValueConst wrapper, Vehicle &component) {
     JSValue settingsValue = JS_GetPropertyStr(ctx, wrapper, "settings");
     if (!JS_IsException(settingsValue) && !JS_IsUndefined(settingsValue)) {
@@ -6675,6 +6731,42 @@ class HostedRigidbodyComponent final : public Rigidbody {
     }
 };
 
+class HostedSoftbodyComponent final : public Softbody {
+  public:
+    JSContext *ctx = nullptr;
+    ScriptHost *host = nullptr;
+    std::uint64_t scriptId = 0;
+
+    void atAttach() override {
+        Softbody::atAttach();
+        syncFromWrapper();
+    }
+
+    void init() override {
+        syncFromWrapper();
+        Softbody::init();
+    }
+
+    void beforePhysics() override {
+        syncFromWrapper();
+        Softbody::beforePhysics();
+    }
+
+    void update(float dt) override { Softbody::update(dt); }
+
+  private:
+    void syncFromWrapper() {
+        if (host == nullptr) {
+            return;
+        }
+        auto *state = findSoftbodyState(*host, scriptId);
+        if (state == nullptr || JS_IsUndefined(state->value)) {
+            return;
+        }
+        applySoftbody(ctx, state->value, *this);
+    }
+};
+
 class HostedVehicleComponent final : public Component {
   public:
     JSContext *ctx = nullptr;
@@ -6827,6 +6919,21 @@ std::uint64_t registerRigidbodyState(
     return id;
 }
 
+std::uint64_t registerSoftbodyState(
+    ScriptHost &host, const std::shared_ptr<Softbody> &component,
+    JSContext *ctx, JSValueConst wrapper, bool attached = false) {
+    const std::uint64_t id = host.nextSoftbodyId++;
+    host.softbodies[id] = {.ownedComponent = component,
+                           .component = component.get(),
+                           .value = JS_DupValue(ctx, wrapper),
+                           .attached = attached};
+    if (auto *hosted =
+            dynamic_cast<HostedSoftbodyComponent *>(component.get())) {
+        hosted->scriptId = id;
+    }
+    return id;
+}
+
 std::uint64_t registerVehicleState(ScriptHost &host,
                                    const std::shared_ptr<Component> &component,
                                    Vehicle *nativeComponent, JSContext *ctx,
@@ -6925,6 +7032,56 @@ JSValue syncRigidbodyWrapper(JSContext *ctx, ScriptHost &host,
                 JS_NewString(ctx, state->component->sendSignal.c_str()));
     setProperty(ctx, wrapper, "isSensor",
                 JS_NewBool(ctx, state->component->isSensor));
+    return wrapper;
+}
+
+JSValue syncSoftbodyWrapper(JSContext *ctx, ScriptHost &host,
+                            std::uint64_t softbodyId) {
+    auto *state = findSoftbodyState(host, softbodyId);
+    if (state == nullptr || state->component == nullptr) {
+        return JS_NULL;
+    }
+    if (!ensureBuiltins(ctx, host)) {
+        return JS_EXCEPTION;
+    }
+
+    JSValue wrapper = JS_IsUndefined(state->value)
+                          ? newObjectFromPrototype(ctx, host.softbodyPrototype)
+                          : JS_DupValue(ctx, state->value);
+    if (JS_IsUndefined(state->value)) {
+        state->value = JS_DupValue(ctx, wrapper);
+    }
+
+    setProperty(ctx, wrapper, ATLAS_SOFTBODY_ID_PROP,
+                JS_NewInt64(ctx, static_cast<int64_t>(softbodyId)));
+    setProperty(ctx, wrapper, ATLAS_GENERATION_PROP,
+                JS_NewInt64(ctx, static_cast<int64_t>(host.generation)));
+    setProperty(ctx, wrapper, ATLAS_NATIVE_COMPONENT_KIND_PROP,
+                JS_NewString(ctx, "softbody"));
+    setProperty(ctx, wrapper, "sendSignal",
+                JS_NewString(ctx, state->component->sendSignal.c_str()));
+    setProperty(ctx, wrapper, "isSensor",
+                JS_NewBool(ctx, state->component->isSensor));
+    if (state->component->body != nullptr) {
+        const auto &body = *state->component->body;
+        setProperty(ctx, wrapper, "mass", JS_NewFloat64(ctx, body.mass));
+        setProperty(ctx, wrapper, "stiffness",
+                    JS_NewFloat64(ctx, body.material.stiffness));
+        setProperty(ctx, wrapper, "volumeStiffness",
+                    JS_NewFloat64(ctx, body.material.volumeStiffness));
+        setProperty(ctx, wrapper, "damping",
+                    JS_NewFloat64(ctx, body.material.damping));
+        setProperty(ctx, wrapper, "friction",
+                    JS_NewFloat64(ctx, body.material.friction));
+        setProperty(ctx, wrapper, "restitution",
+                    JS_NewFloat64(ctx, body.material.restitution));
+        setProperty(ctx, wrapper, "gravityFactor",
+                    JS_NewFloat64(ctx, body.gravityFactor));
+        setProperty(ctx, wrapper, "solverIterations",
+                    JS_NewInt32(ctx, static_cast<int32_t>(body.solverIterations)));
+        setProperty(ctx, wrapper, "allowSleeping",
+                    JS_NewBool(ctx, body.allowSleeping));
+    }
     return wrapper;
 }
 
@@ -7637,6 +7794,27 @@ ScriptRigidbodyState *resolveRigidbody(JSContext *ctx, ScriptHost &host,
         findRigidbodyState(host, static_cast<std::uint64_t>(rigidbodyId));
     if (state == nullptr || state->component == nullptr) {
         JS_ThrowReferenceError(ctx, "Unknown Atlas rigidbody id");
+        return nullptr;
+    }
+    return state;
+}
+
+ScriptSoftbodyState *resolveSoftbody(JSContext *ctx, ScriptHost &host,
+                                     JSValueConst value) {
+    if (!ensureCurrentGeneration(ctx, host, value)) {
+        return nullptr;
+    }
+
+    std::int64_t softbodyId = 0;
+    if (!readIntProperty(ctx, value, ATLAS_SOFTBODY_ID_PROP, softbodyId)) {
+        JS_ThrowTypeError(ctx, "Expected Atlas softbody handle");
+        return nullptr;
+    }
+
+    auto *state =
+        findSoftbodyState(host, static_cast<std::uint64_t>(softbodyId));
+    if (state == nullptr || state->component == nullptr) {
+        JS_ThrowReferenceError(ctx, "Unknown Atlas softbody id");
         return nullptr;
     }
     return state;
@@ -11353,6 +11531,208 @@ JSValue jsSensorSetSignal(JSContext *ctx, JSValueConst, int argc,
     return JS_UNDEFINED;
 }
 
+JSValue jsCreateSoftbody(JSContext *ctx, JSValueConst, int argc,
+                         JSValueConst *argv) {
+    auto *host = getHost(ctx);
+    if (host == nullptr || argc < 1) {
+        return JS_ThrowTypeError(ctx, "Expected softbody wrapper");
+    }
+    auto component = std::make_shared<HostedSoftbodyComponent>();
+    component->ctx = ctx;
+    component->host = host;
+    applySoftbody(ctx, argv[0], *component);
+    const std::uint64_t id =
+        registerSoftbodyState(*host, component, ctx, argv[0], false);
+    JSValue wrapper = syncSoftbodyWrapper(ctx, *host, id);
+    JS_FreeValue(ctx, wrapper);
+    return JS_UNDEFINED;
+}
+
+JSValue jsCloneSoftbody(JSContext *ctx, JSValueConst, int argc,
+                        JSValueConst *argv) {
+    auto *host = getHost(ctx);
+    if (host == nullptr || argc < 1) {
+        return JS_ThrowTypeError(ctx, "Expected softbody");
+    }
+    auto *state = resolveSoftbody(ctx, *host, argv[0]);
+    if (state == nullptr) {
+        return JS_EXCEPTION;
+    }
+    auto component = std::make_shared<HostedSoftbodyComponent>();
+    component->ctx = ctx;
+    component->host = host;
+    component->sendSignal = state->component->sendSignal;
+    component->isSensor = state->component->isSensor;
+    if (state->component->body != nullptr) {
+        component->body =
+            std::make_shared<bezel::Softbody>(*state->component->body);
+        component->body->id.joltId = bezel::INVALID_JOLT_ID;
+        component->body->id.atlasId = 0;
+        component->body->object = nullptr;
+    }
+    JSValue prototype = JS_GetPrototype(ctx, argv[0]);
+    JSValue wrapper = JS_IsException(prototype)
+                          ? JS_NewObject(ctx)
+                          : JS_NewObjectProto(ctx, prototype);
+    JS_FreeValue(ctx, prototype);
+    const std::uint64_t id =
+        registerSoftbodyState(*host, component, ctx, wrapper, false);
+    JS_FreeValue(ctx, wrapper);
+    return syncSoftbodyWrapper(ctx, *host, id);
+}
+
+JSValue jsInitSoftbody(JSContext *ctx, JSValueConst, int argc,
+                       JSValueConst *argv) {
+    auto *host = getHost(ctx);
+    if (host == nullptr || argc < 1) {
+        return JS_ThrowTypeError(ctx, "Expected softbody");
+    }
+    auto *state = resolveSoftbody(ctx, *host, argv[0]);
+    if (state == nullptr) {
+        return JS_EXCEPTION;
+    }
+    applySoftbody(ctx, argv[0], *state->component);
+    state->component->init();
+    return JS_UNDEFINED;
+}
+
+JSValue jsBeforePhysicsSoftbody(JSContext *ctx, JSValueConst, int argc,
+                                JSValueConst *argv) {
+    auto *host = getHost(ctx);
+    if (host == nullptr || argc < 1) {
+        return JS_ThrowTypeError(ctx, "Expected softbody");
+    }
+    auto *state = resolveSoftbody(ctx, *host, argv[0]);
+    if (state == nullptr) {
+        return JS_EXCEPTION;
+    }
+    applySoftbody(ctx, argv[0], *state->component);
+    state->component->beforePhysics();
+    return JS_UNDEFINED;
+}
+
+JSValue jsUpdateSoftbody(JSContext *ctx, JSValueConst, int argc,
+                         JSValueConst *argv) {
+    auto *host = getHost(ctx);
+    if (host == nullptr || argc < 2) {
+        return JS_ThrowTypeError(ctx, "Expected softbody and delta time");
+    }
+    auto *state = resolveSoftbody(ctx, *host, argv[0]);
+    double deltaTime = 0.0;
+    if (state == nullptr || !getDouble(ctx, argv[1], deltaTime)) {
+        return JS_EXCEPTION;
+    }
+    state->component->update(static_cast<float>(deltaTime));
+    return JS_UNDEFINED;
+}
+
+using SoftbodyNumberSetter = void (Softbody::*)(float);
+
+JSValue setSoftbodyNumber(JSContext *ctx, int argc, JSValueConst *argv,
+                          SoftbodyNumberSetter setter) {
+    auto *host = getHost(ctx);
+    if (host == nullptr || argc < 2) {
+        return JS_ThrowTypeError(ctx, "Expected softbody and value");
+    }
+    auto *state = resolveSoftbody(ctx, *host, argv[0]);
+    double value = 0.0;
+    if (state == nullptr || !getDouble(ctx, argv[1], value)) {
+        return JS_EXCEPTION;
+    }
+    (state->component->*setter)(static_cast<float>(value));
+    return JS_UNDEFINED;
+}
+
+JSValue jsSoftbodySetMass(JSContext *ctx, JSValueConst, int argc,
+                          JSValueConst *argv) {
+    return setSoftbodyNumber(ctx, argc, argv, &Softbody::setMass);
+}
+
+JSValue jsSoftbodySetStiffness(JSContext *ctx, JSValueConst, int argc,
+                               JSValueConst *argv) {
+    return setSoftbodyNumber(ctx, argc, argv, &Softbody::setStiffness);
+}
+
+JSValue jsSoftbodySetVolumeStiffness(JSContext *ctx, JSValueConst, int argc,
+                                     JSValueConst *argv) {
+    return setSoftbodyNumber(ctx, argc, argv, &Softbody::setVolumeStiffness);
+}
+
+JSValue jsSoftbodySetDamping(JSContext *ctx, JSValueConst, int argc,
+                             JSValueConst *argv) {
+    return setSoftbodyNumber(ctx, argc, argv, &Softbody::setDamping);
+}
+
+JSValue jsSoftbodySetFriction(JSContext *ctx, JSValueConst, int argc,
+                              JSValueConst *argv) {
+    return setSoftbodyNumber(ctx, argc, argv, &Softbody::setFriction);
+}
+
+JSValue jsSoftbodySetRestitution(JSContext *ctx, JSValueConst, int argc,
+                                 JSValueConst *argv) {
+    return setSoftbodyNumber(ctx, argc, argv, &Softbody::setRestitution);
+}
+
+JSValue jsSoftbodySetGravityFactor(JSContext *ctx, JSValueConst, int argc,
+                                   JSValueConst *argv) {
+    return setSoftbodyNumber(ctx, argc, argv, &Softbody::setGravityFactor);
+}
+
+JSValue jsSoftbodySetSolverIterations(JSContext *ctx, JSValueConst, int argc,
+                                      JSValueConst *argv) {
+    auto *host = getHost(ctx);
+    if (host == nullptr || argc < 2) {
+        return JS_ThrowTypeError(ctx, "Expected softbody and iterations");
+    }
+    auto *state = resolveSoftbody(ctx, *host, argv[0]);
+    int32_t value = 0;
+    if (state == nullptr || JS_ToInt32(ctx, &value, argv[1]) < 0) {
+        return JS_EXCEPTION;
+    }
+    state->component->setSolverIterations(
+        static_cast<uint32_t>(std::max(1, value)));
+    return JS_UNDEFINED;
+}
+
+JSValue jsSoftbodySetAllowSleeping(JSContext *ctx, JSValueConst, int argc,
+                                   JSValueConst *argv) {
+    auto *host = getHost(ctx);
+    if (host == nullptr || argc < 2) {
+        return JS_ThrowTypeError(ctx, "Expected softbody and flag");
+    }
+    auto *state = resolveSoftbody(ctx, *host, argv[0]);
+    if (state == nullptr) {
+        return JS_EXCEPTION;
+    }
+    state->component->setAllowSleeping(JS_ToBool(ctx, argv[1]) == 1);
+    return JS_UNDEFINED;
+}
+
+JSValue jsSoftbodyGetLinearVelocity(JSContext *ctx, JSValueConst, int argc,
+                                    JSValueConst *argv) {
+    auto *host = getHost(ctx);
+    if (host == nullptr || argc < 1) {
+        return JS_ThrowTypeError(ctx, "Expected softbody");
+    }
+    auto *state = resolveSoftbody(ctx, *host, argv[0]);
+    return state == nullptr
+               ? JS_EXCEPTION
+               : makePosition3d(ctx, *host,
+                                state->component->getLinearVelocity());
+}
+
+JSValue jsSoftbodyGetVelocity(JSContext *ctx, JSValueConst, int argc,
+                              JSValueConst *argv) {
+    auto *host = getHost(ctx);
+    if (host == nullptr || argc < 1) {
+        return JS_ThrowTypeError(ctx, "Expected softbody");
+    }
+    auto *state = resolveSoftbody(ctx, *host, argv[0]);
+    return state == nullptr
+               ? JS_EXCEPTION
+               : makePosition3d(ctx, *host, state->component->getVelocity());
+}
+
 JSValue jsCreateVehicle(JSContext *ctx, JSValueConst, int argc,
                         JSValueConst *argv) {
     auto *host = getHost(ctx);
@@ -12853,6 +13233,37 @@ JSValue jsAddComponent(JSContext *ctx, JSValueConst, int argc,
                 static_cast<int>(ownerId), "Rigidbody")] = componentId;
         }
         rigidbodyState->attached = true;
+
+        auto objectIt = host->objectCache.find(static_cast<int>(ownerId));
+        if (objectIt != host->objectCache.end()) {
+            syncObjectWrapper(ctx, *host, *object);
+        }
+
+        return JS_DupValue(ctx, argv[1]);
+    }
+
+    if (nativeKind == "softbody") {
+        std::int64_t softbodyId = 0;
+        if (!readIntProperty(ctx, argv[1], ATLAS_SOFTBODY_ID_PROP,
+                             softbodyId)) {
+            return JS_ThrowReferenceError(ctx, "Softbody wrapper is invalid");
+        }
+        auto *softbodyState =
+            findSoftbodyState(*host, static_cast<std::uint64_t>(softbodyId));
+        if (softbodyState == nullptr || softbodyState->component == nullptr) {
+            return JS_ThrowReferenceError(ctx, "Unknown softbody id");
+        }
+        if (softbodyState->attached) {
+            return JS_ThrowTypeError(
+                ctx, "Softbody is already attached to an object");
+        }
+
+        applySoftbody(ctx, argv[1], *softbodyState->component);
+        object->addComponent(softbodyState->ownedComponent);
+        runtime::scripting::registerComponentInstance(
+            ctx, *host, softbodyState->component, static_cast<int>(ownerId),
+            "Softbody", argv[1]);
+        softbodyState->attached = true;
 
         auto objectIt = host->objectCache.find(static_cast<int>(ownerId));
         if (objectIt != host->objectCache.end()) {
@@ -15201,6 +15612,11 @@ void runtime::scripting::clearSceneBindings(JSContext *ctx, ScriptHost &host) {
     }
     host.rigidbodies.clear();
 
+    for (auto &[_, state] : host.softbodies) {
+        JS_FreeValue(ctx, state.value);
+    }
+    host.softbodies.clear();
+
     for (auto &[_, state] : host.vehicles) {
         JS_FreeValue(ctx, state.value);
     }
@@ -15487,6 +15903,10 @@ void runtime::scripting::clearSceneBindings(JSContext *ctx, ScriptHost &host) {
         JS_FreeValue(ctx, host.rigidbodyPrototype);
         host.rigidbodyPrototype = JS_UNDEFINED;
     }
+    if (!JS_IsUndefined(host.softbodyPrototype)) {
+        JS_FreeValue(ctx, host.softbodyPrototype);
+        host.softbodyPrototype = JS_UNDEFINED;
+    }
     if (!JS_IsUndefined(host.sensorPrototype)) {
         JS_FreeValue(ctx, host.sensorPrototype);
         host.sensorPrototype = JS_UNDEFINED;
@@ -15569,6 +15989,7 @@ void runtime::scripting::clearSceneBindings(JSContext *ctx, ScriptHost &host) {
     host.nextDistortionId = 1;
     host.nextFontId = 1;
     host.nextRigidbodyId = 1;
+    host.nextSoftbodyId = 1;
     host.nextVehicleId = 1;
     host.nextFixedJointId = 1;
     host.nextHingeJointId = 1;
@@ -15729,6 +16150,21 @@ void runtime::scripting::registerNativeRigidbody(
         host.componentLookup[makeComponentLookupKey(ownerId, "Rigidbody")] =
             componentId;
     }
+    JS_FreeValue(ctx, wrapper);
+}
+
+void runtime::scripting::registerNativeSoftbody(
+    JSContext *ctx, ScriptHost &host, int ownerId,
+    const std::shared_ptr<Softbody> &component) {
+    if (ctx == nullptr || !component) {
+        return;
+    }
+
+    const std::uint64_t id =
+        registerSoftbodyState(host, component, ctx, JS_UNDEFINED, true);
+    JSValue wrapper = syncSoftbodyWrapper(ctx, host, id);
+    registerComponentInstance(ctx, host, component.get(), ownerId, "Softbody",
+                              wrapper);
     JS_FreeValue(ctx, wrapper);
 }
 
@@ -16651,6 +17087,54 @@ void runtime::scripting::installGlobals(JSContext *ctx) {
         ctx, global, "__atlasSensorSetSignal",
         JS_NewCFunction(ctx, jsSensorSetSignal, "__atlasSensorSetSignal", 2));
     JS_SetPropertyStr(
+        ctx, global, "__atlasCreateSoftbody",
+        JS_NewCFunction(ctx, jsCreateSoftbody, "__atlasCreateSoftbody", 1));
+    JS_SetPropertyStr(
+        ctx, global, "__atlasCloneSoftbody",
+        JS_NewCFunction(ctx, jsCloneSoftbody, "__atlasCloneSoftbody", 1));
+    JS_SetPropertyStr(
+        ctx, global, "__atlasInitSoftbody",
+        JS_NewCFunction(ctx, jsInitSoftbody, "__atlasInitSoftbody", 1));
+    JS_SetPropertyStr(ctx, global, "__atlasBeforePhysicsSoftbody",
+                      JS_NewCFunction(ctx, jsBeforePhysicsSoftbody,
+                                      "__atlasBeforePhysicsSoftbody", 1));
+    JS_SetPropertyStr(
+        ctx, global, "__atlasUpdateSoftbody",
+        JS_NewCFunction(ctx, jsUpdateSoftbody, "__atlasUpdateSoftbody", 2));
+    JS_SetPropertyStr(
+        ctx, global, "__atlasSoftbodySetMass",
+        JS_NewCFunction(ctx, jsSoftbodySetMass, "__atlasSoftbodySetMass", 2));
+    JS_SetPropertyStr(ctx, global, "__atlasSoftbodySetStiffness",
+                      JS_NewCFunction(ctx, jsSoftbodySetStiffness,
+                                      "__atlasSoftbodySetStiffness", 2));
+    JS_SetPropertyStr(ctx, global, "__atlasSoftbodySetVolumeStiffness",
+                      JS_NewCFunction(ctx, jsSoftbodySetVolumeStiffness,
+                                      "__atlasSoftbodySetVolumeStiffness", 2));
+    JS_SetPropertyStr(ctx, global, "__atlasSoftbodySetDamping",
+                      JS_NewCFunction(ctx, jsSoftbodySetDamping,
+                                      "__atlasSoftbodySetDamping", 2));
+    JS_SetPropertyStr(ctx, global, "__atlasSoftbodySetFriction",
+                      JS_NewCFunction(ctx, jsSoftbodySetFriction,
+                                      "__atlasSoftbodySetFriction", 2));
+    JS_SetPropertyStr(ctx, global, "__atlasSoftbodySetRestitution",
+                      JS_NewCFunction(ctx, jsSoftbodySetRestitution,
+                                      "__atlasSoftbodySetRestitution", 2));
+    JS_SetPropertyStr(ctx, global, "__atlasSoftbodySetGravityFactor",
+                      JS_NewCFunction(ctx, jsSoftbodySetGravityFactor,
+                                      "__atlasSoftbodySetGravityFactor", 2));
+    JS_SetPropertyStr(ctx, global, "__atlasSoftbodySetSolverIterations",
+                      JS_NewCFunction(ctx, jsSoftbodySetSolverIterations,
+                                      "__atlasSoftbodySetSolverIterations", 2));
+    JS_SetPropertyStr(ctx, global, "__atlasSoftbodySetAllowSleeping",
+                      JS_NewCFunction(ctx, jsSoftbodySetAllowSleeping,
+                                      "__atlasSoftbodySetAllowSleeping", 2));
+    JS_SetPropertyStr(ctx, global, "__atlasSoftbodyGetLinearVelocity",
+                      JS_NewCFunction(ctx, jsSoftbodyGetLinearVelocity,
+                                      "__atlasSoftbodyGetLinearVelocity", 1));
+    JS_SetPropertyStr(ctx, global, "__atlasSoftbodyGetVelocity",
+                      JS_NewCFunction(ctx, jsSoftbodyGetVelocity,
+                                      "__atlasSoftbodyGetVelocity", 1));
+    JS_SetPropertyStr(
         ctx, global, "__atlasCreateVehicle",
         JS_NewCFunction(ctx, jsCreateVehicle, "__atlasCreateVehicle", 1));
     JS_SetPropertyStr(ctx, global, "__atlasVehicleRequestRecreate",
@@ -16850,201 +17334,9 @@ void runtime::scripting::installGlobals(JSContext *ctx) {
     JS_FreeValue(ctx, global);
 }
 
-char *runtime::scripting::normalizeModuleName(JSContext *ctx,
-                                              const char *baseName,
-                                              const char *name, void *opaque) {
-    auto *host = static_cast<ScriptHost *>(opaque);
-    const std::string base = baseName == nullptr ? "" : baseName;
-    const std::string module = name == nullptr ? "" : name;
-
-    if (host->modules.contains(module)) {
-        return js_strdup(ctx, module.c_str());
-    }
-
-    if (!module.empty() && module[0] == '.') {
-        auto slash = base.rfind('/');
-        std::string dir =
-            (slash == std::string::npos) ? "" : base.substr(0, slash + 1);
-        std::string resolved = dir + module;
-
-        while (true) {
-            auto pos = resolved.find("/./");
-            if (pos == std::string::npos) {
-                break;
-            }
-            resolved.replace(pos, 3, "/");
-        }
-
-        while (true) {
-            auto pos = resolved.find("../");
-            if (pos == std::string::npos) {
-                break;
-            }
-            auto prev = resolved.rfind('/', pos > 1 ? pos - 2 : 0);
-            if (prev == std::string::npos) {
-                break;
-            }
-            auto next = resolved.find('/', pos + 2);
-            resolved.erase(
-                prev + 1,
-                (next == std::string::npos ? resolved.size() : next + 1) -
-                    (prev + 1));
-        }
-
-        if (host->modules.contains(resolved)) {
-            return js_strdup(ctx, resolved.c_str());
-        }
-    }
-
-    JS_ThrowReferenceError(ctx, "Could not resolve module '%s' from '%s'",
-                           module.c_str(),
-                           base.empty() ? "<root>" : base.c_str());
-    return nullptr;
-}
-
-JSModuleDef *runtime::scripting::loadModule(JSContext *ctx,
-                                            const char *module_name,
-                                            void *opaque) {
-    auto *host = static_cast<ScriptHost *>(opaque);
-
-    auto it = host->modules.find(module_name);
-    if (it == host->modules.end()) {
-        JS_ThrowReferenceError(ctx, "Module not found: %s", module_name);
-        return nullptr;
-    }
-
-    const std::string &source = it->second;
-
-    JSValue func_val = JS_Eval(ctx, source.c_str(), source.size(), module_name,
-                               JS_EVAL_TYPE_MODULE | JS_EVAL_FLAG_COMPILE_ONLY);
-
-    if (JS_IsException(func_val)) {
-        return nullptr;
-    }
-
-    JSModuleDef *m = static_cast<JSModuleDef *>(JS_VALUE_GET_PTR(func_val));
-    JS_FreeValue(ctx, func_val);
-    return m;
-}
-
-bool runtime::scripting::evalModule(JSContext *ctx, const std::string &name,
-                                    const std::string &src) {
-    JSValue compiled = JS_Eval(ctx, src.c_str(), src.length(), name.c_str(),
-                               JS_EVAL_TYPE_MODULE | JS_EVAL_FLAG_COMPILE_ONLY);
-    if (!checkNotException(ctx, compiled, "compile module")) {
-        return false;
-    }
-
-    JSValue result = JS_EvalFunction(ctx, compiled);
-    if (!checkNotException(ctx, result, "execute module")) {
-        return false;
-    }
-
-    JS_FreeValue(ctx, result);
-    return true;
-}
-
-JSValue
-runtime::scripting::importModuleNamespace(JSContext *ctx,
-                                          const std::string &module_name) {
-    std::string src = "import * as ns from '" + module_name +
-                      "';\n"
-                      "globalThis.__atlas_tmp_ns = ns;\n";
-
-    JSValue compiled = JS_Eval(ctx, src.c_str(), src.size(), "<import_ns>",
-                               JS_EVAL_TYPE_MODULE | JS_EVAL_FLAG_COMPILE_ONLY);
-    if (JS_IsException(compiled)) {
-        return JS_EXCEPTION;
-    }
-
-    JSValue result = JS_EvalFunction(ctx, compiled);
-    if (JS_IsException(result)) {
-        return JS_EXCEPTION;
-    }
-    JS_FreeValue(ctx, result);
-
-    JSValue global = JS_GetGlobalObject(ctx);
-    JSValue ns = JS_GetPropertyStr(ctx, global, "__atlas_tmp_ns");
-    JSAtom atom = JS_NewAtom(ctx, "__atlas_tmp_ns");
-    JS_DeleteProperty(ctx, global, atom, 0);
-    JS_FreeAtom(ctx, atom);
-    JS_FreeValue(ctx, global);
-    return ns;
-}
-
-ScriptInstance::~ScriptInstance() {
-    if (ctx && !JS_IsUndefined(instance)) {
-        JS_FreeValue(ctx, instance);
-    }
-}
-
 bool ScriptInstance::callMethod(const char *method_name, int argc,
                                 JSValueConst *argv) {
     return callObjectMethod(ctx, instance, method_name, argc, argv);
-}
-
-ScriptInstance *runtime::scripting::createScriptInstance(
-    JSContext *ctx, const std::string &entryModuleName,
-    const std::string &scriptPath, const std::string &className) {
-    JSValue ns =
-        runtime::scripting::importModuleNamespace(ctx, entryModuleName);
-    if (JS_IsException(ns)) {
-        runtime::scripting::dumpExecution(ctx);
-        return nullptr;
-    }
-
-    JSValue script_exports = JS_UNDEFINED;
-    if (scriptPath.empty()) {
-        script_exports = ns;
-    } else {
-        JSValue atlas_scripts = JS_GetPropertyStr(ctx, ns, "default");
-        JS_FreeValue(ctx, ns);
-        if (JS_IsException(atlas_scripts)) {
-            runtime::scripting::dumpExecution(ctx);
-            return nullptr;
-        }
-
-        script_exports =
-            JS_GetPropertyStr(ctx, atlas_scripts, scriptPath.c_str());
-        JS_FreeValue(ctx, atlas_scripts);
-        if (JS_IsException(script_exports)) {
-            runtime::scripting::dumpExecution(ctx);
-            return nullptr;
-        }
-
-        if (JS_IsUndefined(script_exports)) {
-            std::cerr << "Script exports not found for path: " << scriptPath
-                      << "\n";
-            JS_FreeValue(ctx, script_exports);
-            return nullptr;
-        }
-    }
-
-    JSValue ctor = JS_GetPropertyStr(ctx, script_exports, className.c_str());
-    JS_FreeValue(ctx, script_exports);
-    if (JS_IsException(ctor)) {
-        runtime::scripting::dumpExecution(ctx);
-        return nullptr;
-    }
-
-    if (!JS_IsFunction(ctx, ctor)) {
-        std::cerr << "Export '" << className
-                  << "' is not a constructor/function\n";
-        JS_FreeValue(ctx, ctor);
-        return nullptr;
-    }
-
-    JSValue obj = JS_CallConstructor(ctx, ctor, 0, nullptr);
-    JS_FreeValue(ctx, ctor);
-    if (JS_IsException(obj)) {
-        runtime::scripting::dumpExecution(ctx);
-        return nullptr;
-    }
-
-    auto *inst = new ScriptInstance{};
-    inst->ctx = ctx;
-    inst->instance = obj;
-    return inst;
 }
 
 JSValue runtime::scripting::jsPrint(JSContext *ctx,

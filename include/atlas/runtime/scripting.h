@@ -36,6 +36,7 @@ class HingeJoint;
 class SpringJoint;
 class Vehicle;
 class Rigidbody;
+class Softbody;
 class Window;
 class Terrain;
 class UIObject;
@@ -111,6 +112,13 @@ struct ScriptDistortionState {
 struct ScriptRigidbodyState {
     std::shared_ptr<Rigidbody> ownedComponent;
     Rigidbody *component = nullptr;
+    JSValue value = JS_UNDEFINED;
+    bool attached = false;
+};
+
+struct ScriptSoftbodyState {
+    std::shared_ptr<Softbody> ownedComponent;
+    Softbody *component = nullptr;
     JSValue value = JS_UNDEFINED;
     bool attached = false;
 };
@@ -233,6 +241,7 @@ struct ScriptHost {
     std::unordered_map<std::uint64_t, ScriptDistortionState> distortions;
     std::unordered_map<Distortion *, std::uint64_t> distortionIds;
     std::unordered_map<std::uint64_t, ScriptRigidbodyState> rigidbodies;
+    std::unordered_map<std::uint64_t, ScriptSoftbodyState> softbodies;
     std::unordered_map<std::uint64_t, ScriptVehicleState> vehicles;
     std::unordered_map<std::uint64_t, ScriptFixedJointState> fixedJoints;
     std::unordered_map<std::uint64_t, ScriptHingeJointState> hingeJoints;
@@ -325,6 +334,7 @@ struct ScriptHost {
     JSValue islandGeneratorPrototype = JS_UNDEFINED;
     JSValue compoundGeneratorPrototype = JS_UNDEFINED;
     JSValue rigidbodyPrototype = JS_UNDEFINED;
+    JSValue softbodyPrototype = JS_UNDEFINED;
     JSValue sensorPrototype = JS_UNDEFINED;
     JSValue vehiclePrototype = JS_UNDEFINED;
     JSValue fixedJointPrototype = JS_UNDEFINED;
@@ -347,6 +357,7 @@ struct ScriptHost {
     std::uint64_t nextDistortionId = 1;
     std::uint64_t nextFontId = 1;
     std::uint64_t nextRigidbodyId = 1;
+    std::uint64_t nextSoftbodyId = 1;
     std::uint64_t nextVehicleId = 1;
     std::uint64_t nextFixedJointId = 1;
     std::uint64_t nextHingeJointId = 1;
@@ -385,6 +396,8 @@ std::uint64_t registerComponentInstance(JSContext *ctx, ScriptHost &host,
                                         JSValueConst value);
 void registerNativeRigidbody(JSContext *ctx, ScriptHost &host, int ownerId,
                              const std::shared_ptr<Rigidbody> &component);
+void registerNativeSoftbody(JSContext *ctx, ScriptHost &host, int ownerId,
+                            const std::shared_ptr<Softbody> &component);
 void registerNativeVehicle(JSContext *ctx, ScriptHost &host, int ownerId,
                            const std::shared_ptr<Vehicle> &component);
 void registerNativeFixedJoint(JSContext *ctx, ScriptHost &host, int ownerId,

@@ -202,7 +202,8 @@ QIcon inspectorIcon(QWidget *, const QString &type) {
     if (normalized.contains("script") || normalized == "ts" ||
         normalized == "js")
         return styling::icon(styling::Icon::FileCode, "#7E929C");
-    if (normalized.contains("rigidbody") || normalized.contains("joint"))
+    if (normalized.contains("rigidbody") || normalized.contains("softbody") ||
+        normalized.contains("joint"))
         return styling::icon(styling::Icon::Wrench, "#A1957D");
     if (normalized == "sphere")
         return styling::icon(styling::Icon::Sphere, "#8498A8");
@@ -217,6 +218,8 @@ QString componentTitle(const QString &type) {
         return "Trait Script";
     if (normalized == "rigidbody")
         return "Rigidbody";
+    if (normalized == "softbody")
+        return "Softbody";
     if (normalized == "audioplayer")
         return "Audio Player";
     if (normalized == "joint")
@@ -355,6 +358,19 @@ QJsonObject componentSchema(const QString &type) {
                 {"damping", QJsonObject{{"linear", 0.0}, {"angular", 0.0}}},
                 {"restitution", 0.0},
                 {"motionType", "dynamic"}};
+    }
+    if (normalized == "softbody") {
+        return {{"mass", 1.0},
+                {"sendSignal", ""},
+                {"isSensor", false},
+                {"stiffness", 0.8},
+                {"volumeStiffness", 1.0},
+                {"damping", 0.1},
+                {"friction", 0.2},
+                {"restitution", 0.0},
+                {"gravityFactor", 1.0},
+                {"solverIterations", 8},
+                {"allowSleeping", true}};
     }
     if (normalized == "audioplayer") {
         return {{"source", ""},
@@ -1979,6 +1995,7 @@ void InspectorPanel::showObject(const QJsonObject &object) {
     QList<QAction *> searchableActions;
     const QList<QPair<QString, QString>> componentTypes{
         {"Rigidbody", "rigidbody"},
+        {"Softbody", "softbody"},
         {"Audio Player", "audio_player"},
         {"Fixed Joint", "fixed_joint"},
         {"Hinge Joint", "hinge_joint"},
