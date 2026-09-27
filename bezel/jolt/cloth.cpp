@@ -281,7 +281,11 @@ void bezel::Cloth::createMesh() {
     for (uint32_t i = 0; i < object->vertices.size(); ++i) {
         SoftbodyVertex vertex;
 
-        vertex.position = object->vertices[i].position;
+        vertex.position = {
+            object->vertices[i].position.x * object->scale.x,
+            object->vertices[i].position.y * object->scale.y,
+            object->vertices[i].position.z * object->scale.z,
+        };
         vertex.inverseMass = isPinned(i) ? 0.0f : inverseMass;
 
         mesh.vertices.push_back(vertex);
@@ -342,7 +346,7 @@ void bezel::Cloth::create(const std::shared_ptr<PhysicsWorld> &world) {
     }
 
     JPH::SoftBodySharedSettings::VertexAttributes attributes;
-    constexpr float minimumCompliance = 1.0e-6f;
+    constexpr float minimumCompliance = 1.0e-5f;
     attributes.mCompliance =
         std::max(material.stretchCompliance, minimumCompliance);
     attributes.mShearCompliance =
@@ -361,12 +365,14 @@ void bezel::Cloth::create(const std::shared_ptr<PhysicsWorld> &world) {
 
     creationSettings.mNumIterations = solverIterations;
     creationSettings.mLinearDamping = material.damping;
+    creationSettings.mMaxLinearVelocity = 50.0f;
     creationSettings.mFriction = material.friction;
     creationSettings.mRestitution = material.restitution;
     creationSettings.mGravityFactor = gravityFactor;
     creationSettings.mAllowSleeping = allowSleeping;
+    creationSettings.mUpdatePosition = resolvedPinnedVertices.empty();
     creationSettings.mFacesDoubleSided = doubleSided;
-    creationSettings.mVertexRadius = std::max(vertexRadius, 0.005f);
+    creationSettings.mVertexRadius = std::max(vertexRadius, 0.01f);
     creationSettings.mUserData = id.atlasId;
 
     JPH::BodyInterface &bodyInterface = world->physicsSystem.GetBodyInterface();
@@ -379,6 +385,11 @@ void bezel::Cloth::create(const std::shared_ptr<PhysicsWorld> &world) {
     }
 
     id.joltId = bodyId.GetIndexAndSequenceNumber();
+
+    for (size_t i = 0; i < mesh.vertices.size(); ++i) {
+        object->vertices[i].position = mesh.vertices[i].position;
+    }
+    object->setScale({1.0f, 1.0f, 1.0f});
 }
 
 void bezel::Cloth::destroy(const std::shared_ptr<PhysicsWorld> &world) {

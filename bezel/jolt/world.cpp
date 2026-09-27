@@ -26,6 +26,7 @@
 #include <thread>
 #include "atlas/tracer/log.h"
 #include "bezel/jolt/query.h"
+#include <cmath>
 
 namespace {
 
@@ -225,9 +226,18 @@ void bezel::PhysicsWorld::init() {
 }
 
 void bezel::PhysicsWorld::update(float dt) {
-    constexpr int COLLISION_STEPS = 1;
+    constexpr float maxPhysicsDelta = 1.0f / 30.0f;
+    constexpr float softBodyStepDelta = 1.0f / 60.0f;
+    const float physicsDelta = std::clamp(dt, 0.0f, maxPhysicsDelta);
+    const bool hasActiveSoftBodies =
+        physicsSystem.GetNumActiveBodies(JPH::EBodyType::SoftBody) > 0;
+    const int collisionSteps =
+        hasActiveSoftBodies
+            ? std::max(1, static_cast<int>(std::ceil(
+                              physicsDelta / softBodyStepDelta)))
+            : 1;
     JPH::EPhysicsUpdateError error = physicsSystem.Update(
-        dt, COLLISION_STEPS, tempAllocator.get(), jobSystem.get());
+        physicsDelta, collisionSteps, tempAllocator.get(), jobSystem.get());
 
     if (error != JPH::EPhysicsUpdateError::None) {
         throw std::runtime_error("Jolt PhysicsWorld update error");

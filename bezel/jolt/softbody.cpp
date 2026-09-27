@@ -519,13 +519,14 @@ void Softbody::create(const std::shared_ptr<PhysicsWorld> &world) {
 
     creation.mNumIterations = solverIterations;
     creation.mLinearDamping = material.damping;
+    creation.mMaxLinearVelocity = 50.0f;
     creation.mFriction = material.friction;
     creation.mRestitution = material.restitution;
     creation.mGravityFactor = gravityFactor;
     creation.mAllowSleeping = allowSleeping;
     creation.mMakeRotationIdentity = true;
     creation.mFacesDoubleSided = true;
-    creation.mVertexRadius = 0.005f;
+    creation.mVertexRadius = 0.01f;
 
     JPH::BodyInterface &bodyInterface = world->physicsSystem.GetBodyInterface();
 
