@@ -207,8 +207,8 @@ struct FragmentInput {
 [[vk::binding(2, 2)]] Sampler2D gAlbedoSpec;
 [[vk::binding(3, 2)]] Sampler2D gMaterial;
 [[vk::binding(4, 2)]] Sampler2D ssao;
-[[vk::binding(18, 2)]] Sampler2D gOptical;
-[[vk::binding(19, 2)]] Sampler2D gMedium;
+[[vk::binding(18, 2)]] Texture2D<float4> gOptical;
+[[vk::binding(19, 2)]] Texture2D<float4> gMedium;
 [[vk::binding(16, 6)]] Texture2D<float4> irradianceMap;
 [[vk::binding(17, 6)]] Texture2D<float4> ddgiDistanceMap;
 [shader("fragment")]
@@ -271,12 +271,18 @@ FragmentOutput fragmentMain(FragmentInput input) {
     float roughness = clamp(matData.y, 0.0, 1.0);
     float ao = clamp(matData.z, 0.0, 1.0);
     float reflectivity = clamp(matData.w, 0.0, 1.0);
-    float4 opticalData = gOptical.Sample(input.TexCoord);
+    uint opticalWidth;
+    uint opticalHeight;
+    gOptical.GetDimensions(opticalWidth, opticalHeight);
+    uint2 opticalCoordinate = min(
+        uint2(input.TexCoord * float2(opticalWidth, opticalHeight)),
+        uint2(opticalWidth - 1, opticalHeight - 1));
+    float4 opticalData = gOptical.Load(int3(opticalCoordinate, 0));
     float transmission = clamp(opticalData.x, 0.0, 1.0);
     float materialIor = opticalData.y > 1.001 ? opticalData.y : 1.5;
     float abbeNumber = max(opticalData.z, 0.0);
     float attenuationDistance = max(opticalData.w, 0.0001);
-    float4 mediumData = gMedium.Sample(input.TexCoord);
+    float4 mediumData = gMedium.Load(int3(opticalCoordinate, 0));
     float3 attenuationColor = clamp(mediumData.xyz, float3(0.0001),
                                     float3(1.0));
     float mediumExtinction = max(mediumData.w, 0.0);
