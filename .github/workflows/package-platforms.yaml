@@ -103,8 +103,19 @@ jobs:
               with:
                   submodules: recursive
             - uses: actions-rust-lang/setup-rust-toolchain@v1
+            - uses: jurplel/install-qt-action@v4
+              with:
+                  version: "6.9.2"
+                  cache: true
             - name: Install dependencies
               run: |
+                  sudo rm -rf /var/lib/apt/lists/*
+                  sudo apt-get clean
+
+                  sudo apt-get update \
+                    -o Acquire::Retries=5 \
+                    -o Acquire::http::No-Cache=True \
+                    -o Acquire::https::No-Cache=True
                   sudo apt-get install -y \
                   build-essential \
                   pkg-config \
