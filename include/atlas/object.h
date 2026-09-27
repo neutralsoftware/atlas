@@ -1080,4 +1080,61 @@ class Model : public GameObject {
         std::unordered_map<std::string, Texture> &textureCache);
 };
 
+enum class SubdivisionScheme {
+    Simple,
+    Loop,
+};
+
+struct Edge {
+    Index a;
+    Index b;
+
+    Edge(Index x, Index y) : a(std::min(x, y)), b(std::max(x, y)) {}
+
+    bool operator==(const Edge &other) const {
+        return a == other.a && b == other.b;
+    }
+};
+
+struct EdgeHash {
+    size_t operator()(const Edge &edge) const {
+        return (static_cast<size_t>(edge.a) << 32) ^
+               static_cast<size_t>(edge.b);
+    }
+};
+
+struct EdgeData {
+    Index a;
+    Index b;
+
+    std::vector<Index> oppositeVertices;
+};
+
+namespace atlas {
+CoreVertex interpolateVertex(const CoreVertex &a, const CoreVertex &b);
+};
+
+class Subdivision : public TraitComponent<CoreObject> {
+  public:
+    unsigned int levels = 1;
+    SubdivisionScheme scheme = SubdivisionScheme::Loop;
+
+    Subdivision() = default;
+
+    explicit Subdivision(unsigned int levels,
+                         SubdivisionScheme scheme = SubdivisionScheme::Loop)
+        : levels(levels), scheme(scheme) {}
+
+    void init() override;
+    void subdivide();
+
+    std::shared_ptr<Component> clone() const override {
+        return std::make_shared<Subdivision>(*this);
+    }
+
+  private:
+    void subdivideSimple(CoreObject *object);
+    void subdivideLoop(CoreObject *object);
+};
+
 #endif // ATLAS_OBJECT_H

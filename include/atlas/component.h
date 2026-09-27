@@ -406,17 +406,16 @@ class GameObject : public Renderable {
      * idea.
      */
     template <typename U, typename T>
-        requires std::is_base_of_v<TraitComponent<U>, T>
+        requires std::is_base_of_v<TraitComponent<U>, std::remove_cvref_t<T>>
     void addTraitComponent(T &&existing) {
-        if (static_cast<U *>(this) == nullptr) {
-            throw std::runtime_error(
-                "Cannot add TraitComponent to object that is not of the "
-                "correct type.");
-        }
-        existing.setTypedObject(static_cast<U *>(this));
-        std::shared_ptr<T> component =
-            std::make_shared<T>(std::forward<T>(existing));
+        using C = std::remove_cvref_t<T>;
+
+        auto component = std::make_shared<C>(std::forward<T>(existing));
+
         component->object = this;
+        component->setTypedObject(static_cast<U *>(this));
+        component->atAttach();
+
         components.push_back(component);
     }
 
