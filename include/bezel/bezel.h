@@ -733,11 +733,14 @@ struct Softbody {
 
     void destroy(const std::shared_ptr<PhysicsWorld> &world);
 
-    void createMesh(CoreObject *object);
+    void createMesh();
+    void setObject(CoreObject *object);
 
     void updateVertices(const std::shared_ptr<PhysicsWorld> &world);
 
     CoreObject *object = nullptr;
+
+    bool isMeshCreated = false;
 
   private:
     SoftbodyMesh mesh;
