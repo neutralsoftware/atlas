@@ -5055,8 +5055,10 @@ bool Context::configurePathTracing(int samplesPerPixel, int bounceLimit,
     config.pathTracingAccumulationFrames =
         std::clamp(accumulationFrames, 1, 2048);
     config.pathTracingFeatureFlags = featureFlags;
+    config.realtimePBRFeatureFlags = featureFlags;
     config.useUpscaling = useUpscaling;
     config.upscalingRatio = std::clamp(upscalingRatio, 0.25f, 1.0f);
+    window->setRealtimePBRFeatures(config.realtimePBRFeatureFlags);
 #ifdef METAL
     window->useMetalUpscaling(useUpscaling ? config.upscalingRatio : 1.0f);
     window->configurePathTracing(
@@ -7106,6 +7108,7 @@ void Context::loadProject() {
     config.pathTracingDenoising = pathTracingDenoising;
     config.pathTracingAccumulationFrames = pathTracingAccumulationFrames;
     config.pathTracingFeatureFlags = pathTracingFeatureFlags;
+    config.realtimePBRFeatureFlags = pathTracingFeatureFlags;
     config.screenSpaceReflections = screenSpaceReflections;
     config.screenSpaceReflectionQuality = screenSpaceReflectionQuality;
     config.screenSpaceReflectionDebug = screenSpaceReflectionDebug;

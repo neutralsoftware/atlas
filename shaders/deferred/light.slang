@@ -72,7 +72,16 @@ struct PushConstants {
     int spotlightCount;
     int areaLightCount;
     int shadowParamCount;
+    uint featureFlags;
 };
+
+static const uint FEATURE_DIRECT_LIGHTING = 1u << 0;
+static const uint FEATURE_SHADOWS = 1u << 1;
+static const uint FEATURE_ENVIRONMENT_LIGHTING = 1u << 2;
+static const uint FEATURE_INDIRECT_LIGHTING = 1u << 4;
+static const uint FEATURE_TRANSMISSION = 1u << 5;
+static const uint FEATURE_DISPERSION = 1u << 6;
+static const uint FEATURE_VOLUMES = 1u << 9;
 
 struct AreaLight {
     float3 position;
@@ -278,14 +287,26 @@ FragmentOutput fragmentMain(FragmentInput input) {
         uint2(input.TexCoord * float2(opticalWidth, opticalHeight)),
         uint2(opticalWidth - 1, opticalHeight - 1));
     float4 opticalData = gOptical.Load(int3(opticalCoordinate, 0));
-    float transmission = clamp(opticalData.x, 0.0, 1.0);
+    bool transmissionEnabled =
+        (parameters.featureFlags & FEATURE_TRANSMISSION) != 0u;
+    bool dispersionEnabled =
+        (parameters.featureFlags & FEATURE_DISPERSION) != 0u;
+    bool volumesEnabled = (parameters.featureFlags & FEATURE_VOLUMES) != 0u;
+    bool environmentEnabled =
+        (parameters.featureFlags & FEATURE_ENVIRONMENT_LIGHTING) != 0u;
+    bool indirectEnabled =
+        (parameters.featureFlags & FEATURE_INDIRECT_LIGHTING) != 0u;
+    float transmission = transmissionEnabled
+                             ? clamp(opticalData.x, 0.0, 1.0)
+                             : 0.0;
     float materialIor = opticalData.y > 1.001 ? opticalData.y : 1.5;
-    float abbeNumber = max(opticalData.z, 0.0);
+    float abbeNumber = dispersionEnabled ? max(opticalData.z, 0.0) : 0.0;
     float attenuationDistance = max(opticalData.w, 0.0001);
     float4 mediumData = gMedium.Load(int3(opticalCoordinate, 0));
     float3 attenuationColor = clamp(mediumData.xyz, float3(0.0001),
                                     float3(1.0));
-    float mediumExtinction = max(mediumData.w, 0.0);
+    float mediumExtinction =
+        volumesEnabled ? max(mediumData.w, 0.0) : 0.0;
 
     float viewDistance =
         max(length(float3(uniforms.cameraPosition) - FragPos),
@@ -312,7 +333,9 @@ FragmentOutput fragmentMain(FragmentInput input) {
     float areaShadow = 0.0;
     int areaShadowCount = 0;
     float pointShadow = 0.0;
-    int shadowCount = parameters.shadowParamCount;
+    int shadowCount = (parameters.featureFlags & FEATURE_SHADOWS) != 0u
+                          ? parameters.shadowParamCount
+                          : 0;
     for (int i = 0; i < shadowCount; i++) {
         if (ShadowParams[i].lightType == 3) {
             int lightIndex = ShadowParams[i].lightIndex;
@@ -410,8 +433,15 @@ FragmentOutput fragmentMain(FragmentInput input) {
     areaShadow = clamp(areaShadow * 0.449999988, 0.0, 1.0);
     pointShadow =
         clamp(pointShadow * 0.850000024, 0.0, 1.0);
+    bool directLightingEnabled =
+        (parameters.featureFlags & FEATURE_DIRECT_LIGHTING) != 0u;
+    int directionalLightCount =
+        directLightingEnabled ? parameters.directionalLightCount : 0;
+    int pointLightCount = directLightingEnabled ? parameters.pointLightCount : 0;
+    int spotlightCount = directLightingEnabled ? parameters.spotlightCount : 0;
+    int areaLightCount = directLightingEnabled ? parameters.areaLightCount : 0;
     float3 directionalResult = float3(0.0);
-    for (int i_1 = 0; i_1 < parameters.directionalLightCount; i_1++) {
+    for (int i_1 = 0; i_1 < directionalLightCount; i_1++) {
         DirectionalLight _1428;
         _1428.direction = float3(DirectionalLights[i_1].direction);
         _1428._pad1 = DirectionalLights[i_1]._pad1;
@@ -432,7 +462,7 @@ FragmentOutput fragmentMain(FragmentInput input) {
     }
     directionalResult *= (1.0 - directionalShadow);
     float3 pointResult = float3(0.0);
-    for (int i_2 = 0; i_2 < parameters.pointLightCount; i_2++) {
+    for (int i_2 = 0; i_2 < pointLightCount; i_2++) {
         PointLight _1471;
         _1471.position = float3(PointLights[i_2].position);
         _1471._pad1 = PointLights[i_2]._pad1;
@@ -459,7 +489,7 @@ FragmentOutput fragmentMain(FragmentInput input) {
     }
     pointResult *= (1.0 - pointShadow);
     float3 spotResult = float3(0.0);
-    for (int i_3 = 0; i_3 < parameters.spotlightCount; i_3++) {
+    for (int i_3 = 0; i_3 < spotlightCount; i_3++) {
         SpotLight _1516;
         _1516.position = float3(SpotLights[i_3].position);
         _1516._pad1 = SpotLights[i_3]._pad1;
@@ -488,7 +518,7 @@ FragmentOutput fragmentMain(FragmentInput input) {
     spotResult *= (1.0 - spotShadow);
     float3 areaResult = float3(0.0);
     float _1639;
-    for (int i_4 = 0; i_4 < parameters.areaLightCount; i_4++) {
+    for (int i_4 = 0; i_4 < areaLightCount; i_4++) {
         float3 P = float3(AreaLights[i_4].position);
         float3 R = normalize(float3(AreaLights[i_4].right));
         float3 U = normalize(float3(AreaLights[i_4].up));
@@ -556,15 +586,17 @@ FragmentOutput fragmentMain(FragmentInput input) {
     float3 ambientBase =
         ((ambientLight.color.xyz * ambientLight.intensity) * albedo) *
         occlusion * (1.0 - transmission);
-    bool ddgiEnabled = ps.atlasParams.w > 0.0f;
+    bool ddgiEnabled = ps.atlasParams.w > 0.0f && indirectEnabled;
     float3 ambient = ddgiEnabled ? ambientBase * 0.05f : ambientBase;
 
     float ddgiSampleBias =
         max(max(ps.spacing.x, max(ps.spacing.y, ps.spacing.z)) * 0.05f, 0.002f);
     float3 ddgiSamplePos = FragPos + ddgiNormal * ddgiSampleBias;
-    float3 ddgiIrradiance =
-        sampleDDGIIrradiance(irradianceMap, ddgiDistanceMap, ps, ddgiSamplePos,
-                             ddgiNormal);
+    float3 ddgiIrradiance = float3(0.0f);
+    if (ddgiEnabled) {
+        ddgiIrradiance = sampleDDGIIrradiance(
+            irradianceMap, ddgiDistanceMap, ps, ddgiSamplePos, ddgiNormal);
+    }
     if (!all(isfinite(ddgiIrradiance))) {
         ddgiIrradiance = float3(0.0f);
     }
@@ -585,24 +617,33 @@ FragmentOutput fragmentMain(FragmentInput input) {
     float3 reflectionDirection = reflect(-V, N);
     reflectionDirection = normalize(lerp(
         reflectionDirection, N, roughness * roughness * 0.25));
-    float3 ddgiReflection = sampleDDGIDirectionalRadiance(
-        irradianceMap, ddgiDistanceMap, ps, ddgiSamplePos, ddgiNormal,
-        reflectionDirection);
+    float3 ddgiReflection = float3(0.0f);
+    if (ddgiEnabled) {
+        ddgiReflection = sampleDDGIDirectionalRadiance(
+            irradianceMap, ddgiDistanceMap, ps, ddgiSamplePos, ddgiNormal,
+            reflectionDirection);
+    }
     float3 viewFresnel = fresnelSchlick(max(dot(N, V), 0.0), F0);
     float reflectionRoughness = lerp(1.0, 0.12, roughness);
     float3 ddgiSpecular = ddgiReflection * viewFresnel *
                           reflectionRoughness * occlusion * ddgiGain;
 
     float3 iblContribution = float3(0.0);
-    if (uniforms.useIBL != 0u) {
+    if (environmentEnabled) {
         float3 param_43 = N;
         float3 irradiance =
             sampleEnvironmentRadiance(param_43, skybox);
         float3 diffuseIBL = irradiance * albedo;
         float3 reflection = reflect(-V, N);
         float3 param_44 = reflection;
-        float3 specularEnv =
-            sampleEnvironmentRadiance(param_44, skybox);
+        float3 specularEnv = sampleEnvironmentRadiance(param_44, skybox);
+        float specularLuminance =
+            dot(specularEnv, float3(0.2126, 0.7152, 0.0722));
+        float3 ambientSpecular = ambientLight.color.xyz *
+                                 max(ambientLight.intensity, 0.08);
+        specularEnv = specularLuminance > 0.0001
+                          ? specularEnv
+                          : ambientSpecular;
         float param_45 = max(dot(N, V), 0.0);
         float3 param_46 = F0;
         float3 F = fresnelSchlick(param_45, param_46);
@@ -612,7 +653,10 @@ FragmentOutput fragmentMain(FragmentInput input) {
         float roughnessAttenuation = lerp(1.0, 0.150000006,
                                          clamp(roughness, 0.0, 1.0));
         float3 specularIBL = specularEnv * roughnessAttenuation;
-        iblContribution = ((kD * diffuseIBL) + (kS * specularIBL)) * occlusion;
+        float diffuseWeight = uniforms.useIBL != 0u ? 1.0 : 0.2;
+        iblContribution =
+            ((kD * diffuseIBL * diffuseWeight) + (kS * specularIBL)) *
+            occlusion;
     }
     float3 finalColor = (ambient + lighting + ddgiSpecular) + iblContribution;
 
@@ -636,26 +680,23 @@ FragmentOutput fragmentMain(FragmentInput input) {
             blueDirection = dot(blueDirection, blueDirection) > 0.000001
                                 ? normalize(blueDirection)
                                 : greenDirection;
-            float3 redTransport = sampleDDGIDirectionalRadiance(
-                irradianceMap, ddgiDistanceMap, ps, ddgiSamplePos, ddgiNormal,
-                redDirection);
-            float3 greenTransport = sampleDDGIDirectionalRadiance(
-                irradianceMap, ddgiDistanceMap, ps, ddgiSamplePos, ddgiNormal,
-                greenDirection);
-            float3 blueTransport = sampleDDGIDirectionalRadiance(
-                irradianceMap, ddgiDistanceMap, ps, ddgiSamplePos, ddgiNormal,
-                blueDirection);
-            float3 environmentTransmission =
-                float3(skybox.Sample(redDirection).x,
-                       skybox.Sample(greenDirection).y,
-                       skybox.Sample(blueDirection).z);
-            float transportEnergy = dot(redTransport + greenTransport +
-                                            blueTransport,
-                                        float3(0.2126, 0.7152, 0.0722));
+            float3 probeTransmission = float3(0.0f);
+            if (ddgiEnabled) {
+                probeTransmission = sampleDDGIDirectionalRadiance(
+                    irradianceMap, ddgiDistanceMap, ps, ddgiSamplePos,
+                    ddgiNormal, greenDirection);
+            }
+            float3 environmentTransmission = environmentEnabled
+                ? float3(skybox.Sample(redDirection).x,
+                         skybox.Sample(greenDirection).y,
+                         skybox.Sample(blueDirection).z)
+                : float3(0.0f);
+            float probeEnergy = dot(probeTransmission,
+                                    float3(0.2126, 0.7152, 0.0722));
             float3 transmittedRadiance =
-                transportEnergy > 0.0001
-                    ? float3(redTransport.x, greenTransport.y,
-                             blueTransport.z)
+                probeEnergy > 0.0001
+                    ? lerp(probeTransmission, environmentTransmission,
+                           dispersionEnabled ? 0.3 : 0.12)
                     : environmentTransmission;
             float probeSpacing =
                 max(max(ps.spacing.x, max(ps.spacing.y, ps.spacing.z)),
@@ -687,17 +728,6 @@ FragmentOutput fragmentMain(FragmentInput input) {
         finalColor = ddgiIrradiance * ddgiGain * 4.0f;
     } else if (ddgiDebugMode >= 19.5f) {
         finalColor = ddgiDiffuse * 3.0f;
-    } else if (!(uniforms.useIBL != 0u)) {
-        float3 I = normalize(FragPos - float3(uniforms.cameraPosition));
-        float3 R_1 = reflect(-I, N);
-        float param_47 = max(dot(N, -I), 0.0);
-        float3 param_48 = F0;
-        float3 F_1 = fresnelSchlick(param_47, param_48);
-        float3 kS_1 = F_1;
-        float3 envColor = skybox.Sample(R_1).xyz;
-        float3 reflection_1 = envColor * kS_1;
-        float3 envMix = F0 * (1.0f - roughness) * 0.20f;
-        finalColor = lerp(finalColor, reflection_1, envMix);
     }
     output.FragColor = float4(finalColor, 1.0);
     float brightness =

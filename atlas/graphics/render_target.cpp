@@ -40,7 +40,8 @@ RenderTarget::RenderTarget(Window &window, RenderTargetType type,
     if (type == RenderTargetType::SSAO || type == RenderTargetType::SSAOBlur) {
         targetScale = window.getSSAORenderScale();
     } else if (type == RenderTargetType::SSR) {
-        targetScale *= resolution == 2 ? 0.75f : 0.5f;
+        static constexpr float ssrScales[] = {0.67f, 0.85f, 1.0f};
+        targetScale *= ssrScales[std::clamp(resolution, 0, 2)];
     }
     targetScale = std::clamp(targetScale, 0.1f, 1.0f);
 

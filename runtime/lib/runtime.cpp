@@ -28,6 +28,8 @@ void RuntimeScene::initialize(Window &window) {
                 runtimeContext->config.pathTracingFeatureFlags);
         } else {
             window.useDeferredRendering();
+            window.setRealtimePBRFeatures(
+                runtimeContext->config.realtimePBRFeatureFlags);
         }
         if (runtimeContext->config.useUpscaling) {
 #ifdef METAL
@@ -39,6 +41,8 @@ void RuntimeScene::initialize(Window &window) {
 
     if (runtimeContext->config.renderer == "deferred") {
         window.useDeferredRendering();
+        window.setRealtimePBRFeatures(
+            runtimeContext->config.realtimePBRFeatureFlags);
 
         if (runtimeContext->config.globalIllumination) {
             window.enableGlobalIllumination();

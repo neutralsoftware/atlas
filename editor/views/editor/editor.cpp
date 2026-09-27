@@ -1409,13 +1409,28 @@ void EditorWindow::showProjectSettings() {
     frameLimit->setRange(0, 1000);
     frameLimit->setValue(settings.value("project/frameLimit", 0).toInt());
     auto *ssr = new QCheckBox("Enable screen-space reflections", &dialog);
-    ssr->setChecked(settings.value("project/ssr", false).toBool());
+    const QString configuredSSR =
+        tomlValue(projectLines, "renderer", "ssr");
+    ssr->setChecked(configuredSSR.isEmpty()
+                        ? settings.value("project/ssr", false).toBool()
+                        : configuredSSR == "true");
     auto *ssrQuality = new QComboBox(&dialog);
-    ssrQuality->addItems({"Low", "Medium", "High"});
-    ssrQuality->setCurrentIndex(
-        settings.value("project/ssrQuality", 1).toInt());
+    ssrQuality->addItems({"Low · 67%", "Medium · 85%", "High · 100%"});
+    bool ssrQualityValid = false;
+    const int configuredSSRQuality =
+        tomlValue(projectLines, "renderer", "ssr_quality")
+            .toInt(&ssrQualityValid);
+    ssrQuality->setCurrentIndex(std::clamp(
+        ssrQualityValid ? configuredSSRQuality
+                        : settings.value("project/ssrQuality", 1).toInt(),
+        0, 2));
     auto *ssrDebug = new QCheckBox("Show SSR hit confidence", &dialog);
-    ssrDebug->setChecked(settings.value("project/ssrDebug", false).toBool());
+    const QString configuredSSRDebug =
+        tomlValue(projectLines, "renderer", "ssr_debug");
+    ssrDebug->setChecked(
+        configuredSSRDebug.isEmpty()
+            ? settings.value("project/ssrDebug", false).toBool()
+            : configuredSSRDebug == "true");
     auto *upscaling = new QCheckBox("Enable Metal upscaling", &dialog);
     upscaling->setChecked(configuredUpscaling);
     auto *upscalingQuality = new QComboBox(&dialog);
@@ -1448,7 +1463,7 @@ void EditorWindow::showProjectSettings() {
     accumulationFrames->setRange(1, 2048);
     accumulationFrames->setValue(accumulationValid ? configuredAccumulation
                                                    : 512);
-    auto *photonFeatures = new QGroupBox("Photon Features", &dialog);
+    auto *photonFeatures = new QGroupBox("Rendering Features", &dialog);
     auto *photonFeaturesLayout = new QGridLayout(photonFeatures);
     auto createPhotonFeature = [&](const QString &label, const QString &key,
                                    int row, int column) {
@@ -1573,16 +1588,28 @@ void EditorWindow::showProjectSettings() {
     rendering->addRow(photonFeatures);
     rendering->addRow("Frame limit (0 = unlimited)", frameLimit);
     auto updatePathTracingControls = [=] {
-        const bool enabled = renderer->currentText() == "Path Tracing";
-        samplesPerPixel->setEnabled(enabled);
-        maxBounces->setEnabled(enabled);
-        denoising->setEnabled(enabled);
-        accumulationFrames->setEnabled(enabled);
+        const bool pathTracing = renderer->currentText() == "Path Tracing";
+        const bool ddgi = renderer->currentText() == "PBR + DDGI";
+        ssr->setEnabled(!pathTracing);
+        ssrQuality->setEnabled(!pathTracing && ssr->isChecked());
+        ssrDebug->setEnabled(!pathTracing && ssr->isChecked());
+        samplesPerPixel->setEnabled(pathTracing);
+        maxBounces->setEnabled(pathTracing);
+        denoising->setEnabled(pathTracing);
+        accumulationFrames->setEnabled(pathTracing);
         for (auto *control : photonFeatureControls)
-            control->setEnabled(enabled);
+            control->setEnabled(pathTracing);
+        directLighting->setEnabled(true);
+        shadows->setEnabled(true);
+        environmentLighting->setEnabled(true);
+        transmission->setEnabled(true);
+        dispersion->setEnabled(true);
+        indirectLighting->setEnabled(pathTracing || ddgi);
+        volumes->setEnabled(pathTracing || ddgi);
     };
     connect(renderer, &QComboBox::currentTextChanged, &dialog,
             updatePathTracingControls);
+    connect(ssr, &QCheckBox::toggled, &dialog, updatePathTracingControls);
     updatePathTracingControls();
     auto *physics = addPage("Physics", styling::Icon::Wrench, "#A1957D");
     auto *gravity = new QLineEdit(

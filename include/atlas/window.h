@@ -763,6 +763,9 @@ class Window {
 
     void enableSSR(bool enabled = true) { this->useSSR = enabled; }
     bool isSSREnabled() const { return this->useSSR; }
+    void setRealtimePBRFeatures(uint32_t featureFlags) {
+        this->realtimePBRFeatureFlags = featureFlags;
+    }
     void setSSRDebugMode(bool enabled) { this->ssrDebugMode = enabled; }
     void setSSRQuality(int quality) {
         const int clamped = std::clamp(quality, 0, 2);
@@ -990,6 +993,7 @@ class Window {
     bool useSSR = false;
     int ssrQuality = 1;
     bool ssrDebugMode = false;
+    uint32_t realtimePBRFeatureFlags = photon::AllPathTracingFeatures;
 
     bool clipPlaneEnabled = false;
     glm::vec4 clipPlaneEquation{0.0f};

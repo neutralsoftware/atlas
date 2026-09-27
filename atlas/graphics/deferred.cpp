@@ -292,7 +292,8 @@ void Window::deferredRendering(
         this->volumetricBuffer->getHeight() != targetHeight) {
         recreateDeferredTargets = true;
     }
-    const float ssrScale = this->ssrQuality == 2 ? 0.75f : 0.5f;
+    static constexpr float ssrScales[] = {0.67f, 0.85f, 1.0f};
+    const float ssrScale = ssrScales[std::clamp(this->ssrQuality, 0, 2)];
     const int ssrWidth = std::max(1, static_cast<int>(targetWidth * ssrScale));
     const int ssrHeight =
         std::max(1, static_cast<int>(targetHeight * ssrScale));
@@ -980,6 +981,8 @@ void Window::deferredRendering(
     }
 
     lightPipeline->setUniform1i("shadowParamCount", boundParameters);
+    lightPipeline->setUniform1i(
+        "featureFlags", static_cast<int>(this->realtimePBRFeatureFlags));
 #ifdef METAL
     if (!gpuShadowParams.empty()) {
         lightPipeline->bindBuffer("ShadowParams", gpuShadowParams);
@@ -1099,13 +1102,17 @@ void Window::deferredRendering(
         commandBuffer->endPass();
     }
 
-    if (useSSR && this->ssrFramebuffer == nullptr) {
+    const bool useRealtimeTransmission =
+        (this->realtimePBRFeatureFlags & photon::Transmission) != 0;
+    if ((useSSR || useRealtimeTransmission) &&
+        this->ssrFramebuffer == nullptr) {
         this->ssrFramebuffer = std::make_shared<RenderTarget>(
             RenderTarget(*this, RenderTargetType::SSR, this->ssrQuality));
         this->ssrHistoryFramebuffer = std::make_shared<RenderTarget>(
             RenderTarget(*this, RenderTargetType::SSR, this->ssrQuality));
     }
-    if (this->ssrFramebuffer != nullptr && useSSR) {
+    if (this->ssrFramebuffer != nullptr &&
+        (useSSR || useRealtimeTransmission)) {
         if (targetPassActive) {
             commandBuffer->endPass();
             targetPassActive = false;
@@ -1139,6 +1146,8 @@ void Window::deferredRendering(
         ssrPipeline->bindTexture2D("gDepth", gBuffer->depthTexture.id, 5);
         ssrPipeline->bindTexture2D("historyTexture",
                                    ssrHistoryFramebuffer->texture.id, 7);
+        ssrPipeline->bindTexture2D("gOptical", gBuffer->gOptical.id, 8);
+        ssrPipeline->bindTexture2D("gMedium", gBuffer->gMedium.id, 9);
         if (scene->skybox != nullptr && scene->skybox->cubemap.id != 0) {
             ssrPipeline->bindTextureCubemap("skybox", scene->skybox->cubemap.id,
                                             6);
@@ -1159,12 +1168,12 @@ void Window::deferredRendering(
         ssrPipeline->setUniform3f("cameraPosition", camera->position.x,
                                   camera->position.y, camera->position.z);
         static constexpr float maxDistances[] = {20.0f, 32.0f, 48.0f};
-        static constexpr int stepCounts[] = {20, 36, 56};
+        static constexpr int stepCounts[] = {16, 28, 44};
         static constexpr float thicknesses[] = {1.5f, 1.0f, 0.65f};
         static constexpr float roughnessLimits[] = {0.3f, 0.45f, 0.6f};
         const int quality = std::clamp(this->ssrQuality, 0, 2);
         ssrPipeline->setUniform1f("maxDistance", maxDistances[quality]);
-        ssrPipeline->setUniform1f("resolution", quality == 2 ? 0.75f : 0.5f);
+        ssrPipeline->setUniform1f("resolution", ssrScales[quality]);
         ssrPipeline->setUniform1i("steps", stepCounts[quality]);
         ssrPipeline->setUniform1f("thickness", thicknesses[quality]);
         ssrPipeline->setUniform1f("maxRoughness", roughnessLimits[quality]);
@@ -1177,6 +1186,17 @@ void Window::deferredRendering(
                                   viewDelta < 0.001f ? 0.85f : 0.0f);
         ssrPipeline->setUniform1i("debugMode",
                                   this->ssrDebugMode ? 1 : 0);
+        ssrPipeline->setUniform1i("reflectionsEnabled", useSSR ? 1 : 0);
+        ssrPipeline->setUniform1i("transmissionEnabled",
+                                  useRealtimeTransmission ? 1 : 0);
+        ssrPipeline->setUniform1i(
+            "dispersionEnabled",
+            (this->realtimePBRFeatureFlags & photon::Dispersion) != 0 ? 1 : 0);
+        ssrPipeline->setUniform1i(
+            "volumesEnabled",
+            (this->realtimePBRFeatureFlags & photon::Volumes) != 0 ? 1 : 0);
+        ssrPipeline->setUniform1i("ddgiEnabled",
+                                  this->usesGlobalIllumination ? 1 : 0);
 
         commandBuffer->bindDrawingState(quadState);
         commandBuffer->bindPipeline(ssrPipeline);
