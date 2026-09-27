@@ -1,19 +1,31 @@
 use crate::Commands;
 use colored::Colorize;
 use serde_json::Value;
-use std::ffi::{CStr, CString, OsStr, c_void};
+use std::ffi::{CString, OsStr, c_void};
 use std::fs;
 use std::os::raw::c_char;
 use std::path::{Path, PathBuf};
 
+#[cfg(unix)]
+use std::ffi::CStr;
+
 type AtlasRuntimeRunProject = unsafe extern "C" fn(project_file: *const c_char) -> bool;
 
+#[cfg(unix)]
 const RTLD_NOW: i32 = 0x2;
 
+#[cfg(unix)]
 unsafe extern "C" {
     fn dlopen(path: *const c_char, mode: i32) -> *mut c_void;
     fn dlsym(handle: *mut c_void, symbol: *const c_char) -> *mut c_void;
     fn dlerror() -> *const c_char;
+}
+
+#[cfg(windows)]
+#[link(name = "kernel32")]
+unsafe extern "system" {
+    fn LoadLibraryW(path: *const u16) -> *mut c_void;
+    fn GetProcAddress(handle: *mut c_void, name: *const u8) -> *mut c_void;
 }
 
 fn should_skip_directory(path: &Path, root: &Path) -> bool {
@@ -87,9 +99,9 @@ fn find_manifest_in_directory(root: &Path) -> Result<PathBuf, String> {
 }
 
 fn home_dir() -> Result<PathBuf, String> {
-    std::env::var_os("HOME")
+    std::env::var_os(if cfg!(windows) { "USERPROFILE" } else { "HOME" })
         .map(PathBuf::from)
-        .ok_or_else(|| String::from("HOME is not set"))
+        .ok_or_else(|| String::from("User home directory is not set"))
 }
 
 fn expand_user_path(path: &str) -> Result<PathBuf, String> {
@@ -154,7 +166,7 @@ fn candidate_runtime_paths(
 
     if let Ok(dir) = std::env::var("ATLAS_RUNTIME_LIB_DIR") {
         let dir = PathBuf::from(dir);
-        for name in ["runtime.dylib", "libruntime.dylib", "libruntime_lib.dylib"] {
+        for name in runtime_library_names() {
             candidates.push(dir.join(name));
         }
     }
@@ -163,8 +175,16 @@ fn candidate_runtime_paths(
         candidates.push(path);
     }
 
+    if let Ok(executable) = std::env::current_exe() {
+        if let Some(directory) = executable.parent() {
+            for name in runtime_library_names() {
+                candidates.push(directory.join(name));
+            }
+        }
+    }
+
     if let Some(project_dir) = project_path.parent() {
-        for name in ["runtime.dylib", "libruntime.dylib", "libruntime_lib.dylib"] {
+        for name in runtime_library_names() {
             candidates.push(project_dir.join(name));
             candidates.push(project_dir.join("lib").join(name));
         }
@@ -175,6 +195,17 @@ fn candidate_runtime_paths(
     Ok(candidates)
 }
 
+fn runtime_library_names() -> &'static [&'static str] {
+    if cfg!(windows) {
+        &["runtime.dll"]
+    } else if cfg!(target_os = "macos") {
+        &["runtime.dylib", "libruntime.dylib", "libruntime_lib.dylib"]
+    } else {
+        &["runtime.so", "libruntime.so", "libruntime_lib.so"]
+    }
+}
+
+#[cfg(unix)]
 fn dlerror_string() -> String {
     unsafe {
         let ptr = dlerror();
@@ -185,6 +216,7 @@ fn dlerror_string() -> String {
     }
 }
 
+#[cfg(unix)]
 fn load_runtime_entry(
     runtime_path: &Path,
 ) -> Result<(*mut c_void, AtlasRuntimeRunProject), String> {
@@ -216,6 +248,31 @@ fn load_runtime_entry(
         ));
     }
 
+    let function: AtlasRuntimeRunProject = unsafe { std::mem::transmute(symbol) };
+    Ok((handle, function))
+}
+
+#[cfg(windows)]
+fn load_runtime_entry(
+    runtime_path: &Path,
+) -> Result<(*mut c_void, AtlasRuntimeRunProject), String> {
+    use std::os::windows::ffi::OsStrExt;
+
+    let runtime_path = runtime_path
+        .canonicalize()
+        .map_err(|e| format!("Failed to resolve {}: {e}", runtime_path.display()))?;
+    let wide_path: Vec<u16> = runtime_path.as_os_str().encode_wide().chain(Some(0)).collect();
+    let handle = unsafe { LoadLibraryW(wide_path.as_ptr()) };
+    if handle.is_null() {
+        return Err(format!("Failed to load runtime library {}", runtime_path.display()));
+    }
+    let symbol = unsafe { GetProcAddress(handle, c"atlas_runtime_run_project".as_ptr().cast()) };
+    if symbol.is_null() {
+        return Err(format!(
+            "Runtime library {} does not export atlas_runtime_run_project",
+            runtime_path.display()
+        ));
+    }
     let function: AtlasRuntimeRunProject = unsafe { std::mem::transmute(symbol) };
     Ok((handle, function))
 }

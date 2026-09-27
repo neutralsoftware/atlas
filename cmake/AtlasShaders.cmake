@@ -6,7 +6,11 @@ include_directories(BEFORE "${SHADER_GENERATED_INCLUDE_DIR}")
 
 find_package(Python3 COMPONENTS Interpreter REQUIRED)
 find_program(SLANGC_EXECUTABLE NAMES slangc REQUIRED)
-find_program(SPIRV_CROSS_EXECUTABLE NAMES spirv-cross REQUIRED)
+if (BACKEND_METAL)
+    find_program(SPIRV_CROSS_EXECUTABLE NAMES spirv-cross REQUIRED)
+else ()
+    find_program(SPIRV_CROSS_EXECUTABLE NAMES spirv-cross)
+endif ()
 
 set(ATLAS_PHOTON_BACKEND "AUTO" CACHE STRING "Native Photon shaders: AUTO, METAL, VULKAN, OFF")
 set_property(CACHE ATLAS_PHOTON_BACKEND PROPERTY STRINGS AUTO METAL VULKAN OFF)
@@ -14,6 +18,8 @@ string(TOUPPER "${ATLAS_PHOTON_BACKEND}" PHOTON_SHADER_BACKEND)
 if (PHOTON_SHADER_BACKEND STREQUAL "AUTO")
     if (BACKEND_METAL)
         set(PHOTON_SHADER_BACKEND "METAL")
+    elseif (BACKEND_VULKAN)
+        set(PHOTON_SHADER_BACKEND "VULKAN")
     else ()
         set(PHOTON_SHADER_BACKEND "OFF")
     endif ()
@@ -47,16 +53,20 @@ file(GLOB_RECURSE RUNTIME_SCRIPT_SOURCES CONFIGURE_DEPENDS
 set(SHADER_GENERATION_CONFIG "${SHADER_GENERATED_INCLUDE_DIR}/shader-config.txt")
 file(GENERATE OUTPUT "${SHADER_GENERATION_CONFIG}"
      CONTENT "${BACKEND}\n${PHOTON_SHADER_BACKEND}\n${SLANGC_EXECUTABLE}\n${SPIRV_CROSS_EXECUTABLE}\n")
+set(SHADER_SPIRV_CROSS_ARGS)
+if (SPIRV_CROSS_EXECUTABLE)
+    list(APPEND SHADER_SPIRV_CROSS_ARGS
+            --spirv-cross "${SPIRV_CROSS_EXECUTABLE}")
+endif ()
 add_custom_command(
         OUTPUT "${SHADER_OUTPUT_FILE}"
         COMMAND ${Python3_EXECUTABLE} "${CMAKE_SOURCE_DIR}/scripts/pack_shaders.py"
                 "${SHADER_INPUT_DIR}" "${SHADER_OUTPUT_FILE}" "${SHADER_BACKEND_ARG}"
                 --slangc "${SLANGC_EXECUTABLE}"
-                --spirv-cross "${SPIRV_CROSS_EXECUTABLE}"
+                ${SHADER_SPIRV_CROSS_ARGS}
                 --photon-backend "${PHOTON_SHADER_BACKEND_ARG}"
         DEPENDS ${SHADER_SOURCES} "${CMAKE_SOURCE_DIR}/scripts/pack_shaders.py"
-                "${SHADER_GENERATION_CONFIG}" "${SLANGC_EXECUTABLE}" "${SPIRV_CROSS_EXECUTABLE}"
+                "${SHADER_GENERATION_CONFIG}" "${SLANGC_EXECUTABLE}"
         VERBATIM
 )
 add_custom_target(generate_shaders DEPENDS "${SHADER_OUTPUT_FILE}")
-

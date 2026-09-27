@@ -26,10 +26,10 @@ file(GLOB_RECURSE ATLAS_CLI_SOURCES CONFIGURE_DEPENDS
 
 if (CMAKE_BUILD_TYPE STREQUAL "Release")
     set(ATLAS_EDITOR_CARGO_ARGS --release)
-    set(ATLAS_EDITOR_CLI "${CMAKE_SOURCE_DIR}/target/release/atlas")
+    set(ATLAS_EDITOR_CLI "${CMAKE_SOURCE_DIR}/target/release/atlas${CMAKE_EXECUTABLE_SUFFIX}")
 else ()
     set(ATLAS_EDITOR_CARGO_ARGS)
-    set(ATLAS_EDITOR_CLI "${CMAKE_SOURCE_DIR}/target/debug/atlas")
+    set(ATLAS_EDITOR_CLI "${CMAKE_SOURCE_DIR}/target/debug/atlas${CMAKE_EXECUTABLE_SUFFIX}")
 endif ()
 
 add_custom_command(
@@ -204,7 +204,10 @@ else ()
     add_custom_command(TARGET AtlasEditor POST_BUILD
             COMMAND "${CMAKE_COMMAND}" -E copy_if_different
             "${ATLAS_EDITOR_CLI}"
-            "$<TARGET_FILE_DIR:AtlasEditor>/atlas"
+            "$<TARGET_FILE_DIR:AtlasEditor>/atlas${CMAKE_EXECUTABLE_SUFFIX}"
+            COMMAND "${CMAKE_COMMAND}" -E copy_if_different
+            "$<TARGET_FILE:runtime_lib>"
+            "$<TARGET_FILE_DIR:AtlasEditor>/$<TARGET_FILE_NAME:runtime_lib>"
             VERBATIM
     )
 endif ()

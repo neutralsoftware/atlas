@@ -19,12 +19,10 @@
 #include <cstdint>
 #include <cstring>
 #include <exception>
-#include <ranges>
 #include <unordered_map>
 #include <unordered_set>
-#include <sys/types.h>
 
-#ifdef METAL
+#if defined(METAL) || defined(VULKAN)
 
 namespace {
 constexpr int kPathTracerMaxMaterialTextures = 256;
@@ -137,7 +135,8 @@ uint64_t pathTracingObjectStateHash(const CoreObject *object,
     append(&vertexCount, sizeof(vertexCount));
     append(&indexCount, sizeof(indexCount));
     for (const auto &texture : object->textures) {
-        const auto *textureAddress = texture.texture.get();
+        const uintptr_t textureAddress =
+            reinterpret_cast<uintptr_t>(texture.texture.get());
         append(&textureAddress, sizeof(textureAddress));
         append(&texture.type, sizeof(texture.type));
     }
@@ -238,6 +237,7 @@ void photon::PathTracing::init() {
     materialTextures.clear();
     materialTextureBindings.clear();
     sceneBLAS.reset();
+    sceneTLAS.reset();
     blasPrimitiveOffsets.reset();
     cachedBLASPrimitiveOffsets.clear();
     cachedObjects.clear();
@@ -264,9 +264,15 @@ void photon::PathTracing::init() {
     pathTracingPipeline->setComputeThreadgroupSize(8, 8, 1);
     pathTracingPipeline->build();
 
+#ifdef VULKAN
+    auto createCausticPipeline = [&](const char *entry, const char *source) {
+        auto shader = opal::Shader::createFromSource(
+            source, opal::ShaderType::Compute, entry);
+#else
     auto createCausticPipeline = [&](const char *entry) {
         auto shader = pathTracerShader.shader->forFunction(
             entry, opal::ShaderType::Compute);
+#endif
         shader->compile();
         auto program = opal::ShaderProgram::create();
         program->attachShader(shader);
@@ -277,8 +283,15 @@ void photon::PathTracing::init() {
         pipeline->build();
         return pipeline;
     };
+#ifdef VULKAN
+    causticClearPipeline =
+        createCausticPipeline("clearCaustics", PATH_CAUSTIC_CLEAR);
+    causticEmitPipeline =
+        createCausticPipeline("emitCaustics", PATH_CAUSTIC_EMIT);
+#else
     causticClearPipeline = createCausticPipeline("clearCaustics");
     causticEmitPipeline = createCausticPipeline("emitCaustics");
+#endif
     causticPhotons = opal::Buffer::create(opal::BufferUsage::ShaderReadWrite,
                                           kCausticPhotonCount * 48);
     causticSlots = opal::Buffer::create(
@@ -1017,9 +1030,24 @@ bool photon::PathTracing::buildAccelerationStructure(
         accelerationBuildFailed = true;
         return false;
     }
+#ifdef VULKAN
+    opal::AccelerationStructureInstance accelerationInstance{};
+    accelerationInstance.blas = sceneBLAS;
+    accelerationInstance.transform = glm::mat4(1.0f);
+    accelerationInstance.instanceId = 0;
+    accelerationInstance.mask = 0xFF;
+    accelerationInstance.cullDisable = true;
+    sceneTLAS = commandBuffer->buildAccelerationStructures(
+        {sceneBLAS}, {accelerationInstance});
+#else
     commandBuffer->buildPrimitiveAccelerationStructure(sceneBLAS);
+#endif
     frameIndex = 0;
-    if (!sceneBLAS->isBuilt) {
+    if (!sceneBLAS->isBuilt
+#ifdef VULKAN
+        || sceneTLAS == nullptr || !sceneTLAS->isBuilt
+#endif
+    ) {
         lastError = "The scene acceleration structure is unavailable";
         accelerationBuildFailed = true;
         return false;
@@ -1278,20 +1306,18 @@ bool photon::PathTracing::render(
             if (scene->atmosphere.clouds != nullptr) {
                 const auto &clouds = *scene->atmosphere.clouds;
                 cloudsEnabled = 1;
-                cloudSettings = glm::vec4(
-                    clouds.scale, clouds.density, clouds.densityMultiplier,
-                    clouds.absorption);
-                cloudLighting = glm::vec4(
-                    clouds.scattering, clouds.phase,
-                    static_cast<float>(clouds.offset.x),
-                    static_cast<float>(clouds.offset.z));
+                cloudSettings =
+                    glm::vec4(clouds.scale, clouds.density,
+                              clouds.densityMultiplier, clouds.absorption);
+                cloudLighting = glm::vec4(clouds.scattering, clouds.phase,
+                                          static_cast<float>(clouds.offset.x),
+                                          static_cast<float>(clouds.offset.z));
             }
         }
-        ambientIntensity =
-            scene->isAutomaticAmbientEnabled()
-                ? scene->getAutomaticAmbientIntensity() *
-                      (atmosphereSkyEnabled != 0 ? 0.3f : 1.0f)
-                : scene->getAmbientIntensity();
+        ambientIntensity = scene->isAutomaticAmbientEnabled()
+                               ? scene->getAutomaticAmbientIntensity() *
+                                     (atmosphereSkyEnabled != 0 ? 0.3f : 1.0f)
+                               : scene->getAmbientIntensity();
         Color sceneAmbientColor = scene->isAutomaticAmbientEnabled()
                                       ? scene->getAutomaticAmbientColor()
                                       : scene->getAmbientColor();
@@ -1363,14 +1389,13 @@ bool photon::PathTracing::render(
                                       atmosphereEnabled);
     pathTracingPipeline->setUniform1i("sceneData.atmosphereSkyEnabled",
                                       atmosphereSkyEnabled);
-    pathTracingPipeline->setUniform4f(
-        "sceneData.cloudSettings", cloudSettings.x, cloudSettings.y,
-        cloudSettings.z, cloudSettings.w);
-    pathTracingPipeline->setUniform4f(
-        "sceneData.cloudLighting", cloudLighting.x, cloudLighting.y,
-        cloudLighting.z, cloudLighting.w);
-    pathTracingPipeline->setUniform1i("sceneData.cloudsEnabled",
-                                      cloudsEnabled);
+    pathTracingPipeline->setUniform4f("sceneData.cloudSettings",
+                                      cloudSettings.x, cloudSettings.y,
+                                      cloudSettings.z, cloudSettings.w);
+    pathTracingPipeline->setUniform4f("sceneData.cloudLighting",
+                                      cloudLighting.x, cloudLighting.y,
+                                      cloudLighting.z, cloudLighting.w);
+    pathTracingPipeline->setUniform1i("sceneData.cloudsEnabled", cloudsEnabled);
     pathTracingPipeline->setUniform1f("sceneData.atmosphereSunSize",
                                       atmosphereSunSize);
     pathTracingPipeline->setUniform3f(
@@ -1387,10 +1412,9 @@ bool photon::PathTracing::render(
                                       spotLightCount);
     pathTracingPipeline->setUniform1i("sceneData.numAreaLights",
                                       areaLightCount);
-    pathTracingPipeline->setUniform1f("sceneData.indirectStrength",
-                                      (featureFlags & IndirectLighting) != 0
-                                          ? this->indirectStrength
-                                          : 0.0f);
+    pathTracingPipeline->setUniform1f(
+        "sceneData.indirectStrength",
+        (featureFlags & IndirectLighting) != 0 ? this->indirectStrength : 0.0f);
     pathTracingPipeline->setUniform1i("sceneData.featureFlags",
                                       static_cast<int>(featureFlags));
 
@@ -1547,12 +1571,15 @@ bool photon::PathTracing::render(
     pathTracingPipeline->setUniform1f(
         "sceneData.bloomThreshold",
         std::max(scene->getEnvironment().lightBloom.threshold, 0.0f));
-    pathTracingPipeline->setUniform1i("sceneData.numEmissiveTriangles",
-                                      (featureFlags & EmissiveLighting) != 0
-                                          ? emissiveTriangleCount
-                                          : 0);
+    pathTracingPipeline->setUniform1i(
+        "sceneData.numEmissiveTriangles",
+        (featureFlags & EmissiveLighting) != 0 ? emissiveTriangleCount : 0);
 
+#ifdef VULKAN
+    commandBuffer->bindInstanceAccelerationStructure(this->sceneTLAS, 0);
+#else
     commandBuffer->bindPrimitiveAccelerationStructure(this->sceneBLAS, 0);
+#endif
 
     pathTracingPipeline->bindBuffer("materials", materialBuffer, 2);
     pathTracingPipeline->bindBuffer("primitiveObjects", meshInfo, 3);
@@ -1597,8 +1624,8 @@ bool photon::PathTracing::render(
     pathTracingPipeline->bindBuffer("photons", causticPhotons, 15);
     pathTracingPipeline->bindBuffer("photonSlots", causticSlots, 16);
     const bool refineCaustics = causticsEnabled && !interactive &&
-                                 refinementFrame > 0 &&
-                                 refinementFrame % 16 == 0;
+                                refinementFrame > 0 &&
+                                refinementFrame % 16 == 0;
     if (causticsEnabled && (causticMapDirty || refineCaustics)) {
         commandBuffer->bindPipeline(causticClearPipeline);
         causticClearPipeline->bindBuffer("photonSlots", causticSlots, 16);
@@ -1611,15 +1638,15 @@ bool photon::PathTracing::render(
         pipeline->setUniform1i("sceneData.numPointLights", pointLightCount);
         pipeline->setUniform1i("sceneData.numSpotLights", spotLightCount);
         pipeline->setUniform1i("sceneData.numAreaLights", areaLightCount);
-        pipeline->setUniform1i("sceneData.numEmissiveTriangles",
-                               (featureFlags & EmissiveLighting) != 0
-                                   ? emissiveTriangleCount
-                                   : 0);
-        pipeline->setUniform1i("sceneData.materialTextureCount",
-                               (featureFlags & MaterialTextures) != 0
-                                   ? std::min<int>(materialTextures.size(),
-                                                   kPathTracerMaxMaterialTextures)
-                                   : 0);
+        pipeline->setUniform1i(
+            "sceneData.numEmissiveTriangles",
+            (featureFlags & EmissiveLighting) != 0 ? emissiveTriangleCount : 0);
+        pipeline->setUniform1i(
+            "sceneData.materialTextureCount",
+            (featureFlags & MaterialTextures) != 0
+                ? std::min<int>(materialTextures.size(),
+                                kPathTracerMaxMaterialTextures)
+                : 0);
         pipeline->setUniform1i("sceneData.featureFlags",
                                static_cast<int>(featureFlags));
         pipeline->setUniform3f(
@@ -1649,12 +1676,20 @@ bool photon::PathTracing::render(
         pipeline->bindBuffer("photons", causticPhotons, 15);
         pipeline->bindBuffer("photonSlots", causticSlots, 16);
         pipeline->bindTextureArray(materialTextureBindings, 12);
+#ifdef VULKAN
+        commandBuffer->bindInstanceAccelerationStructure(sceneTLAS, 0);
+#else
         commandBuffer->bindPrimitiveAccelerationStructure(sceneBLAS, 0);
+#endif
         commandBuffer->dispatch(kCausticPhotonCount, 1, 1);
         commandBuffer->computeBarrier();
         causticMapDirty = false;
         commandBuffer->bindPipeline(pathTracingPipeline);
+#ifdef VULKAN
+        commandBuffer->bindInstanceAccelerationStructure(sceneTLAS, 0);
+#else
         commandBuffer->bindPrimitiveAccelerationStructure(sceneBLAS, 0);
+#endif
     }
 
     commandBuffer->dispatch((outputWidth + pixelStride - 1) / pixelStride,

@@ -96,9 +96,9 @@ const SCENE_TEMPLATE: &str = r#"{
 "#;
 
 fn home_dir() -> Result<PathBuf, String> {
-    std::env::var_os("HOME")
+    std::env::var_os(if cfg!(windows) { "USERPROFILE" } else { "HOME" })
         .map(PathBuf::from)
-        .ok_or_else(|| String::from("HOME is not set"))
+        .ok_or_else(|| String::from("User home directory is not set"))
 }
 
 fn expand_user_path(path: &str) -> Result<PathBuf, String> {

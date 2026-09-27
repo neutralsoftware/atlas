@@ -1,0 +1,39 @@
+{
+  "shaders": [
+    {
+      "source": "photon/vulkan/path.slang",
+      "stage": "compute",
+      "entry": "computeMain",
+      "profile": "spirv_1_5",
+      "symbol": "PATH"
+    },
+    {
+      "source": "photon/vulkan/path.slang",
+      "stage": "compute",
+      "entry": "clearCaustics",
+      "profile": "spirv_1_5",
+      "symbol": "PATH_CAUSTIC_CLEAR"
+    },
+    {
+      "source": "photon/vulkan/path.slang",
+      "stage": "compute",
+      "entry": "emitCaustics",
+      "profile": "spirv_1_5",
+      "symbol": "PATH_CAUSTIC_EMIT"
+    },
+    {
+      "source": "photon/vulkan/ddgi.slang",
+      "stage": "compute",
+      "entry": "computeMain",
+      "profile": "spirv_1_5",
+      "symbol": "DDGI"
+    },
+    {
+      "source": "photon/vulkan/ddgi_write.slang",
+      "stage": "compute",
+      "entry": "computeMain",
+      "profile": "spirv_1_5",
+      "symbol": "DDGI_WRITE"
+    }
+  ]
+}

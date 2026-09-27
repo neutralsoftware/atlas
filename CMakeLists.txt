@@ -1,6 +1,4 @@
 cmake_minimum_required(VERSION 3.21)
-set(CMAKE_C_COMPILER "/usr/bin/clang")
-set(CMAKE_CXX_COMPILER "/usr/bin/clang++")
 
 project(Atlas LANGUAGES C CXX)
 
@@ -301,9 +299,21 @@ if (BACKEND_VULKAN)
     if (APPLE)
         list(APPEND CMAKE_PREFIX_PATH "/opt/homebrew/opt/spirv-cross")
     endif ()
-    find_package(spirv_cross_core REQUIRED)
-    find_package(spirv_cross_glsl REQUIRED)
-    find_package(spirv_cross_reflect REQUIRED)
+    find_package(spirv_cross_core QUIET)
+    find_package(spirv_cross_glsl QUIET)
+    find_package(spirv_cross_reflect QUIET)
+    if (NOT TARGET spirv-cross-core OR NOT TARGET spirv-cross-glsl OR NOT TARGET spirv-cross-reflect)
+        set(SPIRV_CROSS_CLI OFF CACHE BOOL "" FORCE)
+        set(SPIRV_CROSS_ENABLE_TESTS OFF CACHE BOOL "" FORCE)
+        set(SPIRV_CROSS_ENABLE_C_API OFF CACHE BOOL "" FORCE)
+        FetchContent_Declare(
+                SPIRV_Cross
+                GIT_REPOSITORY https://github.com/KhronosGroup/SPIRV-Cross.git
+                GIT_TAG vulkan-sdk-1.4.321.0
+                GIT_SHALLOW TRUE
+        )
+        FetchContent_MakeAvailable(SPIRV_Cross)
+    endif ()
 elseif (BACKEND_METAL)
     message(STATUS "Using Metal backend")
 endif ()
@@ -518,7 +528,9 @@ if (BACKEND_VULKAN)
 endif ()
 
 target_compile_definitions(atlas PRIVATE ATLAS_LIB GL_SILENT_DEPRECATION)
-target_compile_options(atlas PRIVATE -Wno-overlength-strings)
+if (NOT MSVC)
+    target_compile_options(atlas PRIVATE -Wno-overlength-strings)
+endif ()
 
 if (WIN32)
     target_compile_definitions(atlas PRIVATE _CRT_SECURE_NO_WARNINGS NOMINMAX)

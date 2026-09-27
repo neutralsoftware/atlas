@@ -1,0 +1,119 @@
+name: Package platform artifacts
+
+on:
+    push:
+        branches:
+            - stable
+            - prerelease
+
+permissions:
+    contents: read
+
+env:
+    SLANG_VERSION: 2026.18.3
+
+jobs:
+    windows:
+        name: Windows x86_64
+        runs-on: windows-2025
+        steps:
+            - uses: actions/checkout@v5
+              with:
+                  submodules: recursive
+            - uses: actions-rust-lang/setup-rust-toolchain@v1
+            - uses: ilammy/msvc-dev-cmd@v1
+            - uses: jurplel/install-qt-action@v4
+              with:
+                  version: "6.9.2"
+                  arch: win64_msvc2022_64
+                  cache: true
+            - name: Install build tools
+              shell: pwsh
+              run: |
+                  choco install ninja imagemagick vulkan-sdk --no-progress -y
+                  npm install --global rcedit
+                  $archive = Join-Path $env:RUNNER_TEMP "slang.zip"
+                  $directory = Join-Path $env:RUNNER_TEMP "slang"
+                  Invoke-WebRequest "https://github.com/shader-slang/slang/releases/download/v${env:SLANG_VERSION}/slang-${env:SLANG_VERSION}-windows-x86_64.zip" -OutFile $archive
+                  Expand-Archive $archive -DestinationPath $directory
+                  (Join-Path $directory "bin") | Out-File -FilePath $env:GITHUB_PATH -Encoding utf8 -Append
+            - name: Package
+              shell: pwsh
+              run: python scripts/package_windows.py --release
+            - uses: actions/upload-artifact@v4
+              with:
+                  name: Atlas-Engine-Windows-x86_64
+                  path: dist/Windows/release/Atlas-Engine-Windows-x86_64-release.zip
+                  if-no-files-found: error
+
+    linux:
+        name: Linux ${{ matrix.architecture }}
+        strategy:
+            fail-fast: false
+            matrix:
+                include:
+                    - runner: ubuntu-22.04
+                      architecture: x86_64
+                      slang_archive: slang-2026.18.3-linux-x86_64-glibc-2.27.tar.gz
+                      linuxdeploy_arch: x86_64
+                    - runner: ubuntu-24.04-arm
+                      architecture: aarch64
+                      slang_archive: slang-2026.18.3-linux-aarch64-glibc-2.28.tar.gz
+                      linuxdeploy_arch: aarch64
+        runs-on: ${{ matrix.runner }}
+        steps:
+            - uses: actions/checkout@v5
+              with:
+                  submodules: recursive
+            - uses: actions-rust-lang/setup-rust-toolchain@v1
+            - name: Install dependencies
+              run: |
+                  sudo apt-get update
+                  sudo apt-get install -y cmake ninja-build qt6-base-dev libvulkan-dev patchelf libgl1-mesa-dev libxkbcommon-x11-0 libxcb-cursor0
+                  curl --fail --location "https://github.com/shader-slang/slang/releases/download/v${SLANG_VERSION}/${{ matrix.slang_archive }}" -o "$RUNNER_TEMP/slang.tar.gz"
+                  mkdir -p "$RUNNER_TEMP/slang"
+                  tar -xzf "$RUNNER_TEMP/slang.tar.gz" -C "$RUNNER_TEMP/slang"
+                  echo "$RUNNER_TEMP/slang/bin" >> "$GITHUB_PATH"
+                  curl --fail --location "https://github.com/linuxdeploy/linuxdeploy/releases/download/continuous/linuxdeploy-${{ matrix.linuxdeploy_arch }}.AppImage" -o "$RUNNER_TEMP/linuxdeploy"
+                  curl --fail --location "https://github.com/linuxdeploy/linuxdeploy-plugin-qt/releases/download/continuous/linuxdeploy-plugin-qt-${{ matrix.linuxdeploy_arch }}.AppImage" -o "$RUNNER_TEMP/linuxdeploy-plugin-qt-${{ matrix.linuxdeploy_arch }}.AppImage"
+                  chmod +x "$RUNNER_TEMP/linuxdeploy"
+                  chmod +x "$RUNNER_TEMP/linuxdeploy-plugin-qt-${{ matrix.linuxdeploy_arch }}.AppImage"
+                  echo "$RUNNER_TEMP" >> "$GITHUB_PATH"
+                  echo "ATLAS_LINUXDEPLOY=$RUNNER_TEMP/linuxdeploy" >> "$GITHUB_ENV"
+                  echo "APPIMAGE_EXTRACT_AND_RUN=1" >> "$GITHUB_ENV"
+            - name: Package
+              run: python3 scripts/package_linux.py --release
+            - uses: actions/upload-artifact@v4
+              with:
+                  name: Atlas-Engine-Linux-${{ matrix.architecture }}
+                  path: dist/Linux/release/Atlas-Engine-Linux-${{ matrix.architecture }}-release.tar.gz
+                  if-no-files-found: error
+
+    macos:
+        name: macOS Apple Silicon
+        runs-on: macos-15
+        steps:
+            - uses: actions/checkout@v5
+              with:
+                  submodules: recursive
+            - uses: actions-rust-lang/setup-rust-toolchain@v1
+            - name: Install dependencies
+              run: |
+                  brew install cmake ninja qt@6 spirv-cross
+                  curl --fail --location "https://github.com/shader-slang/slang/releases/download/v${SLANG_VERSION}/slang-${SLANG_VERSION}-macos-aarch64.tar.gz" -o "$RUNNER_TEMP/slang.tar.gz"
+                  mkdir -p "$RUNNER_TEMP/slang"
+                  tar -xzf "$RUNNER_TEMP/slang.tar.gz" -C "$RUNNER_TEMP/slang"
+                  echo "$RUNNER_TEMP/slang/bin" >> "$GITHUB_PATH"
+                  echo "$(brew --prefix qt@6)/bin" >> "$GITHUB_PATH"
+                  echo "CMAKE_PREFIX_PATH=$(brew --prefix qt@6)" >> "$GITHUB_ENV"
+                  echo "ATLAS_ALLOW_UNNOTARIZED_RELEASE=1" >> "$GITHUB_ENV"
+                  echo "ATLAS_MACOS_ARCHITECTURES=arm64" >> "$GITHUB_ENV"
+            - name: Package
+              run: python3 scripts/package_app.py --release --macOS
+            - uses: actions/upload-artifact@v4
+              with:
+                  name: Atlas-Engine-macOS-Apple-Silicon
+                  path: |
+                      dist/macOS/release/*.zip
+                      dist/macOS/release/*.dmg
+                  if-no-files-found: error

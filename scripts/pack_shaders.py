@@ -86,13 +86,17 @@ def generate(input_dir, output_file, backend, slangc, spirv_cross,
         if stage not in ("vertex", "fragment", "compute"):
             raise ValueError(f"Unsupported shader stage: {stage}")
         spirv = artifact_dir / f"{symbol}.spv"
+        profile = entry.get("profile", "spirv_1_3")
         run([slangc, str(source), "-I", str(input_dir), "-D",
              f"ATLAS_{stage.upper()}=1", "-entry", entry["entry"],
-             "-target", "spirv", "-profile", "spirv_1_3", "-preserve-params",
+             "-target", "spirv", "-profile", profile, "-preserve-params",
              "-o", str(spirv)])
-        reflection = run([spirv_cross, str(spirv), "--reflect"])
-        write_atomic(artifact_dir / f"{symbol}.json", reflection)
+        if spirv_cross:
+            reflection = run([spirv_cross, str(spirv), "--reflect"])
+            write_atomic(artifact_dir / f"{symbol}.json", reflection)
         if backend == "metal":
+            if not spirv_cross:
+                raise RuntimeError("spirv-cross is required for Metal shaders")
             metal = artifact_dir / f"{symbol}.metal"
             run([spirv_cross, str(spirv), "--msl", "--msl-version", "230000",
                  "--output", str(metal)])
@@ -135,6 +139,7 @@ struct AtlasPackedShaderSource {
 """
     header += f"#define ATLAS_HAS_PHOTON {int(photon_backend != 'off')}\n"
     header += f"#define ATLAS_PHOTON_NATIVE_METAL {int(photon_backend == 'metal')}\n\n"
+    header += f"#define ATLAS_PHOTON_NATIVE_VULKAN {int(photon_backend == 'vulkan')}\n\n"
     for symbol, source in sorted(packed.items()):
         header += pack_source(symbol, source) + "\n"
     write_atomic(output_file, header)
@@ -149,7 +154,7 @@ def main():
     parser.add_argument("output_file")
     parser.add_argument("backend", choices=("vulkan", "metal"))
     parser.add_argument("--slangc", default="slangc")
-    parser.add_argument("--spirv-cross", default="spirv-cross")
+    parser.add_argument("--spirv-cross")
     parser.add_argument("--photon-backend", choices=("off", "metal", "vulkan"),
                         default="off")
     parser.add_argument("--photon-manifest")

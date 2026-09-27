@@ -26,7 +26,7 @@
 #include <unordered_map>
 #include <unordered_set>
 
-#ifdef METAL
+#if defined(METAL) || defined(VULKAN)
 namespace {
 constexpr int kDdgiMaterialTextureUnitStart = 10;
 constexpr int kDdgiMaxMaterialTextures = 48;
@@ -216,9 +216,9 @@ uint64_t computeDdgiLayoutSignature(const std::vector<CoreObject *> &objects,
         signature = hashCombineU64(
             signature,
             hashFloat(static_cast<float>(object->material.attenuationColor.b)));
-        signature = hashCombineU64(
-            signature,
-            hashFloat(static_cast<float>(object->material.attenuationDistance)));
+        signature = hashCombineU64(signature,
+                                   hashFloat(static_cast<float>(
+                                       object->material.attenuationDistance)));
         signature = hashCombineU64(
             signature,
             static_cast<uint64_t>(object->material.isVolume ? 1 : 0));
@@ -237,17 +237,16 @@ uint64_t computeDdgiLayoutSignature(const std::vector<CoreObject *> &objects,
         signature = hashCombineU64(
             signature, hashFloat(static_cast<float>(
                            object->material.volumeEmissionStrength)));
-        const Color volumeColors[] = {
-            object->material.volumeAbsorptionColor,
-            object->material.volumeScatteringColor,
-            object->material.volumeEmissionColor};
+        const Color volumeColors[] = {object->material.volumeAbsorptionColor,
+                                      object->material.volumeScatteringColor,
+                                      object->material.volumeEmissionColor};
         for (const auto &color : volumeColors) {
-            signature = hashCombineU64(
-                signature, hashFloat(static_cast<float>(color.r)));
-            signature = hashCombineU64(
-                signature, hashFloat(static_cast<float>(color.g)));
-            signature = hashCombineU64(
-                signature, hashFloat(static_cast<float>(color.b)));
+            signature = hashCombineU64(signature,
+                                       hashFloat(static_cast<float>(color.r)));
+            signature = hashCombineU64(signature,
+                                       hashFloat(static_cast<float>(color.g)));
+            signature = hashCombineU64(signature,
+                                       hashFloat(static_cast<float>(color.b)));
         }
         for (const auto &texture : object->textures) {
             signature =
@@ -450,30 +449,29 @@ void photon::GlobalIllumination::updateProbeLayout() {
         baseMaterial.optical = glm::vec4(
             object->material.reflectivity, object->material.transmittance,
             object->material.ior, object->material.abbeNumber);
-        baseMaterial.attenuation = glm::vec4(
-            object->material.attenuationColor.r,
-            object->material.attenuationColor.g,
-            object->material.attenuationColor.b,
-            object->material.attenuationDistance);
+        baseMaterial.attenuation =
+            glm::vec4(object->material.attenuationColor.r,
+                      object->material.attenuationColor.g,
+                      object->material.attenuationColor.b,
+                      object->material.attenuationDistance);
         baseMaterial.volume = glm::vec4(
             object->material.isVolume ? 1.0f : 0.0f,
-            object->material.volumeDensity,
-            object->material.volumeAnisotropy,
+            object->material.volumeDensity, object->material.volumeAnisotropy,
             object->material.volumeEmissionStrength);
-        baseMaterial.volumeAbsorption = glm::vec4(
-            object->material.volumeAbsorptionColor.r,
-            object->material.volumeAbsorptionColor.g,
-            object->material.volumeAbsorptionColor.b,
-            object->material.volumeAbsorptionStrength);
-        baseMaterial.volumeScattering = glm::vec4(
-            object->material.volumeScatteringColor.r,
-            object->material.volumeScatteringColor.g,
-            object->material.volumeScatteringColor.b,
-            object->material.volumeScatteringStrength);
-        baseMaterial.volumeEmission = glm::vec4(
-            object->material.volumeEmissionColor.r,
-            object->material.volumeEmissionColor.g,
-            object->material.volumeEmissionColor.b, 0.0f);
+        baseMaterial.volumeAbsorption =
+            glm::vec4(object->material.volumeAbsorptionColor.r,
+                      object->material.volumeAbsorptionColor.g,
+                      object->material.volumeAbsorptionColor.b,
+                      object->material.volumeAbsorptionStrength);
+        baseMaterial.volumeScattering =
+            glm::vec4(object->material.volumeScatteringColor.r,
+                      object->material.volumeScatteringColor.g,
+                      object->material.volumeScatteringColor.b,
+                      object->material.volumeScatteringStrength);
+        baseMaterial.volumeEmission =
+            glm::vec4(object->material.volumeEmissionColor.r,
+                      object->material.volumeEmissionColor.g,
+                      object->material.volumeEmissionColor.b, 0.0f);
         const bool useNormalMap =
             object->material.useNormalMap && sampleNormalMaps;
         const float normalStrength = std::max(
@@ -495,21 +493,21 @@ void photon::GlobalIllumination::updateProbeLayout() {
             }
         }
         baseMaterial.normalTextureIndex = normalTextureIndex;
-        const int pbrPackTextureIndex = findTextureSlotForType(
-            object->textures, TextureType::PBRPack, materialTextures,
-            textureSlots);
+        const int pbrPackTextureIndex =
+            findTextureSlotForType(object->textures, TextureType::PBRPack,
+                                   materialTextures, textureSlots);
         baseMaterial.metallicTextureIndex =
             pbrPackTextureIndex >= 0
                 ? pbrPackTextureIndex
-                : findTextureSlotForType(
-                      object->textures, TextureType::Metallic,
-                      materialTextures, textureSlots);
+                : findTextureSlotForType(object->textures,
+                                         TextureType::Metallic,
+                                         materialTextures, textureSlots);
         baseMaterial.roughnessTextureIndex =
             pbrPackTextureIndex >= 0
                 ? pbrPackTextureIndex
-                : findTextureSlotForType(
-                      object->textures, TextureType::Roughness,
-                      materialTextures, textureSlots);
+                : findTextureSlotForType(object->textures,
+                                         TextureType::Roughness,
+                                         materialTextures, textureSlots);
         baseMaterial.aoTextureIndex =
             pbrPackTextureIndex >= 0
                 ? pbrPackTextureIndex
@@ -596,9 +594,9 @@ void photon::GlobalIllumination::updateProbeLayout() {
 
     if (hasGeometry) {
         glm::vec3 rawExtent = glm::max(boundsMax - boundsMin, glm::vec3(0.0f));
-        spacing = std::max(spacing, std::max(rawExtent.x, std::max(rawExtent.y,
-                                                                  rawExtent.z)) /
-                                        15.0f);
+        spacing = std::max(
+            spacing,
+            std::max(rawExtent.x, std::max(rawExtent.y, rawExtent.z)) / 15.0f);
     }
 
     std::vector<opal::PrimitiveVertex> accelerationVertices;
@@ -646,9 +644,12 @@ void photon::GlobalIllumination::updateProbeLayout() {
                                                 boundsMax.z - layoutInset)
                                    : Position3d(spacing, spacing, spacing);
     if (hasGeometry) {
-        if (minWs.x > maxWs.x) minWs.x = maxWs.x = (boundsMin.x + boundsMax.x) * 0.5f;
-        if (minWs.y > maxWs.y) minWs.y = maxWs.y = (boundsMin.y + boundsMax.y) * 0.5f;
-        if (minWs.z > maxWs.z) minWs.z = maxWs.z = (boundsMin.z + boundsMax.z) * 0.5f;
+        if (minWs.x > maxWs.x)
+            minWs.x = maxWs.x = (boundsMin.x + boundsMax.x) * 0.5f;
+        if (minWs.y > maxWs.y)
+            minWs.y = maxWs.y = (boundsMin.y + boundsMax.y) * 0.5f;
+        if (minWs.z > maxWs.z)
+            minWs.z = maxWs.z = (boundsMin.z + boundsMax.z) * 0.5f;
     }
 
     Position3d extent = maxWs - minWs;
@@ -672,10 +673,10 @@ void photon::GlobalIllumination::updateProbeLayout() {
         static_cast<int>(std::ceil(std::sqrt((float)totalProbeCount))), 1, 64);
 
     probeSpace->originWorldSpace = minWs;
-    probeSpace->spacing = Position3d(
-        Nx > 1 ? extent.x / static_cast<float>(Nx - 1) : spacing,
-        Ny > 1 ? extent.y / static_cast<float>(Ny - 1) : spacing,
-        Nz > 1 ? extent.z / static_cast<float>(Nz - 1) : spacing);
+    probeSpace->spacing =
+        Position3d(Nx > 1 ? extent.x / static_cast<float>(Nx - 1) : spacing,
+                   Ny > 1 ? extent.y / static_cast<float>(Ny - 1) : spacing,
+                   Nz > 1 ? extent.z / static_cast<float>(Nz - 1) : spacing);
     probeSpace->probeCount = Vector3((float)Nx, (float)Ny, (float)Nz);
     probeSpace->probesPerRow = probesPerRow;
 
@@ -747,25 +748,29 @@ void photon::GlobalIllumination::render(
         giRaytracingPipeline == nullptr || probeSpace == nullptr ||
         probeRadianceBuffer == nullptr || irradianceMap == nullptr ||
         irradianceMapPrev == nullptr || irradianceMap->texture == nullptr ||
-        irradianceMapPrev->texture == nullptr ||
-        distanceMap == nullptr || distanceMapPrev == nullptr ||
-        distanceMap->texture == nullptr || distanceMapPrev->texture == nullptr ||
-        triangleBuffer == nullptr || materialBuffer == nullptr ||
-        sceneBLAS == nullptr ||
+        irradianceMapPrev->texture == nullptr || distanceMap == nullptr ||
+        distanceMapPrev == nullptr || distanceMap->texture == nullptr ||
+        distanceMapPrev->texture == nullptr || triangleBuffer == nullptr ||
+        materialBuffer == nullptr || sceneBLAS == nullptr ||
         copySrcFramebuffer == nullptr || copyDstFramebuffer == nullptr) {
         return;
     }
 
     if (accelerationStructureDirty) {
-        commandBuffer->buildPrimitiveAccelerationStructure(sceneBLAS);
         opal::AccelerationStructureInstance instance{};
         instance.blas = sceneBLAS;
         instance.transform = glm::mat4(1.0f);
         instance.instanceId = 0;
         instance.mask = 0xFF;
         instance.cullDisable = true;
+#ifdef VULKAN
+        sceneTLAS =
+            commandBuffer->buildAccelerationStructures({sceneBLAS}, {instance});
+#else
+        commandBuffer->buildPrimitiveAccelerationStructure(sceneBLAS);
         sceneTLAS = opal::InstanceAccelerationStructure::create({instance});
         commandBuffer->buildInstanceAccelerationStructure(sceneTLAS);
+#endif
         accelerationStructureDirty = false;
     }
     if (sceneTLAS == nullptr || !sceneTLAS->isBuilt) {
@@ -804,13 +809,18 @@ void photon::GlobalIllumination::render(
     commandBuffer->performResolve(copy);
     copySrcFramebuffer->attachTexture(distanceMap->texture, 0);
     copyDstFramebuffer->attachTexture(distanceMapPrev->texture, 0);
-    copy = opal::ResolveAction::createForColorAttachment(
-        copySrcFramebuffer, copyDstFramebuffer, 0);
+    copy = opal::ResolveAction::createForColorAttachment(copySrcFramebuffer,
+                                                         copyDstFramebuffer, 0);
     commandBuffer->performResolve(copy);
 
     // Perform Ray Tracing
+#ifdef VULKAN
+    giRaytracingPipeline->bindBuffer("probeRadianceOut", probeRadianceBuffer,
+                                     0);
+#else
     giRaytracingPipeline->bindShaderReadWriteBuffer("probeRadianceOut",
                                                     probeRadianceBuffer);
+#endif
     Scene *scene = (Window::mainWindow != nullptr)
                        ? Window::mainWindow->currentScene
                        : nullptr;
@@ -990,6 +1000,12 @@ void photon::GlobalIllumination::render(
     giRaytracingPipeline->bindBufferData("sc", &sceneCounts,
                                          sizeof(sceneCounts));
 
+#ifdef VULKAN
+    auto materialTextureBindings = materialTextures;
+    materialTextureBindings.resize(kDdgiMaxMaterialTextures, nullptr);
+    giRaytracingPipeline->bindTextureArray(materialTextureBindings,
+                                           kDdgiMaterialTextureUnitStart);
+#else
     for (int i = 0; i < kDdgiMaxMaterialTextures; ++i) {
         std::shared_ptr<opal::Texture> texture = nullptr;
         if (i < static_cast<int>(materialTextures.size())) {
@@ -999,6 +1015,7 @@ void photon::GlobalIllumination::render(
                                           texture,
                                           kDdgiMaterialTextureUnitStart + i);
     }
+#endif
 
     static std::shared_ptr<opal::Texture> fallbackSkybox = nullptr;
     if (fallbackSkybox == nullptr) {

@@ -95,7 +95,7 @@ struct ProbeSpace {
  */
 class PathTracing {
   public:
-#ifdef METAL
+#if defined(METAL) || defined(VULKAN)
     /** @brief Runs one path tracing pass into the active output texture. */
     bool render(const std::shared_ptr<opal::CommandBuffer> &commandBuffer,
                 const std::shared_ptr<opal::Texture> &output,
@@ -147,6 +147,7 @@ class PathTracing {
     std::vector<std::shared_ptr<opal::Texture>> materialTextures;
     std::vector<std::shared_ptr<opal::Texture>> materialTextureBindings;
     std::shared_ptr<opal::PrimitiveAccelerationStructure> sceneBLAS;
+    std::shared_ptr<opal::InstanceAccelerationStructure> sceneTLAS;
     std::shared_ptr<opal::Pipeline> pathTracingPipeline;
     std::shared_ptr<opal::Pipeline> pathDenoisePipeline;
     std::shared_ptr<opal::Pipeline> causticClearPipeline;
@@ -210,7 +211,7 @@ class PathTracing {
 
 class GlobalIllumination {
   public:
-#ifdef METAL
+#if defined(METAL) || defined(VULKAN)
     /** @brief Executes DDGI ray tracing and irradiance atlas writeback. */
     void render(const std::shared_ptr<opal::CommandBuffer> &commandBuffer);
     /** @brief Recomputes probe-space bounds based on scene extents. */

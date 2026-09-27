@@ -1,0 +1,7 @@
+[Desktop Entry]
+Type=Application
+Name=Atlas Engine
+Exec=atlas-engine
+Icon=atlas-engine
+Categories=Development;IDE;
+Terminal=false
