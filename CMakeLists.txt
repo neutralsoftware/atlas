@@ -244,6 +244,44 @@ add_subdirectory(
     ${CMAKE_CURRENT_BINARY_DIR}/extern/fTetWild
 )
 
+if(MSVC)
+    set(GEOGRAM_POISSON_HASH
+        "${CMAKE_BINARY_DIR}/_deps/geogram-src/src/lib/geogram/third_party/PoissonRecon/Hash.h"
+    )
+
+    if(EXISTS "${GEOGRAM_POISSON_HASH}")
+        file(READ "${GEOGRAM_POISSON_HASH}" GEOGRAM_HASH_CONTENT)
+
+        if(GEOGRAM_HASH_CONTENT MATCHES "#include <hash_map>")
+            string(
+                REPLACE
+                "#include <hash_map>"
+                "#include <unordered_map>"
+                GEOGRAM_HASH_CONTENT
+                "${GEOGRAM_HASH_CONTENT}"
+            )
+
+            string(
+                REPLACE
+                "stdext::hash_map"
+                "std::unordered_map"
+                GEOGRAM_HASH_CONTENT
+                "${GEOGRAM_HASH_CONTENT}"
+            )
+
+            file(
+                WRITE
+                "${GEOGRAM_POISSON_HASH}"
+                "${GEOGRAM_HASH_CONTENT}"
+            )
+
+            message(STATUS "Patched Geogram PoissonRecon <hash_map>")
+        else()
+            message(STATUS "Geogram PoissonRecon does not require hash_map patch")
+        endif()
+    endif()
+endif()
+
 # ─── FetchContent include roots ──────────────────────────────────────────────
 set(ATLAS_DEP_INCLUDE_DIRS
         ${glm_SOURCE_DIR}

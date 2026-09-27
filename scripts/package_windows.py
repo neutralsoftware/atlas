@@ -75,7 +75,7 @@ def main():
     ])
     run([
         require("cmake"), "--build", build_directory, "--target", "AtlasEditor", "atlasrun",
-        "--parallel", str(os.cpu_count() or 4),
+        "--parallel", str(os.cpu_count() or 4), "--verbose",
     ])
 
     bin_directory = build_directory / "bin"
