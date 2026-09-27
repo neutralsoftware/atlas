@@ -215,6 +215,14 @@ if (NOT BEZEL_NATIVE)
     message(STATUS "Downloaded Jolt Physics, version ${JOLT_VERSION}")
 endif ()
 
+# fTetWild
+set(FTETWILD_BUILD_TESTS OFF CACHE BOOL "" FORCE)
+
+add_subdirectory(
+    ${CMAKE_CURRENT_SOURCE_DIR}/extern/fTetWild
+    ${CMAKE_CURRENT_BINARY_DIR}/extern/fTetWild
+)
+
 # ─── FetchContent include roots ──────────────────────────────────────────────
 set(ATLAS_DEP_INCLUDE_DIRS
         ${glm_SOURCE_DIR}
@@ -407,6 +415,10 @@ target_link_libraries(bezel
         PRIVATE ${ATLAS_SDL_TARGET} ${ATLAS_GLM_TARGET}
 )
 target_include_directories(bezel PRIVATE ${ATLAS_DEP_INCLUDE_DIRS})
+
+target_include_directories(bezel PRIVATE
+    ${CMAKE_CURRENT_SOURCE_DIR}/extern/fTetWild/src)
+target_link_libraries(bezel PRIVATE FloatTetwild)
 
 if (BEZEL_NATIVE)
     target_compile_definitions(bezel PRIVATE NATIVE)
