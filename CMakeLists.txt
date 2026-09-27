@@ -182,7 +182,7 @@ FetchContent_MakeAvailable(assimp)
 set(ALSOFT_UTILS OFF CACHE BOOL "" FORCE)
 set(ALSOFT_EXAMPLES OFF CACHE BOOL "" FORCE)
 set(ALSOFT_TESTS OFF CACHE BOOL "" FORCE)
-set(ALSOFT_CONFIG OFF CACHE BOOL "" FORCE)
+set(ALSOFT_INSTALL_CONFIG OFF CACHE BOOL "" FORCE)
 set(ALSOFT_INSTALL OFF CACHE BOOL "" FORCE)
 set(LIBTYPE STATIC CACHE STRING "" FORCE)
 FetchContent_Declare(
@@ -192,6 +192,12 @@ FetchContent_Declare(
         GIT_SHALLOW TRUE
 )
 FetchContent_MakeAvailable(openal_soft)
+
+if (TARGET OpenAL)
+    target_compile_options(OpenAL PRIVATE
+            $<$<COMPILE_LANGUAGE:CXX>:-Wno-error=function-effects>
+    )
+endif ()
 
 # Jolt
 if (NOT BEZEL_NATIVE)
