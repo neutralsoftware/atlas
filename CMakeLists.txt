@@ -193,11 +193,11 @@ FetchContent_Declare(
 )
 FetchContent_MakeAvailable(openal_soft)
 
-if (TARGET OpenAL)
+if(TARGET OpenAL AND CMAKE_CXX_COMPILER_ID MATCHES "Clang")
     target_compile_options(OpenAL PRIVATE
-            $<$<COMPILE_LANGUAGE:CXX>:-Wno-error=function-effects>
+        $<$<COMPILE_LANGUAGE:CXX>:-Wno-error=function-effects>
     )
-endif ()
+endif()
 
 # Jolt
 if (NOT BEZEL_NATIVE)
@@ -238,6 +238,26 @@ if (NOT BEZEL_NATIVE)
 endif ()
 # fTetWild
 set(FTETWILD_BUILD_TESTS OFF CACHE BOOL "" FORCE)
+
+if(UNIX AND NOT APPLE)
+    if(CMAKE_SYSTEM_PROCESSOR MATCHES "^(aarch64|arm64|ARM64)$")
+        set(
+            VORPALINE_PLATFORM
+            "Linux64-gcc-aarch64"
+            CACHE STRING
+            "Geogram platform"
+            FORCE
+        )
+    elseif(CMAKE_SYSTEM_PROCESSOR MATCHES "^(x86_64|amd64|AMD64)$")
+        set(
+            VORPALINE_PLATFORM
+            "Linux64-gcc"
+            CACHE STRING
+            "Geogram platform"
+            FORCE
+        )
+    endif()
+endif()
 
 add_subdirectory(
     ${CMAKE_CURRENT_SOURCE_DIR}/extern/fTetWild
