@@ -277,6 +277,13 @@ class GlobalIllumination {
         /** @brief Emissive color. */
         glm::vec3 emissiveColor;
         float _pad1;
+
+        glm::vec4 optical;
+        glm::vec4 attenuation;
+        glm::vec4 volume;
+        glm::vec4 volumeAbsorption;
+        glm::vec4 volumeScattering;
+        glm::vec4 volumeEmission;
     };
 
     /**
@@ -326,7 +333,7 @@ class GlobalIllumination {
     float probeSpacing = 0.9f;
 
     /** @brief Rays traced per probe update. */
-    int raysPerProbe = 64;
+    int raysPerProbe = 48;
     /** @brief Maximum ray distance for DDGI probe tracing. */
     float maxRayDistance = 20.f;
     /** @brief Surface normal bias used to reduce self-intersections. */

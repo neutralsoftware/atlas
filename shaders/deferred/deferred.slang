@@ -96,6 +96,17 @@ struct MaterialPush
     float roughness;
     float ao;
     float reflectivity;
+    float transmittance;
+    float ior;
+    float abbeNumber;
+    float3 attenuationColor;
+    float attenuationDistance;
+    float isVolume;
+    float volumeDensity;
+    float3 volumeAbsorptionColor;
+    float volumeAbsorptionStrength;
+    float3 volumeScatteringColor;
+    float volumeScatteringStrength;
 };
 
 struct FragmentOutput
@@ -104,6 +115,8 @@ struct FragmentOutput
     float4 gNormal : SV_Target1;
     float4 gAlbedoSpec : SV_Target2;
     float4 gMaterial : SV_Target3;
+    float4 gOptical : SV_Target4;
+    float4 gMedium : SV_Target5;
 };
 
 struct FragmentInput
@@ -487,6 +500,29 @@ FragmentOutput fragmentMain(FragmentInput input, float4 gl_FragCoord : SV_Positi
     }
     output.gAlbedoSpec = float4(a, aoValue);
     output.gMaterial = float4(metallicValue, roughnessValue, aoValue, clamp(material.reflectivity, 0.0, 1.0));
+    output.gOptical = float4(clamp(material.transmittance, 0.0, 1.0),
+                             max(material.ior, 1.0001),
+                             max(material.abbeNumber, 0.0),
+                             max(material.attenuationDistance, 0.0001));
+    float absorptionStrength = max(material.volumeAbsorptionStrength, 0.0);
+    float scatteringStrength = max(material.volumeScatteringStrength, 0.0);
+    float extinctionStrength = absorptionStrength + scatteringStrength;
+    float3 mediumColor = clamp(material.attenuationColor, float3(0.0),
+                               float3(1.0));
+    float mediumExtinction = 0.0;
+    if (material.isVolume > 0.5 && material.volumeDensity > 0.0)
+    {
+        mediumColor = extinctionStrength > 0.0001
+                          ? clamp((material.volumeAbsorptionColor *
+                                       absorptionStrength +
+                                   material.volumeScatteringColor *
+                                       scatteringStrength) /
+                                      extinctionStrength,
+                                  float3(0.0), float3(1.0))
+                          : float3(1.0);
+        mediumExtinction = material.volumeDensity * extinctionStrength;
+    }
+    output.gMedium = float4(mediumColor, mediumExtinction);
     return output;
 }
 #endif

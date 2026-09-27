@@ -49,6 +49,13 @@ struct Material {
 
     packed_float3 emissiveColor;
     float _pad1;
+
+    float4 optical;
+    float4 attenuation;
+    float4 volume;
+    float4 volumeAbsorption;
+    float4 volumeScattering;
+    float4 volumeEmission;
 };
 
 struct Triangle {
@@ -672,6 +679,44 @@ static inline float3 sampleSky(float3 d, texturecube<float> skybox,
     return mix(skyColor * 0.08f, skyColor, t);
 }
 
+static inline float3 sampleTransportRadiance(
+    float3 direction, float3 position, texture2d<float> previousIrradiance,
+    texturecube<float> skybox, constant ProbeSpace &ps,
+    constant RaytracingSettings &rt) {
+    float3 sky = sampleSky(direction, skybox, rt.skyColor, rt.useSkybox);
+    if (rt.frameIndex < max(rt.probeUpdateStride, 1u)) {
+        return sky;
+    }
+    float3 history = samplePreviousIrradiance(
+        previousIrradiance, ps, position, direction);
+    float historyEnergy = dot(history, float3(0.2126f, 0.7152f, 0.0722f));
+    return historyEnergy > 1e-4f ? mix(sky, history, 0.8f) : sky;
+}
+
+static inline float schlickFresnel(float cosine, float f0) {
+    float m = clamp(1.0f - cosine, 0.0f, 1.0f);
+    float m2 = m * m;
+    return f0 + (1.0f - f0) * m2 * m2 * m;
+}
+
+static inline float channelIor(float baseIor, float abbeNumber,
+                               float channelOffset) {
+    if (abbeNumber <= 0.0f) {
+        return baseIor;
+    }
+    float spread = max(baseIor - 1.0f, 0.0f) / max(abbeNumber, 1.0f);
+    return max(baseIor + channelOffset * spread, 1.0001f);
+}
+
+static inline float3 absorptionCoefficient(float3 attenuationColor,
+                                           float attenuationDistance) {
+    if (attenuationDistance <= 1e-4f) {
+        return float3(0.0f);
+    }
+    return -log(clamp(attenuationColor, float3(1e-4f), float3(0.9999f))) /
+           attenuationDistance;
+}
+
 static inline float shadowVisibility(float3 ro, float3 rd, float maxT,
                                      device const Triangle *tris,
                                      instance_acceleration_structure sceneAS) {
@@ -1023,7 +1068,36 @@ kernel void main0(device float4 *probeRadianceOut [[buffer(0)]],
             sc.pointLightCount, spotLights, sc.spotLightCount, areaLights,
             sc.areaLightCount);
 
-        float diffuseWeight = 1.0f - metallic;
+        bool validMaterial = h.materialID >= 0 &&
+                             uint(h.materialID) < sc.materialCount;
+        float reflectivity = 0.04f;
+        float transmission = 0.0f;
+        float materialIor = 1.5f;
+        float abbeNumber = 0.0f;
+        float3 attenuationColor = float3(1.0f);
+        float attenuationDistance = 1.0f;
+        float4 volume = float4(0.0f);
+        float4 volumeAbsorption = float4(0.0f);
+        float4 volumeScattering = float4(0.0f);
+        float4 volumeEmission = float4(0.0f);
+        if (validMaterial) {
+            Material transportMaterial = materials[h.materialID];
+            reflectivity = clamp(transportMaterial.optical.x, 0.0f, 1.0f);
+            transmission = clamp(transportMaterial.optical.y, 0.0f, 1.0f);
+            materialIor = transportMaterial.optical.z > 1.001f
+                              ? transportMaterial.optical.z
+                              : 1.5f;
+            abbeNumber = max(transportMaterial.optical.w, 0.0f);
+            attenuationColor = clamp(transportMaterial.attenuation.xyz,
+                                     float3(0.0f), float3(1.0f));
+            attenuationDistance = max(transportMaterial.attenuation.w, 1e-4f);
+            volume = transportMaterial.volume;
+            volumeAbsorption = transportMaterial.volumeAbsorption;
+            volumeScattering = transportMaterial.volumeScattering;
+            volumeEmission = transportMaterial.volumeEmission;
+        }
+
+        float diffuseWeight = (1.0f - metallic) * (1.0f - transmission);
         float3 diffuseResponse = albedo * diffuseWeight * max(ao, 0.05f) / PI;
         float3 previousBounce =
             rt.frameIndex >= max(rt.probeUpdateStride, 1u)
@@ -1032,6 +1106,92 @@ kernel void main0(device float4 *probeRadianceOut [[buffer(0)]],
                 : float3(0.0f);
         float3 indirect = previousBounce * diffuseResponse * 0.35f;
         radiance = direct * diffuseResponse + indirect + emissive;
+
+        float3 viewDirection = -rayDir;
+        float viewCosine = max(dot(hitNormal, viewDirection), 0.0f);
+        float dielectricF0 = pow((materialIor - 1.0f) /
+                                     (materialIor + 1.0f),
+                                 2.0f);
+        dielectricF0 = max(dielectricF0, reflectivity);
+        float3 surfaceF0 = mix(float3(dielectricF0), albedo, metallic);
+        float3 fresnel = float3(
+            schlickFresnel(viewCosine, surfaceF0.x),
+            schlickFresnel(viewCosine, surfaceF0.y),
+            schlickFresnel(viewCosine, surfaceF0.z));
+        float3 idealReflection = reflect(rayDir, hitNormal);
+        float3 reflectionDirection = safeNormalize(
+            mix(idealReflection, hitNormal, roughness * roughness * 0.35f),
+            idealReflection);
+        float3 reflectedRadiance = sampleTransportRadiance(
+            reflectionDirection, hitPos + hitNormal * bias,
+            previousIrradiance, skybox, ps, rt);
+        radiance += reflectedRadiance * fresnel *
+                    mix(float3(1.0f), albedo, metallic);
+
+        if (transmission > 1e-4f && metallic < 0.999f) {
+            float redIor = channelIor(materialIor, abbeNumber, -0.5f);
+            float greenIor = materialIor;
+            float blueIor = channelIor(materialIor, abbeNumber, 0.5f);
+            float3 redDirection = refract(rayDir, hitNormal, 1.0f / redIor);
+            float3 greenDirection =
+                refract(rayDir, hitNormal, 1.0f / greenIor);
+            float3 blueDirection = refract(rayDir, hitNormal, 1.0f / blueIor);
+            if (dot(greenDirection, greenDirection) > 1e-8f) {
+                redDirection = dot(redDirection, redDirection) > 1e-8f
+                                   ? normalize(redDirection)
+                                   : normalize(greenDirection);
+                greenDirection = normalize(greenDirection);
+                blueDirection = dot(blueDirection, blueDirection) > 1e-8f
+                                    ? normalize(blueDirection)
+                                    : greenDirection;
+                Hit exitHit = traceScene(
+                    hitPos + greenDirection * bias, greenDirection, tris,
+                    sceneAS, maxDistance);
+                float mediumDistance =
+                    exitHit.hit != 0u && exitHit.materialID == h.materialID
+                        ? max(exitHit.t, bias)
+                        : max(min(attenuationDistance, 1.0f), bias);
+                float3 sigmaA = absorptionCoefficient(
+                    attenuationColor, attenuationDistance);
+                float density = max(volume.y, 0.0f);
+                if (volume.x > 0.5f && density > 0.0f) {
+                    sigmaA += max(volumeAbsorption.xyz, float3(0.0f)) *
+                              max(volumeAbsorption.w, 0.0f) * density;
+                }
+                float3 mediumTransmittance =
+                    exp(-sigmaA * mediumDistance);
+                float3 redRadiance = sampleTransportRadiance(
+                    redDirection, hitPos + redDirection * bias,
+                    previousIrradiance, skybox, ps, rt);
+                float3 greenRadiance = sampleTransportRadiance(
+                    greenDirection, hitPos + greenDirection * bias,
+                    previousIrradiance, skybox, ps, rt);
+                float3 blueRadiance = sampleTransportRadiance(
+                    blueDirection, hitPos + blueDirection * bias,
+                    previousIrradiance, skybox, ps, rt);
+                float3 transmittedRadiance =
+                    float3(redRadiance.x, greenRadiance.y, blueRadiance.z) *
+                    mediumTransmittance;
+                if (volume.x > 0.5f && density > 0.0f) {
+                    float3 sigmaS =
+                        max(volumeScattering.xyz, float3(0.0f)) *
+                        max(volumeScattering.w, 0.0f) * density;
+                    float3 scatterFraction =
+                        float3(1.0f) - exp(-sigmaS * mediumDistance);
+                    float anisotropy = clamp(volume.z, -0.95f, 0.95f);
+                    float phaseGain = mix(0.75f, 1.25f,
+                                          anisotropy * 0.5f + 0.5f);
+                    transmittedRadiance =
+                        transmittedRadiance * (float3(1.0f) - scatterFraction) +
+                        greenRadiance * scatterFraction * phaseGain;
+                    transmittedRadiance +=
+                        max(volumeEmission.xyz, float3(0.0f)) *
+                        max(volume.w, 0.0f) * density * mediumDistance;
+                }
+                radiance += transmittedRadiance * (float3(1.0f) - fresnel) *
+                            transmission;
+            }
+        }
         radiance = clamp(radiance, float3(0.0f), float3(16.0f));
     }
 

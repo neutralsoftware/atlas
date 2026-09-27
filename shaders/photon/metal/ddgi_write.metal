@@ -77,42 +77,33 @@ kernel void main0(texture2d<float, access::write> outTexture [[texture(0)]],
     uint probesPerRow = (uint)ps.atlasParams.z;
     uint totalProbes = (uint)ps.atlasParams.w;
 
-    if (gid.x >= outTexture.get_width() || gid.y >= outTexture.get_height())
-        return;
-
     uint tileRes = innerRes + 2u * border;
     if (tileRes == 0u || probesPerRow == 0u || totalProbes == 0u ||
         innerRes == 0u) {
-        outTexture.write(prevTexture.read(gid), gid);
-        outDistance.write(prevDistance.read(gid), gid);
-        return;
-    }
-
-    uint tileX = gid.x / tileRes;
-    uint tileY = gid.y / tileRes;
-    uint probeIndex = tileX + tileY * probesPerRow;
-
-    if (probeIndex >= totalProbes) {
-        outTexture.write(prevTexture.read(gid), gid);
-        outDistance.write(prevDistance.read(gid), gid);
         return;
     }
 
     uint updateStride = max(rt.probeUpdateStride, 1u);
     uint updateOffset =
         (updateStride > 1u) ? (rt.probeUpdateOffset % updateStride) : 0u;
-    bool probeIsActive =
-        (updateStride <= 1u) ||
-        ((probeIndex >= updateOffset) &&
-         (((probeIndex - updateOffset) % updateStride) == 0u));
-    if (!probeIsActive) {
-        outTexture.write(prevTexture.read(gid), gid);
-        outDistance.write(prevDistance.read(gid), gid);
+    uint activeProbeIndex = gid.x / tileRes;
+    if (activeProbeIndex >= rt.probeUpdateCount || gid.y >= tileRes) {
         return;
     }
-
-    uint localX = gid.x - tileX * tileRes;
-    uint localY = gid.y - tileY * tileRes;
+    uint probeIndex = updateOffset + activeProbeIndex * updateStride;
+    if (probeIndex >= totalProbes) {
+        return;
+    }
+    uint tileX = probeIndex % probesPerRow;
+    uint tileY = probeIndex / probesPerRow;
+    uint localX = gid.x - activeProbeIndex * tileRes;
+    uint localY = gid.y;
+    uint2 atlasCoordinate =
+        uint2(tileX * tileRes + localX, tileY * tileRes + localY);
+    if (atlasCoordinate.x >= outTexture.get_width() ||
+        atlasCoordinate.y >= outTexture.get_height()) {
+        return;
+    }
 
     int innerX = clamp(int(localX) - int(border), 0, int(innerRes) - 1);
     int innerY = clamp(int(localY) - int(border), 0, int(innerRes) - 1);
@@ -172,8 +163,8 @@ kernel void main0(texture2d<float, access::write> outTexture [[texture(0)]],
         irradiance = float3(0.0f);
     }
 
-    float4 prev = prevTexture.read(gid);
-    float4 previousDistance = prevDistance.read(gid);
+    float4 prev = prevTexture.read(atlasCoordinate);
+    float4 previousDistance = prevDistance.read(atlasCoordinate);
     float3 prevValue = all(isfinite(prev.xyz)) ? prev.xyz : float3(0.0f);
     float prevValidity = isfinite(prev.w) ? clamp(prev.w, 0.0f, 1.0f) : 1.0f;
 
@@ -194,7 +185,8 @@ kernel void main0(texture2d<float, access::write> outTexture [[texture(0)]],
             ? probeValidity
             : mix(probeValidity, prevValidity, h);
 
-    outTexture.write(float4(max(blended, float3(0.0f)), blendedValidity), gid);
+    outTexture.write(float4(max(blended, float3(0.0f)), blendedValidity),
+                     atlasCoordinate);
     outDistance.write(float4(max(blendedDistance, float2(0.0f)),
-                             blendedValidity, 0.0f), gid);
+                             blendedValidity, 0.0f), atlasCoordinate);
 }
