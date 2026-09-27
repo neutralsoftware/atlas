@@ -188,7 +188,7 @@ set(LIBTYPE STATIC CACHE STRING "" FORCE)
 FetchContent_Declare(
         openal_soft
         GIT_REPOSITORY https://github.com/kcat/openal-soft.git
-        GIT_TAG 1.24.3
+        GIT_TAG 1.25.2
         GIT_SHALLOW TRUE
 )
 FetchContent_MakeAvailable(openal_soft)
@@ -201,6 +201,11 @@ if (NOT BEZEL_NATIVE)
     set(TARGET_UNIT_TESTS OFF CACHE BOOL "" FORCE)
     set(TARGET_PERFORMANCE_TEST OFF CACHE BOOL "" FORCE)
 
+    set(JPH_USE_DX12 OFF CACHE BOOL "" FORCE)
+    set(JPH_USE_VK OFF CACHE BOOL "" FORCE)
+    set(JPH_USE_MTL OFF CACHE BOOL "" FORCE)
+    set(JPH_USE_CPU_COMPUTE OFF CACHE BOOL "" FORCE)
+
     FetchContent_Declare(
             JoltPhysics
             GIT_REPOSITORY https://github.com/jrouwe/JoltPhysics.git
@@ -208,17 +213,23 @@ if (NOT BEZEL_NATIVE)
             GIT_SHALLOW TRUE
             SOURCE_SUBDIR Build
     )
+
     set(JPH_DEBUG_RENDERER ON CACHE BOOL "" FORCE)
     set(JPH_PROFILE_ENABLED ON CACHE BOOL "" FORCE)
     set(JPH_OBJECT_STREAM ON CACHE BOOL "" FORCE)
     set(JPH_ENABLE_IPO OFF CACHE BOOL "" FORCE)
+
     FetchContent_MakeAvailable(JoltPhysics)
+
     if (TARGET Jolt)
-        set_target_properties(Jolt PROPERTIES INTERPROCEDURAL_OPTIMIZATION OFF)
+        set_target_properties(
+                Jolt
+                PROPERTIES INTERPROCEDURAL_OPTIMIZATION OFF
+        )
     endif ()
+
     message(STATUS "Downloaded Jolt Physics, version ${JOLT_VERSION}")
 endif ()
-
 # fTetWild
 set(FTETWILD_BUILD_TESTS OFF CACHE BOOL "" FORCE)
 
