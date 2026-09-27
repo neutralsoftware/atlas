@@ -563,6 +563,8 @@ class Softbody : public Component {
     Velocity3d getVelocity();
 
     bool isCreated() const;
+
+    bool createdSoftbody = false;
 };
 
 #endif // ATLAS_PHYSICS_H

@@ -240,7 +240,7 @@ ClosestTrianglePoint closestPointOnTriangle(const glm::vec3 &p,
 
 } // namespace
 
-void Softbody::createMesh(CoreObject *object) {
+void Softbody::createMesh() {
     initializeGeogram();
 
     const auto tetrahedralizationStarted = std::chrono::steady_clock::now();
@@ -277,8 +277,6 @@ void Softbody::createMesh(CoreObject *object) {
             "Cannot create softbody mesh: index count is not divisible by 3");
         return;
     }
-
-    this->object = object;
 
     mesh.vertices.clear();
     mesh.tetrahedra.clear();
@@ -405,6 +403,17 @@ void Softbody::createMesh(CoreObject *object) {
                   std::to_string(mesh.vertices.size()) + " vertices, " +
                   std::to_string(mesh.tetrahedra.size()) + " tetrahedra, " +
                   std::to_string(mesh.surface.size()) + " surface triangles");
+
+    isMeshCreated = true;
+}
+
+void Softbody::setObject(CoreObject *object) {
+    if (!object) {
+        throw std::runtime_error("Cannot set null CoreObject for softbody");
+        return;
+    }
+
+    this->object = object;
 }
 
 void Softbody::create(const std::shared_ptr<PhysicsWorld> &world) {

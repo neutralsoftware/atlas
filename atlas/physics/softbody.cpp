@@ -99,13 +99,17 @@ void Softbody::init() {
     body->isSensor = isSensor;
     body->sensorSignal = sendSignal;
 
-    body->createMesh(coreObject);
-
-    body->create(Window::mainWindow->physicsWorld);
+    body->setObject(coreObject);
 }
 
 void Softbody::update(float dt) {
     (void)dt;
+
+    if (!createdSoftbody) {
+        body->createMesh();
+        body->create(Window::mainWindow->physicsWorld);
+        createdSoftbody = true;
+    }
 
     if (!ensureSoftbodyAndWorld(this)) {
         return;
