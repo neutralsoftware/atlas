@@ -47,6 +47,14 @@ struct AtmosphereParams
     float sunSizeMultiplier;
     float moonSizeMultiplier;
     float starDensity;
+    int cloudsEnabled;
+    float cloudScale;
+    float cloudDensity;
+    float cloudDensityMultiplier;
+    float cloudAbsorption;
+    float cloudScattering;
+    float cloudPhase;
+    float3 cloudOffset;
 };
 
 struct FragmentOutput
@@ -144,6 +152,19 @@ float valueNoise(float2  p)
     float _100 = hash21(param_3);
     float d = _100;
     return lerp(lerp(a, b, f.x), lerp(c, d, f.x), f.y);
+}
+
+float cloudNoise(float2 p)
+{
+    float value = 0.0;
+    float amplitude = 0.5;
+    for (int octave = 0; octave < 5; octave++)
+    {
+        value += valueNoise(p) * amplitude;
+        p = (p * 2.03) + float2(13.1, 7.7);
+        amplitude *= 0.5;
+    }
+    return value;
 }
 
 float3 generateMoonTexture(inout float2  uv, float  distanceFromCenter, float3  tintColor)
@@ -301,6 +322,29 @@ FragmentOutput fragmentMain(FragmentInput input)
             color += (((params.moonColor.xyz * moonProximity) * 0.0799999982) * atmosphereParams.moonTintStrength);
             float globalMoonTint = smoothstep(-0.100000001, 0.5, params.moonDirection.y);
             color = lerp(color, params.moonColor.xyz, float3((globalMoonTint * atmosphereParams.moonTintStrength) * 0.0500000007));
+        }
+        if (atmosphereParams.cloudsEnabled == 1)
+        {
+            float horizonFade = smoothstep(-0.08, 0.22, dir.y);
+            float2 cloudUv = dir.xz /
+                max(abs(dir.y) + 0.18, 0.18);
+            cloudUv = cloudUv * max(atmosphereParams.cloudScale, 0.01) +
+                      atmosphereParams.cloudOffset.xz;
+            float baseNoise = cloudNoise(cloudUv);
+            float detailNoise = cloudNoise(cloudUv * 3.7 + float2(4.2, 9.1));
+            float shapedNoise = lerp(baseNoise, baseNoise * detailNoise,
+                                     clamp(atmosphereParams.cloudPhase, 0.0, 1.0));
+            float threshold = 1.0 - clamp(atmosphereParams.cloudDensity, 0.0, 1.0);
+            float cloudAmount = smoothstep(threshold, threshold + 0.18,
+                                           shapedNoise * max(atmosphereParams.cloudDensityMultiplier, 0.0));
+            cloudAmount *= horizonFade;
+            float sunLighting = clamp(dot(dir, normSunDir) * 0.5 + 0.5, 0.0, 1.0);
+            float3 cloudLight = lerp(float3(0.2, 0.23, 0.3),
+                                     params.sunColor.xyz,
+                                     sunLighting * clamp(atmosphereParams.cloudScattering, 0.0, 2.0));
+            cloudLight *= exp(-max(atmosphereParams.cloudAbsorption, 0.0) *
+                              (1.0 - sunLighting) * 0.35);
+            color = lerp(color, cloudLight, cloudAmount * 0.85);
         }
     }
     output.FragColor = float4(color, 1.0);

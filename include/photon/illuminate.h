@@ -110,6 +110,9 @@ class PathTracing {
                    int historyFrames, uint32_t enabledFeatures);
     void resetAccumulation();
     const std::string &getLastError() const { return lastError; }
+    std::shared_ptr<Texture> getNormalDepthTexture() const {
+        return pathTracingAovTextures[1];
+    }
 
     /** @brief Rays traced per pixel each dispatch. */
     int raysPerPixel = 4;
@@ -194,6 +197,9 @@ class PathTracing {
     float cachedAtmosphereSunSize = -1.0f;
     int cachedAtmosphereEnabled = -1;
     int cachedAtmosphereSkyEnabled = -1;
+    glm::vec4 cachedCloudSettings = glm::vec4(-1.0f);
+    glm::vec4 cachedCloudLighting = glm::vec4(-1.0f);
+    int cachedCloudsEnabled = -1;
 
     friend class ::Window;
 #endif

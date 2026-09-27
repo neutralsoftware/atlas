@@ -270,6 +270,14 @@ class Scene {
         return directionalLights;
     }
 
+    void setAtmosphereGlobalLightEnabled(bool enabled) {
+        atmosphereGlobalLightEnabled = enabled;
+    }
+
+    bool isAtmosphereGlobalLightEnabled() const {
+        return atmosphereGlobalLightEnabled;
+    }
+
     const std::vector<Light *> &getPointLights() const { return pointLights; }
 
     const std::vector<Spotlight *> &getSpotlights() const { return spotlights; }
@@ -319,7 +327,9 @@ class Scene {
     /**
      * @brief Returns whether the atmosphere-generated skybox is currently used.
      */
-    bool isUsingAtmosphereSkybox() const { return useAtmosphereSkybox; }
+    bool isUsingAtmosphereSkybox() const {
+        return useAtmosphereSkybox && atmosphere.isEnabled();
+    }
 
     /**
      * @brief Sets the internally stored atmosphere-generated skybox.
@@ -383,6 +393,7 @@ class Scene {
     std::shared_ptr<Skybox> atmosphereSkybox = nullptr;
 
     bool useAtmosphereSkybox = false;
+    bool atmosphereGlobalLightEnabled = false;
     AmbientLight ambientLight = {
         .color = {.r = 1.0f, .g = 1.0f, .b = 1.0f, .a = 1.0f},
         .intensity = 0.5f / 4};

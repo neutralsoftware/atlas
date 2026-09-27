@@ -19,6 +19,7 @@ struct VolumetricParameters
 struct DirectionalLight
 {
     float3 color;
+    float intensity;
 };
 
 struct FragmentOutput
@@ -34,7 +35,8 @@ struct FragmentInput
 float3 computeVolumetricLighting(float2  uv, Sun  sun, VolumetricParameters  volumetricParameters, Sampler2D sceneTexture, DirectionalLight  directionalLight)
 {
     float3 color = float3(0.0);
-    float2 deltaTexCoord = (sun.sunPos - uv) * volumetricParameters.density;
+    float2 deltaTexCoord = (sun.sunPos - uv) *
+                           volumetricParameters.density / 48.0;
     float2 coord = uv;
     float illuminationDecay = 1.0;
     for (int i = 0; i < 48; i++)
@@ -79,11 +81,12 @@ float3 computeVolumetricLighting(float2  uv, Sun  sun, VolumetricParameters  vol
         {
             atmosphere += (sampled * 0.5);
         }
-        atmosphere *= (illuminationDecay * volumetricParameters.weight);
+        atmosphere *= (max(directionalLight.intensity, 0.0) *
+                       illuminationDecay * volumetricParameters.weight);
         color += atmosphere;
         illuminationDecay *= volumetricParameters.decay;
     }
-    return color * 5.0;
+    return color * volumetricParameters.exposure;
 }
 
 [[vk::binding(0, 1)]] ConstantBuffer<Sun> sun;

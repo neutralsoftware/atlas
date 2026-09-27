@@ -286,7 +286,8 @@ FragmentOutput fragmentMain(FragmentInput input) {
         (parameters.featureFlags & FEATURE_DISPERSION) != 0u;
     bool volumesEnabled = (parameters.featureFlags & FEATURE_VOLUMES) != 0u;
     bool environmentEnabled =
-        (parameters.featureFlags & FEATURE_ENVIRONMENT_LIGHTING) != 0u;
+        (parameters.featureFlags & FEATURE_ENVIRONMENT_LIGHTING) != 0u &&
+        uniforms.useIBL != 0u;
     bool indirectEnabled =
         (parameters.featureFlags & FEATURE_INDIRECT_LIGHTING) != 0u;
     float4 opticalData = float4(0.0, 1.5, 0.0, 1.0);
@@ -648,7 +649,7 @@ FragmentOutput fragmentMain(FragmentInput input) {
         float specularLuminance =
             dot(specularEnv, float3(0.2126, 0.7152, 0.0722));
         float3 ambientSpecular = ambientLight.color.xyz *
-                                 max(ambientLight.intensity, 0.08);
+                                 ambientLight.intensity;
         specularEnv = specularLuminance > 0.0001
                           ? specularEnv
                           : ambientSpecular;
@@ -661,9 +662,8 @@ FragmentOutput fragmentMain(FragmentInput input) {
         float roughnessAttenuation = lerp(1.0, 0.150000006,
                                          clamp(roughness, 0.0, 1.0));
         float3 specularIBL = specularEnv * roughnessAttenuation;
-        float diffuseWeight = uniforms.useIBL != 0u ? 1.0 : 0.2;
         iblContribution =
-            ((kD * diffuseIBL * diffuseWeight) + (kS * specularIBL)) *
+            ((kD * diffuseIBL) + (kS * specularIBL)) *
             occlusion;
     }
     float3 finalColor = (ambient + lighting + ddgiSpecular) + iblContribution;

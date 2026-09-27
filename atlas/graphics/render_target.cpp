@@ -813,13 +813,31 @@ void RenderTarget::render(float dt,
         renderTargetPipeline->setUniform1i("hasBrightTexture",
                                            blurredTexture.id != 0 ? 1 : 0);
 
+        bool pathTracingDepth = false;
+        const bool usingPathTracing =
+            Window::mainWindow != nullptr &&
+            Window::mainWindow->usePathTracing;
+#ifdef METAL
+        pathTracingDepth =
+            usingPathTracing &&
+            Window::mainWindow->pathTracer != nullptr &&
+            Window::mainWindow->pathTracer->getNormalDepthTexture() != nullptr &&
+            Window::mainWindow->pathTracer->getNormalDepthTexture()->id != 0;
+#endif
         const bool hasDepth =
-            depthTexture.id != 0 && (Window::mainWindow == nullptr ||
-                                     !Window::mainWindow->usePathTracing);
-        uint depthTextureId = hasDepth ? depthTexture.id : 0;
+            pathTracingDepth || (!usingPathTracing && depthTexture.id != 0);
+        uint depthTextureId = depthTexture.id;
+#ifdef METAL
+        if (pathTracingDepth) {
+            depthTextureId =
+                Window::mainWindow->pathTracer->getNormalDepthTexture()->id;
+        }
+#endif
         renderTargetPipeline->bindTexture2D("DepthTexture", depthTextureId, 2,
                                             obj->id);
         renderTargetPipeline->setUniform1i("hasDepthTexture", hasDepth ? 1 : 0);
+        renderTargetPipeline->setUniform1i("depthIsLinear",
+                                           pathTracingDepth ? 1 : 0);
 
         renderTargetPipeline->bindTexture2D(
             "VolumetricLightTexture", volumetricLightTexture.id, 3, obj->id);

@@ -9,6 +9,31 @@ using namespace metal;
 constexpr sampler skyboxSampler(coord::normalized, address::clamp_to_edge,
                                 filter::linear, mip_filter::linear);
 
+float cloudHash(float2 p) {
+    return fract(sin(dot(p, float2(127.1f, 311.7f))) * 43758.5453f);
+}
+
+float cloudValueNoise(float2 p) {
+    float2 i = floor(p);
+    float2 f = fract(p);
+    f = f * f * (3.0f - 2.0f * f);
+    return mix(mix(cloudHash(i), cloudHash(i + float2(1.0f, 0.0f)), f.x),
+               mix(cloudHash(i + float2(0.0f, 1.0f)),
+                   cloudHash(i + float2(1.0f)), f.x),
+               f.y);
+}
+
+float cloudFbm(float2 p) {
+    float value = 0.0f;
+    float amplitude = 0.5f;
+    for (uint octave = 0; octave < 5; ++octave) {
+        value += cloudValueNoise(p) * amplitude;
+        p = p * 2.03f + float2(13.1f, 7.7f);
+        amplitude *= 0.5f;
+    }
+    return value;
+}
+
 float4 skyColor(float3 dir, float intensity, texturecube<float> skybox,
                 constant SceneData &sceneData,
                 thread const SpectralPath &path) {
@@ -26,7 +51,7 @@ float4 skyColor(float3 dir, float intensity, texturecube<float> skybox,
         skyRGB += sceneData.ambientColor * max(sceneData.ambientIntensity, 0.0f);
     }
 
-    if (sceneData.atmosphereEnabled != 0) {
+    if (sceneData.atmosphereSkyEnabled != 0) {
         float horizon = pow(clamp(1.0 - abs(sampleDir.y), 0.0, 1.0), 4.0);
 
         float daylight =
@@ -47,7 +72,7 @@ float4 skyColor(float3 dir, float intensity, texturecube<float> skybox,
                  0.82f;
     }
 
-    if (sceneData.atmosphereEnabled != 0 &&
+    if (sceneData.atmosphereSkyEnabled != 0 &&
         sceneData.atmosphereSunDirection.y > -0.15) {
 
         float3 sunDirection = sceneData.atmosphereSunDirection;
@@ -86,6 +111,33 @@ float4 skyColor(float3 dir, float intensity, texturecube<float> skybox,
         skyRGB += sceneData.atmosphereSunColor *
                   (sunDisk * 5.0 + sunGlow * 0.5 + sunHalo) * horizonFade *
                   sunIntensity;
+    }
+
+    if (sceneData.atmosphereSkyEnabled != 0 &&
+        sceneData.cloudsEnabled != 0) {
+        float horizonFade = smoothstep(-0.08f, 0.22f, sampleDir.y);
+        float2 cloudUv = sampleDir.xz /
+                         max(abs(sampleDir.y) + 0.18f, 0.18f);
+        cloudUv = cloudUv * max(sceneData.cloudSettings.x, 0.01f) +
+                  sceneData.cloudLighting.zw;
+        float baseNoise = cloudFbm(cloudUv);
+        float detailNoise = cloudFbm(cloudUv * 3.7f + float2(4.2f, 9.1f));
+        float shapedNoise = mix(baseNoise, baseNoise * detailNoise,
+                                clamp(sceneData.cloudLighting.y, 0.0f, 1.0f));
+        float threshold = 1.0f - clamp(sceneData.cloudSettings.y, 0.0f, 1.0f);
+        float cloudAmount = smoothstep(
+            threshold, threshold + 0.18f,
+            shapedNoise * max(sceneData.cloudSettings.z, 0.0f));
+        cloudAmount *= horizonFade;
+        float3 sunDirection = normalize(sceneData.atmosphereSunDirection);
+        float sunLighting = clamp(dot(sampleDir, sunDirection) * 0.5f + 0.5f,
+                                  0.0f, 1.0f);
+        float3 cloudLight = mix(
+            float3(0.2f, 0.23f, 0.3f), sceneData.atmosphereSunColor,
+            sunLighting * clamp(sceneData.cloudLighting.x, 0.0f, 2.0f));
+        cloudLight *= exp(-max(sceneData.cloudSettings.w, 0.0f) *
+                          (1.0f - sunLighting) * 0.35f);
+        skyRGB = mix(skyRGB, cloudLight, cloudAmount * 0.85f);
     }
 
     float scale = intensity > 0.0 ? intensity : 1.0;

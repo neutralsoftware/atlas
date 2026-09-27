@@ -807,7 +807,8 @@ void Skybox::render(float, std::shared_ptr<opal::CommandBuffer> commandBuffer,
         throw std::runtime_error(
             "Skybox rendering requires a valid main window and scene");
     }
-    if (Window::mainWindow->getCurrentScene()->atmosphere.isEnabled()) {
+    if (Window::mainWindow->getCurrentScene()->atmosphere.isEnabled() &&
+        Window::mainWindow->getCurrentScene()->isUsingAtmosphereSkybox()) {
         Magnitude3d sunDirection =
             Window::mainWindow->getCurrentScene()->atmosphere.getSunAngle();
         Magnitude3d moonDirection =
@@ -841,10 +842,27 @@ void Skybox::render(float, std::shared_ptr<opal::CommandBuffer> commandBuffer,
         pipeline->setUniform1f(
             "starDensity",
             Window::mainWindow->getCurrentScene()->atmosphere.starIntensity);
+        const auto &clouds =
+            Window::mainWindow->getCurrentScene()->atmosphere.clouds;
+        pipeline->setUniform1i("cloudsEnabled", clouds != nullptr ? 1 : 0);
+        if (clouds != nullptr) {
+            pipeline->setUniform1f("cloudScale", clouds->scale);
+            pipeline->setUniform1f("cloudDensity", clouds->density);
+            pipeline->setUniform1f("cloudDensityMultiplier",
+                                    clouds->densityMultiplier);
+            pipeline->setUniform1f("cloudAbsorption", clouds->absorption);
+            pipeline->setUniform1f("cloudScattering", clouds->scattering);
+            pipeline->setUniform1f("cloudPhase", clouds->phase);
+            pipeline->setUniform3f(
+                "cloudOffset", static_cast<float>(clouds->offset.x),
+                static_cast<float>(clouds->offset.y),
+                static_cast<float>(clouds->offset.z));
+        }
         pipeline->setUniform1i("hasDayNight", 1);
     }
     else {
         pipeline->setUniform1i("hasDayNight", 0);
+        pipeline->setUniform1i("cloudsEnabled", 0);
     }
 
     commandBuffer->bindDrawingState(obj->vao);

@@ -1,4 +1,8 @@
-# Atlas Engine
+<div align="center">
+  <img src="images/logo.svg" width="60" alt="Atlas Engine">
+  <h1>Atlas Engine</h1>
+  <b>Build everything. Then go beyond.</b><br></br>
+</div>
 
 ![GitHub contributors](https://img.shields.io/github/contributors/neutralsoftware/atlas)
 ![GitHub last commit](https://img.shields.io/github/last-commit/neutralsoftware/atlas)
@@ -9,10 +13,17 @@
 
 Atlas is an open-source game engine built for creating real-time 3D experiences with a native editor, TypeScript scripting, and modern rendering backends. The engine is written in C++20 and brings rendering, physics, audio, terrain, environments, UI, tooling, and project packaging together in one repository.
 
-[Website](https://atlasengine.org) · [Releases](https://github.com/neutralsoftware/atlas/releases) · [Roadmap](ROADMAP.md) · [Report an issue](https://github.com/neutralsoftware/atlas/issues) · [Discord](https://discord.gg/WKrxKtr7kW)
+<div align="center">
+  <a href="https://atlasengine.org">Website</a> ·
+  <a href="https://github.com/neutralsoftware/atlas/releases">Releases</a> ·
+  <a href="ROADMAP.md">Roadmap</a> ·
+  <a href="https://github.com/neutralsoftware/atlas/issues">Report an issue</a> ·
+  <a href="https://discord.gg/WKrxKtr7kW">Discord</a>
+</div>
+<br></br>
 
-![Atlas Screenshot](example.png)
-![Editor Screenshot](editorExample.png)
+![Atlas Screenshot](images/cornell-box-trim.png)
+![Editor Screenshot](images/editorExample.png)
 
 ## Overview
 
@@ -226,3 +237,33 @@ Contributions are welcome. Read [CONTRIBUTING.md](CONTRIBUTING.md) for branch co
 ## License
 
 Atlas Engine is available under the [MIT License](LICENSE.md).
+
+## Renders
+
+<p align="center">
+  A selection of scenes rendered with Atlas and Photon.
+</p>
+
+<table>
+  <tr>
+    <td width="50%">
+      <img src="images/diamond-ring.png" alt="Diamond ring render" width="100%">
+    </td>
+    <td width="50%">
+      <img src="images/diamonds.png" alt="Diamond render" width="100%">
+    </td>
+  </tr>
+  <tr>
+    <td align="center"><b>Diamond Ring</b></td>
+    <td align="center"><b>Diamonds</b></td>
+  </tr>
+  <tr>
+    <td width="50%">
+      <img src="images/cornell-box.png" alt="Cornell Box with Glass Dragon" width="100%">
+    </td>
+  </tr>
+  <tr>
+    <td align="center"><b>Cornell Box with Glass Dragon</b></td>
+  </tr>
+</table>
+
