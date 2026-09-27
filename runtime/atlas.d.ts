@@ -2147,6 +2147,62 @@ declare module "atlas" {
          */
         getActionAxisValue(name: string): AxisPacket;
     }
+
+    export enum SubdivisionScheme {
+        Simple,
+        Loop,
+    }
+
+    export class Subdivision extends Component {
+        levels: number;
+        scheme: SubdivisionScheme;
+
+        override init(): void;
+        override update(deltaTime: number): void;
+
+        clone(): Subdivision;
+    }
+
+    export enum ClothBendType {
+        None = "none",
+        Distance = "distance",
+        Dihedral = "dihedral",
+    }
+
+    export enum AnchorPoint {
+        TopLeft = "topLeft",
+        TopCenter = "topCenter",
+        TopRight = "topRight",
+        CenterLeft = "centerLeft",
+        Center = "center",
+        CenterRight = "centerRight",
+        BottomLeft = "bottomLeft",
+        BottomCenter = "bottomCenter",
+        BottomRight = "bottomRight",
+    }
+
+    export class Cloth extends Component {
+        mass: number;
+        stretchCompliance: number;
+        shearCompliance: number;
+        bendCompliance: number;
+        damping: number;
+        friction: number;
+        restitution: number;
+        gravityFactor: number;
+        solverIterations: number;
+        allowSleeping: boolean;
+        doubleSided: boolean;
+        vertexRadius: number;
+        bendType: ClothBendType;
+        anchors: AnchorPoint[];
+
+        override init(): void;
+        override beforePhysics(): void;
+        override update(deltaTime: number): void;
+
+        clone(): Cloth;
+    }
 }
 
 /**
@@ -2454,7 +2510,7 @@ declare module "atlas/graphics" {
             /**
              * The category or discriminator for this value.
              */
-            type: "Inversion"
+            type: "Inversion";
         };
         /**
          * The grayscale.
@@ -2463,7 +2519,7 @@ declare module "atlas/graphics" {
             /**
              * The category or discriminator for this value.
              */
-            type: "Grayscale"
+            type: "Grayscale";
         };
         /**
          * The sharpen.
@@ -2472,7 +2528,7 @@ declare module "atlas/graphics" {
             /**
              * The category or discriminator for this value.
              */
-            type: "Sharpen"
+            type: "Sharpen";
         };
         /**
          * The blur.
@@ -2485,7 +2541,7 @@ declare module "atlas/graphics" {
             /**
              * The magnitude.
              */
-            magnitude: number
+            magnitude: number;
         };
         /**
          * The edge detection.
@@ -2494,7 +2550,7 @@ declare module "atlas/graphics" {
             /**
              * The category or discriminator for this value.
              */
-            type: "EdgeDetection"
+            type: "EdgeDetection";
         };
         /**
          * The color correction.
@@ -2544,7 +2600,7 @@ declare module "atlas/graphics" {
             /**
              * The separation.
              */
-            separation: number
+            separation: number;
         };
         /**
          * The chromatic aberration.
@@ -2582,7 +2638,7 @@ declare module "atlas/graphics" {
             /**
              * The levels.
              */
-            levels: number
+            levels: number;
         };
         /**
          * The pixelation.
@@ -2595,7 +2651,7 @@ declare module "atlas/graphics" {
             /**
              * The pixel size.
              */
-            pixelSize: number
+            pixelSize: number;
         };
         /**
          * The dialation.
@@ -2612,7 +2668,7 @@ declare module "atlas/graphics" {
             /**
              * The separation.
              */
-            separation: number
+            separation: number;
         };
         /**
          * The dilation.
@@ -2629,7 +2685,7 @@ declare module "atlas/graphics" {
             /**
              * The separation.
              */
-            separation: number
+            separation: number;
         };
         /**
          * The film grain.
@@ -2642,7 +2698,7 @@ declare module "atlas/graphics" {
             /**
              * The amount.
              */
-            amount: number
+            amount: number;
         };
     };
 

@@ -327,6 +327,70 @@ std::string normalizeToken(std::string value) {
     return normalized;
 }
 
+bool readClothBendType(const json &value, ClothBendType &target) {
+    if (value.is_string()) {
+        const std::string token = normalizeToken(value.get<std::string>());
+        if (token == "none") {
+            target = ClothBendType::None;
+            return true;
+        }
+        if (token == "distance") {
+            target = ClothBendType::Distance;
+            return true;
+        }
+        if (token == "dihedral") {
+            target = ClothBendType::Dihedral;
+            return true;
+        }
+    }
+    if (value.is_number_integer()) {
+        const int numeric = value.get<int>();
+        if (numeric >= 0 && numeric <= 2) {
+            target = static_cast<ClothBendType>(numeric);
+            return true;
+        }
+    }
+    return false;
+}
+
+bool readAnchorPoint(const json &value, AnchorPoint &target) {
+    if (value.is_string()) {
+        const std::string token = normalizeToken(value.get<std::string>());
+        static const std::array<const char *, 9> names{
+            "topleft",     "topcenter",  "topright",     "centerleft", "center",
+            "centerright", "bottomleft", "bottomcenter", "bottomright"};
+        for (std::size_t index = 0; index < names.size(); ++index) {
+            if (token == names[index]) {
+                target = static_cast<AnchorPoint>(index);
+                return true;
+            }
+        }
+    }
+    if (value.is_number_integer()) {
+        const int numeric = value.get<int>();
+        if (numeric >= 0 && numeric <= 8) {
+            target = static_cast<AnchorPoint>(numeric);
+            return true;
+        }
+    }
+    return false;
+}
+
+std::vector<AnchorPoint> readClothAnchors(const json &node) {
+    std::vector<AnchorPoint> anchors;
+    const json *values = findField(node, {"anchors"});
+    if (values == nullptr || !values->is_array()) {
+        return anchors;
+    }
+    for (const json &value : *values) {
+        AnchorPoint anchor;
+        if (readAnchorPoint(value, anchor)) {
+            anchors.push_back(anchor);
+        }
+    }
+    return anchors;
+}
+
 std::string propertyNameToken(const std::string &path) {
     const std::size_t separator = path.find_last_of('/');
     return normalizeToken(
@@ -1162,11 +1226,11 @@ loadEnvironmentDefinition(const json &sceneData, const std::string &baseDir) {
         }
     }
 
-    const bool shouldEnableAtmosphere =
-        explicitAtmosphereEnabled
-            ? atmosphereEnabled
-            : loaded.useAtmosphereSkybox || loaded.useGlobalLight ||
-                  hasAtmosphereConfiguration;
+    const bool shouldEnableAtmosphere = explicitAtmosphereEnabled
+                                            ? atmosphereEnabled
+                                            : loaded.useAtmosphereSkybox ||
+                                                  loaded.useGlobalLight ||
+                                                  hasAtmosphereConfiguration;
 
     if (shouldEnableAtmosphere) {
         loaded.atmosphere.enable();
@@ -1627,7 +1691,8 @@ bool isEditorLightObject(const Context &context, GameObject &object) {
 }
 
 void updateEditorAreaLightProxy(AreaLight &light) {
-    if (light.debugObject == nullptr || light.debugObject->vertices.size() < 4) {
+    if (light.debugObject == nullptr ||
+        light.debugObject->vertices.size() < 4) {
         return;
     }
     const auto proxyScale = light.debugObject->getScale();
@@ -1635,8 +1700,8 @@ void updateEditorAreaLightProxy(AreaLight &light) {
     const float scaleY = std::max(std::abs(proxyScale.y), 0.001f);
     const float halfWidth =
         std::max(static_cast<float>(light.size.width) / scaleX * 0.5f, 0.001f);
-    const float halfHeight = std::max(
-        static_cast<float>(light.size.height) / scaleY * 0.5f, 0.001f);
+    const float halfHeight =
+        std::max(static_cast<float>(light.size.height) / scaleY * 0.5f, 0.001f);
     auto vertices = light.debugObject->vertices;
     vertices[0].position = {-halfWidth, -halfHeight, 0.0f};
     vertices[1].position = {halfWidth, -halfHeight, 0.0f};
@@ -3054,6 +3119,77 @@ std::shared_ptr<Component> attachComponent(Context &context,
         return finish(softbody);
     }
 
+    if (token == "cloth") {
+        auto cloth = std::make_shared<Cloth>();
+        pending.object->addComponent(cloth);
+
+        float value = 0.0f;
+        if (tryReadFloatAny(pending.data, {"mass"}, value))
+            cloth->setMass(value);
+        if (tryReadFloatAny(pending.data, {"stretchCompliance"}, value))
+            cloth->setStretchCompliance(value);
+        if (tryReadFloatAny(pending.data, {"shearCompliance"}, value))
+            cloth->setShearCompliance(value);
+        if (tryReadFloatAny(pending.data, {"bendCompliance"}, value))
+            cloth->setBendCompliance(value);
+        if (tryReadFloatAny(pending.data, {"damping"}, value))
+            cloth->setDamping(value);
+        if (tryReadFloatAny(pending.data, {"friction"}, value))
+            cloth->setFriction(value);
+        if (tryReadFloatAny(pending.data, {"restitution"}, value))
+            cloth->setRestitution(value);
+        if (tryReadFloatAny(pending.data, {"gravityFactor"}, value))
+            cloth->setGravityFactor(value);
+        if (tryReadFloatAny(pending.data, {"vertexRadius"}, value))
+            cloth->setVertexRadius(value);
+
+        int solverIterations = 8;
+        if (tryReadIntAny(pending.data, {"solverIterations"},
+                          solverIterations)) {
+            cloth->setSolverIterations(
+                static_cast<uint32_t>(std::max(1, solverIterations)));
+        }
+        bool enabled = true;
+        if (tryReadBoolAny(pending.data, {"allowSleeping"}, enabled))
+            cloth->setAllowSleeping(enabled);
+        if (tryReadBoolAny(pending.data, {"doubleSided"}, enabled))
+            cloth->setDoubleSided(enabled);
+
+        if (const json *bendType = findField(pending.data, {"bendType"});
+            bendType != nullptr) {
+            ClothBendType parsed = cloth->bendType;
+            if (readClothBendType(*bendType, parsed))
+                cloth->setBendType(parsed);
+        }
+        cloth->setAnchors(readClothAnchors(pending.data));
+        return finish(cloth);
+    }
+
+    if (token == "subdivision") {
+        auto subdivision = std::make_shared<Subdivision>();
+        pending.object->addComponent(subdivision);
+
+        int levels = 1;
+        tryReadIntAny(pending.data, {"levels"}, levels);
+        subdivision->levels = static_cast<unsigned int>(std::max(0, levels));
+
+        std::string scheme;
+        if (tryReadStringAny(pending.data, {"scheme"}, scheme)) {
+            subdivision->scheme = normalizeToken(scheme) == "simple"
+                                      ? SubdivisionScheme::Simple
+                                      : SubdivisionScheme::Loop;
+        } else {
+            int schemeValue = 1;
+            if (tryReadIntAny(pending.data, {"scheme"}, schemeValue)) {
+                subdivision->scheme = schemeValue == 0
+                                          ? SubdivisionScheme::Simple
+                                          : SubdivisionScheme::Loop;
+            }
+        }
+
+        return finish(subdivision);
+    }
+
     if (token == "audioplayer") {
         auto component = std::make_shared<AudioPlayer>();
         pending.object->addComponent(component);
@@ -3382,6 +3518,71 @@ bool updateAttachedComponent(Context &context, GameObject &object,
         if (softbody->body != nullptr) {
             softbody->body->sensorSignal = softbody->sendSignal;
         }
+        return true;
+    }
+
+    if (auto cloth = std::dynamic_pointer_cast<Cloth>(component);
+        cloth != nullptr) {
+        float value = 0.0f;
+        if (tryReadFloatAny(data, {"mass"}, value))
+            cloth->setMass(value);
+        if (tryReadFloatAny(data, {"stretchCompliance"}, value))
+            cloth->setStretchCompliance(value);
+        if (tryReadFloatAny(data, {"shearCompliance"}, value))
+            cloth->setShearCompliance(value);
+        if (tryReadFloatAny(data, {"bendCompliance"}, value))
+            cloth->setBendCompliance(value);
+        if (tryReadFloatAny(data, {"damping"}, value))
+            cloth->setDamping(value);
+        if (tryReadFloatAny(data, {"friction"}, value))
+            cloth->setFriction(value);
+        if (tryReadFloatAny(data, {"restitution"}, value))
+            cloth->setRestitution(value);
+        if (tryReadFloatAny(data, {"gravityFactor"}, value))
+            cloth->setGravityFactor(value);
+        if (tryReadFloatAny(data, {"vertexRadius"}, value))
+            cloth->setVertexRadius(value);
+
+        int solverIterations = 8;
+        if (tryReadIntAny(data, {"solverIterations"}, solverIterations))
+            cloth->setSolverIterations(
+                static_cast<uint32_t>(std::max(1, solverIterations)));
+        bool enabled = true;
+        if (tryReadBoolAny(data, {"allowSleeping"}, enabled))
+            cloth->setAllowSleeping(enabled);
+        if (tryReadBoolAny(data, {"doubleSided"}, enabled))
+            cloth->setDoubleSided(enabled);
+
+        if (const json *bendType = findField(data, {"bendType"});
+            bendType != nullptr) {
+            ClothBendType parsed = cloth->bendType;
+            if (readClothBendType(*bendType, parsed))
+                cloth->setBendType(parsed);
+        }
+        cloth->setAnchors(readClothAnchors(data));
+        return true;
+    }
+
+    if (auto subdivision = std::dynamic_pointer_cast<Subdivision>(component);
+        subdivision != nullptr) {
+        int levels = 1;
+        tryReadIntAny(data, {"levels"}, levels);
+        subdivision->levels = static_cast<unsigned int>(std::max(0, levels));
+
+        std::string scheme;
+        if (tryReadStringAny(data, {"scheme"}, scheme)) {
+            subdivision->scheme = normalizeToken(scheme) == "simple"
+                                      ? SubdivisionScheme::Simple
+                                      : SubdivisionScheme::Loop;
+        } else {
+            int schemeValue = 1;
+            if (tryReadIntAny(data, {"scheme"}, schemeValue)) {
+                subdivision->scheme = schemeValue == 0
+                                          ? SubdivisionScheme::Simple
+                                          : SubdivisionScheme::Loop;
+            }
+        }
+        subdivision->subdivide();
         return true;
     }
 
@@ -5689,8 +5890,7 @@ bool Context::setSceneProperty(const std::string &section, int index,
             scene->setAtmosphereGlobalLightEnabled(
                 environmentDefinition.useGlobalLight &&
                 scene->atmosphere.isEnabled());
-            scene->setAutomaticAmbient(
-                environmentDefinition.automaticAmbient);
+            scene->setAutomaticAmbient(environmentDefinition.automaticAmbient);
             if (environmentDefinition.useGlobalLight &&
                 scene->atmosphere.isEnabled()) {
                 scene->atmosphere.useGlobalLight();
@@ -5807,9 +6007,10 @@ bool Context::breakDownModel(int id) {
     json serializedParts = json::array();
     for (std::size_t index = 0; index < parts.size(); ++index) {
         auto &part = parts[index];
-        json partData = index < savedParts.size() && savedParts[index].is_object()
-                            ? savedParts[index]
-                            : json::object();
+        json partData =
+            index < savedParts.size() && savedParts[index].is_object()
+                ? savedParts[index]
+                : json::object();
         if (partData.value("removed", false)) {
             serializedParts.push_back(partData);
             continue;
@@ -5818,8 +6019,8 @@ bool Context::breakDownModel(int id) {
         std::string baseName = part->name.empty()
                                    ? "Part " + std::to_string(index + 1)
                                    : part->name;
-        std::string name = partData.value(
-            "name", uniqueEditorObjectName(*this, baseName));
+        std::string name =
+            partData.value("name", uniqueEditorObjectName(*this, baseName));
         name = uniqueEditorObjectName(*this, name);
         partData["name"] = name;
         partData["type"] = "modelPart";
@@ -6069,8 +6270,8 @@ int Context::addObjectComponent(int id, const json &component) {
     const std::string normalizedType = normalizeToken(type);
     static const std::unordered_set<std::string> supported{
         "script",     "traitscript", "rigidbody",   "softbody",
-        "audioplayer", "joint",      "fixedjoint",  "hingejoint",
-        "springjoint", "vehicle",
+        "cloth",      "subdivision", "audioplayer", "joint",
+        "fixedjoint", "hingejoint",  "springjoint", "vehicle",
     };
     if (!supported.contains(normalizedType)) {
         return -1;
@@ -6978,9 +7179,9 @@ void Context::loadProject() {
     config.pathTracingDenoising = pathTracingDenoising;
     config.pathTracingAccumulationFrames = pathTracingAccumulationFrames;
     config.pathTracingFeatureFlags = pathTracingFeatureFlags;
-    config.realtimePBRFeatureFlags =
-        globalIllumination ? pathTracingFeatureFlags
-                          : photon::NormalRealtimePBRFeatures;
+    config.realtimePBRFeatureFlags = globalIllumination
+                                         ? pathTracingFeatureFlags
+                                         : photon::NormalRealtimePBRFeatures;
     config.screenSpaceReflections = screenSpaceReflections;
     config.screenSpaceReflectionQuality = screenSpaceReflectionQuality;
     config.screenSpaceReflectionDebug = screenSpaceReflectionDebug;
@@ -7107,12 +7308,10 @@ void Context::loadScene(Window &window, const json &sceneData) {
         loadEnvironmentDefinition(sceneData, baseDir);
     scene->setEnvironment(std::move(environmentDefinition.environment));
     scene->atmosphere = environmentDefinition.atmosphere;
-    scene->setUseAtmosphereSkybox(
-        environmentDefinition.useAtmosphereSkybox &&
-        scene->atmosphere.isEnabled());
+    scene->setUseAtmosphereSkybox(environmentDefinition.useAtmosphereSkybox &&
+                                  scene->atmosphere.isEnabled());
     scene->setAtmosphereGlobalLightEnabled(
-        environmentDefinition.useGlobalLight &&
-        scene->atmosphere.isEnabled());
+        environmentDefinition.useGlobalLight && scene->atmosphere.isEnabled());
     scene->setAutomaticAmbient(environmentDefinition.automaticAmbient);
 
     if (sceneData.contains("inputActions")) {
@@ -7460,8 +7659,7 @@ void Context::loadScene(Window &window, const json &sceneData) {
         }
     }
 
-    if (environmentDefinition.useGlobalLight &&
-        scene->atmosphere.isEnabled()) {
+    if (environmentDefinition.useGlobalLight && scene->atmosphere.isEnabled()) {
         scene->atmosphere.useGlobalLight();
         if (environmentDefinition.atmosphereCastsShadows) {
             scene->atmosphere.castShadowsFromSunlight(

@@ -14,7 +14,6 @@
 - Add geometry physical displacement and tessellation *M9*
 
 - Add Bezel Jolt softbodies and cloth simulation *M10*
-- Add breaking and fracturing to Bezel Jolt *M11*
 - *Optional:* Revamp Bezel Native
 
 - Move Photon to slang to be prepared for Windows *M14*

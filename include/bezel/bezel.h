@@ -749,6 +749,103 @@ struct Softbody {
     void createRenderBindings();
 };
 
+enum class ClothBendType {
+    None,
+    Distance,
+    Dihedral,
+};
+
+enum class AnchorPoint {
+    TopLeft,
+    TopCenter,
+    TopRight,
+
+    CenterLeft,
+    Center,
+    CenterRight,
+
+    BottomLeft,
+    BottomCenter,
+    BottomRight,
+};
+
+struct ClothMaterial {
+    float stretchCompliance = 0.0f;
+    float shearCompliance = 0.0f;
+    float bendCompliance = 0.0f;
+
+    float damping = 0.05f;
+
+    float friction = 0.2f;
+    float restitution = 0.0f;
+};
+
+struct ClothMesh {
+    std::vector<SoftbodyVertex> vertices;
+    std::vector<SoftbodyTriangle> surface;
+};
+
+class Cloth {
+  public:
+    Position3d position;
+    Rotation3d rotation;
+    glm::quat rotationQuat = glm::quat(1.0f, 0.0f, 0.0f, 0.0f);
+
+    float mass = 1.0f;
+
+    ClothMaterial material;
+
+    uint32_t solverIterations = 8;
+    float gravityFactor = 1.0f;
+
+    bool allowSleeping = true;
+    bool doubleSided = true;
+
+    float vertexRadius = 0.0f;
+
+    ClothBendType bendType = ClothBendType::Dihedral;
+
+    std::vector<AnchorPoint> anchors;
+
+    BodyIdentifier id = {
+        .joltId = INVALID_JOLT_ID,
+        .atlasId = 0,
+    };
+
+    Cloth() = default;
+
+    void setObject(CoreObject *object);
+
+    void setAnchors(const std::vector<AnchorPoint> &anchors);
+
+    void addAnchor(AnchorPoint anchor);
+    void removeAnchor(AnchorPoint anchor);
+    void clearAnchors();
+
+    void pinVertex(uint32_t vertexIndex);
+    void unpinVertex(uint32_t vertexIndex);
+    void clearPinnedVertices();
+
+    void createMesh();
+
+    void create(const std::shared_ptr<PhysicsWorld> &world);
+    void destroy(const std::shared_ptr<PhysicsWorld> &world);
+    void updateVertices(const std::shared_ptr<PhysicsWorld> &world) const;
+
+    bool isCreated() const;
+
+    CoreObject *object = nullptr;
+    bool isMeshCreated = false;
+
+  private:
+    ClothMesh mesh;
+
+    std::vector<uint32_t> manuallyPinnedVertices;
+    std::vector<uint32_t> resolvedPinnedVertices;
+
+    void resolveAnchors();
+};
+
 } // namespace bezel
 
 #endif

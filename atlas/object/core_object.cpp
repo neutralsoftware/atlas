@@ -18,6 +18,7 @@
 #include <limits>
 #include <memory>
 #include <string>
+#include <unordered_set>
 #include <vector>
 #include <cmath>
 #include <cstdint>
@@ -381,6 +382,9 @@ void CoreObject::updateModelMatrix() {
 }
 
 void CoreObject::initialize() {
+    for (auto &component : components) {
+        component->init();
+    }
 
     if (vertices.empty()) {
         throw std::runtime_error("No vertices attached to the object");
@@ -468,10 +472,6 @@ void CoreObject::initialize() {
     this->pipeline->setVertexAttributes(vertexAttributes, vertexBinding);
 
     vao->unbind();
-
-    for (auto &component : components) {
-        component->init();
-    }
 }
 
 std::optional<std::shared_ptr<opal::Pipeline>> CoreObject::getPipeline() {
@@ -1162,4 +1162,308 @@ void Instance::setScale(const Scale3d &newScale) {
 void Instance::scaleBy(const Scale3d &deltaScale) {
     setScale(Scale3d(scale.x * deltaScale.x, scale.y * deltaScale.y,
                      scale.z * deltaScale.z));
+}
+
+void Subdivision::init() {
+    CoreObject *object = dynamic_cast<CoreObject *>(this->object);
+    if (object != nullptr && !hasSourceMesh) {
+        sourceVertices = object->vertices;
+        sourceIndices = object->indices;
+        hasSourceMesh = true;
+    }
+    subdivide();
+}
+
+void Subdivision::subdivide() {
+    CoreObject *object = dynamic_cast<CoreObject *>(this->object);
+
+    if (!object)
+        return;
+
+    if (!hasSourceMesh) {
+        sourceVertices = object->vertices;
+        sourceIndices = object->indices;
+        hasSourceMesh = true;
+    } else {
+        object->vertices = sourceVertices;
+        object->indices = sourceIndices;
+    }
+
+    if (levels == 0)
+        return;
+
+    for (unsigned int i = 0; i < levels; ++i) {
+        switch (scheme) {
+        case SubdivisionScheme::Simple:
+            subdivideSimple(object);
+            break;
+
+        case SubdivisionScheme::Loop:
+            subdivideLoop(object);
+            break;
+        }
+    }
+}
+
+CoreVertex atlas::interpolateVertex(const CoreVertex &a, const CoreVertex &b) {
+    CoreVertex result;
+
+    result.position = (a.position + b.position) * 0.5f;
+
+    result.color = (a.color + b.color) * 0.5f;
+
+    result.textureCoordinate = {
+        (a.textureCoordinate[0] + b.textureCoordinate[0]) * 0.5f,
+        (a.textureCoordinate[1] + b.textureCoordinate[1]) * 0.5f,
+    };
+
+    result.normal = (a.normal + b.normal).normalized();
+    result.tangent = (a.tangent + b.tangent).normalized();
+    result.bitangent = (a.bitangent + b.bitangent).normalized();
+
+    return result;
+}
+
+void Subdivision::subdivideSimple(CoreObject *object) {
+    if (!object)
+        return;
+
+    if (object->indices.empty())
+        return;
+
+    if (object->indices.size() % 3 != 0)
+        throw std::runtime_error("Subdivision requires a triangle mesh");
+
+    const auto oldVertices = object->vertices;
+    const auto oldIndices = object->indices;
+
+    std::vector<CoreVertex> newVertices = oldVertices;
+    std::vector<Index> newIndices;
+
+    newIndices.reserve(oldIndices.size() * 4);
+
+    std::unordered_map<Edge, Index, EdgeHash> midpointCache;
+
+    auto midpoint = [&](Index a, Index b) -> Index {
+        Edge edge(a, b);
+
+        auto it = midpointCache.find(edge);
+        if (it != midpointCache.end()) {
+            return it->second;
+        }
+
+        if (a >= oldVertices.size() || b >= oldVertices.size()) {
+            throw std::runtime_error(
+                "Subdivision encountered invalid vertex index");
+        }
+
+        CoreVertex vertex =
+            atlas::interpolateVertex(oldVertices[a], oldVertices[b]);
+
+        Index index = static_cast<Index>(newVertices.size());
+
+        newVertices.push_back(vertex);
+
+        midpointCache.emplace(edge, index);
+
+        return index;
+    };
+
+    for (size_t i = 0; i < oldIndices.size(); i += 3) {
+        Index a = oldIndices[i + 0];
+        Index b = oldIndices[i + 1];
+        Index c = oldIndices[i + 2];
+
+        Index ab = midpoint(a, b);
+        Index bc = midpoint(b, c);
+        Index ca = midpoint(c, a);
+
+        newIndices.insert(newIndices.end(), {
+                                                a,
+                                                ab,
+                                                ca,
+                                                ab,
+                                                b,
+                                                bc,
+                                                ca,
+                                                bc,
+                                                c,
+                                                ab,
+                                                bc,
+                                                ca,
+                                            });
+    }
+
+    object->vertices = std::move(newVertices);
+    object->indices = std::move(newIndices);
+}
+
+void Subdivision::subdivideLoop(CoreObject *object) {
+    if (!object || object->indices.empty())
+        return;
+
+    if (object->indices.size() % 3 != 0) {
+        throw std::runtime_error("Loop subdivision requires triangle geometry");
+    }
+
+    const auto oldVertices = object->vertices;
+    const auto oldIndices = object->indices;
+
+    struct EdgeData {
+        Index a;
+        Index b;
+        std::vector<Index> oppositeVertices;
+    };
+
+    std::unordered_map<Edge, EdgeData, EdgeHash> edges;
+
+    std::vector<std::unordered_set<Index>> neighbors(oldVertices.size());
+
+    auto addEdge = [&](Index a, Index b, Index opposite) {
+        Edge key(a, b);
+
+        auto it = edges.find(key);
+
+        if (it == edges.end()) {
+            EdgeData data{key.a, key.b, {}};
+
+            data.oppositeVertices.push_back(opposite);
+
+            edges.emplace(key, std::move(data));
+        } else {
+            it->second.oppositeVertices.push_back(opposite);
+        }
+    };
+
+    for (size_t i = 0; i < oldIndices.size(); i += 3) {
+        Index a = oldIndices[i + 0];
+        Index b = oldIndices[i + 1];
+        Index c = oldIndices[i + 2];
+
+        if (a >= oldVertices.size() || b >= oldVertices.size() ||
+            c >= oldVertices.size()) {
+            throw std::runtime_error(
+                "Loop subdivision encountered invalid index");
+        }
+
+        neighbors[a].insert(b);
+        neighbors[a].insert(c);
+
+        neighbors[b].insert(a);
+        neighbors[b].insert(c);
+
+        neighbors[c].insert(a);
+        neighbors[c].insert(b);
+
+        addEdge(a, b, c);
+        addEdge(b, c, a);
+        addEdge(c, a, b);
+    }
+
+    std::vector<std::vector<Index>> boundaryNeighbors(oldVertices.size());
+
+    for (const auto &[edge, data] : edges) {
+        if (data.oppositeVertices.size() == 1) {
+            boundaryNeighbors[data.a].push_back(data.b);
+            boundaryNeighbors[data.b].push_back(data.a);
+        }
+    }
+
+    std::vector<CoreVertex> newVertices = oldVertices;
+
+    for (Index i = 0; i < oldVertices.size(); ++i) {
+        if (boundaryNeighbors[i].size() == 2) {
+            Index a = boundaryNeighbors[i][0];
+            Index b = boundaryNeighbors[i][1];
+
+            newVertices[i].position = oldVertices[i].position * 0.75f +
+                                      oldVertices[a].position * 0.125f +
+                                      oldVertices[b].position * 0.125f;
+
+            continue;
+        }
+
+        const size_t n = neighbors[i].size();
+
+        if (n == 0)
+            continue;
+
+        const double beta =
+            n == 3 ? 3.0 / 16.0 : 3.0 / (8.0 * static_cast<double>(n));
+
+        Position3d position =
+            oldVertices[i].position * (1.0 - (beta * static_cast<double>(n)));
+
+        for (Index neighbor : neighbors[i]) {
+            position += oldVertices[neighbor].position * beta;
+        }
+
+        newVertices[i].position = position;
+    }
+
+    std::unordered_map<Edge, Index, EdgeHash> edgeVertexIndices;
+
+    for (const auto &[edge, data] : edges) {
+        CoreVertex vertex =
+            atlas::interpolateVertex(oldVertices[data.a], oldVertices[data.b]);
+
+        if (data.oppositeVertices.size() == 1) {
+            vertex.position =
+                (oldVertices[data.a].position + oldVertices[data.b].position) *
+                0.5f;
+        } else if (data.oppositeVertices.size() == 2) {
+
+            Index c = data.oppositeVertices[0];
+            Index d = data.oppositeVertices[1];
+
+            vertex.position = oldVertices[data.a].position * 0.375f +
+                              oldVertices[data.b].position * 0.375f +
+                              oldVertices[c].position * 0.125f +
+                              oldVertices[d].position * 0.125f;
+
+        } else {
+            vertex.position =
+                (oldVertices[data.a].position + oldVertices[data.b].position) *
+                0.5f;
+        }
+
+        Index newIndex = static_cast<Index>(newVertices.size());
+
+        newVertices.push_back(vertex);
+
+        edgeVertexIndices.emplace(edge, newIndex);
+    }
+
+    std::vector<Index> newIndices;
+    newIndices.reserve(oldIndices.size() * 4);
+
+    for (size_t i = 0; i < oldIndices.size(); i += 3) {
+        Index a = oldIndices[i + 0];
+        Index b = oldIndices[i + 1];
+        Index c = oldIndices[i + 2];
+
+        Index ab = edgeVertexIndices.at(Edge(a, b));
+
+        Index bc = edgeVertexIndices.at(Edge(b, c));
+
+        Index ca = edgeVertexIndices.at(Edge(c, a));
+
+        newIndices.insert(newIndices.end(), {
+                                                a,
+                                                ab,
+                                                ca,
+                                                ab,
+                                                b,
+                                                bc,
+                                                ca,
+                                                bc,
+                                                c,
+                                                ab,
+                                                bc,
+                                                ca,
+                                            });
+    }
+
+    object->vertices = std::move(newVertices);
+    object->indices = std::move(newIndices);
 }

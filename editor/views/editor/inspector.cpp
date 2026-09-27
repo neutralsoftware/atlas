@@ -372,6 +372,25 @@ QJsonObject componentSchema(const QString &type) {
                 {"solverIterations", 8},
                 {"allowSleeping", true}};
     }
+    if (normalized == "cloth") {
+        return {{"mass", 1.0},
+                {"stretchCompliance", 0.00001},
+                {"shearCompliance", 0.00001},
+                {"bendCompliance", 0.001},
+                {"damping", 0.05},
+                {"friction", 0.2},
+                {"restitution", 0.0},
+                {"gravityFactor", 1.0},
+                {"solverIterations", 8},
+                {"allowSleeping", true},
+                {"doubleSided", true},
+                {"vertexRadius", 0.0},
+                {"bendType", "dihedral"},
+                {"anchors", QJsonArray{}}};
+    }
+    if (normalized == "subdivision") {
+        return {{"levels", 1}, {"scheme", "loop"}};
+    }
     if (normalized == "audioplayer") {
         return {{"source", ""},
                 {"useSpatialization", true},
@@ -563,8 +582,9 @@ void tagEditor(QWidget *editor, const QString &path, const QString &kind,
                int index = -1) {
     editor->setProperty("inspectorPath", path);
     editor->setProperty("inspectorValueKind", kind);
-    if (index >= 0)
+    if (index >= 0) {
         editor->setProperty("inspectorValueIndex", index);
+    }
 }
 
 bool isEditing(QWidget *editor) {
@@ -609,6 +629,14 @@ void refreshTaggedEditors(QFrame *card, const QJsonObject &properties) {
                 const QSignalBlocker blocker(field);
                 field->setCurrentText(value.toString());
             }
+        } else if (kind == "choiceArray") {
+            auto *field = qobject_cast<QComboBox *>(editor);
+            const int index = editor->property("inspectorValueIndex").toInt();
+            const QJsonArray array = value.toArray();
+            if (field != nullptr && index >= 0 && index < array.size()) {
+                const QSignalBlocker blocker(field);
+                field->setCurrentText(array.at(index).toString());
+            }
         } else if (kind == "text") {
             auto *field = qobject_cast<QLineEdit *>(editor);
             if (field != nullptr && value.isString()) {
@@ -632,8 +660,7 @@ void refreshTaggedEditors(QFrame *card, const QJsonObject &properties) {
             if (field == nullptr || !value.isArray())
                 continue;
             const QJsonArray actions = value.toArray();
-            const int index =
-                editor->property("inspectorValueIndex").toInt();
+            const int index = editor->property("inspectorValueIndex").toInt();
             const QString action = index >= 0 && index < actions.size()
                                        ? actions.at(index).toString()
                                        : QString();
@@ -676,6 +703,10 @@ void refreshTaggedEditors(QFrame *card, const QJsonObject &properties) {
 
 QStringList choicesFor(const QString &path) {
     const QString key = path.section('/', -1).toLower();
+    if (key == "scheme")
+        return {"simple", "loop"};
+    if (key == "bendtype")
+        return {"none", "distance", "dihedral"};
     if (key == "motiontype")
         return {"static", "dynamic", "kinematic"};
     if (key == "space")
@@ -688,7 +719,7 @@ QStringList choicesFor(const QString &path) {
     if (key == "type" && path.contains("collider")) {
         return {"box", "sphere", "capsule", "mesh"};
     }
-    if (key == "condition" && path.contains("weather"))
+    if (key == "condition")
         return {"clear", "rain", "snow", "storm"};
     return {};
 }
@@ -993,6 +1024,71 @@ QWidget *colorField(const QJsonArray &value, const PropertyChanged &changed,
     return field;
 }
 
+QStringList anchorChoices() {
+    return {"topLeft",     "topCenter",  "topRight",     "centerLeft", "center",
+            "centerRight", "bottomLeft", "bottomCenter", "bottomRight"};
+}
+
+QWidget *enumArrayField(const QJsonArray &value, const QStringList &choices,
+                        const PropertyChanged &changed, const QString &path,
+                        QWidget *parent) {
+    auto *field = new QFrame(parent);
+    field->setObjectName("inspectorEnumArrayField");
+    auto *layout = new QVBoxLayout(field);
+    layout->setContentsMargins(0, 0, 0, 0);
+    layout->setSpacing(4);
+
+    auto *add = new styling::ToolButton(field);
+    add->setIcon(styling::icon(styling::Icon::Plus, "#8498A8"));
+    add->setText("Add Anchor");
+    add->setToolButtonStyle(Qt::ToolButtonTextBesideIcon);
+    add->setToolTip("Add anchor");
+    layout->addWidget(add, 0, Qt::AlignLeft);
+
+    for (int index = 0; index < value.size(); ++index) {
+        auto *row = new QWidget(field);
+        auto *rowLayout = new QHBoxLayout(row);
+        rowLayout->setContentsMargins(0, 0, 0, 0);
+        rowLayout->setSpacing(5);
+        auto *label =
+            new QLabel(QStringLiteral("Anchor %1").arg(index + 1), row);
+        label->setMinimumWidth(70);
+        auto *choice = new QComboBox(row);
+        choice->addItems(choices);
+        choice->setCurrentText(value.at(index).toString());
+        tagEditor(choice, path, "choiceArray", index);
+        auto *remove = new styling::ToolButton(row);
+        remove->setIcon(styling::icon(styling::Icon::Trash, "#A17F7F"));
+        remove->setToolTip("Remove anchor");
+        rowLayout->addWidget(label);
+        rowLayout->addWidget(choice, 1);
+        rowLayout->addWidget(remove);
+        layout->addWidget(row);
+
+        QObject::connect(
+            choice, &QComboBox::currentTextChanged, field,
+            [choice, value, index, changed, path](const QString &) {
+                QJsonArray result = value;
+                result.replace(index, choice->currentText());
+                changed(path, result);
+            });
+        QObject::connect(remove, &QToolButton::clicked, field,
+                         [value, index, changed, path] {
+                             QJsonArray result = value;
+                             result.removeAt(index);
+                             changed(path, result);
+                         });
+    }
+
+    QObject::connect(add, &QToolButton::clicked, field,
+                     [value, choices, changed, path] {
+                         QJsonArray result = value;
+                         result.append(choices.value(0));
+                         changed(path, result);
+                     });
+    return field;
+}
+
 void addPropertyRows(QVBoxLayout *layout, const QJsonObject &properties,
                      const QString &path, const PropertyChanged &changed,
                      const SyncProvider &syncProvider, QWidget *parent);
@@ -1027,6 +1123,10 @@ QWidget *primitiveField(const QString &name, const QString &path,
     }
     if (value.isArray()) {
         const QJsonArray array = value.toArray();
+        if (name.compare("anchors", Qt::CaseInsensitive) == 0) {
+            return enumArrayField(array, anchorChoices(), changed, path,
+                                  parent);
+        }
         if (isColorProperty(name, array)) {
             return colorField(array, changed, path, parent);
         }
@@ -1083,7 +1183,7 @@ QFrame *propertyRow(const QString &label, QWidget *editor, QWidget *parent) {
     const bool wide = editor->objectName() == "inspectorVectorField" ||
                       editor->objectName() == "inspectorColorField";
     QBoxLayout *layout = wide ? static_cast<QBoxLayout *>(new QVBoxLayout(row))
-                             : static_cast<QBoxLayout *>(new QHBoxLayout(row));
+                              : static_cast<QBoxLayout *>(new QHBoxLayout(row));
     layout->setContentsMargins(0, 5, 0, 5);
     layout->setSpacing(wide ? 7 : 12);
     auto *name = new styling::ElidedLabel(label, row);
@@ -1357,8 +1457,7 @@ QFrame *componentCard(const QString &title, const QJsonObject &properties,
 
 QFrame *controllerActionsCard(const QJsonArray &actions, bool automaticMoving,
                               const QString &projectFile,
-                              const PropertyChanged &changed,
-                              QWidget *parent) {
+                              const PropertyChanged &changed, QWidget *parent) {
     auto *card = new QFrame(parent);
     card->setObjectName("inspectorComponent");
     card->setProperty("inspectorScope", "camera:actions");
@@ -1383,10 +1482,9 @@ QFrame *controllerActionsCard(const QJsonArray &actions, bool automaticMoving,
     automatic->setCursor(Qt::PointingHandCursor);
     tagEditor(automatic, "/automaticMoving", "bool");
     bodyLayout->addWidget(automatic);
-    QObject::connect(automatic, &QCheckBox::toggled, body,
-                     [changed](bool checked) {
-                         changed("/automaticMoving", checked);
-                     });
+    QObject::connect(
+        automatic, &QCheckBox::toggled, body,
+        [changed](bool checked) { changed("/automaticMoving", checked); });
     const QStringList labels{"Movement", "Look", "Vertical"};
     QList<QToolButton *> pickers;
     for (int index = 0; index < labels.size(); ++index) {
@@ -1435,13 +1533,12 @@ QFrame *controllerActionsCard(const QJsonArray &actions, bool automaticMoving,
                 QAction *none = menu->addAction("Unassigned");
                 none->setProperty("actionChoice", true);
                 none->setProperty("searchText", "unassigned none");
-                QObject::connect(none, &QAction::triggered, picker,
-                                 [picker, commit] {
-                                     picker->setProperty("actionValue",
-                                                         QString());
-                                     picker->setText("Select Action");
-                                     commit();
-                                 });
+                QObject::connect(
+                    none, &QAction::triggered, picker, [picker, commit] {
+                        picker->setProperty("actionValue", QString());
+                        picker->setText("Select Action");
+                        commit();
+                    });
                 const QStringList names =
                     InputActionsDialog::actionNamesForProject(projectFile);
                 for (const QString &name : names) {
@@ -1465,20 +1562,19 @@ QFrame *controllerActionsCard(const QJsonArray &actions, bool automaticMoving,
                 search->clear();
                 search->setFocus();
             });
-        QObject::connect(search, &QLineEdit::textChanged, menu,
-                         [menu](const QString &text) {
-                             const QString query = text.trimmed().toLower();
-                             for (QAction *action : menu->actions()) {
-                                 if (!action->property("actionChoice").toBool() ||
-                                     !action->isEnabled())
-                                     continue;
-                                 action->setVisible(
-                                     query.isEmpty() ||
-                                     action->property("searchText")
-                                         .toString()
-                                         .contains(query));
-                             }
-                         });
+        QObject::connect(
+            search, &QLineEdit::textChanged, menu, [menu](const QString &text) {
+                const QString query = text.trimmed().toLower();
+                for (QAction *action : menu->actions()) {
+                    if (!action->property("actionChoice").toBool() ||
+                        !action->isEnabled())
+                        continue;
+                    action->setVisible(query.isEmpty() ||
+                                       action->property("searchText")
+                                           .toString()
+                                           .contains(query));
+                }
+            });
         picker->setMenu(menu);
     }
     layout->addWidget(body);
@@ -1539,9 +1635,9 @@ InspectorPanel::InspectorPanel(ViewportPanel *viewport,
     connect(qApp, &QApplication::focusChanged, this,
             [this](QWidget *previous, QWidget *current) {
                 if (rebuilding || previous == nullptr ||
-                    !isAncestorOf(previous) ||
-                    previous == current || fileTarget || cameraTarget ||
-                    environmentTarget || inspectedObjectId < 0) {
+                    !isAncestorOf(previous) || previous == current ||
+                    fileTarget || cameraTarget || environmentTarget ||
+                    inspectedObjectId < 0) {
                     return;
                 }
                 refreshObjectEditors(inspectedObject);
@@ -1618,13 +1714,11 @@ void InspectorPanel::applySceneSnapshot(const QString &snapshot) {
             else if (scope == "camera:controls")
                 refreshTaggedEditors(card, controls);
             else if (scope == "camera:actions")
-                refreshTaggedEditors(card,
-                                     QJsonObject{
-                                         {"automaticMoving",
-                                          inspectedCamera.value(
-                                              "automaticMoving")},
-                                         {"actions", inspectedCamera.value(
-                                                         "actions")}});
+                refreshTaggedEditors(
+                    card,
+                    QJsonObject{{"automaticMoving",
+                                 inspectedCamera.value("automaticMoving")},
+                                {"actions", inspectedCamera.value("actions")}});
         }
         return;
     }
@@ -1650,12 +1744,11 @@ void InspectorPanel::applySceneSnapshot(const QString &snapshot) {
                     .toObject()
                     .value("material")
                     .toString()
-                    .isEmpty() !=
-                inspectedObject.value("properties")
-                    .toObject()
-                    .value("material")
-                    .toString()
-                    .isEmpty() ||
+                    .isEmpty() != inspectedObject.value("properties")
+                                      .toObject()
+                                      .value("material")
+                                      .toString()
+                                      .isEmpty() ||
             componentShape(updated.value("components").toArray()) !=
                 componentShape(inspectedObject.value("components").toArray());
         inspectedObject = updated;
@@ -1715,8 +1808,7 @@ void InspectorPanel::refreshObjectEditors(const QJsonObject &object) {
         } else if (scope == "object") {
             refreshTaggedEditors(card, objectProperties);
         } else if (scope == "material") {
-            refreshTaggedEditors(card,
-                                 QJsonObject{{"source", materialPath}});
+            refreshTaggedEditors(card, QJsonObject{{"source", materialPath}});
         } else if (scope.startsWith("component:")) {
             bool validIndex = false;
             const int index = scope.section(':', 1, 1).toInt(&validIndex);
@@ -1724,8 +1816,8 @@ void InspectorPanel::refreshObjectEditors(const QJsonObject &object) {
                 continue;
             const QJsonObject component = components.at(index).toObject();
             refreshTaggedEditors(
-                card, componentValues(component.value("type").toString(),
-                                      component));
+                card,
+                componentValues(component.value("type").toString(), component));
         }
     }
 }
@@ -1996,6 +2088,8 @@ void InspectorPanel::showObject(const QJsonObject &object) {
     const QList<QPair<QString, QString>> componentTypes{
         {"Rigidbody", "rigidbody"},
         {"Softbody", "softbody"},
+        {"Cloth", "cloth"},
+        {"Subdivision", "subdivision"},
         {"Audio Player", "audio_player"},
         {"Fixed Joint", "fixed_joint"},
         {"Hinge Joint", "hinge_joint"},

@@ -1,9 +1,17 @@
-import { AxisTrigger, InputAction, Key, MouseButton, Trigger } from "atlas/input";
+import {
+    AxisTrigger,
+    InputAction,
+    Key,
+    MouseButton,
+    Trigger,
+} from "atlas/input";
 import { Color, Position2d, Position3d } from "atlas/units";
 
 const windowConstants = globalThis.__atlasGetWindowConstants?.() ?? {};
 
-export const ControllerAxis = Object.freeze(windowConstants.ControllerAxis ?? {});
+export const ControllerAxis = Object.freeze(
+    windowConstants.ControllerAxis ?? {},
+);
 export const ControllerButton = Object.freeze(
     windowConstants.ControllerButton ?? {},
 );
@@ -13,8 +21,7 @@ export const NintendoControllerButton = Object.freeze(
 export const SonyControllerButton = Object.freeze(
     windowConstants.SonyControllerButton ?? {},
 );
-export const CONTROLLER_UNDEFINED =
-    windowConstants.CONTROLLER_UNDEFINED ?? -2;
+export const CONTROLLER_UNDEFINED = windowConstants.CONTROLLER_UNDEFINED ?? -2;
 
 function makeControllerAxisTrigger(controllerId, axis) {
     switch (axis) {
@@ -140,6 +147,57 @@ export class Component {
 
     getCamera() {
         return this.getScene()?.getCamera() ?? null;
+    }
+}
+
+export const SubdivisionScheme = Object.freeze({
+    Simple: 0,
+    Loop: 1,
+});
+
+export class Subdivision extends Component {
+    constructor(levels = 1, scheme = SubdivisionScheme.Loop) {
+        super();
+        this.levels = levels;
+        this.scheme = scheme;
+    }
+}
+
+export const ClothBendType = Object.freeze({
+    None: "none",
+    Distance: "distance",
+    Dihedral: "dihedral",
+});
+
+export const AnchorPoint = Object.freeze({
+    TopLeft: "topLeft",
+    TopCenter: "topCenter",
+    TopRight: "topRight",
+    CenterLeft: "centerLeft",
+    Center: "center",
+    CenterRight: "centerRight",
+    BottomLeft: "bottomLeft",
+    BottomCenter: "bottomCenter",
+    BottomRight: "bottomRight",
+});
+
+export class Cloth extends Component {
+    constructor() {
+        super();
+        this.mass = 1;
+        this.stretchCompliance = 0.00001;
+        this.shearCompliance = 0.00001;
+        this.bendCompliance = 0.001;
+        this.damping = 0.05;
+        this.friction = 0.2;
+        this.restitution = 0;
+        this.gravityFactor = 1;
+        this.solverIterations = 8;
+        this.allowSleeping = true;
+        this.doubleSided = true;
+        this.vertexRadius = 0;
+        this.bendType = ClothBendType.Dihedral;
+        this.anchors = [];
     }
 }
 
@@ -817,7 +875,10 @@ export class Window {
     }
 
     getControllerAxisValue(controllerID, axisIndex) {
-        return globalThis.__atlasGetControllerAxisValue(controllerID, axisIndex);
+        return globalThis.__atlasGetControllerAxisValue(
+            controllerID,
+            axisIndex,
+        );
     }
 
     getControllerAxisPairValue(controllerID, axisIndexX, axisIndexY) {
