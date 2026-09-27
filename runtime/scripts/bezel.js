@@ -496,6 +496,99 @@ export class Rigidbody extends Component {
     }
 }
 
+export class Softbody extends Component {
+    constructor() {
+        super();
+        this.sendSignal = "";
+        this.isSensor = false;
+        this.mass = 1;
+        this.stiffness = 0.8;
+        this.volumeStiffness = 1;
+        this.damping = 0.1;
+        this.friction = 0.2;
+        this.restitution = 0;
+        this.gravityFactor = 1;
+        this.solverIterations = 8;
+        this.allowSleeping = true;
+        globalThis.__atlasCreateSoftbody(this);
+    }
+
+    init() {
+        return globalThis.__atlasInitSoftbody(this);
+    }
+
+    beforePhysics() {
+        return globalThis.__atlasBeforePhysicsSoftbody(this);
+    }
+
+    update(deltaTime) {
+        return globalThis.__atlasUpdateSoftbody(this, deltaTime);
+    }
+
+    clone() {
+        return globalThis.__atlasCloneSoftbody(this);
+    }
+
+    setMass(mass) {
+        this.mass = mass;
+        return globalThis.__atlasSoftbodySetMass(this, mass);
+    }
+
+    setStiffness(stiffness) {
+        this.stiffness = stiffness;
+        return globalThis.__atlasSoftbodySetStiffness(this, stiffness);
+    }
+
+    setVolumeStiffness(volumeStiffness) {
+        this.volumeStiffness = volumeStiffness;
+        return globalThis.__atlasSoftbodySetVolumeStiffness(
+            this,
+            volumeStiffness,
+        );
+    }
+
+    setDamping(damping) {
+        this.damping = damping;
+        return globalThis.__atlasSoftbodySetDamping(this, damping);
+    }
+
+    setFriction(friction) {
+        this.friction = friction;
+        return globalThis.__atlasSoftbodySetFriction(this, friction);
+    }
+
+    setRestitution(restitution) {
+        this.restitution = restitution;
+        return globalThis.__atlasSoftbodySetRestitution(this, restitution);
+    }
+
+    setGravityFactor(gravityFactor) {
+        this.gravityFactor = gravityFactor;
+        return globalThis.__atlasSoftbodySetGravityFactor(this, gravityFactor);
+    }
+
+    setSolverIterations(solverIterations) {
+        this.solverIterations = solverIterations;
+        return globalThis.__atlasSoftbodySetSolverIterations(
+            this,
+            solverIterations,
+        );
+    }
+
+    setAllowSleeping(allowSleeping) {
+        this.allowSleeping = allowSleeping;
+        return globalThis.__atlasSoftbodySetAllowSleeping(this, allowSleeping);
+    }
+
+    getLinearVelocity() {
+        return globalThis.__atlasSoftbodyGetLinearVelocity(this);
+    }
+
+    getVelocity() {
+        return globalThis.__atlasSoftbodyGetVelocity(this);
+    }
+}
+
 export class Sensor extends Rigidbody {
     constructor() {
         super();

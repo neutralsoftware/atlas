@@ -21,6 +21,20 @@ bool ensureSoftbodyAndWorld(Softbody *softbody) {
            Window::mainWindow && Window::mainWindow->physicsWorld;
 }
 
+void recreateSoftbody(Softbody *softbody) {
+    if (!ensureSoftbodyAndWorld(softbody) || !softbody->isCreated()) {
+        return;
+    }
+
+    auto world = Window::mainWindow->physicsWorld;
+    softbody->body->destroy(world);
+    softbody->body->position = softbody->object->getPosition();
+    softbody->body->rotation = softbody->object->getRotation();
+    softbody->body->rotationQuat =
+        glm::normalize(softbody->object->getRotation().toGlmQuat());
+    softbody->body->create(world);
+}
+
 } // namespace
 
 void Softbody::atAttach() {
@@ -113,8 +127,12 @@ void Softbody::beforePhysics() {
         return;
     }
 
+    const bool sensorChanged = body->isSensor != isSensor;
     body->isSensor = isSensor;
     body->sensorSignal = sendSignal;
+    if (sensorChanged) {
+        recreateSoftbody(this);
+    }
 }
 
 void Softbody::setMass(float mass) {
@@ -122,7 +140,12 @@ void Softbody::setMass(float mass) {
         body = std::make_shared<bezel::Softbody>();
     }
 
-    body->mass = std::max(0.0f, mass);
+    mass = std::max(0.0f, mass);
+    if (body->mass == mass) {
+        return;
+    }
+    body->mass = mass;
+    recreateSoftbody(this);
 }
 
 void Softbody::setStiffness(float stiffness) {
@@ -130,7 +153,12 @@ void Softbody::setStiffness(float stiffness) {
         body = std::make_shared<bezel::Softbody>();
     }
 
-    body->material.stiffness = std::clamp(stiffness, 0.0f, 1.0f);
+    stiffness = std::clamp(stiffness, 0.0f, 1.0f);
+    if (body->material.stiffness == stiffness) {
+        return;
+    }
+    body->material.stiffness = stiffness;
+    recreateSoftbody(this);
 }
 
 void Softbody::setVolumeStiffness(float stiffness) {
@@ -138,7 +166,76 @@ void Softbody::setVolumeStiffness(float stiffness) {
         body = std::make_shared<bezel::Softbody>();
     }
 
-    body->material.volumeStiffness = std::clamp(stiffness, 0.0f, 1.0f);
+    stiffness = std::clamp(stiffness, 0.0f, 1.0f);
+    if (body->material.volumeStiffness == stiffness) {
+        return;
+    }
+    body->material.volumeStiffness = stiffness;
+    recreateSoftbody(this);
+}
+
+void Softbody::setDamping(float damping) {
+    if (!body) {
+        body = std::make_shared<bezel::Softbody>();
+    }
+
+    damping = std::max(0.0f, damping);
+    if (body->material.damping == damping) {
+        return;
+    }
+    body->material.damping = damping;
+    recreateSoftbody(this);
+}
+
+void Softbody::setFriction(float friction) {
+    if (!body) {
+        body = std::make_shared<bezel::Softbody>();
+    }
+
+    friction = std::max(0.0f, friction);
+    if (body->material.friction == friction) {
+        return;
+    }
+    body->material.friction = friction;
+    recreateSoftbody(this);
+}
+
+void Softbody::setRestitution(float restitution) {
+    if (!body) {
+        body = std::make_shared<bezel::Softbody>();
+    }
+
+    restitution = std::clamp(restitution, 0.0f, 1.0f);
+    if (body->material.restitution == restitution) {
+        return;
+    }
+    body->material.restitution = restitution;
+    recreateSoftbody(this);
+}
+
+void Softbody::setGravityFactor(float gravityFactor) {
+    if (!body) {
+        body = std::make_shared<bezel::Softbody>();
+    }
+
+    if (body->gravityFactor == gravityFactor) {
+        return;
+    }
+    body->gravityFactor = gravityFactor;
+    recreateSoftbody(this);
+}
+
+void Softbody::setSolverIterations(uint32_t solverIterations) {
+    if (!body) {
+        body = std::make_shared<bezel::Softbody>();
+    }
+
+    solverIterations = std::max(1u, solverIterations);
+    if (body->solverIterations == solverIterations) {
+        return;
+    }
+    body->solverIterations = solverIterations;
+    recreateSoftbody(this);
 }
 
 void Softbody::setAllowSleeping(bool allowSleeping) {
@@ -146,7 +243,11 @@ void Softbody::setAllowSleeping(bool allowSleeping) {
         body = std::make_shared<bezel::Softbody>();
     }
 
+    if (body->allowSleeping == allowSleeping) {
+        return;
+    }
     body->allowSleeping = allowSleeping;
+    recreateSoftbody(this);
 }
 
 Velocity3d Softbody::getLinearVelocity() {

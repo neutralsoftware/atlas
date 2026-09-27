@@ -6346,6 +6346,37 @@ declare module "bezel" {
         setMotionType(motionType: "Static" | "Dynamic" | "Kinematic"): void;
     }
 
+    export class Softbody extends Component {
+        sendSignal: string;
+        isSensor: boolean;
+        mass: number;
+        stiffness: number;
+        volumeStiffness: number;
+        damping: number;
+        friction: number;
+        restitution: number;
+        gravityFactor: number;
+        solverIterations: number;
+        allowSleeping: boolean;
+
+        constructor();
+        override init(): void;
+        override beforePhysics(): void;
+        override update(deltaTime: number): void;
+        clone(): Softbody;
+        setMass(mass: number): void;
+        setStiffness(stiffness: number): void;
+        setVolumeStiffness(volumeStiffness: number): void;
+        setDamping(damping: number): void;
+        setFriction(friction: number): void;
+        setRestitution(restitution: number): void;
+        setGravityFactor(gravityFactor: number): void;
+        setSolverIterations(solverIterations: number): void;
+        setAllowSleeping(allowSleeping: boolean): void;
+        getLinearVelocity(): Velocity3d;
+        getVelocity(): Velocity3d;
+    }
+
     /**
      * Rigidbody initialized as a sensor for detecting contacts and sending signals.
      */
