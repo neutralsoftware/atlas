@@ -251,6 +251,10 @@ add_subdirectory(
     ${CMAKE_CURRENT_BINARY_DIR}/extern/fTetWild
 )
 
+if(UNIX AND NOT APPLE AND CMAKE_SYSTEM_PROCESSOR MATCHES "^(aarch64|arm64|ARM64)$")
+    target_compile_options(FloatTetwild PUBLIC -fsigned-char)
+endif()
+
 set(GEOGRAM_MEMORY_HEADER
     "${CMAKE_BINARY_DIR}/_deps/geogram-src/src/lib/geogram/basic/memory.h"
 )
