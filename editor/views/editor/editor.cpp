@@ -257,7 +257,33 @@ void setTomlValue(QStringList *lines, const QString &section,
         QStringLiteral("^\\s*%1\\s*=").arg(QRegularExpression::escape(key)));
     for (int index = start; index < end; ++index) {
         if (expression.match(lines->at(index)).hasMatch()) {
+            int valueEnd = index;
+            int bracketDepth = 0;
+            const auto countBrackets = [&bracketDepth](const QString &line) {
+                for (const QChar character : line) {
+                    if (character == '[')
+                        ++bracketDepth;
+                    else if (character == ']')
+                        --bracketDepth;
+                }
+            };
+            countBrackets(lines->at(index));
+            while (bracketDepth > 0 && valueEnd + 1 < end) {
+                ++valueEnd;
+                countBrackets(lines->at(valueEnd));
+            }
+            if (bracketDepth == 0 && lines->at(index).contains('[')) {
+                const QRegularExpression continuation(
+                    QStringLiteral("^\\s*(?:[-+]?(?:\\d+(?:\\.\\d*)?|\\.\\d+)\\s*,?\\s*)+$"));
+                while (valueEnd + 1 < end &&
+                       (continuation.match(lines->at(valueEnd + 1)).hasMatch() ||
+                        lines->at(valueEnd + 1).trimmed() == "]")) {
+                    ++valueEnd;
+                }
+            }
             (*lines)[index] = QStringLiteral("%1 = %2").arg(key, value);
+            while (valueEnd > index)
+                lines->removeAt(valueEnd--);
             return;
         }
     }
