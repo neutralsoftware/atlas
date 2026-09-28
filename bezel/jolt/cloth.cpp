@@ -5,7 +5,7 @@
 // atlasengine.org | github.com/neutralsoftware
 // --------------------------------------------------
 // Description: Cloth simulation interfaces and functions
-// SPDX-License-Identifier: MIT
+// SPDX-License-Identifier: MPL-2.0
 //
 
 #include "atlas/object.h"
@@ -446,8 +446,8 @@ void bezel::Cloth::applyWind(const std::shared_ptr<PhysicsWorld> &world,
             auto &b = vertices[face.mVertex[1]];
             auto &c = vertices[face.mVertex[2]];
             const JPH::Vec3 areaVector =
-                0.5f * (b.mPosition - a.mPosition)
-                           .Cross(c.mPosition - a.mPosition);
+                0.5f *
+                (b.mPosition - a.mPosition).Cross(c.mPosition - a.mPosition);
             const float area = areaVector.Length();
 
             if (area <= 1.0e-8f) {
@@ -458,9 +458,9 @@ void bezel::Cloth::applyWind(const std::shared_ptr<PhysicsWorld> &world,
             const JPH::Vec3 faceVelocity =
                 (a.mVelocity + b.mVelocity + c.mVelocity) / 3.0f;
             const float normalSpeed = (localWind - faceVelocity).Dot(normal);
-            const JPH::Vec3 impulse =
-                normal * normalSpeed * std::abs(normalSpeed) * area *
-                windInfluence * deltaTime / 3.0f;
+            const JPH::Vec3 impulse = normal * normalSpeed *
+                                      std::abs(normalSpeed) * area *
+                                      windInfluence * deltaTime / 3.0f;
 
             if (impulse.LengthSq() <= 1.0e-12f) {
                 continue;

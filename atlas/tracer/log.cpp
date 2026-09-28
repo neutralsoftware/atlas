@@ -8,11 +8,15 @@
 //
 
 #include "atlas/tracer/log.h"
+#include "atlas/network/pipe.h"
 #include "json.hpp"
+#include <chrono>
+#include <cstdint>
 #include <iostream>
+#include <memory>
 #include <string>
 
-using json = nlohmann::json;
+using nlohmann::json;
 
 TracerServices::TracerServices() : tracerPipe(nullptr) {}
 
@@ -39,7 +43,7 @@ void Logger::setConsoleFilter(bool showLogs, bool showWarnings,
 }
 
 void Logger::log(const std::string &message, const std::string &file,
-                 int line) {
+                 int line) const {
     if (!TracerServices::getInstance().isOk()) {
         if (!showInfoLogs) {
             return;
@@ -60,7 +64,7 @@ void Logger::log(const std::string &message, const std::string &file,
 }
 
 void Logger::warning(const std::string &message, const std::string &file,
-                     int line) {
+                     int line) const {
     if (!TracerServices::getInstance().isOk()) {
         if (!showWarningLogs) {
             return;
@@ -81,7 +85,7 @@ void Logger::warning(const std::string &message, const std::string &file,
 }
 
 void Logger::error(const std::string &message, const std::string &file,
-                   int line) {
+                   int line) const {
     if (!TracerServices::getInstance().isOk()) {
         if (!showErrorLogs) {
             return;

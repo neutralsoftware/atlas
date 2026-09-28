@@ -33,3 +33,4 @@ node_modules
 .obsidian
 *.app
 __tracked_surface.stl
+clang-tidy.log

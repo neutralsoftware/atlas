@@ -7,8 +7,9 @@
  Copyright (c) 2025 maxvdec
 */
 
-#include "bezel/body.h"
-#include "bezel/bounds.h"
+#include "bezel/native/body.h"
+#include "bezel/native/bounds.h"
+#include "bezel/native/shape.h"
 #include <algorithm>
 #include <cstddef>
 #include <cstdlib>
@@ -17,7 +18,7 @@
 
 Bounds::Bounds() { clear(); }
 
-const Bounds &Bounds::operator=(const Bounds &rhs) {
+Bounds &Bounds::operator=(const Bounds &rhs) {
     if (this != &rhs) {
         mins = rhs.mins;
         maxs = rhs.maxs;
@@ -30,7 +31,7 @@ void Bounds::clear() {
     maxs = glm::vec3(std::numeric_limits<float>::lowest());
 }
 
-bool Bounds::doesIntersect(const Bounds &other) {
+bool Bounds::doesIntersect(const Bounds &other) const {
     if (maxs.x < other.mins.x || maxs.y < other.mins.y ||
         maxs.z < other.mins.z) {
         return false;

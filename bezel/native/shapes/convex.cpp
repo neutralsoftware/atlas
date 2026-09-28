@@ -7,8 +7,8 @@
  Copyright (c) 2025 maxvdec
 */
 
-#include "bezel/bounds.h"
-#include "bezel/shape.h"
+#include "bezel/native/bounds.h"
+#include "bezel/native/shape.h"
 #include <cstddef>
 #include <glm/glm.hpp>
 #include <glm/gtc/quaternion.hpp>

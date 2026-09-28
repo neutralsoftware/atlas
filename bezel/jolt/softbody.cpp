@@ -5,7 +5,7 @@
 // atlasengine.org | github.com/neutralsoftware
 // --------------------------------------------------
 // Description: Softbody physics implementation for Bezel
-// SPDX-License-Identifier: MIT
+// SPDX-License-Identifier: MPL-2.0
 //
 
 #include "atlas/units.h"

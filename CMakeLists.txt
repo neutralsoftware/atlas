@@ -2,19 +2,21 @@ cmake_minimum_required(VERSION 3.21)
 
 project(Atlas LANGUAGES C CXX)
 
-find_package(Git REQUIRED)
+option(ATLAS_UPDATE_SUBMODULES "Synchronize and initialize Atlas submodules during configuration" OFF)
 
-execute_process(
-    COMMAND ${GIT_EXECUTABLE} submodule sync --recursive
-    WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}
-    COMMAND_ERROR_IS_FATAL ANY
-)
-
-execute_process(
-    COMMAND ${GIT_EXECUTABLE} submodule update --init --recursive
-    WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}
-    COMMAND_ERROR_IS_FATAL ANY
-)
+if (ATLAS_UPDATE_SUBMODULES)
+    find_package(Git REQUIRED)
+    execute_process(
+        COMMAND ${GIT_EXECUTABLE} submodule sync --recursive
+        WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}
+        COMMAND_ERROR_IS_FATAL ANY
+    )
+    execute_process(
+        COMMAND ${GIT_EXECUTABLE} submodule update --init --recursive
+        WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}
+        COMMAND_ERROR_IS_FATAL ANY
+    )
+endif ()
 
 
 set(CMAKE_C_STANDARD 11)

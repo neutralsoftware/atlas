@@ -5,6 +5,7 @@
 #include "atlas/units.h"
 #include "opal/opal.h"
 #include <cstddef>
+#include <cstdint>
 #include <memory>
 #include <optional>
 #include <string>
@@ -235,7 +236,8 @@ UIResolvedStyle resolveStyle(const UIStyle &fallbackStyle,
                              const UIStyle *overrideStyle = nullptr,
                              const UIStyleStateSnapshot &state = {});
 
-/** @brief Computes the scale factor required to render a font at a target size. */
+/** @brief Computes the scale factor required to render a font at a target size.
+ */
 float resolveTextScale(const Font &font, float fontSize = 0.0f);
 /** @brief Measures the advance width of a single character. */
 float measureCharacterWidth(const Font &font, char ch, float fontSize = 0.0f);
@@ -256,12 +258,12 @@ float getLineHeight(const Font &font, float fontSize = 0.0f);
 std::string sanitizeText(const Font &font, const std::string &input);
 
 /** @brief Allocates or refreshes renderer state for a styled box. */
-void initializeBoxRenderer(BoxRendererData &renderer, uint objectId);
+void initializeBoxRenderer(BoxRendererData &renderer, std::uint32_t objectId);
 /** @brief Draws a rectangle using the resolved style and optional texture. */
-void renderStyledBox(BoxRendererData &renderer, uint objectId,
+void renderStyledBox(BoxRendererData &renderer, std::uint32_t objectId,
                      const std::shared_ptr<opal::CommandBuffer> &commandBuffer,
                      Position2d position, Size2d size,
-                     const UIResolvedStyle &style, uint textureId = 0);
+                     const UIResolvedStyle &style, std::uint32_t textureId = 0);
 
 } // namespace graphite
 

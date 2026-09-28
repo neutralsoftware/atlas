@@ -7,8 +7,8 @@
  Copyright (c) 2025 maxvdec
 */
 
-#include "bezel/shape.h"
-#include "bezel/bounds.h"
+#include "bezel/native/shape.h"
+#include "bezel/native/bounds.h"
 #define GLM_ENABLE_EXPERIMENTAL
 #include <glm/gtx/norm.hpp>
 #include <glm/gtx/transform.hpp>

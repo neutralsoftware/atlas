@@ -67,11 +67,14 @@ class Logger {
     }
 
     /** @brief Logs an informational message. */
-    void log(const std::string &message, const std::string &file, int line);
+    void log(const std::string &message, const std::string &file,
+             int line) const;
     /** @brief Logs a warning message. */
-    void warning(const std::string &message, const std::string &file, int line);
+    void warning(const std::string &message, const std::string &file,
+                 int line) const;
     /** @brief Logs an error message. */
-    void error(const std::string &message, const std::string &file, int line);
+    void error(const std::string &message, const std::string &file,
+               int line) const;
     /**
      * @brief Configures which severities are echoed to the local console.
      */

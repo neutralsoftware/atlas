@@ -1,5 +1,5 @@
 
-#include "bezel/shape.h"
+#include "bezel/native/shape.h"
 #define GLM_ENABLE_EXPERIMENTAL
 #include <glm/gtx/norm.hpp>
 #include <glm/glm.hpp>

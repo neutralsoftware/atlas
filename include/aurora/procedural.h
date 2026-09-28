@@ -10,6 +10,7 @@
 #ifndef AURORA_PROCEDURAL_H
 #define AURORA_PROCEDURAL_H
 
+#include <algorithm>
 #include <memory>
 #include <utility>
 #include <vector>
@@ -351,7 +352,8 @@ class CompoundGenerator : public TerrainGenerator {
         generators.push_back(std::make_shared<T>(std::move(gen)));
     }
 
-    const std::vector<std::shared_ptr<TerrainGenerator>> &getGenerators() const {
+    const std::vector<std::shared_ptr<TerrainGenerator>> &
+    getGenerators() const {
         return generators;
     }
 

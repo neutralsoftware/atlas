@@ -7,8 +7,8 @@
 // Copyright (c) 2025 Max Van den Eynde
 //
 
-#include "bezel/body.h"
-#include "bezel/shape.h"
+#include "bezel/native/body.h"
+#include "bezel/native/shape.h"
 #include <array>
 #include <vector>
 #define GLM_ENABLE_EXPERIMENTAL

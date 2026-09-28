@@ -71,7 +71,7 @@ class Bounds {
      * @param rhs The Bounds object to assign from.
      * @return (const Bounds&) Reference to this Bounds object.
      */
-    const Bounds &operator=(const Bounds &rhs);
+    Bounds &operator=(const Bounds &rhs);
     ~Bounds() = default;
 
     /**
@@ -85,7 +85,7 @@ class Bounds {
      * @param other The other bounds to check intersection with.
      * @return (bool) True if the bounds intersect, false otherwise.
      */
-    bool doesIntersect(const Bounds &other);
+    bool doesIntersect(const Bounds &other) const;
     /**
      * @brief Expands the bounds to include a set of points.
      *

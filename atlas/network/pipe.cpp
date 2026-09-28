@@ -9,10 +9,14 @@
 
 #include "atlas/network/pipe.h"
 #include "atlas/tracer/log.h"
-#include <iostream>
-#include <unistd.h>
-#include <netinet/in.h>
 #include <arpa/inet.h>
+#include <cerrno>
+#include <cstring>
+#include <iostream>
+#include <netinet/in.h>
+#include <sys/socket.h>
+#include <sys/types.h>
+#include <unistd.h>
 #include <thread>
 #include <chrono>
 #include <mutex>
@@ -25,7 +29,7 @@ NetworkPipe::~NetworkPipe() { stop(); }
 
 void NetworkPipe::setPort(int newPort) { this->port = newPort; }
 
-void NetworkPipe::onReceive(const PipeCallback& callback) {
+void NetworkPipe::onReceive(const PipeCallback &callback) {
     this->dispatcher = callback;
 }
 
@@ -75,7 +79,7 @@ void NetworkPipe::connectLoop() {
             return;
         }
 
-        if (connect(clientSocket, reinterpret_cast<sockaddr*>(&addr),
+        if (connect(clientSocket, reinterpret_cast<sockaddr *>(&addr),
                     sizeof(addr)) < 0) {
             if (!messageShown) {
                 std::cout
@@ -93,12 +97,11 @@ void NetworkPipe::connectLoop() {
         if (messageShown) {
             atlas_log("Connected to tracer on port " + std::to_string(port));
             std::cout << "\rConnected to tracer on port " << port << "!"
-                << std::string(20, ' ') << std::endl;
-        }
-        else {
+                      << std::string(20, ' ') << std::endl;
+        } else {
             atlas_log("Connected to tracer on port " + std::to_string(port));
             std::cout << "Connected to tracer on port " << port << "!"
-                << std::endl;
+                      << std::endl;
         }
     }
 
@@ -130,8 +133,7 @@ void NetworkPipe::receiveLoop() {
             if (dispatcher) {
                 dispatcher(msg);
             }
-        }
-        else if (received == 0) {
+        } else if (received == 0) {
             atlas_log("Tracer disconnected");
             std::cout << "Tracer disconnected\n";
             int expected = sock;
@@ -139,15 +141,14 @@ void NetworkPipe::receiveLoop() {
                 close(sock);
             }
             break;
-        }
-        else {
+        } else {
             perror("recv");
             break;
         }
     }
 }
 
-void NetworkPipe::send(const std::string& message) const {
+void NetworkPipe::send(const std::string &message) const {
     int sock = clientSocket.load();
     if (sock != -1) {
         ssize_t sent = ::send(sock, message.c_str(), message.size(), 0);

@@ -134,3 +134,23 @@ run-docs:
 editor backend="AUTO" bezel_native="OFF":
     just target AtlasEditor {{ backend }} {{ bezel_native }}
     "./build/bin/Atlas Engine.app/Contents/MacOS/Atlas Engine"
+
+clang-tidy-full:
+    find include src atlas aurora bezel editor finewave graphite hydra opal photon \
+        \( -path '*/extern/*' -o -path '*/third-party/*' -o -path '*/build/*' \) -prune -o \
+        \( -name '*.cpp' -o -name '*.cc' -o -name '*.cxx' \) \
+        -print0 | xargs -0 -P "$(sysctl -n hw.logicalcpu)" -n1 \
+        clang-tidy \
+        -p build \
+        -checks='-*,clang-diagnostic-*,bugprone-*,performance-*,portability-*,misc-include-cleaner' \
+        > clang-tidy.log 2>&1
+
+clang-tidy:
+    find include src atlas aurora bezel editor finewave graphite hydra opal photon \
+        \( -path '*/extern/*' -o -path '*/third-party/*' -o -path '*/build/*' \) -prune -o \
+        \( -name '*.cpp' -o -name '*.cc' -o -name '*.cxx' \) \
+        -print0 | xargs -0 -P "$(sysctl -n hw.logicalcpu)" -n1 \
+        clang-tidy \
+        -p build \
+        -checks='-*,clang-diagnostic-*,portability-*,misc-include-cleaner' \
+        2>&1 | tee clang-tidy.log

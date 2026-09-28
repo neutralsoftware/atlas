@@ -4,7 +4,7 @@
 
 namespace {
 
-uint getTextureId(const Texture &texture) {
+std::uint32_t getTextureId(const Texture &texture) {
     if (texture.id != 0) {
         return texture.id;
     }
@@ -26,9 +26,9 @@ Size2d Image::getSize() const {
     const graphite::UIResolvedStyle style = graphite::resolveStyle(
         makeFallbackStyle(*this), &graphite::Theme::current().image,
         usesLocalStyle ? &localStyle : nullptr);
-    const float contentWidth = size.width > 0.0f
-                                   ? size.width
-                                   : static_cast<float>(texture.creationData.width);
+    const float contentWidth =
+        size.width > 0.0f ? size.width
+                          : static_cast<float>(texture.creationData.width);
     const float contentHeight =
         size.height > 0.0f ? size.height
                            : static_cast<float>(texture.creationData.height);
@@ -67,9 +67,9 @@ void Image::render(float dt, std::shared_ptr<opal::CommandBuffer> commandBuffer,
     const graphite::UIResolvedStyle style = graphite::resolveStyle(
         makeFallbackStyle(*this), &graphite::Theme::current().image,
         usesLocalStyle ? &localStyle : nullptr);
-    const float contentWidth = size.width > 0.0f
-                                   ? size.width
-                                   : static_cast<float>(texture.creationData.width);
+    const float contentWidth =
+        size.width > 0.0f ? size.width
+                          : static_cast<float>(texture.creationData.width);
     const float contentHeight =
         size.height > 0.0f ? size.height
                            : static_cast<float>(texture.creationData.height);
@@ -77,11 +77,11 @@ void Image::render(float dt, std::shared_ptr<opal::CommandBuffer> commandBuffer,
         return;
     }
 
-    const uint textureId = getTextureId(texture);
+    const std::uint32_t textureId = getTextureId(texture);
     const Position2d framePosition = position;
     const Size2d frameSize{.width = contentWidth + (style.padding.width * 2.0f),
-                           .height = contentHeight +
-                                     (style.padding.height * 2.0f)};
+                           .height =
+                               contentHeight + (style.padding.height * 2.0f)};
     if ((style.backgroundColor.a > 0.0f) ||
         (style.borderWidth > 0.0f && style.borderColor.a > 0.0f)) {
         graphite::renderStyledBox(boxRenderer, id, commandBuffer, framePosition,

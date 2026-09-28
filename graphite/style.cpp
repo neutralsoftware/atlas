@@ -57,9 +57,8 @@ void applyVariant(UIResolvedStyle &style, const UIStyleVariant &variant) {
 }
 
 std::array<UIStyleState, 5> getStateOrder() {
-    return {UIStyleState::Checked, UIStyleState::Focused,
-            UIStyleState::Hovered, UIStyleState::Pressed,
-            UIStyleState::Disabled};
+    return {UIStyleState::Checked, UIStyleState::Focused, UIStyleState::Hovered,
+            UIStyleState::Pressed, UIStyleState::Disabled};
 }
 
 bool hasState(UIStyleState state, const UIStyleStateSnapshot &snapshot) {
@@ -89,27 +88,27 @@ makeBoxBindings(const std::shared_ptr<opal::Buffer> &vertexBuffer) {
         .location = 0,
         .normalized = false,
         .size = 3,
-        .stride = static_cast<uint>(sizeof(BoxVertex)),
+        .stride = static_cast<std::uint32_t>(sizeof(BoxVertex)),
         .inputRate = opal::VertexBindingInputRate::Vertex,
         .divisor = 0};
     opal::VertexAttribute colorAttribute{
         .name = "aColor",
         .type = opal::VertexAttributeType::Float,
-        .offset = static_cast<uint>(offsetof(BoxVertex, r)),
+        .offset = static_cast<std::uint32_t>(offsetof(BoxVertex, r)),
         .location = 1,
         .normalized = false,
         .size = 4,
-        .stride = static_cast<uint>(sizeof(BoxVertex)),
+        .stride = static_cast<std::uint32_t>(sizeof(BoxVertex)),
         .inputRate = opal::VertexBindingInputRate::Vertex,
         .divisor = 0};
     opal::VertexAttribute texCoordAttribute{
         .name = "aTexCoord",
         .type = opal::VertexAttributeType::Float,
-        .offset = static_cast<uint>(offsetof(BoxVertex, u)),
+        .offset = static_cast<std::uint32_t>(offsetof(BoxVertex, u)),
         .location = 2,
         .normalized = false,
         .size = 2,
-        .stride = static_cast<uint>(sizeof(BoxVertex)),
+        .stride = static_cast<std::uint32_t>(sizeof(BoxVertex)),
         .inputRate = opal::VertexBindingInputRate::Vertex,
         .divisor = 0};
 
@@ -119,7 +118,8 @@ makeBoxBindings(const std::shared_ptr<opal::Buffer> &vertexBuffer) {
 }
 
 int getCornerSegments(float radius) {
-    return std::max(4, static_cast<int>(std::ceil(std::max(radius, 0.0f) / 4.0f)));
+    return std::max(4,
+                    static_cast<int>(std::ceil(std::max(radius, 0.0f) / 4.0f)));
 }
 
 std::vector<glm::vec2> buildRoundedOutline(float width, float height,
@@ -190,9 +190,8 @@ void appendRoundedShape(std::vector<BoxVertex> &vertices, float left, float top,
         const glm::vec2 current = outline[i];
         const glm::vec2 next = outline[(i + 1) % outline.size()];
 
-        vertices.push_back(
-            {centerX, centerY, 0.0f, color.r, color.g, color.b, color.a,
-             0.5f, 0.5f});
+        vertices.push_back({centerX, centerY, 0.0f, color.r, color.g, color.b,
+                            color.a, 0.5f, 0.5f});
         vertices.push_back({left + current.x, top + (current.y * yDirection),
                             0.0f, color.r, color.g, color.b, color.a,
                             current.x / width, current.y / height});
@@ -202,9 +201,9 @@ void appendRoundedShape(std::vector<BoxVertex> &vertices, float left, float top,
     }
 }
 
-void appendRoundedBorder(std::vector<BoxVertex> &vertices, float left, float top,
-                         float right, float bottom, float radius, float inset,
-                         const Color &color) {
+void appendRoundedBorder(std::vector<BoxVertex> &vertices, float left,
+                         float top, float right, float bottom, float radius,
+                         float inset, const Color &color) {
     const float width = std::abs(right - left);
     const float height = std::abs(bottom - top);
     if (width <= 0.0f || height <= 0.0f || inset <= 0.0f) {
@@ -223,9 +222,9 @@ void appendRoundedBorder(std::vector<BoxVertex> &vertices, float left, float top
     const int segments = getCornerSegments(radius);
     const std::vector<glm::vec2> outerOutline =
         buildRoundedOutline(width, height, radius, segments);
-    const std::vector<glm::vec2> innerOutline = buildRoundedOutline(
-        innerWidth, innerHeight, std::max(0.0f, radius - clampedInset),
-        segments);
+    const std::vector<glm::vec2> innerOutline =
+        buildRoundedOutline(innerWidth, innerHeight,
+                            std::max(0.0f, radius - clampedInset), segments);
     if (outerOutline.size() != innerOutline.size() || outerOutline.size() < 3) {
         appendRoundedShape(vertices, left, top, right, bottom, radius, color);
         return;
@@ -262,12 +261,13 @@ void appendRoundedBorder(std::vector<BoxVertex> &vertices, float left, float top
         vertices.push_back(
             makeVertex(outerCurrentX, outerCurrentY, 0.0f, 0.0f));
         vertices.push_back(makeVertex(innerNextX, innerNextY, 1.0f, 1.0f));
-        vertices.push_back(makeVertex(innerCurrentX, innerCurrentY, 0.0f, 1.0f));
+        vertices.push_back(
+            makeVertex(innerCurrentX, innerCurrentY, 0.0f, 1.0f));
     }
 }
 
-std::shared_ptr<opal::Pipeline>
-getBoxPipeline(const ShaderProgram &shader, int fbWidth, int fbHeight) {
+std::shared_ptr<opal::Pipeline> getBoxPipeline(const ShaderProgram &shader,
+                                               int fbWidth, int fbHeight) {
     static std::shared_ptr<opal::Pipeline> boxPipeline = nullptr;
     if (boxPipeline == nullptr) {
         boxPipeline = opal::Pipeline::create();
@@ -278,30 +278,30 @@ getBoxPipeline(const ShaderProgram &shader, int fbWidth, int fbHeight) {
              .location = 0,
              .normalized = false,
              .size = 3,
-             .stride = static_cast<uint>(sizeof(BoxVertex)),
+             .stride = static_cast<std::uint32_t>(sizeof(BoxVertex)),
              .inputRate = opal::VertexBindingInputRate::Vertex,
              .divisor = 0},
             {.name = "aColor",
              .type = opal::VertexAttributeType::Float,
-             .offset = static_cast<uint>(offsetof(BoxVertex, r)),
+             .offset = static_cast<std::uint32_t>(offsetof(BoxVertex, r)),
              .location = 1,
              .normalized = false,
              .size = 4,
-             .stride = static_cast<uint>(sizeof(BoxVertex)),
+             .stride = static_cast<std::uint32_t>(sizeof(BoxVertex)),
              .inputRate = opal::VertexBindingInputRate::Vertex,
              .divisor = 0},
             {.name = "aTexCoord",
              .type = opal::VertexAttributeType::Float,
-             .offset = static_cast<uint>(offsetof(BoxVertex, u)),
+             .offset = static_cast<std::uint32_t>(offsetof(BoxVertex, u)),
              .location = 2,
              .normalized = false,
              .size = 2,
-             .stride = static_cast<uint>(sizeof(BoxVertex)),
+             .stride = static_cast<std::uint32_t>(sizeof(BoxVertex)),
              .inputRate = opal::VertexBindingInputRate::Vertex,
              .divisor = 0}};
         boxPipeline->setVertexAttributes(
             attributes,
-            {.stride = static_cast<uint>(sizeof(BoxVertex)),
+            {.stride = static_cast<std::uint32_t>(sizeof(BoxVertex)),
              .inputRate = opal::VertexBindingInputRate::Vertex});
         boxPipeline->setShaderProgram(shader.shader);
 #ifdef VULKAN
@@ -330,14 +330,14 @@ getBoxPipeline(const ShaderProgram &shader, int fbWidth, int fbHeight) {
 }
 
 void ensureVertexCapacity(BoxRendererData &renderer, std::size_t requiredBytes,
-                          uint objectId) {
-    if (requiredBytes <= renderer.vertexBufferCapacity && renderer.vertexBuffer != nullptr &&
-        renderer.vao != nullptr) {
+                          std::uint32_t objectId) {
+    if (requiredBytes <= renderer.vertexBufferCapacity &&
+        renderer.vertexBuffer != nullptr && renderer.vao != nullptr) {
         return;
     }
 
-    renderer.vertexBufferCapacity =
-        std::max(requiredBytes, sizeof(BoxVertex) * static_cast<std::size_t>(192));
+    renderer.vertexBufferCapacity = std::max(
+        requiredBytes, sizeof(BoxVertex) * static_cast<std::size_t>(192));
     renderer.vertexBuffer = opal::Buffer::create(
         opal::BufferUsage::VertexBuffer, renderer.vertexBufferCapacity, nullptr,
         opal::MemoryUsageType::CPUToGPU, objectId);
@@ -348,11 +348,11 @@ void ensureVertexCapacity(BoxRendererData &renderer, std::size_t requiredBytes,
     renderer.vao->configureAttributes(makeBoxBindings(renderer.vertexBuffer));
 }
 
-void drawVertices(BoxRendererData &renderer, uint objectId,
+void drawVertices(BoxRendererData &renderer, std::uint32_t objectId,
                   const std::shared_ptr<opal::CommandBuffer> &commandBuffer,
                   const std::vector<BoxVertex> &vertices,
                   const std::shared_ptr<opal::Pipeline> &pipeline,
-                  uint textureId) {
+                  std::uint32_t textureId) {
     if (vertices.empty()) {
         return;
     }
@@ -376,7 +376,8 @@ void drawVertices(BoxRendererData &renderer, uint objectId,
     }
 
     commandBuffer->bindDrawingState(renderer.vao);
-    commandBuffer->draw(static_cast<uint>(vertices.size()), 1, 0, 0, objectId);
+    commandBuffer->draw(static_cast<std::uint32_t>(vertices.size()), 1, 0, 0,
+                        objectId);
     commandBuffer->unbindDrawingState();
 }
 
@@ -561,14 +562,16 @@ float getFontDescent(const Font &font, float fontSize) {
     float descent = 0.0f;
     const float scale = resolveTextScale(font, fontSize);
     for (const auto &entry : font.atlas) {
-        descent = std::max(
-            descent, (entry.second.size.height - entry.second.bearing.y) * scale);
+        descent = std::max(descent,
+                           (entry.second.size.height - entry.second.bearing.y) *
+                               scale);
     }
     return descent;
 }
 
 float getLineHeight(const Font &font, float fontSize) {
-    float height = getFontAscent(font, fontSize) + getFontDescent(font, fontSize);
+    float height =
+        getFontAscent(font, fontSize) + getFontDescent(font, fontSize);
     if (height <= 0.0f) {
         height = static_cast<float>(std::max(font.size, 1)) *
                  resolveTextScale(font, fontSize);
@@ -591,7 +594,7 @@ std::string sanitizeText(const Font &font, const std::string &input) {
     return result;
 }
 
-void initializeBoxRenderer(BoxRendererData &renderer, uint objectId) {
+void initializeBoxRenderer(BoxRendererData &renderer, std::uint32_t objectId) {
     Size2d framebufferSize = Window::mainWindow->getSize();
     const int fbWidth = static_cast<int>(framebufferSize.width);
     const int fbHeight = static_cast<int>(framebufferSize.height);
@@ -604,16 +607,16 @@ void initializeBoxRenderer(BoxRendererData &renderer, uint objectId) {
                                      static_cast<float>(fbHeight));
 #endif
 
-    ensureVertexCapacity(renderer, sizeof(BoxVertex) * static_cast<std::size_t>(192),
-                         objectId);
-    renderer.shader = ShaderProgram::fromDefaultShaders(AtlasVertexShader::Texture,
-                                                        AtlasFragmentShader::Texture);
+    ensureVertexCapacity(
+        renderer, sizeof(BoxVertex) * static_cast<std::size_t>(192), objectId);
+    renderer.shader = ShaderProgram::fromDefaultShaders(
+        AtlasVertexShader::Texture, AtlasFragmentShader::Texture);
 }
 
-void renderStyledBox(BoxRendererData &renderer, uint objectId,
+void renderStyledBox(BoxRendererData &renderer, std::uint32_t objectId,
                      const std::shared_ptr<opal::CommandBuffer> &commandBuffer,
                      Position2d position, Size2d size,
-                     const UIResolvedStyle &style, uint textureId) {
+                     const UIResolvedStyle &style, std::uint32_t textureId) {
     if (commandBuffer == nullptr || size.width <= 0.0f || size.height <= 0.0f) {
         return;
     }
@@ -649,8 +652,8 @@ void renderStyledBox(BoxRendererData &renderer, uint objectId,
     pipeline->enableDepthTest(false);
     pipeline->enableDepthWrite(false);
 
-    const float inset =
-        std::clamp(style.borderWidth, 0.0f, std::min(size.width, size.height) * 0.5f);
+    const float inset = std::clamp(style.borderWidth, 0.0f,
+                                   std::min(size.width, size.height) * 0.5f);
     const float yInsetDirection = bottom >= top ? 1.0f : -1.0f;
     const float innerLeft = left + inset;
     const float innerRight = right - inset;
@@ -664,8 +667,8 @@ void renderStyledBox(BoxRendererData &renderer, uint objectId,
                             style.cornerRadius, inset, style.borderColor);
     }
 
-    const bool hasInnerArea =
-        std::abs(innerRight - innerLeft) > 0.0f && std::abs(innerBottom - innerTop) > 0.0f;
+    const bool hasInnerArea = std::abs(innerRight - innerLeft) > 0.0f &&
+                              std::abs(innerBottom - innerTop) > 0.0f;
 
     if (style.backgroundColor.a > 0.0f && hasInnerArea) {
         appendRoundedShape(colorVertices, inset > 0.0f ? innerLeft : left,
@@ -680,14 +683,13 @@ void renderStyledBox(BoxRendererData &renderer, uint objectId,
 
     if (textureId != 0 && hasInnerArea) {
         std::vector<BoxVertex> textureVertices;
-        appendRoundedShape(textureVertices, inset > 0.0f ? innerLeft : left,
-                           inset > 0.0f ? innerTop : top,
-                           inset > 0.0f ? innerRight : right,
-                           inset > 0.0f ? innerBottom : bottom,
-                           inset > 0.0f ? innerRadius : style.cornerRadius,
-                           style.tintColor);
-        drawVertices(renderer, objectId, commandBuffer, textureVertices, pipeline,
-                     textureId);
+        appendRoundedShape(
+            textureVertices, inset > 0.0f ? innerLeft : left,
+            inset > 0.0f ? innerTop : top, inset > 0.0f ? innerRight : right,
+            inset > 0.0f ? innerBottom : bottom,
+            inset > 0.0f ? innerRadius : style.cornerRadius, style.tintColor);
+        drawVertices(renderer, objectId, commandBuffer, textureVertices,
+                     pipeline, textureId);
     }
 
     pipeline->enableBlending(false);

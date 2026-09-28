@@ -184,7 +184,7 @@ void Text::initialize() {
         .location = 0,
         .normalized = false,
         .size = 4,
-        .stride = static_cast<uint>(4 * sizeof(float)),
+        .stride = static_cast<std::uint32_t>(4 * sizeof(float)),
         .inputRate = opal::VertexBindingInputRate::Vertex,
         .divisor = 0};
     std::vector<opal::VertexAttributeBinding> bindings = {
@@ -215,8 +215,8 @@ void Text::render(float dt, std::shared_ptr<opal::CommandBuffer> commandBuffer,
     const Font &resolvedFont = style.font != nullptr ? *style.font : font;
     if ((style.backgroundColor.a > 0.0f) ||
         (style.borderWidth > 0.0f && style.borderColor.a > 0.0f)) {
-        graphite::renderStyledBox(backgroundRenderer, id, commandBuffer, position,
-                                  getSize(), style);
+        graphite::renderStyledBox(backgroundRenderer, id, commandBuffer,
+                                  position, getSize(), style);
     }
 
     static std::shared_ptr<opal::Pipeline> textPipeline = nullptr;
@@ -234,12 +234,12 @@ void Text::render(float dt, std::shared_ptr<opal::CommandBuffer> commandBuffer,
             .location = 0,
             .normalized = false,
             .size = 4,
-            .stride = static_cast<uint>(4 * sizeof(float)),
+            .stride = static_cast<std::uint32_t>(4 * sizeof(float)),
             .inputRate = opal::VertexBindingInputRate::Vertex,
             .divisor = 0};
         std::vector<opal::VertexAttribute> textAttributes = {textAttribute};
         opal::VertexBinding textBinding{
-            .stride = static_cast<uint>(4 * sizeof(float)),
+            .stride = static_cast<std::uint32_t>(4 * sizeof(float)),
             .inputRate = opal::VertexBindingInputRate::Vertex};
         textPipeline->setVertexAttributes(textAttributes, textBinding);
         textPipeline->setShaderProgram(shader.shader);
@@ -352,7 +352,8 @@ void Text::render(float dt, std::shared_ptr<opal::CommandBuffer> commandBuffer,
         vertexBuffer->updateData(offset, sizeof(vertices), vertices);
         vertexBuffer->unbind();
         commandBuffer->draw(
-            6, 1, static_cast<uint>(offset / (4 * sizeof(float))), 0, id);
+            6, 1, static_cast<std::uint32_t>(offset / (4 * sizeof(float))), 0,
+            id);
 
         x += (ch.advance >> 6) * scale;
     }
@@ -365,10 +366,10 @@ void Text::render(float dt, std::shared_ptr<opal::CommandBuffer> commandBuffer,
     if (TracerServices::getInstance().isOk()) {
         DebugObjectPacket debugPacket{};
         debugPacket.drawCallsForObject = 1;
-        debugPacket.frameCount =
-            Window::mainWindow != nullptr && Window::mainWindow->device != nullptr
-                ? Window::mainWindow->device->frameCount
-                : 0;
+        debugPacket.frameCount = Window::mainWindow != nullptr &&
+                                         Window::mainWindow->device != nullptr
+                                     ? Window::mainWindow->device->frameCount
+                                     : 0;
         debugPacket.triangleCount = static_cast<unsigned int>(glyphCount) * 2;
         debugPacket.vertexBufferSizeMb =
             static_cast<float>(requiredBytes) / (1024.0f * 1024.0f);

@@ -12,10 +12,10 @@
 #include "atlas/window.h"
 #include "atlas/input.h"
 #include <algorithm>
-#include <algorithm>
 #include <cmath>
-#include <glm/gtc/matrix_transform.hpp>
 #include <glm/glm.hpp>
+#include <glm/gtc/matrix_transform.hpp>
+#include <glm/gtc/quaternion.hpp>
 #include <string>
 
 namespace {
@@ -193,16 +193,14 @@ void Camera::update(Window &window) {
 void Camera::updateWithActions(Window &window, const std::string &moveAxis,
                                const std::string &lookAction,
                                const std::string &upAndDownAction) {
-    AxisPacket moveInput = moveAxis.empty()
-                               ? AxisPacket{}
-                               : window.getAxisActionValue(moveAxis);
+    AxisPacket moveInput =
+        moveAxis.empty() ? AxisPacket{} : window.getAxisActionValue(moveAxis);
     AxisPacket lookInput = lookAction.empty()
                                ? AxisPacket{}
                                : window.getAxisActionValue(lookAction);
-    AxisPacket upDownInput =
-        upAndDownAction.empty()
-            ? AxisPacket{}
-            : window.getAxisActionValue(upAndDownAction);
+    AxisPacket upDownInput = upAndDownAction.empty()
+                                 ? AxisPacket{}
+                                 : window.getAxisActionValue(upAndDownAction);
 
     float deltaTime = window.getDeltaTime();
     if (!lookAction.empty()) {
@@ -214,10 +212,8 @@ void Camera::updateWithActions(Window &window, const std::string &moveAxis,
             if (glm::length(lookVector) > 1.0f) {
                 lookVector = glm::normalize(lookVector);
             }
-            xoffset +=
-                lookVector.x * controllerLookSensitivity * deltaTime;
-            yoffset +=
-                lookVector.y * controllerLookSensitivity * deltaTime;
+            xoffset += lookVector.x * controllerLookSensitivity * deltaTime;
+            yoffset += lookVector.y * controllerLookSensitivity * deltaTime;
         }
 
         targetYaw += xoffset;
@@ -286,16 +282,9 @@ void Camera::updateLook(Window &, Movement2d movement) {
 
 void Camera::updateZoom(Window &, Movement2d offset) {
     if (!useOrthographic) {
-        fov -= offset.y;
-        if (fov < 1.0f)
-            fov = 1.0f;
-        if (fov > 90.0f)
-            fov = 90.0f;
+        fov = std::clamp(fov - offset.y, 1.0f, 90.0f);
     } else {
-        orthographicSize -= offset.y * 0.1f;
-        if (orthographicSize < 1.0f)
-            orthographicSize = 1.0f;
-        if (orthographicSize > 20.0f)
-            orthographicSize = 20.0f;
+        orthographicSize =
+            std::clamp(orthographicSize - (offset.y * 0.1f), 1.0f, 20.0f);
     }
 }

@@ -5,7 +5,7 @@
 // atlasengine.org | github.com/neutralsoftware
 // --------------------------------------------------
 // Description: Cloth Dynamics bridge between Bezel and Atlas
-// SPDX-License-Identifier: MIT
+// SPDX-License-Identifier: MPL-2.0
 //
 
 #include "atlas/object.h"

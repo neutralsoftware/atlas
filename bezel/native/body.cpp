@@ -7,11 +7,11 @@
  Copyright (c) 2025 maxvdec
 */
 
-#include "bezel/body.h"
+#include "bezel/native/body.h"
 #include "atlas/units.h"
 #include "atlas/window.h"
-#include "bezel/bounds.h"
-#include "bezel/shape.h"
+#include "bezel/native/bounds.h"
+#include "bezel/native/shape.h"
 #include <algorithm>
 #include <cstddef>
 #include <iostream>
