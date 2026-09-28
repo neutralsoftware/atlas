@@ -154,3 +154,10 @@ clang-tidy:
         -p build \
         -checks='-*,clang-diagnostic-*,portability-*,misc-include-cleaner' \
         2>&1 | tee clang-tidy.log
+
+refresh-opal:
+    git submodule sync --recursive
+    git -C opal fetch origin
+    git -C opal checkout main
+    git -C opal reset --hard origin/main
+    git add opal
