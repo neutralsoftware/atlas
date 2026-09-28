@@ -526,10 +526,11 @@ else ()
     message(FATAL_ERROR "Could not determine GLM target")
 endif ()
 
-# ─── bezel ───────────────────────────────────────────────────────────────────
 set(OPAL_BACKEND "${BACKEND}" CACHE STRING "Opal rendering backend" FORCE)
+set(SLANG_ENABLE_SPLIT_DEBUG_INFO OFF CACHE BOOL "" FORCE)
 add_subdirectory(opal)
 
+# --- bezel --------------------
 add_library(bezel STATIC ${BEZEL_SOURCES})
 add_dependencies(bezel generate_shaders)
 target_link_libraries(bezel
