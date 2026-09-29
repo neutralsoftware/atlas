@@ -184,6 +184,28 @@ FetchContent_Declare(
 )
 FetchContent_MakeAvailable(assimp)
 
+if (APPLE AND TARGET zlibstatic AND CMAKE_C_COMPILER_ID MATCHES "Clang")
+    target_compile_options(zlibstatic PRIVATE -UTARGET_OS_MAC)
+endif ()
+
+set(ASSIMP_POLY2TRI_SHAPES
+    "${assimp_SOURCE_DIR}/contrib/poly2tri/poly2tri/common/shapes.h"
+)
+if (EXISTS "${ASSIMP_POLY2TRI_SHAPES}")
+    file(READ "${ASSIMP_POLY2TRI_SHAPES}" ASSIMP_POLY2TRI_SHAPES_CONTENT)
+    if (NOT ASSIMP_POLY2TRI_SHAPES_CONTENT MATCHES "#include <ostream>")
+        string(
+            REPLACE
+            "#include <stdexcept>"
+            "#include <ostream>\n#include <stdexcept>"
+            ASSIMP_POLY2TRI_SHAPES_CONTENT
+            "${ASSIMP_POLY2TRI_SHAPES_CONTENT}"
+        )
+        file(WRITE "${ASSIMP_POLY2TRI_SHAPES}"
+             "${ASSIMP_POLY2TRI_SHAPES_CONTENT}")
+    endif ()
+endif ()
+
 set(TINYUSDZ_VALUE_TYPES
     "${assimp_SOURCE_DIR}/contrib/tinyusdz/autoclone/tinyusdz_repo-src/src/value-types.hh"
 )
@@ -210,6 +232,42 @@ if(EXISTS "${TINYUSDZ_VALUE_TYPES}")
     endif()
 endif()
 
+set(TINYUSDZ_RENDER_DATA
+    "${assimp_SOURCE_DIR}/contrib/tinyusdz/autoclone/tinyusdz_repo-src/src/tydra/render-data.cc"
+)
+if (EXISTS "${TINYUSDZ_RENDER_DATA}")
+    file(READ "${TINYUSDZ_RENDER_DATA}" TINYUSDZ_RENDER_DATA_CONTENT)
+    if (NOT TINYUSDZ_RENDER_DATA_CONTENT MATCHES "#include <iterator>")
+        string(
+            REPLACE
+            "#include <numeric>"
+            "#include <iterator>\n#include <numeric>"
+            TINYUSDZ_RENDER_DATA_CONTENT
+            "${TINYUSDZ_RENDER_DATA_CONTENT}"
+        )
+        file(WRITE "${TINYUSDZ_RENDER_DATA}"
+             "${TINYUSDZ_RENDER_DATA_CONTENT}")
+    endif ()
+endif ()
+
+set(TINYUSDZ_VALUE_PPRINT
+    "${assimp_SOURCE_DIR}/contrib/tinyusdz/autoclone/tinyusdz_repo-src/src/value-pprint.cc"
+)
+if (EXISTS "${TINYUSDZ_VALUE_PPRINT}")
+    file(READ "${TINYUSDZ_VALUE_PPRINT}" TINYUSDZ_VALUE_PPRINT_CONTENT)
+    if (NOT TINYUSDZ_VALUE_PPRINT_CONTENT MATCHES "#include <iterator>")
+        string(
+            REPLACE
+            "#include <sstream>"
+            "#include <iterator>\n#include <sstream>"
+            TINYUSDZ_VALUE_PPRINT_CONTENT
+            "${TINYUSDZ_VALUE_PPRINT_CONTENT}"
+        )
+        file(WRITE "${TINYUSDZ_VALUE_PPRINT}"
+             "${TINYUSDZ_VALUE_PPRINT_CONTENT}")
+    endif ()
+endif ()
+
 if (UNIX AND NOT APPLE)
     target_include_directories(assimp PRIVATE /usr/include/minizip)
 endif ()
@@ -229,10 +287,28 @@ FetchContent_Declare(
 )
 FetchContent_MakeAvailable(openal_soft)
 
+set(OPENAL_ALC_SOURCE "${openal_soft_SOURCE_DIR}/alc/alc.cpp")
+if(EXISTS "${OPENAL_ALC_SOURCE}")
+    file(READ "${OPENAL_ALC_SOURCE}" OPENAL_ALC_CONTENT)
+    string(REPLACE
+        "std::views::transform(&ContextBase::EffectSlotCluster::operator*)"
+        "std::views::transform([](ContextBase::EffectSlotCluster &cluster) -> auto& { return *cluster; })"
+        OPENAL_ALC_CONTENT
+        "${OPENAL_ALC_CONTENT}"
+    )
+    file(WRITE "${OPENAL_ALC_SOURCE}" "${OPENAL_ALC_CONTENT}")
+endif()
+
 if(TARGET OpenAL AND CMAKE_CXX_COMPILER_ID MATCHES "Clang")
     target_compile_options(OpenAL PRIVATE
         $<$<COMPILE_LANGUAGE:CXX>:-Wno-error=function-effects>
     )
+    if(APPLE)
+        target_compile_options(OpenAL PRIVATE
+            $<$<COMPILE_LANGUAGE:CXX>:-Wno-elaborated-enum-base>
+            $<$<COMPILE_LANGUAGE:CXX>:-Wno-undef>
+        )
+    endif()
 endif()
 
 # Jolt
