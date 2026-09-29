@@ -27,6 +27,7 @@
 #include "atlas/tracer/log.h"
 #include "bezel/jolt/query.h"
 #include <cmath>
+#include <cstdarg>
 
 namespace {
 

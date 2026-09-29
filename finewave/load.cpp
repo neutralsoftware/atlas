@@ -16,6 +16,7 @@
 #include <memory>
 #include <vector>
 #include <iostream>
+#include <cstring>
 
 #define DR_MP3_IMPLEMENTATION
 #include "dr/dr_mp3.h"

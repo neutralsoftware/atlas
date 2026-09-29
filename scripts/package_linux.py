@@ -8,7 +8,7 @@ import tarfile
 from pathlib import Path
 
 
-def run(command, cwd=None, capture=False):
+def run(command, cwd=None, capture=False, env=None):
     print("+", " ".join(str(part) for part in command), flush=True)
     return subprocess.run(
         [str(part) for part in command],
@@ -16,6 +16,7 @@ def run(command, cwd=None, capture=False):
         check=True,
         text=True,
         capture_output=capture,
+        env=env
     )
 
 
@@ -65,14 +66,18 @@ def main():
     applications_directory.mkdir(parents=True)
     dist_directory.mkdir(parents=True, exist_ok=True)
 
+    env = os.environ.copy()
+    env["CC"] = "clang"
+    env["CXX"] = "clang++"
+
     run([
         require("cmake"), "-S", root, "-B", build_directory, "-G", "Ninja",
         f"-DCMAKE_BUILD_TYPE={configuration}", "-DBACKEND=VULKAN",
         "-DATLAS_PHOTON_BACKEND=VULKAN",
-    ])
+    ], env=env)
     run([
         require("cmake"), "--build", build_directory, "--target", "AtlasEditor", "atlasrun",
-        "--parallel", "1", "--verbose",
+        "--parallel", str(os.cpu_count()), "--verbose",
     ])
 
     built_bin = build_directory / "bin"

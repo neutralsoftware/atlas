@@ -172,6 +172,7 @@ set(ASSIMP_INSTALL OFF CACHE BOOL "" FORCE)
 set(ASSIMP_INJECT_DEBUG_POSTFIX OFF CACHE BOOL "" FORCE)
 set(ASSIMP_WARNINGS_AS_ERRORS OFF CACHE BOOL "" FORCE)
 set(ASSIMP_BUILD_USD_IMPORTER ON CACHE BOOL "" FORCE)
+set(ASSIMP_BUILD_ZLIB ON CACHE BOOL "" FORCE)
 FetchContent_Declare(
         assimp
         GIT_REPOSITORY https://github.com/assimp/assimp.git
@@ -179,6 +180,36 @@ FetchContent_Declare(
         GIT_SHALLOW TRUE
 )
 FetchContent_MakeAvailable(assimp)
+
+set(TINYUSDZ_VALUE_TYPES
+    "${assimp_SOURCE_DIR}/contrib/tinyusdz/autoclone/tinyusdz_repo-src/src/value-types.hh"
+)
+
+if(EXISTS "${TINYUSDZ_VALUE_TYPES}")
+    file(READ "${TINYUSDZ_VALUE_TYPES}" TINYUSDZ_VALUE_TYPES_CONTENT)
+
+    if(NOT TINYUSDZ_VALUE_TYPES_CONTENT MATCHES "#include <cstdint>")
+        string(
+            REPLACE
+            "#pragma once"
+            "#pragma once\n#include <cstdint>"
+            TINYUSDZ_VALUE_TYPES_CONTENT
+            "${TINYUSDZ_VALUE_TYPES_CONTENT}"
+        )
+
+        file(
+            WRITE
+            "${TINYUSDZ_VALUE_TYPES}"
+            "${TINYUSDZ_VALUE_TYPES_CONTENT}"
+        )
+
+        message(STATUS "Patched tinyusdz value-types.hh with <cstdint>")
+    endif()
+endif()
+
+if (LINUX)
+target_include_directories(assimp PRIVATE /usr/include/minizip)
+endif ()
 
 # OpenAL Soft
 set(ALSOFT_UTILS OFF CACHE BOOL "" FORCE)
@@ -226,6 +257,8 @@ if (NOT BEZEL_NATIVE)
     set(JPH_PROFILE_ENABLED ON CACHE BOOL "" FORCE)
     set(JPH_OBJECT_STREAM ON CACHE BOOL "" FORCE)
     set(JPH_ENABLE_IPO OFF CACHE BOOL "" FORCE)
+    
+    set(INTERPROCEDURAL_OPTIMIZATION OFF CACHE BOOL "Disable Jolt LTO" FORCE)
 
     FetchContent_MakeAvailable(JoltPhysics)
 
@@ -468,6 +501,9 @@ target_include_directories(quickjs PUBLIC ${CMAKE_SOURCE_DIR}/extern/quickjs)
 
 if (MSVC)
     target_compile_options(quickjs PRIVATE /W0)
+elseif (UNIX)
+    target_compile_definitions(quickjs PRIVATE _GNU_SOURCE)
+    target_compile_options(quickjs PRIVATE -w -Wno-error)
 else ()
     target_compile_options(quickjs PRIVATE -w -Wno-error)
 endif ()

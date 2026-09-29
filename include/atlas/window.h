@@ -508,7 +508,6 @@ class Window {
     Controller getController(const ControllerID &controllerID) const;
     Joystick getJoystick(const ControllerID &joystickID) const;
 
-#ifdef METAL
     void enableGlobalIllumination();
     void enablePathTracing();
     void configurePathTracing(int samplesPerPixel, int bounceLimit,
@@ -518,7 +517,6 @@ class Window {
     void resetPathTracingAccumulation();
     bool setEditorPathTracingPreview(bool enabled);
     const std::string &getPathTracingError() const;
-#endif
 
     /**
      * @brief Adds a renderable object to the window.

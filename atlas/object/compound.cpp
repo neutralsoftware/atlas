@@ -8,6 +8,7 @@
 //
 
 #include "atlas/component.h"
+#include "atlas/core/renderable.h"
 #include "atlas/object.h"
 #include "atlas/units.h"
 #include "atlas/window.h"
@@ -18,6 +19,10 @@
 #include <memory>
 #include <optional>
 #include <vector>
+
+std::vector<CoreVertex> Renderable::getVertices() const {
+    return {};
+}
 
 class CompoundObject::LateCompoundRenderable : public Renderable {
   public:

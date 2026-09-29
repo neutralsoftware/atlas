@@ -145,7 +145,7 @@ class Renderable {
      *
      * @return The vertices of the object as a vector of CoreVertex structs.
      */
-    virtual std::vector<CoreVertex> getVertices() const { return {}; };
+    virtual std::vector<CoreVertex> getVertices() const; 
     /**
      * @brief Function to get the scale of the object in 3D space.
      *

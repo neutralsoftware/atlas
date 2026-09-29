@@ -1,5 +1,5 @@
 GENERATOR := "Ninja"
-JOBS := `sysctl -n hw.logicalcpu`
+JOBS := `nproc`
 
 build:
     cd build && ninja -j{{JOBS}}
