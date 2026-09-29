@@ -66,8 +66,8 @@ def main():
     applications_directory.mkdir(parents=True)
     dist_directory.mkdir(parents=True, exist_ok=True)
 
-    clang = require("clang")
-    clangxx = require("clang++")
+    clang = require("clang-18" if shutil.which("clang-18") else "clang")
+    clangxx = require("clang++-18" if shutil.which("clang++-18") else "clang++")
     env = os.environ.copy()
     env["CC"] = str(clang)
     env["CXX"] = str(clangxx)

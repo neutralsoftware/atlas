@@ -287,6 +287,18 @@ FetchContent_Declare(
 )
 FetchContent_MakeAvailable(openal_soft)
 
+set(OPENAL_CHORUS_SOURCE "${openal_soft_SOURCE_DIR}/alc/effects/chorus.cpp")
+if(EXISTS "${OPENAL_CHORUS_SOURCE}")
+    file(READ "${OPENAL_CHORUS_SOURCE}" OPENAL_CHORUS_CONTENT)
+    string(REPLACE
+        "auto &upsampler = mUpsampler.emplace();"
+        "using upsampler_t = decltype(mUpsampler)::value_type;\n        auto &upsampler = mUpsampler.emplace(upsampler_t{});"
+        OPENAL_CHORUS_CONTENT
+        "${OPENAL_CHORUS_CONTENT}"
+    )
+    file(WRITE "${OPENAL_CHORUS_SOURCE}" "${OPENAL_CHORUS_CONTENT}")
+endif()
+
 set(OPENAL_ALC_SOURCE "${openal_soft_SOURCE_DIR}/alc/alc.cpp")
 if(EXISTS "${OPENAL_ALC_SOURCE}")
     file(READ "${OPENAL_ALC_SOURCE}" OPENAL_ALC_CONTENT)
@@ -336,8 +348,6 @@ if (NOT BEZEL_NATIVE)
     set(JPH_PROFILE_ENABLED ON CACHE BOOL "" FORCE)
     set(JPH_OBJECT_STREAM ON CACHE BOOL "" FORCE)
     set(JPH_ENABLE_IPO OFF CACHE BOOL "" FORCE)
-    # Jolt defaults to the static MSVC runtime (/MT); everything else, Qt
-    # included, uses the DLL runtime (/MD), and the two cannot be linked together.
     set(USE_STATIC_MSVC_RUNTIME_LIBRARY OFF CACHE BOOL "" FORCE)
     
     set(INTERPROCEDURAL_OPTIMIZATION OFF CACHE BOOL "Disable Jolt LTO" FORCE)
@@ -543,8 +553,6 @@ if (BACKEND_VULKAN)
         )
         FetchContent_MakeAvailable(SPIRV_Cross)
 
-        # Opal calls find_package(spirv_cross_*) REQUIRED. Point it at stub package
-        # configs so it reuses the targets built from source above.
         set(ATLAS_SPIRV_CROSS_STUB_DIR "${CMAKE_BINARY_DIR}/generated/spirv-cross-packages")
         foreach (spirv_cross_package spirv_cross_core spirv_cross_glsl spirv_cross_reflect)
             file(WRITE "${ATLAS_SPIRV_CROSS_STUB_DIR}/${spirv_cross_package}Config.cmake"
@@ -552,10 +560,6 @@ if (BACKEND_VULKAN)
             set(${spirv_cross_package}_DIR "${ATLAS_SPIRV_CROSS_STUB_DIR}")
         endforeach ()
 
-        # Opal includes <spirv_cross/...>. The fetched sources keep their headers
-        # at the repository root, so without forwarding headers that path would
-        # resolve to the Vulkan SDK's copy, whose version (and class layout) does
-        # not match the library built here.
         set(ATLAS_SPIRV_CROSS_INCLUDE_DIR "${CMAKE_BINARY_DIR}/generated/spirv-cross-include")
         file(GLOB ATLAS_SPIRV_CROSS_HEADERS
                 "${spirv_cross_SOURCE_DIR}/*.h" "${spirv_cross_SOURCE_DIR}/*.hpp")
@@ -598,8 +602,6 @@ file(GLOB_RECURSE PHOTON_SOURCES CONFIGURE_DEPENDS photon/*.cpp)
 file(GLOB_RECURSE GRAPHITE_SOURCES CONFIGURE_DEPENDS graphite/*.cpp)
 file(GLOB_RECURSE RUNTIME_LIB_SOURCES CONFIGURE_DEPENDS runtime/lib/*.cpp)
 file(GLOB_RECURSE RUNTIME_SOURCES CONFIGURE_DEPENDS runtime/executable/*.cpp)
-# Only the QuickJS engine itself; the submodule also contains tools, tests and
-# examples (some with their own main()) that must not be part of the library.
 set(QUICKJS_SOURCES
         extern/quickjs/dtoa.c
         extern/quickjs/libregexp.c
@@ -705,9 +707,6 @@ target_link_libraries(bezel PRIVATE FloatTetwild)
 if (BEZEL_NATIVE)
     target_compile_definitions(bezel PRIVATE NATIVE)
 else ()
-    # Link Jolt so bezel is compiled with Jolt's public definitions (CPU feature
-    # flags such as JPH_USE_AVX2 on x64); otherwise JPH::RegisterTypes aborts on
-    # the configuration mismatch.
     target_link_libraries(bezel PRIVATE Jolt::Jolt)
     target_compile_definitions(bezel PRIVATE
             JPH_PROFILE_ENABLED=1

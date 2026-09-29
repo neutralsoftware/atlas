@@ -15,8 +15,6 @@ dialoguer = "0.11"
 indicatif = "0.17"
 zip = "2.4"
 
-# Vendored OpenSSL for reqwest's native-tls backend. Windows uses SChannel
-# instead, so building OpenSSL (which needs Perl) is unnecessary there.
 [target.'cfg(not(windows))'.dependencies]
 openssl = { version = "0.10", features = ["vendored"] }
 
