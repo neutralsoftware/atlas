@@ -299,6 +299,18 @@ if(EXISTS "${OPENAL_CHORUS_SOURCE}")
     file(WRITE "${OPENAL_CHORUS_SOURCE}" "${OPENAL_CHORUS_CONTENT}")
 endif()
 
+set(OPENAL_DISTORTION_SOURCE "${openal_soft_SOURCE_DIR}/alc/effects/distortion.cpp")
+if(EXISTS "${OPENAL_DISTORTION_SOURCE}")
+    file(READ "${OPENAL_DISTORTION_SOURCE}" OPENAL_DISTORTION_CONTENT)
+    string(REPLACE
+        "auto &upsampler = mUpsampler.emplace();"
+        "using upsampler_t = decltype(mUpsampler)::value_type;\n        auto &upsampler = mUpsampler.emplace(upsampler_t{});"
+        OPENAL_DISTORTION_CONTENT
+        "${OPENAL_DISTORTION_CONTENT}"
+    )
+    file(WRITE "${OPENAL_DISTORTION_SOURCE}" "${OPENAL_DISTORTION_CONTENT}")
+endif()
+
 set(OPENAL_ALC_SOURCE "${openal_soft_SOURCE_DIR}/alc/alc.cpp")
 if(EXISTS "${OPENAL_ALC_SOURCE}")
     file(READ "${OPENAL_ALC_SOURCE}" OPENAL_ALC_CONTENT)
