@@ -287,29 +287,17 @@ FetchContent_Declare(
 )
 FetchContent_MakeAvailable(openal_soft)
 
-set(OPENAL_CHORUS_SOURCE "${openal_soft_SOURCE_DIR}/alc/effects/chorus.cpp")
-if(EXISTS "${OPENAL_CHORUS_SOURCE}")
-    file(READ "${OPENAL_CHORUS_SOURCE}" OPENAL_CHORUS_CONTENT)
+file(GLOB OPENAL_EFFECT_SOURCES "${openal_soft_SOURCE_DIR}/alc/effects/*.cpp")
+foreach(OPENAL_EFFECT_SOURCE IN LISTS OPENAL_EFFECT_SOURCES)
+    file(READ "${OPENAL_EFFECT_SOURCE}" OPENAL_EFFECT_CONTENT)
     string(REPLACE
         "auto &upsampler = mUpsampler.emplace();"
         "using upsampler_t = decltype(mUpsampler)::value_type;\n        auto &upsampler = mUpsampler.emplace(upsampler_t{});"
-        OPENAL_CHORUS_CONTENT
-        "${OPENAL_CHORUS_CONTENT}"
+        OPENAL_EFFECT_CONTENT
+        "${OPENAL_EFFECT_CONTENT}"
     )
-    file(WRITE "${OPENAL_CHORUS_SOURCE}" "${OPENAL_CHORUS_CONTENT}")
-endif()
-
-set(OPENAL_DISTORTION_SOURCE "${openal_soft_SOURCE_DIR}/alc/effects/distortion.cpp")
-if(EXISTS "${OPENAL_DISTORTION_SOURCE}")
-    file(READ "${OPENAL_DISTORTION_SOURCE}" OPENAL_DISTORTION_CONTENT)
-    string(REPLACE
-        "auto &upsampler = mUpsampler.emplace();"
-        "using upsampler_t = decltype(mUpsampler)::value_type;\n        auto &upsampler = mUpsampler.emplace(upsampler_t{});"
-        OPENAL_DISTORTION_CONTENT
-        "${OPENAL_DISTORTION_CONTENT}"
-    )
-    file(WRITE "${OPENAL_DISTORTION_SOURCE}" "${OPENAL_DISTORTION_CONTENT}")
-endif()
+    file(WRITE "${OPENAL_EFFECT_SOURCE}" "${OPENAL_EFFECT_CONTENT}")
+endforeach()
 
 set(OPENAL_ALC_SOURCE "${openal_soft_SOURCE_DIR}/alc/alc.cpp")
 if(EXISTS "${OPENAL_ALC_SOURCE}")
