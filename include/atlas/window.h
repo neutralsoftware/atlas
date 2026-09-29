@@ -153,6 +153,15 @@ struct WindowConfiguration {
     void *metalTargetView = nullptr;
 
     /**
+     * @brief Optional native host window handle for Vulkan presentation.
+     *
+     * When set (non-Metal backends), Atlas wraps this native window (an HWND
+     * on Windows, an X11 window id on Linux) in an SDL window and renders
+     * directly into it. The host keeps ownership of the native window.
+     */
+    void *nativeTargetWindow = nullptr;
+
+    /**
      * @brief Optional SDL window handle retained for SDL subsystems.
      *
      * This is useful when embedding rendering into an external NSView while
@@ -741,6 +750,14 @@ class Window {
     bool isRenderingToExternalMetalView() const {
         return this->renderToExternalMetalView;
     }
+    /**
+     * @brief Whether Atlas renders into a host-owned view or window (such as
+     * the editor viewport) instead of its own SDL window.
+     */
+    bool isEmbeddedInHostView() const {
+        return this->renderToExternalMetalView ||
+               this->renderToExternalNativeWindow;
+    }
 
     /**
      * @brief Returns the SSAO-specific render scale.
@@ -1006,9 +1023,11 @@ class Window {
     bool metalUpscalingEnabled = false;
     float metalUpscalingRatio = 1.0f;
     bool renderToExternalMetalView = false;
+    bool renderToExternalNativeWindow = false;
     bool showHostWindow = true;
     bool renderDefaultFramebuffer = true;
     void *externalMetalView = nullptr;
+    void *externalNativeWindow = nullptr;
     unsigned int bloomBlurPasses = 4;
     int ssaoKernelSize = 32;
     float ssaoUpdateInterval = 1.0f / 45.0f;

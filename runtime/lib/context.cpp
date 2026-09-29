@@ -4973,7 +4973,8 @@ createRenderable(Context &context, const json &objectData,
 static std::shared_ptr<Context>
 makeContextWithWindowOptions(std::string projectFile, void *metalView,
                              CoreWindowReference sdlInputWindow,
-                             bool showHostWindow = true) {
+                             bool showHostWindow = true,
+                             void *nativeWindow = nullptr) {
     auto context = std::make_shared<Context>();
 
     if (!std::filesystem::exists(projectFile)) {
@@ -4981,7 +4982,8 @@ makeContextWithWindowOptions(std::string projectFile, void *metalView,
     }
 
     toml::table configTable = toml::parse_file(projectFile);
-    context->editorRuntime = metalView != nullptr;
+    const bool embedded = metalView != nullptr || nativeWindow != nullptr;
+    context->editorRuntime = embedded;
 
     int resWidth = 1280;
     int resHeight = 720;
@@ -5013,7 +5015,6 @@ makeContextWithWindowOptions(std::string projectFile, void *metalView,
         editorControls = (*editorTable)["controls"].value_or(false);
     }
     Logger::getInstance().setConsoleFilter(false, true, true);
-    const bool embedded = metalView != nullptr;
 
     context->window = std::make_unique<Window>(WindowConfiguration{
         .title = "Atlas Runtime",
@@ -5026,6 +5027,7 @@ makeContextWithWindowOptions(std::string projectFile, void *metalView,
         .resizable = !embedded,
         .ssaoScale = ssaoScale,
         .metalTargetView = metalView,
+        .nativeTargetWindow = nativeWindow,
         .sdlInputWindow = sdlInputWindow,
         .editorControls = editorControls,
         .showHostWindow = showHostWindow && !embedded,
@@ -5067,6 +5069,24 @@ runtime::makeContextForMetalView(std::string projectFile, void *metalView,
     (void)sdlInputWindow;
     throw std::runtime_error(
         "makeContextForMetalView is only available with the Metal backend");
+#endif
+}
+
+std::shared_ptr<Context>
+runtime::makeContextForNativeWindow(std::string projectFile,
+                                    void *nativeWindow) {
+#ifdef METAL
+    (void)projectFile;
+    (void)nativeWindow;
+    throw std::runtime_error("makeContextForNativeWindow is not available "
+                             "with the Metal backend; use "
+                             "makeContextForMetalView instead");
+#else
+    if (nativeWindow == nullptr) {
+        throw std::runtime_error("Native window handle cannot be null");
+    }
+    return makeContextWithWindowOptions(std::move(projectFile), nullptr,
+                                        nullptr, true, nativeWindow);
 #endif
 }
 

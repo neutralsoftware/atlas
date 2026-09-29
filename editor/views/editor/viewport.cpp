@@ -1125,7 +1125,7 @@ void ViewportPanel::startRuntime() {
         height() <= 1) {
         return;
     }
-#ifdef METAL
+#if defined(METAL) || defined(VULKAN)
     const std::string runtimeProjectFile = projectFile.toUtf8().toStdString();
     if (runtimeProjectFile.empty()) {
         qWarning() << "Atlas viewport runtime project file is not configured";
@@ -1135,9 +1135,10 @@ void ViewportPanel::startRuntime() {
         return;
     }
 
-    void *metalView = reinterpret_cast<void *>(static_cast<quintptr>(winId()));
-    if (metalView == nullptr) {
-        qWarning() << "Atlas viewport could not resolve a native Metal view";
+    // NSView on macOS (Metal), HWND on Windows / X11 window on Linux (Vulkan).
+    void *nativeView = reinterpret_cast<void *>(static_cast<quintptr>(winId()));
+    if (nativeView == nullptr) {
+        qWarning() << "Atlas viewport could not resolve a native view";
         emit runtimeErrorOccurred("Viewport native surface is unavailable");
         emit runtimeStartupFinished(false,
                                     "Viewport native surface is unavailable");
@@ -1148,8 +1149,13 @@ void ViewportPanel::startRuntime() {
         emit runtimeLoadingStarted();
         emit runtimeLoadingStatusChanged("Loading assets...");
         QCoreApplication::processEvents(QEventLoop::ExcludeUserInputEvents);
+#ifdef METAL
         runtimeContext =
-            runtime::makeContextForMetalView(runtimeProjectFile, metalView);
+            runtime::makeContextForMetalView(runtimeProjectFile, nativeView);
+#else
+        runtimeContext = runtime::makeContextForNativeWindow(
+            runtimeProjectFile, nativeView);
+#endif
         QPointer<ViewportPanel> runtimeOwner(this);
         runtimeContext->errorReporter =
             [runtimeOwner](const std::string &error) {
@@ -1233,10 +1239,12 @@ void ViewportPanel::startRuntime() {
         emit runtimeStartupFinished(false, "Runtime initialization failed");
     }
 #else
-    qWarning() << "Atlas viewport runtime embedding requires the Metal backend";
-    emit runtimeErrorOccurred("Runtime embedding requires the Metal backend");
-    emit runtimeStartupFinished(false,
-                                "Runtime embedding requires the Metal backend");
+    qWarning() << "Atlas viewport runtime embedding requires the Metal or "
+                  "Vulkan backend";
+    emit runtimeErrorOccurred(
+        "Runtime embedding requires the Metal or Vulkan backend");
+    emit runtimeStartupFinished(
+        false, "Runtime embedding requires the Metal or Vulkan backend");
 #endif
 }
 

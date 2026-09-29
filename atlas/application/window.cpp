@@ -44,6 +44,7 @@
 #include <glm/gtc/constants.hpp>
 #include <glm/gtc/matrix_transform.hpp>
 #include <glm/gtc/quaternion.hpp>
+#include "atlas/core/native_window.h"
 #include "atlas/core/process_usage.h"
 #include <utility>
 #include <vector>
@@ -1367,6 +1368,54 @@ struct Window::AtlasHudState {
     }
 };
 
+#ifndef METAL
+// Wraps a host-owned native window (e.g. the editor viewport widget) in an SDL
+// window so the Vulkan surface and swapchain can target it. SDL does not take
+// ownership of foreign windows: destroying the SDL window leaves the native
+// window intact.
+static SDL_Window *createSdlWindowForNativeHandle(void *nativeWindow) {
+    SDL_PropertiesID properties = SDL_CreateProperties();
+    if (properties == 0) {
+        throw std::runtime_error(std::string("Failed to create SDL properties: ") +
+                                 SDL_GetError());
+    }
+#if defined(_WIN32)
+    // The host application (Qt) owns the Win32 message loop; SDL must not
+    // pump it from inside the frame loop.
+    SDL_SetHint(SDL_HINT_WINDOWS_ENABLE_MESSAGELOOP, "0");
+    SDL_SetPointerProperty(properties, SDL_PROP_WINDOW_CREATE_WIN32_HWND_POINTER,
+                           nativeWindow);
+#elif defined(__linux__)
+    SDL_SetNumberProperty(
+        properties, SDL_PROP_WINDOW_CREATE_X11_WINDOW_NUMBER,
+        static_cast<Sint64>(reinterpret_cast<std::uintptr_t>(nativeWindow)));
+#else
+    (void)nativeWindow;
+    SDL_DestroyProperties(properties);
+    throw std::runtime_error(
+        "Embedding into a native window is not supported on this platform");
+#endif
+#ifdef VULKAN
+    SDL_SetBooleanProperty(properties, SDL_PROP_WINDOW_CREATE_VULKAN_BOOLEAN,
+                           true);
+#else
+    SDL_DestroyProperties(properties);
+    throw std::runtime_error(
+        "Embedding into a native window requires the Vulkan backend");
+#endif
+    SDL_SetBooleanProperty(
+        properties, SDL_PROP_WINDOW_CREATE_HIGH_PIXEL_DENSITY_BOOLEAN, true);
+    SDL_Window *window = SDL_CreateWindowWithProperties(properties);
+    SDL_DestroyProperties(properties);
+    if (window == nullptr) {
+        throw std::runtime_error(
+            std::string("Failed to wrap native window for rendering: ") +
+            SDL_GetError());
+    }
+    return window;
+}
+#endif
+
 Window::Window(const WindowConfiguration &config)
     : title(config.title), width(config.width), height(config.height) {
     installOpalDiagnostics();
@@ -1380,7 +1429,10 @@ Window::Window(const WindowConfiguration &config)
     (void)config.metalTargetView;
     this->externalMetalView = nullptr;
     this->renderToExternalMetalView = false;
-    this->showHostWindow = config.showHostWindow;
+    this->externalNativeWindow = config.nativeTargetWindow;
+    this->renderToExternalNativeWindow = config.nativeTargetWindow != nullptr;
+    this->showHostWindow =
+        config.showHostWindow && !this->renderToExternalNativeWindow;
 #endif
 
 #ifdef VULKAN
@@ -1429,6 +1481,12 @@ Window::Window(const WindowConfiguration &config)
 #endif
 
     SDL_Window *window = nullptr;
+#ifndef METAL
+    if (this->renderToExternalNativeWindow) {
+        window = createSdlWindowForNativeHandle(config.nativeTargetWindow);
+        context->adoptWindow(window, true);
+    } else
+#endif
     if (config.sdlInputWindow != nullptr) {
         context->adoptWindow(config.sdlInputWindow, false);
         window = config.sdlInputWindow;
@@ -1627,6 +1685,18 @@ void Window::queryDrawableSizeInPixels(int *width, int *height) const {
         }
     }
 #endif
+    if (this->renderToExternalNativeWindow) {
+        // SDL's cached size for a foreign window can lag behind or be scaled;
+        // use the native client area, which the swapchain extent follows.
+        int nativeWidth = 0;
+        int nativeHeight = 0;
+        if (atlasQueryNativeWindowPixelSize(this->externalNativeWindow,
+                                            &nativeWidth, &nativeHeight) &&
+            nativeWidth > 0 && nativeHeight > 0) {
+            pixelWidth = nativeWidth;
+            pixelHeight = nativeHeight;
+        }
+    }
 
     if (width != nullptr) {
         *width = pixelWidth;
@@ -1675,7 +1745,8 @@ void Window::initializeRunLoop() {
         if (!SDL_RaiseWindow(window)) {
             atlas_warning("Failed to focus window");
         }
-    } else {
+    } else if (!this->renderToExternalNativeWindow) {
+        // Never hide a host-owned native window; the host controls it.
         SDL_HideWindow(window);
     }
 
@@ -1700,7 +1771,7 @@ void Window::initializeRunLoop() {
 }
 
 void Window::pollEvents() {
-    if (this->renderToExternalMetalView) {
+    if (this->isEmbeddedInHostView()) {
         SDL_PumpEvents();
         return;
     }
@@ -5451,7 +5522,7 @@ void Window::useDeferredRendering() {
 }
 
 void Window::renderPhysicalBloom(RenderTarget *target) {
-    if (this->renderToExternalMetalView) {
+    if (this->isEmbeddedInHostView()) {
         if (target != nullptr) {
             target->blurredTexture = Texture();
         }

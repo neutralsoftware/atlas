@@ -216,6 +216,12 @@ std::shared_ptr<Context> makeHiddenContext(std::string projectFile);
 std::shared_ptr<Context>
 makeContextForMetalView(std::string projectFile, void *metalView,
                         CoreWindowReference sdlInputWindow = nullptr);
+/**
+ * @brief Creates a runtime context that renders into a host-owned native
+ * window (an HWND on Windows, an X11 window id on Linux). Vulkan backend only.
+ */
+std::shared_ptr<Context> makeContextForNativeWindow(std::string projectFile,
+                                                    void *nativeWindow);
 std::shared_ptr<Context>
 makeMaterialPreviewContextForMetalView(std::string projectFile,
                                        void *metalView);
