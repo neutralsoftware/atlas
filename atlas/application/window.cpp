@@ -44,6 +44,7 @@
 #include <glm/gtc/constants.hpp>
 #include <glm/gtc/matrix_transform.hpp>
 #include <glm/gtc/quaternion.hpp>
+#include "atlas/core/native_window.h"
 #ifdef _WIN32
 #include <windows.h>
 #include <psapi.h>
@@ -1421,7 +1422,6 @@ Window::Window(const WindowConfiguration &config)
     (void)config.metalTargetView;
     this->externalMetalView = nullptr;
     this->renderToExternalMetalView = false;
-    this->showHostWindow = config.showHostWindow;
 #endif
     this->externalNativeWindow = config.nativeTargetWindow;
     this->externalNativeWindowType = config.nativeTargetWindowType;
@@ -1677,6 +1677,16 @@ void Window::queryDrawableSizeInPixels(int *width, int *height) const {
         }
     }
 #endif
+    if (this->externalNativeWindow != nullptr) {
+        int nativeWidth = 0;
+        int nativeHeight = 0;
+        if (atlasQueryNativeWindowPixelSize(this->externalNativeWindow,
+                                            &nativeWidth, &nativeHeight) &&
+            nativeWidth > 0 && nativeHeight > 0) {
+            pixelWidth = nativeWidth;
+            pixelHeight = nativeHeight;
+        }
+    }
 
     if (width != nullptr) {
         *width = pixelWidth;
@@ -1725,7 +1735,7 @@ void Window::initializeRunLoop() {
         if (!SDL_RaiseWindow(window)) {
             atlas_warning("Failed to focus window");
         }
-    } else {
+    } else if (this->externalNativeWindow == nullptr) {
         SDL_HideWindow(window);
     }
 
@@ -5496,7 +5506,7 @@ void Window::useDeferredRendering() {
 }
 
 void Window::renderPhysicalBloom(RenderTarget *target) {
-    if (this->renderToExternalMetalView) {
+    if (this->renderToExternalView) {
         if (target != nullptr) {
             target->blurredTexture = Texture();
         }

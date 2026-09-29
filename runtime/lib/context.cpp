@@ -4984,7 +4984,8 @@ makeContextWithWindowOptions(std::string projectFile, void *metalView,
     }
 
     toml::table configTable = toml::parse_file(projectFile);
-    context->editorRuntime = metalView != nullptr || nativeWindow != nullptr;
+    const bool embedded = metalView != nullptr || nativeWindow != nullptr;
+    context->editorRuntime = embedded;
 
     int resWidth = 1280;
     int resHeight = 720;
@@ -5016,7 +5017,6 @@ makeContextWithWindowOptions(std::string projectFile, void *metalView,
         editorControls = (*editorTable)["controls"].value_or(false);
     }
     Logger::getInstance().setConsoleFilter(false, true, true);
-    const bool embedded = metalView != nullptr || nativeWindow != nullptr;
 
     context->window = std::make_unique<Window>(WindowConfiguration{
         .title = "Atlas Runtime",
