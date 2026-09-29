@@ -9,7 +9,8 @@
 	url = https://github.com/ocornut/imgui.git
 [submodule "opal"]
 	path = opal
-	url = https://github.com/neutralsoftware/opal.git
+	url = https://github.com/theyoler/opal.git
+	branch = windows-vulkan
 [submodule "extern/fTetWild"]
 	path = extern/fTetWild
 	url = https://github.com/wildmeshing/fTetWild.git
