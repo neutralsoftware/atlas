@@ -571,7 +571,7 @@ struct DilationParameters {
     /**
      * @brief Radius, in pixels, used when sampling neighbourhood texels.
      */
-    int size = 5.0;
+    int size = 5;
     /**
      * @brief Distance multiplier applied when stepping through neighbour
      * samples.

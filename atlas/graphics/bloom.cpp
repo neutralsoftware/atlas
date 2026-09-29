@@ -113,11 +113,11 @@ void BloomRenderTarget::init(int width, int height, int chainLength) {
         opal::VertexAttribute positionAttr{
             .name = "bloomPosition",
             .type = opal::VertexAttributeType::Float,
-            .offset = static_cast<uint>(offsetof(CoreVertex, position)),
+            .offset = static_cast<unsigned int>(offsetof(CoreVertex, position)),
             .location = 0,
             .normalized = false,
             .size = 3,
-            .stride = static_cast<uint>(sizeof(CoreVertex)),
+            .stride = static_cast<unsigned int>(sizeof(CoreVertex)),
             .inputRate = opal::VertexBindingInputRate::Vertex,
             .divisor = 0
         };
@@ -125,11 +125,11 @@ void BloomRenderTarget::init(int width, int height, int chainLength) {
             .name = "bloomUV",
             .type = opal::VertexAttributeType::Float,
             .offset =
-            static_cast<uint>(offsetof(CoreVertex, textureCoordinate)),
+            static_cast<unsigned int>(offsetof(CoreVertex, textureCoordinate)),
             .location = 2,
             .normalized = false,
             .size = 2,
-            .stride = static_cast<uint>(sizeof(CoreVertex)),
+            .stride = static_cast<unsigned int>(sizeof(CoreVertex)),
             .inputRate = opal::VertexBindingInputRate::Vertex,
             .divisor = 0
         };

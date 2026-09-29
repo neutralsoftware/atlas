@@ -118,7 +118,7 @@ void NetworkPipe::connectLoop() {
 
         sockaddr_in addr{};
         addr.sin_family = AF_INET;
-        addr.sin_port = htons(port);
+        addr.sin_port = htons(static_cast<unsigned short>(port));
 
         if (inet_pton(AF_INET, serverAddress.c_str(), &addr.sin_addr) <= 0) {
             std::cerr << "Invalid address" << std::endl;
@@ -171,7 +171,7 @@ void NetworkPipe::receiveLoop() {
         std::memset(buffer, 0, sizeof(buffer));
         const int received = recv(sock, buffer, static_cast<int>(sizeof(buffer)), 0);
         if (received > 0) {
-            std::string msg(buffer, received);
+            std::string msg(buffer, static_cast<std::size_t>(received));
 
             {
                 std::scoped_lock lock(messagesMutex);

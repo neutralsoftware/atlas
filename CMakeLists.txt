@@ -336,6 +336,9 @@ if (NOT BEZEL_NATIVE)
     set(JPH_PROFILE_ENABLED ON CACHE BOOL "" FORCE)
     set(JPH_OBJECT_STREAM ON CACHE BOOL "" FORCE)
     set(JPH_ENABLE_IPO OFF CACHE BOOL "" FORCE)
+    # Jolt defaults to the static MSVC runtime (/MT); everything else, Qt
+    # included, uses the DLL runtime (/MD), and the two cannot be linked together.
+    set(USE_STATIC_MSVC_RUNTIME_LIBRARY OFF CACHE BOOL "" FORCE)
     
     set(INTERPROCEDURAL_OPTIMIZATION OFF CACHE BOOL "Disable Jolt LTO" FORCE)
 
@@ -539,6 +542,29 @@ if (BACKEND_VULKAN)
                 GIT_SHALLOW TRUE
         )
         FetchContent_MakeAvailable(SPIRV_Cross)
+
+        # Opal calls find_package(spirv_cross_*) REQUIRED. Point it at stub package
+        # configs so it reuses the targets built from source above.
+        set(ATLAS_SPIRV_CROSS_STUB_DIR "${CMAKE_BINARY_DIR}/generated/spirv-cross-packages")
+        foreach (spirv_cross_package spirv_cross_core spirv_cross_glsl spirv_cross_reflect)
+            file(WRITE "${ATLAS_SPIRV_CROSS_STUB_DIR}/${spirv_cross_package}Config.cmake"
+                    "# Targets are provided by Atlas' FetchContent build of SPIRV-Cross.\n")
+            set(${spirv_cross_package}_DIR "${ATLAS_SPIRV_CROSS_STUB_DIR}")
+        endforeach ()
+
+        # Opal includes <spirv_cross/...>. The fetched sources keep their headers
+        # at the repository root, so without forwarding headers that path would
+        # resolve to the Vulkan SDK's copy, whose version (and class layout) does
+        # not match the library built here.
+        set(ATLAS_SPIRV_CROSS_INCLUDE_DIR "${CMAKE_BINARY_DIR}/generated/spirv-cross-include")
+        file(GLOB ATLAS_SPIRV_CROSS_HEADERS
+                "${spirv_cross_SOURCE_DIR}/*.h" "${spirv_cross_SOURCE_DIR}/*.hpp")
+        foreach (spirv_cross_header ${ATLAS_SPIRV_CROSS_HEADERS})
+            get_filename_component(spirv_cross_header_name "${spirv_cross_header}" NAME)
+            file(WRITE "${ATLAS_SPIRV_CROSS_INCLUDE_DIR}/spirv_cross/${spirv_cross_header_name}"
+                    "#include \"${spirv_cross_header}\"
+")
+        endforeach ()
     endif ()
 elseif (BACKEND_METAL)
     message(STATUS "Using Metal backend")
@@ -572,18 +598,26 @@ file(GLOB_RECURSE PHOTON_SOURCES CONFIGURE_DEPENDS photon/*.cpp)
 file(GLOB_RECURSE GRAPHITE_SOURCES CONFIGURE_DEPENDS graphite/*.cpp)
 file(GLOB_RECURSE RUNTIME_LIB_SOURCES CONFIGURE_DEPENDS runtime/lib/*.cpp)
 file(GLOB_RECURSE RUNTIME_SOURCES CONFIGURE_DEPENDS runtime/executable/*.cpp)
-file(GLOB_RECURSE QUICKJS_SOURCES CONFIGURE_DEPENDS extern/quickjs/*.c)
+# Only the QuickJS engine itself; the submodule also contains tools, tests and
+# examples (some with their own main()) that must not be part of the library.
+set(QUICKJS_SOURCES
+        extern/quickjs/dtoa.c
+        extern/quickjs/libregexp.c
+        extern/quickjs/libunicode.c
+        extern/quickjs/quickjs.c
+)
 
 # ─── quickjs ─────────────────────────────────────────────────────────────────
 add_library(quickjs STATIC ${QUICKJS_SOURCES})
 target_include_directories(quickjs PUBLIC ${CMAKE_SOURCE_DIR}/extern/quickjs)
 
 if (MSVC)
-    target_compile_options(quickjs PRIVATE /W0)
+    target_compile_options(quickjs PRIVATE /W0 /experimental:c11atomics)
     target_compile_definitions(quickjs PRIVATE
             _CRT_SECURE_NO_WARNINGS
             WIN32_LEAN_AND_MEAN
             NOMINMAX
+            _WIN32_WINNT=0x0601
     )
 elseif (UNIX)
     target_compile_definitions(quickjs PRIVATE _GNU_SOURCE)
@@ -651,6 +685,9 @@ endif ()
 set(OPAL_BACKEND "${BACKEND}" CACHE STRING "Opal rendering backend" FORCE)
 set(SLANG_ENABLE_SPLIT_DEBUG_INFO OFF CACHE BOOL "" FORCE)
 add_subdirectory(opal)
+if (ATLAS_SPIRV_CROSS_INCLUDE_DIR)
+    target_include_directories(opal BEFORE PRIVATE "${ATLAS_SPIRV_CROSS_INCLUDE_DIR}")
+endif ()
 
 # --- bezel --------------------
 add_library(bezel STATIC ${BEZEL_SOURCES})
@@ -668,6 +705,10 @@ target_link_libraries(bezel PRIVATE FloatTetwild)
 if (BEZEL_NATIVE)
     target_compile_definitions(bezel PRIVATE NATIVE)
 else ()
+    # Link Jolt so bezel is compiled with Jolt's public definitions (CPU feature
+    # flags such as JPH_USE_AVX2 on x64); otherwise JPH::RegisterTypes aborts on
+    # the configuration mismatch.
+    target_link_libraries(bezel PRIVATE Jolt::Jolt)
     target_compile_definitions(bezel PRIVATE
             JPH_PROFILE_ENABLED=1
             JPH_DEBUG_RENDERER=1

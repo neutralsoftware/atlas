@@ -42,8 +42,8 @@ Font Font::fromResource(const std::string &fontName, const Resource &resource,
     }
 
     FT_Face face;
-    if (FT_New_Face(ft, resource.path.c_str(), 0, &face)) {
-        atlas_error("Failed to load font: " + std::string(resource.path));
+    if (FT_New_Face(ft, resource.path.string().c_str(), 0, &face)) {
+        atlas_error("Failed to load font: " + resource.path.string());
         return Font();
     }
 

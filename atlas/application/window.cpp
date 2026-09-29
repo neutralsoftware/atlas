@@ -5447,10 +5447,10 @@ void Window::renderPingpong(RenderTarget *target) {
         activeCommandBuffer->bindPipeline(blurPipeline);
         if (!target->object->indices.empty()) {
             activeCommandBuffer->drawIndexed(
-                static_cast<uint>(target->object->indices.size()));
+                static_cast<unsigned int>(target->object->indices.size()));
         } else {
             activeCommandBuffer->draw(
-                static_cast<uint>(target->object->vertices.size()));
+                static_cast<unsigned int>(target->object->vertices.size()));
         }
 
         horizontal = !horizontal;

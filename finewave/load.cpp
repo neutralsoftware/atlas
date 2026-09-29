@@ -83,7 +83,12 @@ std::shared_ptr<AudioData> AudioData::fromResource(Resource resource) {
     if (resource.path.extension() == ".mp3") {
         Mp3Data data{};
         drmp3 mp3;
+#ifdef _WIN32
+        // std::filesystem::path is wide on Windows.
+        if (!drmp3_init_file_w(&mp3, resource.path.c_str(), nullptr)) {
+#else
         if (!drmp3_init_file(&mp3, resource.path.c_str(), nullptr)) {
+#endif
             atlas_error("Failed to open MP3 file: " + resource.path.string());
             throw std::runtime_error("Failed to open MP3 file");
         }
