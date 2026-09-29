@@ -1104,8 +1104,7 @@ struct Window::AtlasHudState {
     }
 
     static void appendLine(std::vector<CoreVertex> &vertices, float x0,
-                           float y0, float x1, float y1,
-                           const Color &color) {
+                           float y0, float x1, float y1, const Color &color) {
         vertices.push_back(vertex(x0, y0, color));
         vertices.push_back(vertex(x1, y1, color));
     }
@@ -1157,17 +1156,15 @@ struct Window::AtlasHudState {
 
         const std::array<std::filesystem::path, 5> fontPaths = {
             "/System/Library/Fonts/SFNSMono.ttf",
-            "/System/Library/Fonts/SFNS.ttf",
-            "C:/Windows/Fonts/consola.ttf",
+            "/System/Library/Fonts/SFNS.ttf", "C:/Windows/Fonts/consola.ttf",
             "/usr/share/fonts/truetype/dejavu/DejaVuSansMono.ttf",
             "/usr/share/fonts/truetype/liberation2/LiberationMono-Regular.ttf"};
         for (const auto &path : fontPaths) {
             if (!std::filesystem::exists(path)) {
                 continue;
             }
-            Resource resource{.path = path,
-                              .name = "Atlas HUD",
-                              .type = ResourceType::Font};
+            Resource resource{
+                .path = path, .name = "Atlas HUD", .type = ResourceType::Font};
             font = Font::fromResource("Atlas HUD", resource, 12);
             fontReady = font.texture != nullptr;
             break;
@@ -1175,15 +1172,14 @@ struct Window::AtlasHudState {
 
         if (fontReady) {
             const std::array<Position2d, 10> positions = {
-                Position2d{30.0f, 29.0f},  Position2d{30.0f, 61.0f},
-                Position2d{326.0f, 61.0f}, Position2d{30.0f, 91.0f},
-                Position2d{326.0f, 91.0f}, Position2d{30.0f, 121.0f},
+                Position2d{30.0f, 29.0f},   Position2d{30.0f, 61.0f},
+                Position2d{326.0f, 61.0f},  Position2d{30.0f, 91.0f},
+                Position2d{326.0f, 91.0f},  Position2d{30.0f, 121.0f},
                 Position2d{326.0f, 121.0f}, Position2d{30.0f, 151.0f},
-                Position2d{30.0f, 169.0f}, Position2d{30.0f, 346.0f}};
+                Position2d{30.0f, 169.0f},  Position2d{30.0f, 346.0f}};
             for (size_t index = 0; index < labels.size(); ++index) {
-                labels[index] =
-                    Text("", font, Color{0.82f, 0.87f, 0.94f, 1.0f},
-                         positions[index]);
+                labels[index] = Text("", font, Color{0.82f, 0.87f, 0.94f, 1.0f},
+                                     positions[index]);
                 labels[index].fontSize = index == 0 ? 12.0f : 9.0f;
                 labels[index].initialize();
             }
@@ -1219,7 +1215,8 @@ struct Window::AtlasHudState {
         }
         lastCpuSeconds = cpuSeconds;
 #ifdef __APPLE__
-        peakMemoryMb = static_cast<float>(usage.ru_maxrss) / (1024.0f * 1024.0f);
+        peakMemoryMb =
+            static_cast<float>(usage.ru_maxrss) / (1024.0f * 1024.0f);
 #else
         peakMemoryMb = static_cast<float>(usage.ru_maxrss) / 1024.0f;
 #endif
@@ -1249,10 +1246,9 @@ struct Window::AtlasHudState {
         }
         std::sort(fpsSamples.begin(), fpsSamples.end());
         const float onePercentLow =
-            fpsSamples.empty()
-                ? 0.0f
-                : fpsSamples[std::min(fpsSamples.size() - 1,
-                                      fpsSamples.size() / 100)];
+            fpsSamples.empty() ? 0.0f
+                               : fpsSamples[std::min(fpsSamples.size() - 1,
+                                                     fpsSamples.size() / 100)];
         const float averageFps =
             averageFrameMs > 0.0f ? 1000.0f / averageFrameMs : 0.0f;
 
@@ -1336,10 +1332,10 @@ struct Window::AtlasHudState {
             return y + height -
                    std::clamp(value / maximum, 0.0f, 1.0f) * height;
         };
-        appendLine(vertices, x, graphY(16.667f), x + width,
-                   graphY(16.667f), Color{1.0f, 1.0f, 1.0f, 0.12f});
-        appendLine(vertices, x, graphY(33.333f), x + width,
-                   graphY(33.333f), Color{1.0f, 1.0f, 1.0f, 0.08f});
+        appendLine(vertices, x, graphY(16.667f), x + width, graphY(16.667f),
+                   Color{1.0f, 1.0f, 1.0f, 0.12f});
+        appendLine(vertices, x, graphY(33.333f), x + width, graphY(33.333f),
+                   Color{1.0f, 1.0f, 1.0f, 0.08f});
         appendLine(vertices, x, y, x, y + height,
                    Color{1.0f, 1.0f, 1.0f, 0.14f});
         appendLine(vertices, x, y + height, x + width, y + height,
@@ -1348,12 +1344,10 @@ struct Window::AtlasHudState {
         const auto appendHistory = [&](const auto &history,
                                        const Color &color) {
             for (size_t index = 1; index < historySize; ++index) {
-                const float x0 =
-                    x + width * static_cast<float>(index - 1) /
-                            static_cast<float>(historySize - 1);
-                const float x1 =
-                    x + width * static_cast<float>(index) /
-                            static_cast<float>(historySize - 1);
+                const float x0 = x + width * static_cast<float>(index - 1) /
+                                         static_cast<float>(historySize - 1);
+                const float x1 = x + width * static_cast<float>(index) /
+                                         static_cast<float>(historySize - 1);
                 const float value0 = index - 1 < historyCount
                                          ? historyValue(history, index - 1)
                                          : 0.0f;
@@ -1502,7 +1496,6 @@ Window::Window(const WindowConfiguration &config)
     program.fragmentShader = fragmentShader;
     program.compile();
     this->depthProgram = program;
-
 
 #ifdef METAL
     this->shadowUpdateInterval = 1.0f / 6.0f;
@@ -2091,7 +2084,6 @@ bool Window::stepFrame() {
             if (pathTracer == nullptr) {
                 continue;
             }
-#ifdef METAL
             pathTracer->resizeOutput(target->getWidth(), target->getHeight());
             if (!pathTracer->render(commandBuffer, target->texture.texture,
                                     target->brightTexture.texture)) {
@@ -2100,7 +2092,6 @@ bool Window::stepFrame() {
                 commandBuffer->clearDepth(1.0f);
                 commandBuffer->endPass();
             }
-#endif
 
             continue;
         }
@@ -2342,10 +2333,9 @@ bool Window::stepFrame() {
 
     const int frameDrawCallCount = commandBuffer->getAndResetDrawCallCount();
     if (this->atlasHud != nullptr) {
-        this->renderAtlasHud(commandBuffer,
-                             static_cast<float>(cpuTime) / 1000.0f,
-                             static_cast<float>(gpuTimer.stop()) / 1000.0f,
-                             frameDrawCallCount);
+        this->renderAtlasHud(
+            commandBuffer, static_cast<float>(cpuTime) / 1000.0f,
+            static_cast<float>(gpuTimer.stop()) / 1000.0f, frameDrawCallCount);
     }
 
     this->lastViewMatrix = screenView;
@@ -3250,12 +3240,11 @@ void Window::updateEditorDrag(float x, float y, float scale) {
                     editorTransformSnapIncrement;
         const glm::quat start =
             glm::normalize(editorDragStartRotation.toGlmQuat());
-        const glm::vec3 rotationAxis =
-            editorAxisVector(editorActiveGizmoAxis);
+        const glm::vec3 rotationAxis = editorAxisVector(editorActiveGizmoAxis);
         const glm::quat delta =
             glm::angleAxis(glm::radians(angle), rotationAxis);
-        const glm::quat next = editorLocalTransformSpace ? start * delta
-                                                        : delta * start;
+        const glm::quat next =
+            editorLocalTransformSpace ? start * delta : delta * start;
         selectedEditorObject->setRotation(
             Rotation3d::fromGlmQuat(glm::normalize(next)));
     } else if (editorControlMode == EditorControlMode::Scale) {
@@ -3446,8 +3435,8 @@ void Window::updateEditorKeyboardTransform(float x, float y, float scale) {
             delta = editorLocalTransformSpace ? delta * axisDelta
                                               : axisDelta * delta;
         }
-        const glm::quat next = editorLocalTransformSpace ? start * delta
-                                                        : delta * start;
+        const glm::quat next =
+            editorLocalTransformSpace ? start * delta : delta * start;
         selectedEditorObject->setRotation(
             Rotation3d::fromGlmQuat(glm::normalize(next)));
     }
@@ -4177,8 +4166,8 @@ void Window::renderAtlasHud(
     updatePipelineStateField(srcBlend, previousSrcBlend);
     updatePipelineStateField(dstBlend, previousDstBlend);
     updatePipelineStateField(lineWidth, previousLineWidth);
-    setViewportState(previousViewportX, previousViewportY, previousViewportWidth,
-                     previousViewportHeight);
+    setViewportState(previousViewportX, previousViewportY,
+                     previousViewportWidth, previousViewportHeight);
 }
 
 void Window::endRunLoop() {
@@ -6210,7 +6199,6 @@ std::pair<float, float> Window::getControllerAxisPairValue(int controllerID,
                                                axisIndexY);
 }
 
-#ifdef METAL
 void Window::enablePathTracing() {
     this->usesDeferred = false;
     this->usePathTracing = true;
@@ -6256,4 +6244,3 @@ const std::string &Window::getPathTracingError() const {
     static const std::string noError;
     return pathTracer != nullptr ? pathTracer->getLastError() : noError;
 }
-#endif

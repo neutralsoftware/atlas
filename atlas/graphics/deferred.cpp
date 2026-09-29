@@ -199,14 +199,12 @@ buildGPUAreaLights(const std::vector<AreaLight *> &lights, int maxCount) {
 }
 } // anonymous namespace
 
-#ifdef METAL
 void Window::enableGlobalIllumination() {
     usesGlobalIllumination = true;
     ddgiSystem = std::make_shared<photon::GlobalIllumination>();
     ddgiSystem->sampleNormalMaps = false;
     ddgiSystem->init();
 }
-#endif
 
 void Window::deferredRendering(
     RenderTarget *target, std::shared_ptr<opal::CommandBuffer> commandBuffer) {
@@ -429,7 +427,6 @@ void Window::deferredRendering(
         commandBuffer->generateMipmaps(this->gBuffer->depthTexture.texture);
     }
 
-#ifdef METAL
     if (usesGlobalIllumination) {
         if (this->ddgiSystem == nullptr) {
             this->ddgiSystem = std::make_shared<photon::GlobalIllumination>();
@@ -457,7 +454,6 @@ void Window::deferredRendering(
             ddgiRenderCountdown--;
         }
     }
-#endif
 
     this->renderSSAO(commandBuffer);
 
@@ -577,7 +573,6 @@ void Window::deferredRendering(
             fallbackShadowCubemapTexture->textureID, 10 + i);
     }
 
-#ifdef METAL
     if (usesGlobalIllumination && ddgiSystem != nullptr &&
         ddgiSystem->probeSpace != nullptr &&
         ddgiSystem->irradianceMap != nullptr &&
@@ -624,7 +619,6 @@ void Window::deferredRendering(
         lightPipeline->bindTexture2D("ddgiDistanceMap",
                                      fallbackIrradianceTexture->textureID, 17);
     }
-#endif
 
     int boundCubemaps = 0;
 
@@ -1021,8 +1015,7 @@ void Window::deferredRendering(
         volumetricPipeline->setUniform1f("exposure",
                                          volumetricSettings.exposure);
         volumetricPipeline->setUniform3f("directionalLight.color",
-                                         dirLight.diffuse.r,
-                                         dirLight.diffuse.g,
+                                         dirLight.diffuse.r, dirLight.diffuse.g,
                                          dirLight.diffuse.b);
         volumetricPipeline->setUniform1f("directionalLight.intensity",
                                          dirLight.intensity);
@@ -1126,13 +1119,12 @@ void Window::deferredRendering(
         ssrPipeline->setUniform1f("maxRoughness", roughnessLimits[quality]);
         float viewDelta = 0.0f;
         for (int column = 0; column < 4; ++column) {
-            viewDelta += glm::length(viewMatrix[column] -
-                                     this->lastViewMatrix[column]);
+            viewDelta +=
+                glm::length(viewMatrix[column] - this->lastViewMatrix[column]);
         }
         ssrPipeline->setUniform1f("historyWeight",
                                   viewDelta < 0.001f ? 0.85f : 0.0f);
-        ssrPipeline->setUniform1i("debugMode",
-                                  this->ssrDebugMode ? 1 : 0);
+        ssrPipeline->setUniform1i("debugMode", this->ssrDebugMode ? 1 : 0);
         ssrPipeline->setUniform1i("reflectionsEnabled", useSSR ? 1 : 0);
         ssrPipeline->setUniform1i("transmissionEnabled",
                                   useRealtimeTransmission ? 1 : 0);
