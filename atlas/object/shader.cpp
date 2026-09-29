@@ -879,11 +879,11 @@ std::shared_ptr<opal::Pipeline> ShaderProgram::requestPipeline(
         vertexAttributes.push_back(opal::VertexAttribute{
             .name = attr.name,
             .type = attr.type,
-            .offset = static_cast<uint>(attr.offset),
-            .location = static_cast<uint>(attr.layoutPos),
+            .offset = static_cast<unsigned int>(attr.offset),
+            .location = static_cast<unsigned int>(attr.layoutPos),
             .normalized = attr.normalized,
-            .size = static_cast<uint>(attr.size),
-            .stride = static_cast<uint>(attr.stride),
+            .size = static_cast<unsigned int>(attr.size),
+            .stride = static_cast<unsigned int>(attr.stride),
             .inputRate = opal::VertexBindingInputRate::Vertex,
             .divisor = 0});
     }
@@ -893,16 +893,16 @@ std::shared_ptr<opal::Pipeline> ShaderProgram::requestPipeline(
         vertexAttributes.push_back(opal::VertexAttribute{
             .name = "instanceModel" + std::to_string(i),
             .type = opal::VertexAttributeType::Float,
-            .offset = static_cast<uint>(i * vec4Size),
-            .location = static_cast<uint>(6 + i),
+            .offset = static_cast<unsigned int>(i * vec4Size),
+            .location = static_cast<unsigned int>(6 + i),
             .normalized = false,
             .size = 4,
-            .stride = static_cast<uint>(sizeof(glm::mat4)),
+            .stride = static_cast<unsigned int>(sizeof(glm::mat4)),
             .inputRate = opal::VertexBindingInputRate::Instance,
             .divisor = 1});
     }
 
-    vertexBinding = opal::VertexBinding{(uint)layoutDescriptors[0].stride,
+    vertexBinding = opal::VertexBinding{(unsigned int)layoutDescriptors[0].stride,
                                         opal::VertexBindingInputRate::Vertex};
 
     unbuiltPipeline->setVertexAttributes(vertexAttributes, vertexBinding);

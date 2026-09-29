@@ -79,7 +79,8 @@ def main():
     ])
 
     bin_directory = build_directory / "bin"
-    for name in ["AtlasEditor.exe", "atlas.exe", "atlasrun.exe", "runtime.dll"]:
+    for name in ["AtlasEditor.exe", "atlas.exe", "atlasrun.exe", "runtime.dll",
+                 "qtadvanceddocking-qt6.dll"]:
         copy_required(bin_directory / name, package_directory / name)
 
     deploy = [locate_windeployqt(), package_directory / "AtlasEditor.exe"]

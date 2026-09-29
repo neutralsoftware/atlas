@@ -777,25 +777,25 @@ void photon::GlobalIllumination::render(
         return;
     }
 
-    const uint totalProbes =
-        static_cast<uint>(std::max(1, this->probeSpace->totalProbes()));
-    const uint requestedRays =
-        static_cast<uint>(std::max(1, this->raysPerProbe));
-    const uint effectiveRays = std::max(1u, requestedRays);
-    uint updateStride = static_cast<uint>(std::max(1, this->probeUpdateStride));
-    uint updateOffset =
+    const unsigned int totalProbes =
+        static_cast<unsigned int>(std::max(1, this->probeSpace->totalProbes()));
+    const unsigned int requestedRays =
+        static_cast<unsigned int>(std::max(1, this->raysPerProbe));
+    const unsigned int effectiveRays = std::max(1u, requestedRays);
+    unsigned int updateStride = static_cast<unsigned int>(std::max(1, this->probeUpdateStride));
+    unsigned int updateOffset =
         (updateStride > 1u)
-            ? static_cast<uint>(std::max(0, frameIndex)) % updateStride
+            ? static_cast<unsigned int>(std::max(0, frameIndex)) % updateStride
             : 0u;
     if (totalProbes > 0u) {
         updateOffset %= totalProbes;
     }
-    uint activeProbeCount =
+    unsigned int activeProbeCount =
         (totalProbes > updateOffset)
             ? ((totalProbes - updateOffset + updateStride - 1u) / updateStride)
             : 0u;
     activeProbeCount = std::max(1u, activeProbeCount);
-    const uint totalRays = activeProbeCount * effectiveRays;
+    const unsigned int totalRays = activeProbeCount * effectiveRays;
 
     if (irradianceMap->id == 0) {
         irradianceMap->id = irradianceMap->texture->textureID;
@@ -1128,8 +1128,8 @@ void photon::GlobalIllumination::render(
     const int dispatchWidth =
         std::max(1, static_cast<int>(activeProbeCount) * tileResolution);
     const int dispatchHeight = tileResolution;
-    commandBuffer->dispatch(static_cast<uint>(dispatchWidth),
-                            static_cast<uint>(dispatchHeight), 1);
+    commandBuffer->dispatch(static_cast<unsigned int>(dispatchWidth),
+                            static_cast<unsigned int>(dispatchHeight), 1);
     commandBuffer->computeBarrier();
 
     frameIndex = std::min(frameIndex + 1, 1 << 30);

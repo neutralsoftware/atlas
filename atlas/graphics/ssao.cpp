@@ -118,22 +118,22 @@ void Window::renderSSAO(std::shared_ptr<opal::CommandBuffer> commandBuffer) {
         opal::VertexAttribute positionAttr{
             .name = "ssaoPosition",
             .type = opal::VertexAttributeType::Float,
-            .offset = static_cast<uint>(offsetof(CoreVertex, position)),
+            .offset = static_cast<unsigned int>(offsetof(CoreVertex, position)),
             .location = 0,
             .normalized = false,
             .size = 3,
-            .stride = static_cast<uint>(sizeof(CoreVertex)),
+            .stride = static_cast<unsigned int>(sizeof(CoreVertex)),
             .inputRate = opal::VertexBindingInputRate::Vertex,
             .divisor = 0};
         opal::VertexAttribute uvAttr{
             .name = "ssaoUV",
             .type = opal::VertexAttributeType::Float,
             .offset =
-                static_cast<uint>(offsetof(CoreVertex, textureCoordinate)),
+                static_cast<unsigned int>(offsetof(CoreVertex, textureCoordinate)),
             .location = 2,
             .normalized = false,
             .size = 2,
-            .stride = static_cast<uint>(sizeof(CoreVertex)),
+            .stride = static_cast<unsigned int>(sizeof(CoreVertex)),
             .inputRate = opal::VertexBindingInputRate::Vertex,
             .divisor = 0};
 

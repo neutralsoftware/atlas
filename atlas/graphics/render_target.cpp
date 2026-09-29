@@ -407,8 +407,8 @@ RenderTarget::RenderTarget(Window &window, RenderTargetType type,
         gMedium.creationData.height = scaledHeight;
         gMedium.type = TextureType::Color;
 
-        const uint depthMipLevels =
-            static_cast<uint>(std::floor(std::log2(std::max(width, height)))) +
+        const unsigned int depthMipLevels =
+            static_cast<unsigned int>(std::floor(std::log2(std::max(width, height)))) +
             1;
         auto gbufferDepth = opal::Texture::create(
             opal::TextureType::Texture2D, opal::TextureFormat::DepthComponent24,
@@ -826,7 +826,7 @@ void RenderTarget::render(float dt,
 #endif
         const bool hasDepth =
             pathTracingDepth || (!usingPathTracing && depthTexture.id != 0);
-        uint depthTextureId = depthTexture.id;
+        unsigned int depthTextureId = depthTexture.id;
 #ifdef METAL
         if (pathTracingDepth) {
             depthTextureId =

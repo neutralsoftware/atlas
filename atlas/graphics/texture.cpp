@@ -246,7 +246,7 @@ Texture Texture::fromResource(const Resource& resource, TextureType type,
             dataFormat = opal::TextureDataFormat::Rgba;
         }
 
-        const uint mipLevels = 1u + static_cast<uint>(std::floor(std::log2(
+        const unsigned int mipLevels = 1u + static_cast<unsigned int>(std::floor(std::log2(
                                            std::max(width, height))));
         opalTexture =
             opal::Texture::create(opal::TextureType::Texture2D, internalFormat,
@@ -288,7 +288,7 @@ Texture Texture::fromResource(const Resource& resource, TextureType type,
             dataFormat = opal::TextureDataFormat::Red;
         }
 
-        const uint mipLevels = 1u + static_cast<uint>(std::floor(std::log2(
+        const unsigned int mipLevels = 1u + static_cast<unsigned int>(std::floor(std::log2(
                                            std::max(width, height))));
         opalTexture =
             opal::Texture::create(opal::TextureType::Texture2D, internalFormat,

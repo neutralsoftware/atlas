@@ -68,17 +68,17 @@ void ParticleEmitter::initialize() {
         .location = 0,
         .normalized = false,
         .size = 3,
-        .stride = static_cast<uint>(sizeof(QuadVertex)),
+        .stride = static_cast<unsigned int>(sizeof(QuadVertex)),
         .inputRate = opal::VertexBindingInputRate::Vertex,
         .divisor = 0};
     opal::VertexAttribute uvAttr{
         .name = "particleUV",
         .type = opal::VertexAttributeType::Float,
-        .offset = static_cast<uint>(3 * sizeof(float)),
+        .offset = static_cast<unsigned int>(3 * sizeof(float)),
         .location = 1,
         .normalized = false,
         .size = 2,
-        .stride = static_cast<uint>(sizeof(QuadVertex)),
+        .stride = static_cast<unsigned int>(sizeof(QuadVertex)),
         .inputRate = opal::VertexBindingInputRate::Vertex,
         .divisor = 0};
     opal::VertexAttribute instancePos{
@@ -88,27 +88,27 @@ void ParticleEmitter::initialize() {
         .location = 2,
         .normalized = false,
         .size = 3,
-        .stride = static_cast<uint>(sizeof(ParticleInstanceData)),
+        .stride = static_cast<unsigned int>(sizeof(ParticleInstanceData)),
         .inputRate = opal::VertexBindingInputRate::Instance,
         .divisor = 1};
     opal::VertexAttribute instanceColor{
         .name = "instanceColor",
         .type = opal::VertexAttributeType::Float,
-        .offset = static_cast<uint>(3 * sizeof(float)),
+        .offset = static_cast<unsigned int>(3 * sizeof(float)),
         .location = 3,
         .normalized = false,
         .size = 4,
-        .stride = static_cast<uint>(sizeof(ParticleInstanceData)),
+        .stride = static_cast<unsigned int>(sizeof(ParticleInstanceData)),
         .inputRate = opal::VertexBindingInputRate::Instance,
         .divisor = 1};
     opal::VertexAttribute instanceSize{
         .name = "instanceSize",
         .type = opal::VertexAttributeType::Float,
-        .offset = static_cast<uint>(7 * sizeof(float)),
+        .offset = static_cast<unsigned int>(7 * sizeof(float)),
         .location = 4,
         .normalized = false,
         .size = 1,
-        .stride = static_cast<uint>(sizeof(ParticleInstanceData)),
+        .stride = static_cast<unsigned int>(sizeof(ParticleInstanceData)),
         .inputRate = opal::VertexBindingInputRate::Instance,
         .divisor = 1};
 

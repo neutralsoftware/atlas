@@ -210,6 +210,16 @@ else ()
             "$<TARGET_FILE_DIR:AtlasEditor>/$<TARGET_FILE_NAME:runtime_lib>"
             VERBATIM
     )
+    if (WIN32)
+        # Windows has no rpath: the docking system DLL (built into its own
+        # output directory) must sit next to the editor executable.
+        add_custom_command(TARGET AtlasEditor POST_BUILD
+                COMMAND "${CMAKE_COMMAND}" -E copy_if_different
+                "$<TARGET_FILE:ads::qtadvanceddocking-qt6>"
+                "$<TARGET_FILE_DIR:AtlasEditor>"
+                VERBATIM
+        )
+    endif ()
 endif ()
 
 qt_add_resources(AtlasEditor "atlas_editor_assets"

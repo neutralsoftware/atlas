@@ -44,7 +44,7 @@
 #include <glm/gtc/constants.hpp>
 #include <glm/gtc/matrix_transform.hpp>
 #include <glm/gtc/quaternion.hpp>
-#include <sys/resource.h>
+#include "atlas/core/process_usage.h"
 #include <utility>
 #include <vector>
 #if defined(METAL) && defined(__APPLE__)
@@ -5402,10 +5402,10 @@ void Window::renderPingpong(RenderTarget *target) {
         activeCommandBuffer->bindPipeline(blurPipeline);
         if (!target->object->indices.empty()) {
             activeCommandBuffer->drawIndexed(
-                static_cast<uint>(target->object->indices.size()));
+                static_cast<unsigned int>(target->object->indices.size()));
         } else {
             activeCommandBuffer->draw(
-                static_cast<uint>(target->object->vertices.size()));
+                static_cast<unsigned int>(target->object->vertices.size()));
         }
 
         horizontal = !horizontal;

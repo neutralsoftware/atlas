@@ -393,7 +393,7 @@ Texture uploadModelTexture(const ModelTextureJob &job,
     const opal::TextureFormat format = job.textureType == TextureType::Color
                                            ? opal::TextureFormat::sRgba8
                                            : opal::TextureFormat::Rgba8;
-    const uint mipLevels = 1u + static_cast<uint>(std::floor(std::log2(
+    const unsigned int mipLevels = 1u + static_cast<unsigned int>(std::floor(std::log2(
                                     std::max(decoded.width, decoded.height))));
     auto opalTexture = opal::Texture::create(
         opal::TextureType::Texture2D, format, decoded.width, decoded.height,
@@ -1141,8 +1141,8 @@ std::vector<Texture> Model::loadMaterialTextures(
                     }
                 }
 
-                const uint mipLevels =
-                    1u + static_cast<uint>(
+                const unsigned int mipLevels =
+                    1u + static_cast<unsigned int>(
                              std::floor(std::log2(std::max(width, height))));
                 auto opalTexture = opal::Texture::create(
                     opal::TextureType::Texture2D, opal::TextureFormat::Rgba8,
