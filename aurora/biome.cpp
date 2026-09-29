@@ -13,7 +13,6 @@
 #include <algorithm>
 #include <cstdint>
 #include <cstdlib>
-#include <sys/types.h>
 #include <vector>
 
 float aurora::computeSlope(const uint8_t *heightMap, int width, int height,

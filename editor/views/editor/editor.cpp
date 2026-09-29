@@ -103,6 +103,14 @@ namespace {
 constexpr int DockStateVersion = 11;
 constexpr auto DockStateKey = "docking/state/v11";
 
+QString defaultBuildBackend() {
+#ifdef Q_OS_MACOS
+    return "METAL";
+#else
+    return "VULKAN";
+#endif
+}
+
 QIcon commandIcon(const QString &name) {
     const QString command = name.toLower();
     if (command.contains("save"))
@@ -1628,8 +1636,10 @@ void EditorWindow::showProjectSettings() {
     input->addRow("Input map", inputMap);
     input->addRow("Primary controller", controller);
     auto *build = addPage("Build & Run", styling::Icon::Package, "#A1957D");
+    const QString defaultBuildCommand =
+        "atlas pack --backend " + defaultBuildBackend();
     auto *buildCommand = new QLineEdit(
-        settings.value("project/buildCommand", "atlas pack --backend METAL")
+        settings.value("project/buildCommand", defaultBuildCommand)
             .toString(),
         &dialog);
     auto *runCommand = new QLineEdit(
@@ -1660,9 +1670,14 @@ void EditorWindow::showProjectSettings() {
     auto *iconPath = new QLineEdit(
         settings.value("project/icon", "none").toString(), &dialog);
     auto *backend = new QComboBox(&dialog);
-    backend->addItems({"METAL", "VULKAN", "OPENGL"});
+#ifdef Q_OS_MACOS
+    backend->addItems({"METAL", "VULKAN"});
+#else
+    backend->addItem("VULKAN");
+#endif
     backend->setCurrentText(
-        settings.value("project/exportBackend", "METAL").toString());
+        settings.value("project/exportBackend", defaultBuildBackend())
+            .toString());
     packaging->addRow("Bundle identifier", identifier);
     packaging->addRow("Application icon", iconPath);
     packaging->addRow("Renderer backend", backend);
@@ -1846,9 +1861,14 @@ void EditorWindow::showExportDialog() {
     QSettings settings(QDir(settingsDirectory).filePath("project-settings.ini"),
                        QSettings::IniFormat);
     auto *backend = new QComboBox(&dialog);
-    backend->addItems({"METAL", "VULKAN", "OPENGL"});
+#ifdef Q_OS_MACOS
+    backend->addItems({"METAL", "VULKAN"});
+#else
+    backend->addItem("VULKAN");
+#endif
     backend->setCurrentText(
-        settings.value("project/exportBackend", "METAL").toString());
+        settings.value("project/exportBackend", defaultBuildBackend())
+            .toString());
     auto *output = new QLineEdit(
         settings
             .value(
@@ -2365,7 +2385,8 @@ void EditorWindow::runProjectCommand(bool buildOnly) {
     const QString settingsKey =
         buildOnly ? "project/buildCommand" : "project/runCommand";
     const QString defaultCommand =
-        buildOnly ? "atlas pack --backend METAL" : "atlas run project.atlas";
+        buildOnly ? "atlas pack --backend " + defaultBuildBackend()
+                  : "atlas run project.atlas";
     const QString command =
         settings.value(settingsKey, defaultCommand).toString().trimmed();
     if (command.isEmpty())
@@ -2390,7 +2411,11 @@ void EditorWindow::runProjectCommand(bool buildOnly) {
     if (!buildOnly && settings.value("project/atlasHud", false).toBool()) {
         launchEnvironment.insert("ATLAS_HUD_ENABLED", "1");
     }
-    if (!settings.contains(settingsKey) || command == defaultCommand) {
+    const bool legacyMetalDefault =
+        buildOnly && command == "atlas pack --backend METAL" &&
+        defaultBuildBackend() != "METAL";
+    if (!settings.contains(settingsKey) || command == defaultCommand ||
+        legacyMetalDefault) {
         const QString executable = ToolchainInstaller::executablePath();
         if (executable.isEmpty()) {
             QMessageBox::warning(this,
@@ -2399,8 +2424,18 @@ void EditorWindow::runProjectCommand(bool buildOnly) {
                                  "toolchain from the Tools menu.");
             return;
         }
+#ifdef Q_OS_MACOS
+        const QString backend = "METAL";
+        const QString runtimeName = "../Frameworks/runtime.dylib";
+#elif defined(Q_OS_WIN)
+        const QString backend = "VULKAN";
+        const QString runtimeName = "runtime.dll";
+#else
+        const QString backend = "VULKAN";
+        const QString runtimeName = "runtime.so";
+#endif
         const QStringList arguments =
-            buildOnly ? QStringList{"pack", "--backend", "METAL"}
+            buildOnly ? QStringList{"pack", "--backend", backend}
                       : QStringList{"run", "project.atlas"};
         QProcess process;
         process.setProgram(executable);
@@ -2408,7 +2443,7 @@ void EditorWindow::runProjectCommand(bool buildOnly) {
         process.setWorkingDirectory(workingDirectory);
         const QFileInfo bundledRuntime(
             QDir(QCoreApplication::applicationDirPath())
-                .filePath("../Frameworks/runtime.dylib"));
+                .filePath(runtimeName));
         if (!buildOnly && bundledRuntime.isFile()) {
             launchEnvironment.insert("ATLAS_RUNTIME_LIB",
                                      bundledRuntime.absoluteFilePath());
@@ -2422,8 +2457,13 @@ void EditorWindow::runProjectCommand(bool buildOnly) {
         return;
     }
     QProcess process;
+#ifdef Q_OS_WIN
+    process.setProgram("cmd.exe");
+    process.setArguments({"/C", command});
+#else
     process.setProgram("/bin/zsh");
     process.setArguments({"-lc", command});
+#endif
     process.setWorkingDirectory(workingDirectory);
     process.setProcessEnvironment(launchEnvironment);
     if (!process.startDetached()) {

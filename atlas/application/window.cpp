@@ -44,7 +44,12 @@
 #include <glm/gtc/constants.hpp>
 #include <glm/gtc/matrix_transform.hpp>
 #include <glm/gtc/quaternion.hpp>
+#ifdef _WIN32
+#include <windows.h>
+#include <psapi.h>
+#else
 #include <sys/resource.h>
+#endif
 #include <utility>
 #include <vector>
 #if defined(METAL) && defined(__APPLE__)
@@ -61,6 +66,53 @@
 Window *Window::mainWindow = nullptr;
 
 namespace {
+struct ProcessUsage {
+    double cpuSeconds = 0.0;
+    float peakMemoryMb = 0.0f;
+};
+
+ProcessUsage queryProcessUsage() {
+#ifdef _WIN32
+    FILETIME creation{};
+    FILETIME exit{};
+    FILETIME kernel{};
+    FILETIME user{};
+    PROCESS_MEMORY_COUNTERS memory{};
+    ProcessUsage result;
+    if (GetProcessTimes(GetCurrentProcess(), &creation, &exit, &kernel,
+                        &user)) {
+        ULARGE_INTEGER kernelValue{};
+        ULARGE_INTEGER userValue{};
+        kernelValue.LowPart = kernel.dwLowDateTime;
+        kernelValue.HighPart = kernel.dwHighDateTime;
+        userValue.LowPart = user.dwLowDateTime;
+        userValue.HighPart = user.dwHighDateTime;
+        result.cpuSeconds = static_cast<double>(kernelValue.QuadPart +
+                                                userValue.QuadPart) /
+                            10000000.0;
+    }
+    if (GetProcessMemoryInfo(GetCurrentProcess(), &memory, sizeof(memory))) {
+        result.peakMemoryMb =
+            static_cast<float>(memory.PeakWorkingSetSize) /
+            (1024.0f * 1024.0f);
+    }
+    return result;
+#else
+    rusage usage{};
+    getrusage(RUSAGE_SELF, &usage);
+    ProcessUsage result;
+    result.cpuSeconds = usage.ru_utime.tv_sec + usage.ru_utime.tv_usec / 1e6 +
+                        usage.ru_stime.tv_sec + usage.ru_stime.tv_usec / 1e6;
+#ifdef __APPLE__
+    result.peakMemoryMb =
+        static_cast<float>(usage.ru_maxrss) / (1024.0f * 1024.0f);
+#else
+    result.peakMemoryMb = static_cast<float>(usage.ru_maxrss) / 1024.0f;
+#endif
+    return result;
+#endif
+}
+
 DebugResourceType atlasResourceType(opal::ResourceType type) {
     switch (type) {
     case opal::ResourceType::Texture:
@@ -1188,10 +1240,7 @@ struct Window::AtlasHudState {
             labels[9].color = Color{0.55f, 0.65f, 0.78f, 1.0f};
         }
 
-        rusage usage{};
-        getrusage(RUSAGE_SELF, &usage);
-        lastCpuSeconds = usage.ru_utime.tv_sec + usage.ru_utime.tv_usec / 1e6 +
-                         usage.ru_stime.tv_sec + usage.ru_stime.tv_usec / 1e6;
+        lastCpuSeconds = queryProcessUsage().cpuSeconds;
         (void)window;
         initialized = true;
     }
@@ -1204,22 +1253,14 @@ struct Window::AtlasHudState {
         historyCursor = (historyCursor + 1) % historySize;
         historyCount = std::min(historyCount + 1, historySize);
 
-        rusage usage{};
-        getrusage(RUSAGE_SELF, &usage);
-        const double cpuSeconds =
-            usage.ru_utime.tv_sec + usage.ru_utime.tv_usec / 1e6 +
-            usage.ru_stime.tv_sec + usage.ru_stime.tv_usec / 1e6;
+        const ProcessUsage usage = queryProcessUsage();
+        const double cpuSeconds = usage.cpuSeconds;
         if (window.frameTime > 0.0f && lastCpuSeconds > 0.0) {
             cpuPercent = static_cast<float>(
                 ((cpuSeconds - lastCpuSeconds) / window.frameTime) * 100.0);
         }
         lastCpuSeconds = cpuSeconds;
-#ifdef __APPLE__
-        peakMemoryMb =
-            static_cast<float>(usage.ru_maxrss) / (1024.0f * 1024.0f);
-#else
-        peakMemoryMb = static_cast<float>(usage.ru_maxrss) / 1024.0f;
-#endif
+        peakMemoryMb = usage.peakMemoryMb;
 
         textRefresh += window.frameTime;
     }
@@ -1382,6 +1423,11 @@ Window::Window(const WindowConfiguration &config)
     this->renderToExternalMetalView = false;
     this->showHostWindow = config.showHostWindow;
 #endif
+    this->externalNativeWindow = config.nativeTargetWindow;
+    this->externalNativeWindowType = config.nativeTargetWindowType;
+    this->renderToExternalView =
+        this->renderToExternalMetalView || this->externalNativeWindow != nullptr;
+    this->showHostWindow = config.showHostWindow && !this->renderToExternalView;
 
 #ifdef VULKAN
     auto context = opal::Context::create({.useOpenGL = false});
@@ -1432,6 +1478,10 @@ Window::Window(const WindowConfiguration &config)
     if (config.sdlInputWindow != nullptr) {
         context->adoptWindow(config.sdlInputWindow, false);
         window = config.sdlInputWindow;
+    } else if (this->externalNativeWindow != nullptr) {
+        window = context->makeWindowFromNative(
+            this->externalNativeWindow, this->externalNativeWindowType,
+            config.width, config.height, config.title.c_str());
     } else {
         window = context->makeWindow(config.width, config.height,
                                      config.title.c_str());
@@ -1700,7 +1750,7 @@ void Window::initializeRunLoop() {
 }
 
 void Window::pollEvents() {
-    if (this->renderToExternalMetalView) {
+    if (this->renderToExternalView) {
         SDL_PumpEvents();
         return;
     }
@@ -2381,12 +2431,7 @@ bool Window::stepFrame() {
             ResourceTracker::getInstance().unloadedResources;
         memoryPacket.send();
 
-        rusage usage{};
-        getrusage(RUSAGE_SELF, &usage);
-
-        double normalCpuTime =
-            usage.ru_utime.tv_sec + (usage.ru_utime.tv_usec / 1e6) +
-            usage.ru_stime.tv_sec + (usage.ru_stime.tv_usec / 1e6);
+        const double normalCpuTime = queryProcessUsage().cpuSeconds;
 
         TimingEventPacket timingEvent;
         timingEvent.frameNumber = device->frameCount;
@@ -6200,6 +6245,13 @@ std::pair<float, float> Window::getControllerAxisPairValue(int controllerID,
 }
 
 void Window::enablePathTracing() {
+    pathTracingUnavailableError.clear();
+    if (device == nullptr || !device->supportsRayTracing()) {
+        pathTracingUnavailableError =
+            "Path tracing is unavailable on the selected graphics device";
+        useDeferredRendering();
+        return;
+    }
     this->usesDeferred = false;
     this->usePathTracing = true;
     this->pathTracer = std::make_shared<photon::PathTracing>();
@@ -6241,6 +6293,6 @@ bool Window::setEditorPathTracingPreview(bool enabled) {
 }
 
 const std::string &Window::getPathTracingError() const {
-    static const std::string noError;
-    return pathTracer != nullptr ? pathTracer->getLastError() : noError;
+    return pathTracer != nullptr ? pathTracer->getLastError()
+                                 : pathTracingUnavailableError;
 }

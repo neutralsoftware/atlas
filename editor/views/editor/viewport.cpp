@@ -25,6 +25,7 @@
 #include <QApplication>
 #include <QFile>
 #include <QFileInfo>
+#include <QGuiApplication>
 #include <QHideEvent>
 #include <QJsonArray>
 #include <QJsonDocument>
@@ -57,6 +58,7 @@
 #include <algorithm>
 #include <cmath>
 #include <exception>
+#include <stdexcept>
 #include <string>
 #include <utility>
 
@@ -1125,7 +1127,7 @@ void ViewportPanel::startRuntime() {
         height() <= 1) {
         return;
     }
-#ifdef METAL
+#if defined(METAL) || defined(VULKAN)
     const std::string runtimeProjectFile = projectFile.toUtf8().toStdString();
     if (runtimeProjectFile.empty()) {
         qWarning() << "Atlas viewport runtime project file is not configured";
@@ -1135,9 +1137,10 @@ void ViewportPanel::startRuntime() {
         return;
     }
 
-    void *metalView = reinterpret_cast<void *>(static_cast<quintptr>(winId()));
-    if (metalView == nullptr) {
-        qWarning() << "Atlas viewport could not resolve a native Metal view";
+    void *nativeView =
+        reinterpret_cast<void *>(static_cast<quintptr>(winId()));
+    if (nativeView == nullptr) {
+        qWarning() << "Atlas viewport could not resolve a native view";
         emit runtimeErrorOccurred("Viewport native surface is unavailable");
         emit runtimeStartupFinished(false,
                                     "Viewport native surface is unavailable");
@@ -1148,8 +1151,29 @@ void ViewportPanel::startRuntime() {
         emit runtimeLoadingStarted();
         emit runtimeLoadingStatusChanged("Loading assets...");
         QCoreApplication::processEvents(QEventLoop::ExcludeUserInputEvents);
+#ifdef METAL
         runtimeContext =
-            runtime::makeContextForMetalView(runtimeProjectFile, metalView);
+            runtime::makeContextForMetalView(runtimeProjectFile, nativeView);
+#else
+        opal::NativeWindowType nativeWindowType =
+            opal::NativeWindowType::None;
+#ifdef Q_OS_WIN
+        nativeWindowType = opal::NativeWindowType::Win32;
+#elif defined(Q_OS_LINUX)
+        const QString platform = QGuiApplication::platformName().toLower();
+        if (platform.contains("wayland")) {
+            nativeWindowType = opal::NativeWindowType::Wayland;
+        } else if (platform.contains("xcb") || platform.contains("x11")) {
+            nativeWindowType = opal::NativeWindowType::X11;
+        }
+#endif
+        if (nativeWindowType == opal::NativeWindowType::None) {
+            throw std::runtime_error(
+                "The active Qt platform cannot provide a Vulkan viewport");
+        }
+        runtimeContext = runtime::makeContextForNativeWindow(
+            runtimeProjectFile, nativeView, nativeWindowType);
+#endif
         QPointer<ViewportPanel> runtimeOwner(this);
         runtimeContext->errorReporter =
             [runtimeOwner](const std::string &error) {
@@ -1233,10 +1257,10 @@ void ViewportPanel::startRuntime() {
         emit runtimeStartupFinished(false, "Runtime initialization failed");
     }
 #else
-    qWarning() << "Atlas viewport runtime embedding requires the Metal backend";
-    emit runtimeErrorOccurred("Runtime embedding requires the Metal backend");
+    qWarning() << "Atlas viewport runtime embedding requires Metal or Vulkan";
+    emit runtimeErrorOccurred("Runtime embedding requires Metal or Vulkan");
     emit runtimeStartupFinished(false,
-                                "Runtime embedding requires the Metal backend");
+                                "Runtime embedding requires Metal or Vulkan");
 #endif
 }
 

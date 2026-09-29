@@ -87,7 +87,7 @@ bool Context::setEditorPathTracingPreview(bool enabled) {
     if (window == nullptr || !editorRuntime) {
         return false;
     }
-#ifdef METAL
+#if defined(METAL) || defined(VULKAN)
     return window->setEditorPathTracingPreview(enabled);
 #else
     (void)enabled;
@@ -116,6 +116,11 @@ bool Context::configurePathTracing(int samplesPerPixel, int bounceLimit,
     window->setRealtimePBRFeatures(config.realtimePBRFeatureFlags);
 #ifdef METAL
     window->useMetalUpscaling(useUpscaling ? config.upscalingRatio : 1.0f);
+#endif
+#if defined(METAL) || defined(VULKAN)
+    if (window->device == nullptr || !window->device->supportsRayTracing()) {
+        return false;
+    }
     window->configurePathTracing(
         config.pathTracingSamples, config.pathTracingBounces,
         config.pathTracingDenoising, config.pathTracingAccumulationFrames,
@@ -127,7 +132,7 @@ bool Context::configurePathTracing(int samplesPerPixel, int bounceLimit,
 }
 
 std::string Context::getPathTracingError() const {
-#ifdef METAL
+#if defined(METAL) || defined(VULKAN)
     return window != nullptr ? window->getPathTracingError() : std::string();
 #else
     return {};

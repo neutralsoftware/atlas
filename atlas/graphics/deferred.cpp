@@ -200,6 +200,11 @@ buildGPUAreaLights(const std::vector<AreaLight *> &lights, int maxCount) {
 } // anonymous namespace
 
 void Window::enableGlobalIllumination() {
+    if (device == nullptr || !device->supportsRayTracing()) {
+        usesGlobalIllumination = false;
+        ddgiSystem.reset();
+        return;
+    }
     usesGlobalIllumination = true;
     ddgiSystem = std::make_shared<photon::GlobalIllumination>();
     ddgiSystem->sampleNormalMaps = false;

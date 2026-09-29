@@ -41,18 +41,36 @@ bool filesMatch(const QString& left, const QString& right) {
 }
 
 ToolchainPaths paths() {
+#ifdef Q_OS_MACOS
     const QDir contents(QCoreApplication::applicationDirPath() + "/..");
+#else
+    const QDir contents(QCoreApplication::applicationDirPath());
+#endif
     const QString installRoot =
         QStandardPaths::writableLocation(QStandardPaths::GenericDataLocation) +
         "/Atlas Engine/toolchains/" + ATLAS_TOOLCHAIN_VERSION;
     const QString home = QDir::homePath();
-    return {
-        contents.filePath("Helpers/atlas"),
-        contents.filePath("Frameworks/runtime.dylib"),
-        installRoot + "/bin/atlas",
-        installRoot + "/lib/runtime.dylib",
-        home + "/.atlas/config.json",
-    };
+#ifdef Q_OS_WIN
+    const QString cliName = "atlas.exe";
+    const QString runtimeName = "runtime.dll";
+#elif defined(Q_OS_MACOS)
+    const QString cliName = "atlas";
+    const QString runtimeName = "runtime.dylib";
+#else
+    const QString cliName = "atlas";
+    const QString runtimeName = "runtime.so";
+#endif
+#ifdef Q_OS_MACOS
+    const QString bundledCli = contents.filePath("Helpers/" + cliName);
+    const QString bundledRuntime =
+        contents.filePath("Frameworks/" + runtimeName);
+#else
+    const QString bundledCli = contents.filePath(cliName);
+    const QString bundledRuntime = contents.filePath(runtimeName);
+#endif
+    return {bundledCli, bundledRuntime, installRoot + "/bin/" + cliName,
+            installRoot + "/lib/" + runtimeName,
+            home + "/.atlas/config.json"};
 }
 
 QJsonObject readConfig(const QString& path) {
@@ -209,7 +227,7 @@ bool ToolchainInstaller::ensureInstalled(QWidget* parent) {
     prompt.setIcon(QMessageBox::Information);
     prompt.setText("Install the Atlas toolchain for this user?");
     prompt.setInformativeText(
-        "Atlas Engine includes the command-line tools and runtime required to create, run, and export projects. They will be installed in your user Library and do not require administrator access.");
+        "Atlas Engine includes the command-line tools and runtime required to create, run, and export projects. They will be installed for your user and do not require administrator access.");
     auto* installButton = prompt.addButton("Install Toolchain",
                                            QMessageBox::AcceptRole);
     prompt.addButton("Not Now", QMessageBox::RejectRole);
@@ -238,12 +256,17 @@ bool ToolchainInstaller::install(QWidget* parent) {
 QString ToolchainInstaller::executablePath() {
     const ToolchainPaths toolchain = paths();
     const QDir applicationDirectory(QCoreApplication::applicationDirPath());
+    const QString cliName = QFileInfo(toolchain.bundledCli).fileName();
     const QStringList candidates{
         toolchain.bundledCli,
         toolchain.installedCli,
-        applicationDirectory.filePath("../../target/debug/atlas"),
-        applicationDirectory.filePath("../../target/release/atlas"),
+        applicationDirectory.filePath("../../target/debug/" + cliName),
+        applicationDirectory.filePath("../../target/release/" + cliName),
+#ifdef Q_OS_WIN
+        applicationDirectory.filePath("atlas.exe")};
+#else
         applicationDirectory.filePath("atlas")};
+#endif
     for (const QString& candidate : candidates) {
         const QFileInfo info(candidate);
         if (info.isFile() && info.isExecutable())

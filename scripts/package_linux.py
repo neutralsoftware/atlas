@@ -53,7 +53,7 @@ def main():
     root = Path(__file__).resolve().parent.parent
     mode = "release" if args.release else "debug"
     configuration = mode.capitalize()
-    build_directory = root / "build" / "package" / f"linux-{architecture}-{mode}"
+    build_directory = root / "build" / "package" / f"linux-{architecture}-{mode}-clang"
     dist_directory = root / "dist" / "Linux" / mode
     app_directory = build_directory / "AppDir"
     if app_directory.exists():
@@ -66,13 +66,16 @@ def main():
     applications_directory.mkdir(parents=True)
     dist_directory.mkdir(parents=True, exist_ok=True)
 
+    clang = require("clang")
+    clangxx = require("clang++")
     env = os.environ.copy()
-    env["CC"] = "clang"
-    env["CXX"] = "clang++"
+    env["CC"] = str(clang)
+    env["CXX"] = str(clangxx)
 
     run([
         require("cmake"), "-S", root, "-B", build_directory, "-G", "Ninja",
         f"-DCMAKE_BUILD_TYPE={configuration}", "-DBACKEND=VULKAN",
+        f"-DCMAKE_C_COMPILER={clang}", f"-DCMAKE_CXX_COMPILER={clangxx}",
         "-DATLAS_PHOTON_BACKEND=VULKAN",
     ], env=env)
     run([

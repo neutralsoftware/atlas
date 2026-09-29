@@ -217,6 +217,9 @@ std::shared_ptr<Context>
 makeContextForMetalView(std::string projectFile, void *metalView,
                         CoreWindowReference sdlInputWindow = nullptr);
 std::shared_ptr<Context>
+makeContextForNativeWindow(std::string projectFile, void *nativeWindow,
+                           opal::NativeWindowType nativeWindowType);
+std::shared_ptr<Context>
 makeMaterialPreviewContextForMetalView(std::string projectFile,
                                        void *metalView);
 void runProjectInMetalView(std::string projectFile, void *metalView,

@@ -152,6 +152,10 @@ struct WindowConfiguration {
      */
     void *metalTargetView = nullptr;
 
+    void *nativeTargetWindow = nullptr;
+    opal::NativeWindowType nativeTargetWindowType =
+        opal::NativeWindowType::None;
+
     /**
      * @brief Optional SDL window handle retained for SDL subsystems.
      *
@@ -1006,9 +1010,14 @@ class Window {
     bool metalUpscalingEnabled = false;
     float metalUpscalingRatio = 1.0f;
     bool renderToExternalMetalView = false;
+    bool renderToExternalView = false;
     bool showHostWindow = true;
     bool renderDefaultFramebuffer = true;
     void *externalMetalView = nullptr;
+    void *externalNativeWindow = nullptr;
+    opal::NativeWindowType externalNativeWindowType =
+        opal::NativeWindowType::None;
+    std::string pathTracingUnavailableError;
     unsigned int bloomBlurPasses = 4;
     int ssaoKernelSize = 32;
     float ssaoUpdateInterval = 1.0f / 45.0f;

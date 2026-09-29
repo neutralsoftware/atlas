@@ -12,6 +12,7 @@
 
 // TCP Pipe
 #include <atomic>
+#include <cstdint>
 #include <functional>
 #include <mutex>
 #include <string>
@@ -55,7 +56,7 @@ class NetworkPipe {
   private:
     int port = 0;
     std::string serverAddress = "127.0.0.1";
-    std::atomic<int> clientSocket{-1};
+    std::atomic<std::uintptr_t> clientSocket{UINTPTR_MAX};
 
     std::thread recvThread;
     bool running = false;

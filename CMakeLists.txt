@@ -32,6 +32,9 @@ message(STATUS "Compiler at path:" ${CMAKE_CXX_COMPILER})
 add_compile_definitions(
         ATLAS_VERSION="Beta 2 Lyra"
 )
+if (WIN32)
+    add_compile_definitions(NOMINMAX WIN32_LEAN_AND_MEAN _CRT_SECURE_NO_WARNINGS)
+endif ()
 
 set(CMAKE_INTERPROCEDURAL_OPTIMIZATION OFF)
 
@@ -207,8 +210,8 @@ if(EXISTS "${TINYUSDZ_VALUE_TYPES}")
     endif()
 endif()
 
-if (LINUX)
-target_include_directories(assimp PRIVATE /usr/include/minizip)
+if (UNIX AND NOT APPLE)
+    target_include_directories(assimp PRIVATE /usr/include/minizip)
 endif ()
 
 # OpenAL Soft
@@ -501,6 +504,11 @@ target_include_directories(quickjs PUBLIC ${CMAKE_SOURCE_DIR}/extern/quickjs)
 
 if (MSVC)
     target_compile_options(quickjs PRIVATE /W0)
+    target_compile_definitions(quickjs PRIVATE
+            _CRT_SECURE_NO_WARNINGS
+            WIN32_LEAN_AND_MEAN
+            NOMINMAX
+    )
 elseif (UNIX)
     target_compile_definitions(quickjs PRIVATE _GNU_SOURCE)
     target_compile_options(quickjs PRIVATE -w -Wno-error)
@@ -685,6 +693,7 @@ endif ()
 
 if (WIN32)
     target_compile_definitions(atlas PRIVATE _CRT_SECURE_NO_WARNINGS NOMINMAX)
+    target_link_libraries(atlas PRIVATE ws2_32 psapi)
 elseif (APPLE)
     if (BACKEND_VULKAN)
         target_link_libraries(atlas PRIVATE
@@ -715,6 +724,7 @@ target_include_directories(runtime_lib PRIVATE ${ATLAS_DEP_INCLUDE_DIRS})
 set_target_properties(runtime_lib PROPERTIES
         OUTPUT_NAME runtime
         PREFIX ""
+        WINDOWS_EXPORT_ALL_SYMBOLS ON
 )
 
 # ─── runtime executable ──────────────────────────────────────────────────────

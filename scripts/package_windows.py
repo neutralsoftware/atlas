@@ -96,6 +96,12 @@ def main():
             for dll in conda_bin.glob(pattern):
                 shutil.copy2(dll, package_directory / dll.name)
 
+    vcpkg_root = os.environ.get("VCPKG_INSTALLATION_ROOT")
+    if vcpkg_root:
+        vcpkg_bin = Path(vcpkg_root) / "installed" / "x64-windows" / "bin"
+        for dll in vcpkg_bin.glob("*.dll"):
+            shutil.copy2(dll, package_directory / dll.name)
+
     icon = package_directory / "atlas-star.ico"
     run([
         require("magick"), root / "editor" / "assets" / "atlasStarBright.svg",
