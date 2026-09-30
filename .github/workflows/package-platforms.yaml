@@ -30,16 +30,16 @@ jobs:
               run: |
                   choco install ninja imagemagick vulkan-sdk nsis rcedit --no-progress -y
 
-                    $rcedit = (Get-Command rcedit.exe).Source
+                  $rcedit = (Get-Command rcedit.exe).Source
 
-                    if (-not $rcedit) {
-                        throw "rcedit.exe was not found"
-                    }
+                  if (-not $rcedit) {
+                    throw "rcedit.exe was not found"
+                  }
 
-                    "ATLAS_RCEDIT=$rcedit" |
+                  "ATLAS_RCEDIT=$rcedit" |
                     Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
 
-                    Write-Host "Using rcedit: $rcedit"
+                  Write-Host "Using rcedit: $rcedit"
 
                   $vulkanSdk = Get-ChildItem -Path "C:\VulkanSDK" -Directory |
                     Sort-Object Name -Descending |

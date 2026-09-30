@@ -109,10 +109,10 @@ def main():
         "-background", "none", "-define", "icon:auto-resize=256,128,64,48,32,16",
         icon,
     ])
-    rcedit = Path(os.environ.get("ATLAS_RCEDIT_SCRIPT", ""))
+    rcedit = Path(os.environ.get("ATLAS_RCEDIT", ""))
     if not rcedit.is_file():
-        raise RuntimeError("rcedit JavaScript entry point was not found")
-    run([require("node"), rcedit, package_directory / "AtlasEditor.exe", "--set-icon", icon])
+        raise RuntimeError("rcedit x86_64 executable was not found")
+    run([rcedit, package_directory / "AtlasEditor.exe", "--set-icon", icon])
 
     if not (package_directory / "platforms" / "qwindows.dll").is_file():
         raise RuntimeError("Qt Windows platform plugin is missing")
