@@ -110,6 +110,13 @@ include(FetchContent)
 cmake_policy(SET CMP0135 NEW)
 cmake_policy(SET CMP0169 NEW)
 
+FetchContent_Declare(
+        eigen
+        GIT_REPOSITORY https://eigen.googlesource.com/mirror
+        GIT_TAG 3.4.0
+        GIT_SHALLOW TRUE
+)
+
 # Doxygen CSS
 FetchContent_Declare(
         doxygen-awesome-css
