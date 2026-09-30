@@ -4,7 +4,6 @@ import platform
 import shutil
 import subprocess
 import sys
-import tarfile
 from pathlib import Path
 
 
@@ -92,13 +91,18 @@ def main():
     shutil.copy2(root / "packaging" / "linux" / "atlas-engine.desktop", applications_directory / "atlas-engine.desktop")
 
     linuxdeploy = require("linuxdeploy", os.environ.get("ATLAS_LINUXDEPLOY"))
+    appimage = dist_directory / f"Atlas-Engine-Linux-{architecture}-{mode}.AppImage"
+    if appimage.exists():
+        appimage.unlink()
+    appimage_env = os.environ.copy()
+    appimage_env["OUTPUT"] = str(appimage)
     run([
         linuxdeploy, "--appdir", app_directory,
         "--executable", bin_directory / "atlas-engine",
         "--desktop-file", applications_directory / "atlas-engine.desktop",
         "--icon-file", icon_directory / "atlas-engine.svg",
-        "--plugin", "qt",
-    ])
+        "--plugin", "qt", "--output", "appimage",
+    ], env=appimage_env)
 
     dependency_check = run(["ldd", bin_directory / "atlas-engine"], capture=True)
     if "not found" in dependency_check.stdout:
@@ -107,12 +111,9 @@ def main():
         if not (bin_directory / required).is_file():
             raise RuntimeError(f"Packaged Linux artifact is missing {required}")
 
-    archive = dist_directory / f"Atlas-Engine-Linux-{architecture}-{mode}.tar.gz"
-    if archive.exists():
-        archive.unlink()
-    with tarfile.open(archive, "w:gz") as stream:
-        stream.add(app_directory, arcname="Atlas Engine")
-    print(f"Packaged Linux artifact: {archive}")
+    if not appimage.is_file():
+        raise RuntimeError(f"AppImage was not produced: {appimage}")
+    print(f"Packaged Linux artifact: {appimage}")
 
 
 if __name__ == "__main__":

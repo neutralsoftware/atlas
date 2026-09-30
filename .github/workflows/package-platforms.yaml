@@ -28,7 +28,7 @@ jobs:
             - name: Install build tools
               shell: pwsh
               run: |
-                  choco install ninja imagemagick vulkan-sdk --no-progress -y
+                  choco install ninja imagemagick vulkan-sdk nsis --no-progress -y
                   npm install --global rcedit
 
                   $vulkanSdk = Get-ChildItem -Path "C:\VulkanSDK" -Directory |
@@ -56,7 +56,7 @@ jobs:
                   "$env:CONDA\Library\bin" |
                     Out-File -FilePath $env:GITHUB_PATH -Encoding utf8 -Append
 
-                  vcpkg install spirv-cross:x64-windows minizip:x64-windows
+                  vcpkg install spirv-cross:x64-windows
 
                   $vcpkgPrefix = Join-Path $env:VCPKG_INSTALLATION_ROOT "installed\x64-windows"
 
@@ -80,7 +80,7 @@ jobs:
             - uses: actions/upload-artifact@v4
               with:
                   name: Atlas-Engine-Windows-x86_64
-                  path: dist/Windows/release/Atlas-Engine-Windows-x86_64-release.zip
+                  path: dist/Windows/release/Atlas-Engine-Windows-x86_64-release.exe
                   if-no-files-found: error
 
     linux:
@@ -179,7 +179,7 @@ jobs:
             - uses: actions/upload-artifact@v4
               with:
                   name: Atlas-Engine-Linux-${{ matrix.architecture }}
-                  path: dist/Linux/release/Atlas-Engine-Linux-${{ matrix.architecture }}-release.tar.gz
+                  path: dist/Linux/release/Atlas-Engine-Linux-${{ matrix.architecture }}-release.AppImage
                   if-no-files-found: error
 
     macos:
@@ -206,7 +206,5 @@ jobs:
             - uses: actions/upload-artifact@v4
               with:
                   name: Atlas-Engine-macOS-Apple-Silicon
-                  path: |
-                      dist/macOS/release/*.zip
-                      dist/macOS/release/*.dmg
+                  path: dist/macOS/release/*.dmg
                   if-no-files-found: error

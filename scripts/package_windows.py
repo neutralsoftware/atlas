@@ -118,9 +118,18 @@ def main():
     if not (package_directory / "runtime.dll").is_file():
         raise RuntimeError("Atlas runtime is missing")
 
-    archive_base = dist_directory / f"Atlas-Engine-Windows-x86_64-{mode}"
-    archive = shutil.make_archive(str(archive_base), "zip", dist_directory, package_directory.name)
-    print(f"Packaged Windows artifact: {archive}")
+    installer = dist_directory / f"Atlas-Engine-Windows-x86_64-{mode}.exe"
+    if installer.exists():
+        installer.unlink()
+    run([
+        require("makensis"),
+        f"/DOUTPUT_FILE={installer}",
+        f"/DSOURCE_DIR={package_directory}",
+        root / "packaging" / "windows" / "AtlasEngine.nsi",
+    ])
+    if not installer.is_file():
+        raise RuntimeError(f"Windows installer was not produced: {installer}")
+    print(f"Packaged Windows artifact: {installer}")
 
 
 if __name__ == "__main__":
