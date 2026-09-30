@@ -12,6 +12,10 @@ static const uint PHOTON_FEATURE_SUBSURFACE = 1u << 10;
 static const uint PHOTON_FEATURE_NORMAL_MAPS = 1u << 11;
 static const uint PHOTON_FEATURE_MATERIAL_TEXTURES = 1u << 12;
 static const uint PHOTON_FEATURE_ALPHA_TRANSPARENCY = 1u << 13;
+static const uint CAUSTIC_BUCKET_COUNT = 1u << 17;
+static const uint CAUSTIC_BUCKET_SAMPLES = 32u;
+static const uint CAUSTIC_BUCKET_WORDS = 34u;
+static const uint CAUSTIC_INVALID_BUCKET = 0xffffffffu;
 
 struct CameraUniforms {
     float4x4 invViewProj;
@@ -193,6 +197,7 @@ struct DirectReservoir {
 
 struct SurfaceHit {
     bool valid;
+    bool frontFace;
     float distance;
     float3 position;
     float3 normal;
@@ -340,6 +345,26 @@ float3 thinFilmReflectance(float cosine, float3 baseReflectance, float factor,
     return lerp(baseReflectance, filmReflectance, saturate(factor));
 }
 
+float3 volumeTransmittance(Material material, float distance) {
+    float3 absorption =
+        max(material.volumeAbsorptionColor * material.volumeAbsorptionStrength,
+            0.0);
+    float3 scattering =
+        max(material.volumeScatteringColor * material.volumeScatteringStrength,
+            0.0);
+    return exp(-(absorption + scattering) * max(material.volumeDensity, 0.0) *
+               max(distance, 0.0));
+}
+
+float dispersionIor(float baseIor, float abbeNumber, uint channel) {
+    if ((sceneData.featureFlags & PHOTON_FEATURE_DISPERSION) == 0 ||
+        abbeNumber <= 1.0) {
+        return max(baseIor, 1.0001);
+    }
+    float offset = channel == 0 ? -0.5 : channel == 2 ? 0.5 : 0.0;
+    return max(baseIor + offset * max(baseIor - 1.0, 0.0) / abbeNumber, 1.0001);
+}
+
 float3 evaluateBRDF(SurfaceHit hit, float3 view, float3 light, float3 radiance,
                     float intensity) {
     float3 normal = hit.normal;
@@ -370,6 +395,19 @@ float3 evaluateBRDF(SurfaceHit hit, float3 view, float3 light, float3 radiance,
                       max(4.0 * normalView * normalLight, 1e-5);
     float3 diffuse = (1.0 - fresnel) * (1.0 - metallic) * (1.0 - transmission) *
                      albedo / 3.14159265359;
+    if ((sceneData.featureFlags & PHOTON_FEATURE_SUBSURFACE) != 0 &&
+        hit.material.subsurfaceWeight > 0.0) {
+        float wrap = saturate((dot(-view, light) + 0.35) / 1.35);
+        float radius = max(
+            dot(hit.material.subsurfaceRadius, float3(0.2126, 0.7152, 0.0722)) *
+                max(hit.material.subsurfaceScale, 0.0),
+            1e-4);
+        float falloff = exp(-1.0 / radius);
+        float3 subsurface = saturate(hit.material.subsurfaceColor) * albedo *
+                            wrap * falloff / 3.14159265359;
+        diffuse =
+            lerp(diffuse, subsurface, saturate(hit.material.subsurfaceWeight));
+    }
     float3 result = (diffuse + specular) * radiance * intensity * normalLight;
     if (transmission > 0.0) {
         float backLight = max(dot(normal, -light), 0.0);
@@ -403,6 +441,112 @@ float3 cosineDirection(float3 normal, inout uint state) {
                           bitangent * (radius * sin(angle)) +
                           normal * sqrt(max(0.0, 1.0 - sample.x)),
                       normal);
+}
+
+uint causticCellKey(int3 cell) {
+    uint3 value = asuint(cell);
+    uint key = hashValue(value.x * 73856093u ^ value.y * 19349663u ^
+                         value.z * 83492791u);
+    return key == 0u ? 1u : key;
+}
+
+uint findCausticCell(int3 cell) {
+    uint key = causticCellKey(cell);
+    uint initial = hashValue(key ^ 0x9e3779b9u) & (CAUSTIC_BUCKET_COUNT - 1u);
+    for (uint probe = 0u; probe < 128u; ++probe) {
+        uint bucket = (initial + probe) & (CAUSTIC_BUCKET_COUNT - 1u);
+        uint stored = photonSlots[bucket * CAUSTIC_BUCKET_WORDS];
+        if (stored == 0u) {
+            return CAUSTIC_INVALID_BUCKET;
+        }
+        if (stored == key) {
+            return bucket;
+        }
+    }
+    return CAUSTIC_INVALID_BUCKET;
+}
+
+bool insertCausticPhoton(int3 cell, uint photonId, inout uint state) {
+    uint key = causticCellKey(cell);
+    uint initial = hashValue(key ^ 0x9e3779b9u) & (CAUSTIC_BUCKET_COUNT - 1u);
+    for (uint probe = 0u; probe < 128u; ++probe) {
+        uint bucket = (initial + probe) & (CAUSTIC_BUCKET_COUNT - 1u);
+        uint base = bucket * CAUSTIC_BUCKET_WORDS;
+        uint stored = photonSlots[base];
+        if (stored != key) {
+            uint original;
+            InterlockedCompareExchange(photonSlots[base], 0u, key, original);
+            if (original != 0u && original != key) {
+                continue;
+            }
+        }
+        uint oldCount;
+        InterlockedAdd(photonSlots[base + 1u], 1u, oldCount);
+        uint slot = oldCount;
+        if (slot >= CAUSTIC_BUCKET_SAMPLES) {
+            uint candidate = hashValue(state ^ oldCount) % (oldCount + 1u);
+            if (candidate >= CAUSTIC_BUCKET_SAMPLES) {
+                return true;
+            }
+            slot = candidate;
+        }
+        photonSlots[base + 2u + slot] = photonId;
+        return true;
+    }
+    return false;
+}
+
+float3 gatherCaustics(SurfaceHit hit) {
+    if (sceneData.causticsEnabled == 0 || caustics.radius <= 0.0) {
+        return 0.0;
+    }
+    float3 result = 0.0;
+    float radiusSquared = caustics.radius * caustics.radius;
+    int3 center = int3(floor(hit.position / caustics.radius));
+    for (int z = -1; z <= 1; ++z) {
+        for (int y = -1; y <= 1; ++y) {
+            for (int x = -1; x <= 1; ++x) {
+                int3 cell = center + int3(x, y, z);
+                uint bucket = findCausticCell(cell);
+                if (bucket == CAUSTIC_INVALID_BUCKET) {
+                    continue;
+                }
+                uint base = bucket * CAUSTIC_BUCKET_WORDS;
+                uint total = photonSlots[base + 1u];
+                uint stored = min(total, CAUSTIC_BUCKET_SAMPLES);
+                float reservoirWeight =
+                    stored > 0u ? float(total) / float(stored) : 0.0;
+                for (uint slot = 0u; slot < stored; ++slot) {
+                    uint photonId = photonSlots[base + 2u + slot];
+                    if (photonId == CAUSTIC_INVALID_BUCKET) {
+                        continue;
+                    }
+                    CausticPhoton photon = photons[photonId];
+                    if (uint(photon.incomingObject.w) != hit.objectId) {
+                        continue;
+                    }
+                    float3 delta = photon.positionWavelength.xyz - hit.position;
+                    float distanceSquared = dot(delta, delta);
+                    float cosine = dot(hit.normal, photon.incomingObject.xyz);
+                    if (distanceSquared >= radiusSquared || cosine <= 0.0 ||
+                        dot(hit.normal, photon.normalPower.xyz) < 0.9) {
+                        continue;
+                    }
+                    float kernel = 2.0 *
+                                   (1.0 - distanceSquared / radiusSquared) /
+                                   (3.14159265359 * radiusSquared);
+                    uint channel = uint(photon.positionWavelength.w);
+                    float3 spectral = channel == 0u   ? float3(3.0, 0.0, 0.0)
+                                      : channel == 1u ? float3(0.0, 3.0, 0.0)
+                                                      : float3(0.0, 0.0, 3.0);
+                    result += spectral * photon.normalPower.w *
+                              reservoirWeight * kernel * cosine *
+                              hit.material.albedo.xyz / 3.14159265359;
+                }
+            }
+        }
+    }
+    return result;
 }
 
 bool traceOcclusion(float3 origin, float3 direction, float maximumDistance) {
@@ -458,7 +602,8 @@ SurfaceHit traceSurface(float3 origin, float3 direction) {
     hit.position = origin + direction * hit.distance;
     hit.normal =
         safeNormal(mul(normalMatrix, localNormal), float3(0.0, 1.0, 0.0));
-    if (dot(hit.normal, direction) > 0.0) {
+    hit.frontFace = dot(hit.normal, direction) <= 0.0;
+    if (!hit.frontFace) {
         hit.normal = -hit.normal;
     }
     hit.uv = vertices[i0].uv * weights.x + vertices[i1].uv * weights.y +
@@ -468,28 +613,36 @@ SurfaceHit traceSurface(float3 origin, float3 direction) {
     hit.material = materials[objectId];
     float2 materialUv =
         hit.uv * hit.material.textureScale + hit.material.textureOffset;
-    hit.material.albedo *=
-        sampleMaterialTexture(hit.material.albedoTextureIndex, materialUv);
-    float4 metallicSample =
-        sampleMaterialTexture(hit.material.metallicTextureIndex, materialUv);
-    float4 roughnessSample =
-        sampleMaterialTexture(hit.material.roughnessTextureIndex, materialUv);
-    float4 aoSample =
-        sampleMaterialTexture(hit.material.aoTextureIndex, materialUv);
-    if (hit.material.metallicTextureIndex >= 0) {
-        hit.material.metallic *= hit.material.metallicTextureIndex ==
-                                         hit.material.roughnessTextureIndex
-                                     ? metallicSample.z
-                                     : metallicSample.x;
-    }
-    if (hit.material.roughnessTextureIndex >= 0) {
-        hit.material.roughness *= hit.material.roughnessTextureIndex ==
-                                          hit.material.metallicTextureIndex
-                                      ? roughnessSample.y
-                                      : roughnessSample.x;
-    }
-    if (hit.material.aoTextureIndex >= 0) {
-        hit.material.ao *= aoSample.x;
+    if ((sceneData.featureFlags & PHOTON_FEATURE_MATERIAL_TEXTURES) != 0) {
+        hit.material.albedo *=
+            sampleMaterialTexture(hit.material.albedoTextureIndex, materialUv);
+        float4 metallicSample = sampleMaterialTexture(
+            hit.material.metallicTextureIndex, materialUv);
+        float4 roughnessSample = sampleMaterialTexture(
+            hit.material.roughnessTextureIndex, materialUv);
+        float4 aoSample =
+            sampleMaterialTexture(hit.material.aoTextureIndex, materialUv);
+        if (hit.material.metallicTextureIndex >= 0) {
+            hit.material.metallic *= hit.material.metallicTextureIndex ==
+                                             hit.material.roughnessTextureIndex
+                                         ? metallicSample.z
+                                         : metallicSample.x;
+        }
+        if (hit.material.roughnessTextureIndex >= 0) {
+            hit.material.roughness *= hit.material.roughnessTextureIndex ==
+                                              hit.material.metallicTextureIndex
+                                          ? roughnessSample.y
+                                          : roughnessSample.x;
+        }
+        if (hit.material.aoTextureIndex >= 0) {
+            hit.material.ao *= aoSample.x;
+        }
+        if (hit.material.opacityTextureIndex >= 0) {
+            hit.material.albedo.w *=
+                sampleMaterialTexture(hit.material.opacityTextureIndex,
+                                      materialUv)
+                    .x;
+        }
     }
     if ((sceneData.featureFlags & PHOTON_FEATURE_NORMAL_MAPS) != 0 &&
         hit.material.useNormalMap != 0.0 &&
@@ -674,6 +827,9 @@ float3 samplePath(float3 origin, float3 direction, inout uint state,
     float3 radiance = 0.0;
     float3 throughput = 1.0;
     primaryHit = {};
+    bool insideMedium = false;
+    uint mediumObjectId = 0xffffffffu;
+    Material mediumMaterial = {};
     uint bounceCount = max(sceneData.maxBounces, 1u);
     for (uint bounce = 0; bounce < bounceCount; ++bounce) {
         SurfaceHit hit = traceSurface(origin, direction);
@@ -683,6 +839,37 @@ float3 samplePath(float3 origin, float3 direction, inout uint state,
                 radiance += throughput * environmentColor(direction);
             }
             break;
+        }
+        if (insideMedium &&
+            (sceneData.featureFlags & PHOTON_FEATURE_VOLUMES) != 0) {
+            float3 transmittance =
+                volumeTransmittance(mediumMaterial, hit.distance);
+            float3 emission = max(mediumMaterial.volumeEmissionColor, 0.0) *
+                              max(mediumMaterial.volumeEmissionStrength, 0.0) *
+                              (1.0 - transmittance);
+            radiance += throughput * emission;
+            throughput *= transmittance;
+        }
+        if (hit.material.isVolume != 0) {
+            if ((sceneData.featureFlags & PHOTON_FEATURE_VOLUMES) == 0) {
+                origin = hit.position + direction * 0.002;
+                continue;
+            }
+            if (insideMedium && mediumObjectId == hit.objectId) {
+                insideMedium = false;
+                mediumObjectId = 0xffffffffu;
+            } else {
+                insideMedium = true;
+                mediumObjectId = hit.objectId;
+                mediumMaterial = hit.material;
+            }
+            origin = hit.position + direction * 0.002;
+            continue;
+        }
+        if ((sceneData.featureFlags & PHOTON_FEATURE_ALPHA_TRANSPARENCY) != 0 &&
+            randomValue(state) > saturate(hit.material.albedo.w)) {
+            origin = hit.position + direction * 0.002;
+            continue;
         }
         if (bounce == 0) {
             primaryHit = hit;
@@ -694,8 +881,44 @@ float3 samplePath(float3 origin, float3 direction, inout uint state,
         }
         float3 view = safeNormal(-direction, hit.normal);
         radiance += throughput * directLighting(hit, view);
+        if ((sceneData.featureFlags & PHOTON_FEATURE_CAUSTICS) != 0 &&
+            hit.material.transmittance < 0.001 &&
+            hit.material.metallic < 0.001) {
+            radiance += throughput * gatherCaustics(hit);
+        }
         if ((sceneData.featureFlags & PHOTON_FEATURE_INDIRECT_LIGHTING) == 0) {
             break;
+        }
+        float transmission =
+            (sceneData.featureFlags & PHOTON_FEATURE_TRANSMISSION) != 0
+                ? saturate(hit.material.transmittance)
+                : 0.0;
+        if (transmission > 0.0 && randomValue(state) < transmission) {
+            uint channel = min(uint(randomValue(state) * 3.0), 2u);
+            float ior = dispersionIor(hit.material.ior, hit.material.abbeNumber,
+                                      channel);
+            bool entering = hit.frontFace;
+            float eta = entering ? 1.0 / ior : ior;
+            float3 refracted = refract(direction, hit.normal, eta);
+            if (dot(refracted, refracted) <= 1e-8) {
+                direction = reflect(direction, hit.normal);
+            } else {
+                direction = safeNormal(refracted, direction);
+                if ((sceneData.featureFlags & PHOTON_FEATURE_DISPERSION) != 0 &&
+                    hit.material.abbeNumber > 1.0) {
+                    throughput *= channel == 0   ? float3(3.0, 0.0, 0.0)
+                                  : channel == 1 ? float3(0.0, 3.0, 0.0)
+                                                 : float3(0.0, 0.0, 3.0);
+                }
+                float3 attenuation =
+                    clamp(hit.material.attenuationColor, 0.001, 1.0);
+                throughput *=
+                    pow(attenuation,
+                        1.0 / max(hit.material.attenuationDistance, 1e-4));
+            }
+            throughput *= max(hit.material.albedo.xyz, 0.0);
+            origin = hit.position + direction * 0.002;
+            continue;
         }
         float3 diffuseDirection = cosineDirection(hit.normal, state);
         float3 reflectedDirection = reflect(direction, hit.normal);
@@ -727,9 +950,9 @@ float3 samplePath(float3 origin, float3 direction, inout uint state,
     return radiance;
 }
 
-[shader("compute")]
-[numthreads(8, 8, 1)]
-void computeMain(uint3 dispatchThreadID: SV_DispatchThreadID) {
+[shader("compute")][numthreads(8, 8, 1)] void
+computeMain(uint3 dispatchThreadID
+            : SV_DispatchThreadID) {
     uint2 gid = dispatchThreadID.xy * max(sceneData.pixelStride, 1u);
     uint width, height;
     outTex.GetDimensions(width, height);
@@ -836,33 +1059,118 @@ void computeMain(uint3 dispatchThreadID: SV_DispatchThreadID) {
     }
 }
 
-[shader("compute")]
-[numthreads(64, 1, 1)]
-void clearCaustics(uint3 dispatchThreadID: SV_DispatchThreadID) {
-    uint index = dispatchThreadID.x;
-    if (index < (1u << 17) * 34u) {
-        photonSlots[index] = 0u;
+    [shader("compute")][numthreads(64, 1, 1)] void clearCaustics(
+        uint3 dispatchThreadID
+        : SV_DispatchThreadID) {
+    uint bucket = dispatchThreadID.x;
+    if (bucket < CAUSTIC_BUCKET_COUNT) {
+        uint base = bucket * CAUSTIC_BUCKET_WORDS;
+        photonSlots[base] = 0u;
+        photonSlots[base + 1u] = 0u;
+        for (uint slot = 0u; slot < CAUSTIC_BUCKET_SAMPLES; ++slot) {
+            photonSlots[base + 2u + slot] = CAUSTIC_INVALID_BUCKET;
+        }
     }
 }
 
-[shader("compute")]
-[numthreads(64, 1, 1)]
-void emitCaustics(uint3 dispatchThreadID: SV_DispatchThreadID) {
+[shader("compute")][numthreads(64, 1, 1)] void
+emitCaustics(uint3 dispatchThreadID
+             : SV_DispatchThreadID) {
     uint index = dispatchThreadID.x;
     if (index >= (1u << 19)) {
         return;
     }
-    uint state = hashValue(index + caustics.seed);
-    float3 direction = safeNormal(float3(randomValue(state) * 2.0 - 1.0,
-                                         randomValue(state) * 2.0 - 1.0,
-                                         randomValue(state) * 2.0 - 1.0),
-                                  float3(0.0, -1.0, 0.0));
-    SurfaceHit hit = traceSurface(cam.camPos, direction);
+    uint state = hashValue(index + caustics.seed * 9781u);
     CausticPhoton photon = {};
-    if (hit.valid) {
-        photon.positionWavelength = float4(hit.position, 550.0);
-        photon.normalPower = float4(hit.normal, 0.0);
-        photon.incomingObject = float4(-direction, float(hit.objectId));
+    uint lightCount = sceneData.numDirectionalLights +
+                      sceneData.numPointLights + sceneData.numSpotLights +
+                      sceneData.numAreaLights;
+    if (lightCount == 0u) {
+        photons[index] = photon;
+        return;
+    }
+    uint light =
+        min(uint(randomValue(state) * float(lightCount)), lightCount - 1u);
+    float3 origin;
+    float3 direction;
+    float3 power;
+    if (light < sceneData.numDirectionalLights) {
+        direction = safeNormal(-dirLight.direction, float3(0.0, -1.0, 0.0));
+        float2 disk = float2(randomValue(state), randomValue(state));
+        float radius = sqrt(disk.x) * caustics.bounds.w;
+        float angle = disk.y * 6.28318530718;
+        float3 tangent = safeNormal(cross(direction, float3(0.0, 1.0, 0.0)),
+                                    float3(1.0, 0.0, 0.0));
+        float3 bitangent = cross(direction, tangent);
+        origin = caustics.bounds.xyz - direction * caustics.launchDistance +
+                 radius * (cos(angle) * tangent + sin(angle) * bitangent);
+        power = dirLight.color * max(dirLight.intensity, 0.0);
+    } else if ((light -= sceneData.numDirectionalLights) <
+               sceneData.numPointLights) {
+        origin = pointLights[light].position;
+        direction = safeNormal(caustics.bounds.xyz - origin +
+                                   float3(randomValue(state) - 0.5,
+                                          randomValue(state) - 0.5,
+                                          randomValue(state) - 0.5) *
+                                       caustics.bounds.w,
+                               float3(0.0, -1.0, 0.0));
+        power =
+            pointLights[light].color * max(pointLights[light].intensity, 0.0);
+    } else if ((light -= sceneData.numPointLights) < sceneData.numSpotLights) {
+        origin = spotLights[light].position;
+        direction =
+            safeNormal(spotLights[light].direction, float3(0.0, -1.0, 0.0));
+        power = spotLights[light].color * max(spotLights[light].intensity, 0.0);
+    } else {
+        light -= sceneData.numSpotLights;
+        AreaLight source = areaLights[light];
+        float2 uv = float2(randomValue(state), randomValue(state)) * 2.0 - 1.0;
+        origin = source.position + source.right * uv.x * source.halfWidth +
+                 source.up * uv.y * source.halfHeight;
+        float3 normal =
+            safeNormal(cross(source.right, source.up), float3(0.0, -1.0, 0.0));
+        direction = cosineDirection(normal, state);
+        power = source.color * max(source.intensity, 0.0);
+    }
+    SurfaceHit specularHit = traceSurface(origin, direction);
+    if (!specularHit.valid || specularHit.material.roughness >= 0.25 ||
+        (specularHit.material.transmittance <= 0.001 &&
+         specularHit.material.metallic <= 0.001)) {
+        photons[index] = photon;
+        return;
+    }
+    float3 nextDirection;
+    if (specularHit.material.transmittance > 0.001 &&
+        (sceneData.featureFlags & PHOTON_FEATURE_TRANSMISSION) != 0) {
+        uint channel = min(index % 3u, 2u);
+        float ior = dispersionIor(specularHit.material.ior,
+                                  specularHit.material.abbeNumber, channel);
+        nextDirection = refract(direction, specularHit.normal,
+                                specularHit.frontFace ? 1.0 / ior : ior);
+        if (dot(nextDirection, nextDirection) <= 1e-8) {
+            nextDirection = reflect(direction, specularHit.normal);
+        }
+    } else {
+        nextDirection = reflect(direction, specularHit.normal);
+    }
+    nextDirection = safeNormal(nextDirection, direction);
+    SurfaceHit receiver = traceSurface(
+        specularHit.position + nextDirection * 0.002, nextDirection);
+    if (receiver.valid && receiver.material.transmittance < 0.001 &&
+        receiver.material.metallic < 0.001) {
+        uint channel = min(index % 3u, 2u);
+        float channelPower = channel == 0u   ? power.x
+                             : channel == 1u ? power.y
+                                             : power.z;
+        photon.positionWavelength = float4(receiver.position, float(channel));
+        photon.normalPower =
+            float4(receiver.normal, channelPower / float(1u << 19));
+        photon.incomingObject =
+            float4(-nextDirection, float(receiver.objectId));
+        photons[index] = photon;
+        insertCausticPhoton(int3(floor(receiver.position / caustics.radius)),
+                            index, state);
+        return;
     }
     photons[index] = photon;
 }
