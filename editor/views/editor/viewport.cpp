@@ -35,6 +35,11 @@
 #include <QMouseEvent>
 #include <QMessageBox>
 #include <QMimeData>
+#ifdef Q_OS_LINUX
+#include <SDL3/SDL_init.h>
+#include <SDL3/SDL_properties.h>
+#include <SDL3/SDL_video.h>
+#endif
 #include <QPaintEngine>
 #include <QProgressDialog>
 #include <QPointer>
@@ -1162,6 +1167,27 @@ void ViewportPanel::startRuntime() {
 #elif defined(Q_OS_LINUX)
         const QString platform = QGuiApplication::platformName().toLower();
         if (platform.contains("wayland")) {
+            auto *wayland =
+                qGuiApp
+                    ->nativeInterface<QNativeInterface::QWaylandApplication>();
+            void *display = wayland != nullptr ? wayland->display() : nullptr;
+            const SDL_PropertiesID properties = SDL_GetGlobalProperties();
+            bool sharedDisplay = display != nullptr && properties != 0;
+            if (sharedDisplay && SDL_WasInit(SDL_INIT_VIDEO) != 0) {
+                sharedDisplay =
+                    SDL_GetPointerProperty(
+                        properties,
+                        SDL_PROP_GLOBAL_VIDEO_WAYLAND_WL_DISPLAY_POINTER,
+                        nullptr) == display;
+            } else if (sharedDisplay) {
+                sharedDisplay = SDL_SetPointerProperty(
+                    properties,
+                    SDL_PROP_GLOBAL_VIDEO_WAYLAND_WL_DISPLAY_POINTER, display);
+            }
+            if (!sharedDisplay) {
+                throw std::runtime_error(
+                    "The Wayland display could not be shared with Vulkan");
+            }
             nativeWindowType = opal::NativeWindowType::Wayland;
         } else if (platform.contains("xcb") || platform.contains("x11")) {
             nativeWindowType = opal::NativeWindowType::X11;

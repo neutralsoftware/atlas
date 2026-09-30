@@ -2508,7 +2508,8 @@ void Window::resize(int width, int height, float scale) {
     this->width = clampedWidth;
     this->height = clampedHeight;
 
-    if (this->windowRef != nullptr && this->showHostWindow) {
+    if (this->windowRef != nullptr &&
+        (this->showHostWindow || this->externalNativeWindow != nullptr)) {
         SDL_SetWindowSize(this->windowRef, clampedWidth, clampedHeight);
     }
 
