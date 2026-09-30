@@ -125,7 +125,7 @@ def main():
     if installer.exists():
         installer.unlink()
     run([
-        require("makensis"),
+        require("makensis", os.environ.get("ATLAS_MAKENSIS")),
         f"/DOUTPUT_FILE={installer}",
         f"/DSOURCE_DIR={package_directory}",
         root / "packaging" / "windows" / "AtlasEngine.nsi",
