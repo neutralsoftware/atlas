@@ -31,6 +31,10 @@ jobs:
                   choco install ninja imagemagick vulkan-sdk nsis --no-progress -y
                   npm install --global rcedit
 
+                  $rcedit = Join-Path (npm root --global) "rcedit\bin\cli.js"
+                  "ATLAS_RCEDIT_SCRIPT=$rcedit" |
+                    Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
+
                   $vulkanSdk = Get-ChildItem -Path "C:\VulkanSDK" -Directory |
                     Sort-Object Name -Descending |
                     Select-Object -First 1
