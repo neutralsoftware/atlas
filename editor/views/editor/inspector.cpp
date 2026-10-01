@@ -1132,8 +1132,9 @@ QWidget *primitiveField(const QString &name, const QString &path,
         layout->setSpacing(2);
         auto *field = numberField(value.toDouble(), container);
         if (!path.startsWith("/variables/")) {
-            if (name.compare("radius", Qt::CaseInsensitive) == 0 ||
-                name.compare("vertexRadius", Qt::CaseInsensitive) == 0 ||
+            if (name.compare("radius", Qt::CaseInsensitive) == 0)
+                field->setRange(0.001, 1000000.0);
+            if (name.compare("vertexRadius", Qt::CaseInsensitive) == 0 ||
                 name.compare("spawnRadius", Qt::CaseInsensitive) == 0)
                 field->setRange(0.0, 1000000.0);
             if (name.compare("sectorCount", Qt::CaseInsensitive) == 0) {
