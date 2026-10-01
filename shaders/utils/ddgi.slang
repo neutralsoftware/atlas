@@ -12,7 +12,7 @@ float2 octEncode(float3 n) {
 
 float3 safeNormalizeDDGI(float3 v, float3 fallback) {
     float len2 = dot(v, v);
-    if (len2 > 1e-10f) {
+    if (isfinite(len2) && len2 > 1e-10f) {
         return v * rsqrt(len2);
     }
     return fallback;
@@ -48,7 +48,7 @@ float2 ddgiAtlasUV(uint probeIndex, float3 dirWS, ProbeSpace ps, uint atlasW,
 
     float2 innerPx = float2((float)(tileX * tileRes + border),
                             (float)(tileY * tileRes + border)) +
-                     innerUV * float(innerRes - 1u);
+                     innerUV * float(innerRes) - 0.5f;
 
     return (innerPx + 0.5f) / float2((float)atlasW, (float)atlasH);
 }
@@ -220,11 +220,11 @@ float3 sampleDDGIDirectionalRadiance(Texture2D<float4> ddgiTexture,
                     validityW = 0.0f;
                 }
                 irr = max(irr, float3(0.0f));
-                float weightedW = w * validityW * max(visibility, 0.001f);
+                float weightedW = w * validityW * visibility;
                 result += irr * weightedW;
                 weightSum += weightedW;
                 float noBackfaceW = trilinearW * distanceW * validityW *
-                                    max(visibility, 0.001f);
+                                    visibility;
                 resultNoBackface += irr * noBackfaceW;
                 weightSumNoBackface += noBackfaceW;
             }
@@ -238,22 +238,7 @@ float3 sampleDDGIDirectionalRadiance(Texture2D<float4> ddgiTexture,
         return resultNoBackface / weightSumNoBackface;
     }
 
-    uint3 nearest = uint3(
-        (uint)clamp(int(floor(clampedGrid.x + 0.5f)), 0, int(counts.x) - 1),
-        (uint)clamp(int(floor(clampedGrid.y + 0.5f)), 0, int(counts.y) - 1),
-        (uint)clamp(int(floor(clampedGrid.z + 0.5f)), 0, int(counts.z) - 1));
-    uint nearestIndex = probeIndexFromCoord(nearest, counts);
-    float4 fallbackSample = sampleProbeDirectionalRadiance(
-        ddgiTexture, ps, nearestIndex, atlasW, atlasH, safeDirection);
-    float fallbackValidity =
-        isfinite(fallbackSample.w) ? clamp(fallbackSample.w, 0.0f, 1.0f) : 0.0f;
-    float3 fallback =
-        all(isfinite(fallbackSample.xyz)) ? fallbackSample.xyz : float3(0.0f);
-    fallback *= fallbackValidity;
-    if (!all(isfinite(fallback))) {
-        fallback = float3(0.0f);
-    }
-    return max(fallback, float3(0.0f));
+    return float3(0.0f);
 }
 
 float3 sampleDDGIIrradiance(Texture2D<float4> ddgiTexture,

@@ -105,8 +105,19 @@ kernel void main0(texture2d<float, access::write> outTexture [[texture(0)]],
         return;
     }
 
-    int innerX = clamp(int(localX) - int(border), 0, int(innerRes) - 1);
-    int innerY = clamp(int(localY) - int(border), 0, int(innerRes) - 1);
+    int innerX = int(localX) - int(border);
+    int innerY = int(localY) - int(border);
+    const int resolution = int(innerRes);
+    if (innerX < 0 || innerX >= resolution) {
+        innerX = innerX < 0 ? -innerX - 1 : 2 * resolution - innerX - 1;
+        innerY = resolution - innerY - 1;
+    }
+    if (innerY < 0 || innerY >= resolution) {
+        innerY = innerY < 0 ? -innerY - 1 : 2 * resolution - innerY - 1;
+        innerX = resolution - innerX - 1;
+    }
+    innerX = clamp(innerX, 0, resolution - 1);
+    innerY = clamp(innerY, 0, resolution - 1);
 
     float2 e = (float2(float(innerX), float(innerY)) + 0.5f) / float(innerRes) * 2.0f - 1.0f;
     float3 texelDir = octDecode(e);
@@ -118,6 +129,7 @@ kernel void main0(texture2d<float, access::write> outTexture [[texture(0)]],
 
     float3 sum = float3(0.0f);
     float weightSum = 0.0f;
+    float distanceWeightSum = 0.0f;
     float distanceSum = 0.0f;
     float distanceSquaredSum = 0.0f;
     float nearHitCount = 0.0f;
@@ -144,8 +156,10 @@ kernel void main0(texture2d<float, access::write> outTexture [[texture(0)]],
                 float distance = hitDistance > 0.0f
                                      ? min(hitDistance, rt.maxRayDistance)
                                      : rt.maxRayDistance;
-                distanceSum += distance * w;
-                distanceSquaredSum += distance * distance * w;
+                const float distanceWeight = pow(w, 16.0f);
+                distanceWeightSum += distanceWeight;
+                distanceSum += distance * distanceWeight;
+                distanceSquaredSum += distance * distance * distanceWeight;
             }
         }
     }
@@ -156,7 +170,8 @@ kernel void main0(texture2d<float, access::write> outTexture [[texture(0)]],
     float invRayCount = 1.0f / float(max(sampledRayCount, 1u));
     if (weightSum > 1e-6f) {
         irradiance = sum * (FOUR_PI * invRayCount);
-        distanceMoments = float2(distanceSum, distanceSquaredSum) / weightSum;
+        if (distanceWeightSum > 1e-6f)
+            distanceMoments = float2(distanceSum, distanceSquaredSum) / distanceWeightSum;
     }
 
     if (!all(isfinite(irradiance))) {
@@ -165,6 +180,8 @@ kernel void main0(texture2d<float, access::write> outTexture [[texture(0)]],
 
     float4 prev = prevTexture.read(atlasCoordinate);
     float4 previousDistance = prevDistance.read(atlasCoordinate);
+    if (!all(isfinite(previousDistance.xy)))
+        previousDistance.xy = distanceMoments;
     float3 prevValue = all(isfinite(prev.xyz)) ? prev.xyz : float3(0.0f);
     float prevValidity = isfinite(prev.w) ? clamp(prev.w, 0.0f, 1.0f) : 1.0f;
 
