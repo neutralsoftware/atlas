@@ -87,6 +87,12 @@ def main():
     copy_required(built_bin / "atlas", bin_directory / "atlas")
     copy_required(built_bin / "atlasrun", bin_directory / "atlasrun")
     copy_required(built_bin / "runtime.so", bin_directory / "runtime.so")
+    license_directory = app_directory / "usr" / "share" / "licenses" / "atlas-engine"
+    license_directory.mkdir(parents=True, exist_ok=True)
+    copy_required(
+        root / "shaders" / "photon" / "metal" / "path" / "rgb_spectrum_basis.LICENSE",
+        license_directory / "pbrt-v3.LICENSE",
+    )
     shutil.copy2(root / "editor" / "assets" / "atlasStarBright.svg", icon_directory / "atlas-engine.svg")
     shutil.copy2(root / "packaging" / "linux" / "atlas-engine.desktop", applications_directory / "atlas-engine.desktop")
 
