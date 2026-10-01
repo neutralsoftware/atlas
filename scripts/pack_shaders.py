@@ -88,7 +88,8 @@ def generate(input_dir, output_file, backend, slangc, spirv_cross,
         spirv = artifact_dir / f"{symbol}.spv"
         profile = entry.get("profile", "spirv_1_3")
         run([slangc, str(source), "-I", str(input_dir), "-D",
-             f"ATLAS_{stage.upper()}=1", "-entry", entry["entry"],
+             f"ATLAS_{stage.upper()}=1", "-D",
+             f"ATLAS_BACKEND_{backend.upper()}=1", "-entry", entry["entry"],
              "-target", "spirv", "-profile", profile, "-preserve-params",
              "-o", str(spirv)])
         if spirv_cross:
