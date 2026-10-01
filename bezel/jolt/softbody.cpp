@@ -315,18 +315,18 @@ bool loadTetrahedralCache(const std::filesystem::path &path, uint64_t key,
     return true;
 }
 
-void storeTetrahedralCache(const std::filesystem::path &path, uint64_t key,
+bool storeTetrahedralCache(const std::filesystem::path &path, uint64_t key,
                            const SoftbodyMesh &mesh) {
     std::error_code error;
     std::filesystem::create_directories(path.parent_path(), error);
     if (error)
-        return;
+        return false;
     const auto nonce = std::chrono::steady_clock::now().time_since_epoch().count();
     const std::filesystem::path temporary = path.string() + "." +
                                              std::to_string(nonce) + ".tmp";
     std::ofstream output(temporary, std::ios::binary | std::ios::trunc);
     if (!output)
-        return;
+        return false;
     const TetrahedralCacheHeader header{0x41544c4153544554ULL, key,
                                        mesh.vertices.size(), mesh.tetrahedra.size()};
     output.write(reinterpret_cast<const char *>(&header), sizeof(header));
@@ -339,10 +339,19 @@ void storeTetrahedralCache(const std::filesystem::path &path, uint64_t key,
         output.write(reinterpret_cast<const char *>(indices), sizeof(indices));
     }
     output.close();
-    if (output)
+    if (output) {
         std::filesystem::rename(temporary, path, error);
-    if (!output || error)
+        if (error) {
+            std::filesystem::remove(path, error);
+            if (!error)
+                std::filesystem::rename(temporary, path, error);
+        }
+    }
+    if (!output || error) {
         std::filesystem::remove(temporary, error);
+        return false;
+    }
+    return true;
 }
 
 } // namespace
@@ -395,8 +404,9 @@ void Softbody::createMesh() {
         : std::filesystem::path(meshCacheDirectory);
     const std::filesystem::path cachePath = cacheDirectory /
         (std::to_string(cacheKey) + ".tetra");
-    meshCacheFile = cacheError ? std::string() : cachePath.string();
+    meshCacheFile.clear();
     if (!cacheError && loadTetrahedralCache(cachePath, cacheKey, mesh)) {
+        meshCacheFile = cachePath.string();
         reportProgress(100, "loaded cached tetrahedra");
         isMeshCreated = true;
         return;
@@ -520,8 +530,8 @@ void Softbody::createMesh() {
     }
 
     mesh.surface = extractSurfaceTriangles(mesh.tetrahedra);
-    if (!cacheError)
-        storeTetrahedralCache(cachePath, cacheKey, mesh);
+    if (!cacheError && storeTetrahedralCache(cachePath, cacheKey, mesh))
+        meshCacheFile = cachePath.string();
 
     reportProgress(100, "softbody mesh ready");
 
