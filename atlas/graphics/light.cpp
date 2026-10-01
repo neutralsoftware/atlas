@@ -197,6 +197,7 @@ void Spotlight::lookAt(const Position3d &target) {
 void Spotlight::castShadows(Window &window, int resolution) {
     atlas_log("Enabling shadow casting for spotlight (resolution: " +
               std::to_string(resolution) + ")");
+    resolution = std::clamp(resolution, 64, 8192);
     if (this->shadowRenderTarget == nullptr) {
         this->shadowRenderTarget =
             new RenderTarget(window, RenderTargetType::Shadow, resolution);
@@ -207,6 +208,7 @@ void Spotlight::castShadows(Window &window, int resolution) {
 void DirectionalLight::castShadows(Window &window, int resolution) {
     atlas_log("Enabling shadow casting for directional light (resolution: " +
               std::to_string(resolution) + ")");
+    resolution = std::clamp(resolution, 64, 8192);
     if (this->shadowRenderTarget == nullptr) {
         this->shadowRenderTarget =
             new RenderTarget(window, RenderTargetType::Shadow, resolution);
@@ -364,6 +366,7 @@ std::tuple<glm::mat4, glm::mat4> Spotlight::calculateLightSpaceMatrix() const {
 }
 
 void Light::castShadows(Window &window, int resolution) {
+    resolution = std::clamp(resolution, 64, 8192);
     if (this->shadowRenderTarget == nullptr) {
         this->shadowRenderTarget =
             new RenderTarget(window, RenderTargetType::CubeShadow, resolution);
@@ -404,6 +407,7 @@ std::vector<glm::mat4> Light::calculateShadowTransforms() const {
 void AreaLight::castShadows(Window &window, int resolution) {
     atlas_log("Enabling shadow casting for area light (resolution: " +
               std::to_string(resolution) + ")");
+    resolution = std::clamp(resolution, 64, 8192);
     if (this->shadowRenderTarget == nullptr) {
         this->shadowRenderTarget =
             new RenderTarget(window, RenderTargetType::Shadow, resolution);

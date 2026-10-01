@@ -10,6 +10,8 @@
 #include "atlas/object.h"
 #include "atlas/texture.h"
 #include "atlas/units.h"
+#include <algorithm>
+#include <cmath>
 #include <numbers>
 #include <vector>
 
@@ -402,6 +404,10 @@ CoreObject createPyramid(Size3d size, Color color) {
 
 CoreObject createSphere(double radius, unsigned int sectorCount,
                         unsigned int stackCount, Color color) {
+    radius = std::isfinite(radius) ? std::clamp(radius, 0.001, 1000000.0)
+                                 : 0.5;
+    sectorCount = std::clamp(sectorCount, 3u, 512u);
+    stackCount = std::clamp(stackCount, 2u, 256u);
     std::vector<CoreVertex> vertices;
     std::vector<Index> indices;
 

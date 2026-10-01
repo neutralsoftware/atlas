@@ -714,10 +714,8 @@ void Window::deferredRendering(
 
     int shadow2DSamplerIndex = 0;
     int boundParameters = 0;
-#ifdef METAL
     std::vector<GPUShadowParams> gpuShadowParams;
     gpuShadowParams.reserve(10);
-#endif
 
     // Cycle though directional lights
     for (size_t lightIndex = 0; lightIndex < scene->directionalLights.size();
@@ -744,7 +742,6 @@ void Window::deferredRendering(
         lightPipeline->setUniform1i(baseName + ".textureIndex",
                                     shadow2DSamplerIndex);
         ShadowParams shadowParams = light->lastShadowParams;
-#ifdef METAL
         GPUShadowParams gpuShadow{};
         gpuShadow.lightView = shadowParams.lightView;
         gpuShadow.lightProjection = shadowParams.lightProjection;
@@ -755,16 +752,7 @@ void Window::deferredRendering(
         gpuShadow.lightPos = glm::vec3(0.0f);
         gpuShadow.lightType = 0;
         gpuShadowParams.push_back(gpuShadow);
-#else
-        lightPipeline->setUniformMat4f(baseName + ".lightView",
-                                       shadowParams.lightView);
-        lightPipeline->setUniformMat4f(baseName + ".lightProjection",
-                                       shadowParams.lightProjection);
-        lightPipeline->setUniform1f(baseName + ".bias", shadowParams.bias);
-        lightPipeline->setUniform1i(baseName + ".lightType", 0);
-        lightPipeline->setUniform1i(baseName + ".lightIndex",
-                                    static_cast<int>(lightIndex));
-#endif
+
 
         boundParameters++;
         shadow2DSamplerIndex++;
@@ -796,7 +784,6 @@ void Window::deferredRendering(
         lightPipeline->setUniform1i(baseName + ".textureIndex",
                                     shadow2DSamplerIndex);
         ShadowParams shadowParams = light->lastShadowParams;
-#ifdef METAL
         GPUShadowParams gpuShadow{};
         gpuShadow.lightView = shadowParams.lightView;
         gpuShadow.lightProjection = shadowParams.lightProjection;
@@ -807,16 +794,7 @@ void Window::deferredRendering(
         gpuShadow.lightPos = glm::vec3(0.0f);
         gpuShadow.lightType = 1;
         gpuShadowParams.push_back(gpuShadow);
-#else
-        lightPipeline->setUniformMat4f(baseName + ".lightView",
-                                       shadowParams.lightView);
-        lightPipeline->setUniformMat4f(baseName + ".lightProjection",
-                                       shadowParams.lightProjection);
-        lightPipeline->setUniform1f(baseName + ".bias", shadowParams.bias);
-        lightPipeline->setUniform1i(baseName + ".lightType", 1);
-        lightPipeline->setUniform1i(baseName + ".lightIndex",
-                                    static_cast<int>(lightIndex));
-#endif
+
 
         boundParameters++;
         shadow2DSamplerIndex++;
@@ -847,7 +825,6 @@ void Window::deferredRendering(
         lightPipeline->setUniform1i(baseName + ".textureIndex",
                                     shadow2DSamplerIndex);
         ShadowParams shadowParams = light->lastShadowParams;
-#ifdef METAL
         GPUShadowParams gpuShadow{};
         gpuShadow.lightView = shadowParams.lightView;
         gpuShadow.lightProjection = shadowParams.lightProjection;
@@ -858,16 +835,7 @@ void Window::deferredRendering(
         gpuShadow.lightPos = glm::vec3(0.0f);
         gpuShadow.lightType = 2;
         gpuShadowParams.push_back(gpuShadow);
-#else
-        lightPipeline->setUniformMat4f(baseName + ".lightView",
-                                       shadowParams.lightView);
-        lightPipeline->setUniformMat4f(baseName + ".lightProjection",
-                                       shadowParams.lightProjection);
-        lightPipeline->setUniform1f(baseName + ".bias", shadowParams.bias);
-        lightPipeline->setUniform1i(baseName + ".lightType", 2);
-        lightPipeline->setUniform1i(baseName + ".lightIndex",
-                                    static_cast<int>(lightIndex));
-#endif
+
 
         boundParameters++;
         shadow2DSamplerIndex++;
@@ -893,7 +861,6 @@ void Window::deferredRendering(
             "cubeMap" + std::to_string(boundCubemaps + 1),
             light->shadowRenderTarget->texture.id, 10 + boundCubemaps);
         lightPipeline->setUniform1i(baseName + ".textureIndex", boundCubemaps);
-#ifdef METAL
         GPUShadowParams gpuShadow{};
         gpuShadow.lightView = glm::mat4(1.0f);
         gpuShadow.lightProjection = glm::mat4(1.0f);
@@ -906,14 +873,7 @@ void Window::deferredRendering(
                                        static_cast<float>(light->position.z));
         gpuShadow.lightType = 3;
         gpuShadowParams.push_back(gpuShadow);
-#else
-        lightPipeline->setUniform1f(baseName + ".farPlane", light->distance);
-        lightPipeline->setUniform3f(baseName + ".lightPos", light->position.x,
-                                    light->position.y, light->position.z);
-        lightPipeline->setUniform1i(baseName + ".lightType", 3);
-        lightPipeline->setUniform1i(baseName + ".lightIndex",
-                                    static_cast<int>(lightIndex));
-#endif
+
 
         boundParameters++;
         boundCubemaps++;
@@ -922,11 +882,9 @@ void Window::deferredRendering(
     lightPipeline->setUniform1i("shadowParamCount", boundParameters);
     lightPipeline->setUniform1i(
         "featureFlags", static_cast<int>(this->realtimePBRFeatureFlags));
-#ifdef METAL
     if (!gpuShadowParams.empty()) {
         lightPipeline->bindBuffer("ShadowParams", gpuShadowParams);
     }
-#endif
 
     // Set texture units array using pipeline
     for (int i = 0; i < boundTextures && i < 16; i++) {
