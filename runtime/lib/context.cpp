@@ -3091,8 +3091,9 @@ std::shared_ptr<Component> attachComponent(Context &context,
         tryReadBoolAny(pending.data, {"isSensor"}, softbody->isSensor);
         std::string cacheDirectory = "assets/.atlas-tetrahedra";
         tryReadStringAny(pending.data, {"tetrahedralCache"}, cacheDirectory);
-        softbody->body->meshCacheDirectory =
-            resolveRuntimePath(context.projectDir, cacheDirectory);
+        if (softbody->body != nullptr)
+            softbody->body->meshCacheDirectory =
+                resolveRuntimePath(context.projectDir, cacheDirectory);
 
         float value = 0.0f;
         if (tryReadFloatAny(pending.data, {"mass"}, value)) {
@@ -3503,8 +3504,9 @@ bool updateAttachedComponent(Context &context, GameObject &object,
         tryReadBoolAny(data, {"isSensor"}, softbody->isSensor);
         std::string cacheDirectory = "assets/.atlas-tetrahedra";
         tryReadStringAny(data, {"tetrahedralCache"}, cacheDirectory);
-        softbody->body->meshCacheDirectory =
-            resolveRuntimePath(context.projectDir, cacheDirectory);
+        if (softbody->body != nullptr)
+            softbody->body->meshCacheDirectory =
+                resolveRuntimePath(context.projectDir, cacheDirectory);
         float value = 0.0f;
         if (tryReadFloatAny(data, {"mass"}, value)) {
             softbody->setMass(value);
