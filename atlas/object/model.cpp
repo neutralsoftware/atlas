@@ -17,6 +17,10 @@
 #include "atlas/window.h"
 #include "atlas/workspace.h"
 #include <assimp/Importer.hpp>
+#include <assimp/Exporter.hpp>
+#include <assimp/DefaultIOSystem.h>
+#include <assimp/version.h>
+#include <nlohmann/json.hpp>
 #include <assimp/GltfMaterial.h>
 #include <assimp/ProgressHandler.hpp>
 #include <assimp/postprocess.h>
@@ -64,6 +68,133 @@ class ModelImportProgressHandler : public Assimp::ProgressHandler {
   private:
     std::function<void(float, const std::string &)> callback;
 };
+
+class ModelImportIO : public Assimp::IOSystem {
+  public:
+    bool Exists(const char *path) const override { return files.Exists(path); }
+    char getOsSeparator() const override { return files.getOsSeparator(); }
+    Assimp::IOStream *Open(const char *path, const char *mode = "rb") override {
+        auto *stream = files.Open(path, mode);
+        if (stream != nullptr && mode[0] == 'r') {
+            std::error_code error;
+            auto absolute = std::filesystem::absolute(path, error);
+            if (!error)
+                dependencies.insert(absolute.lexically_normal().string());
+        }
+        return stream;
+    }
+    void Close(Assimp::IOStream *stream) override { files.Close(stream); }
+    bool ComparePaths(const char *one, const char *two) const override {
+        return files.ComparePaths(one, two);
+    }
+    std::unordered_set<std::string> dependencies;
+
+  private:
+    Assimp::DefaultIOSystem files;
+};
+
+nlohmann::json modelFileStamp(const std::string &path) {
+    std::error_code error;
+    const auto size = std::filesystem::file_size(path, error);
+    if (error)
+        return {};
+    const auto time = std::filesystem::last_write_time(path, error);
+    if (error)
+        return {};
+    return {{"path", path}, {"size", size},
+            {"time", time.time_since_epoch().count()}};
+}
+
+std::filesystem::path modelSceneCachePath(const Resource &resource,
+                                          unsigned int flags) {
+    std::error_code error;
+    auto directory = std::filesystem::temp_directory_path(error);
+    if (error)
+        return {};
+    const std::string key = std::filesystem::absolute(resource.path, error)
+                                .lexically_normal().string() +
+                            "|" + std::to_string(flags) + "|" +
+                            std::to_string(aiGetVersionMajor()) + "." +
+                            std::to_string(aiGetVersionMinor()) + "." +
+                            std::to_string(aiGetVersionPatch());
+    if (error)
+        return {};
+    uint64_t hash = 1469598103934665603ULL;
+    for (unsigned char value : key) {
+        hash ^= value;
+        hash *= 1099511628211ULL;
+    }
+    return directory / "atlas-model-scenes-v1" /
+           (std::to_string(hash) + ".assbin");
+}
+
+bool isModelSceneCacheValid(const std::filesystem::path &path) {
+    if (path.empty())
+        return false;
+    try {
+        std::ifstream input(path.string() + ".json");
+        if (!input)
+            return false;
+        const auto metadata = nlohmann::json::parse(input);
+        if (metadata.value("version", 0) != 1 ||
+            metadata.at("scene") != modelFileStamp(path.string()))
+            return false;
+        const auto &dependencies = metadata.at("dependencies");
+        if (!dependencies.is_array() || dependencies.empty())
+            return false;
+        for (const auto &dependency : dependencies) {
+            if (dependency != modelFileStamp(dependency.at("path").get<std::string>()))
+                return false;
+        }
+        return true;
+    } catch (const std::exception &) {
+        return false;
+    }
+}
+
+void storeModelSceneCache(const aiScene *scene,
+                          const std::filesystem::path &path,
+                          const ModelImportIO &io) {
+    if (path.empty() || io.dependencies.empty())
+        return;
+    std::filesystem::path temporary;
+    try {
+        std::error_code error;
+        std::filesystem::create_directories(path.parent_path(), error);
+        if (error)
+            return;
+        const auto nonce = std::chrono::steady_clock::now().time_since_epoch().count();
+        temporary = path.string() + "." + std::to_string(nonce) + ".tmp";
+        Assimp::Exporter exporter;
+        if (exporter.Export(scene, "assbin", temporary.string()) != AI_SUCCESS) {
+            std::filesystem::remove(temporary, error);
+            return;
+        }
+        nlohmann::json dependencies = nlohmann::json::array();
+        for (const auto &dependency : io.dependencies) {
+            auto stamp = modelFileStamp(dependency);
+            if (stamp.is_null()) {
+                std::filesystem::remove(temporary, error);
+                return;
+            }
+            dependencies.push_back(std::move(stamp));
+        }
+        std::filesystem::rename(temporary, path, error);
+        if (error) {
+            std::filesystem::remove(temporary, error);
+            return;
+        }
+        nlohmann::json metadata{{"version", 1},
+                               {"scene", modelFileStamp(path.string())},
+                               {"dependencies", std::move(dependencies)}};
+        std::ofstream output(path.string() + ".json", std::ios::trunc);
+        output << metadata.dump();
+    } catch (const std::exception &) {
+        std::error_code error;
+        if (!temporary.empty())
+            std::filesystem::remove(temporary, error);
+    }
+}
 
 glm::mat4 assimpToGlmMatrix(const aiMatrix4x4 &matrix) {
     return glm::transpose(glm::make_mat4(&matrix.a1));
@@ -164,9 +295,6 @@ std::filesystem::path modelTextureCachePath(const ModelTextureJob &job) {
 
 std::optional<DecodedModelTexture>
 loadDecodedTextureCache(const ModelTextureJob &job) {
-    if (job.maximumDimension <= 0) {
-        return std::nullopt;
-    }
     const std::filesystem::path path = modelTextureCachePath(job);
     if (path.empty()) {
         return std::nullopt;
@@ -181,10 +309,18 @@ loadDecodedTextureCache(const ModelTextureJob &job) {
                                     static_cast<uint64_t>(header.height) * 4;
     const uint64_t expectedAo = static_cast<uint64_t>(header.width) *
                                 static_cast<uint64_t>(header.height);
+    std::error_code cacheError;
+    const auto cacheBytes = std::filesystem::file_size(path, cacheError);
+    if (cacheError || cacheBytes < sizeof(header) ||
+        header.pixelBytes > cacheBytes - sizeof(header) ||
+        header.aoBytes != cacheBytes - sizeof(header) - header.pixelBytes)
+        return std::nullopt;
     if (!input || header.magic != 0x41544C4153544558ULL ||
         header.version != 1 || header.width == 0 || header.height == 0 ||
-        header.width > static_cast<uint32_t>(job.maximumDimension) ||
-        header.height > static_cast<uint32_t>(job.maximumDimension) ||
+        header.width > static_cast<uint32_t>(job.maximumDimension > 0
+                                                 ? job.maximumDimension : 16384) ||
+        header.height > static_cast<uint32_t>(job.maximumDimension > 0
+                                                  ? job.maximumDimension : 16384) ||
         header.pixelBytes != expectedPixels ||
         (header.aoBytes != 0 && header.aoBytes != expectedAo)) {
         return std::nullopt;
@@ -208,7 +344,7 @@ loadDecodedTextureCache(const ModelTextureJob &job) {
 
 void storeDecodedTextureCache(const ModelTextureJob &job,
                               const DecodedModelTexture &decoded) {
-    if (job.maximumDimension <= 0 || decoded.pixels.empty()) {
+    if (decoded.pixels.empty()) {
         return;
     }
     const std::filesystem::path path = modelTextureCachePath(job);
@@ -533,8 +669,22 @@ void Model::loadModel(
             aiProcess_JoinIdenticalVertices | aiProcess_ImproveCacheLocality;
     }
 
-    const aiScene *scene =
-        importer.ReadFile(resource.path.string(), importFlags);
+    const auto sceneCachePath = modelSceneCachePath(resource, importFlags);
+    const aiScene *scene = nullptr;
+    if (isModelSceneCacheValid(sceneCachePath)) {
+        if (progress)
+            progress(0.0f, "Loading cached model");
+        scene = importer.ReadFile(sceneCachePath.string(), 0);
+    }
+    if (scene == nullptr || (scene->mFlags & AI_SCENE_FLAGS_INCOMPLETE) ||
+        scene->mRootNode == nullptr) {
+        auto *io = new ModelImportIO();
+        importer.SetIOHandler(io);
+        scene = importer.ReadFile(resource.path.string(), importFlags);
+        if (scene != nullptr && !(scene->mFlags & AI_SCENE_FLAGS_INCOMPLETE) &&
+            scene->mRootNode != nullptr)
+            storeModelSceneCache(scene, sceneCachePath, *io);
+    }
 
     if (!scene || scene->mFlags & AI_SCENE_FLAGS_INCOMPLETE ||
         !scene->mRootNode) {
