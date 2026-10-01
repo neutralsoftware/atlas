@@ -76,14 +76,24 @@ void computeMain(uint3 dispatchThreadID : SV_DispatchThreadID) {
     if (pixel.x >= width || pixel.y >= height) {
         return;
     }
-    int2 inner = clamp(int2(localX, localY) - int(border), int2(0),
-                       int2(int(innerResolution) - 1));
+    int2 inner = int2(localX, localY) - int(border);
+    int resolution = int(innerResolution);
+    if (inner.x < 0 || inner.x >= resolution) {
+        inner.x = inner.x < 0 ? -inner.x - 1 : 2 * resolution - inner.x - 1;
+        inner.y = resolution - inner.y - 1;
+    }
+    if (inner.y < 0 || inner.y >= resolution) {
+        inner.y = inner.y < 0 ? -inner.y - 1 : 2 * resolution - inner.y - 1;
+        inner.x = resolution - inner.x - 1;
+    }
+    inner = clamp(inner, int2(0), int2(resolution - 1));
     float2 encoded = (float2(inner) + 0.5) /
                      float(max(innerResolution, 1u)) * 2.0 - 1.0;
     float3 direction = octDecode(encoded);
     uint raysPerProbe = max(rt.raysPerProbe, 1u);
     float3 radiance = 0.0;
     float weightSum = 0.0;
+    float distanceWeightSum = 0.0;
     float distanceSum = 0.0;
     float distanceSquaredSum = 0.0;
     for (uint rayIndex = 0; rayIndex < raysPerProbe; ++rayIndex) {
@@ -94,26 +104,31 @@ void computeMain(uint3 dispatchThreadID : SV_DispatchThreadID) {
         float distance = sample.w > 0.0
                              ? min(sample.w, rt.maxRayDistance)
                              : rt.maxRayDistance;
-        radiance += sample.xyz * weight;
-        distanceSum += distance * weight;
-        distanceSquaredSum += distance * distance * weight;
+        if (!all(isfinite(sample)))
+            continue;
+        radiance += max(sample.xyz, 0.0) * weight;
+        float distanceWeight = pow(weight, 16.0);
+        distanceSum += distance * distanceWeight;
+        distanceSquaredSum += distance * distance * distanceWeight;
+        distanceWeightSum += distanceWeight;
         weightSum += weight;
     }
     float3 irradiance = weightSum > 1e-6
                             ? radiance * (12.5663706144 / float(raysPerProbe))
                             : 0.0;
-    float2 distanceMoments = weightSum > 1e-6
+    float2 distanceMoments = distanceWeightSum > 1e-6
                                  ? float2(distanceSum, distanceSquaredSum) /
-                                       weightSum
+                                       distanceWeightSum
                                  : float2(rt.maxRayDistance,
                                           rt.maxRayDistance * rt.maxRayDistance);
-    float history = rt.frameIndex < stride ? 0.0 : saturate(rt.hysteresis);
-    outTexture[pixel] = float4(lerp(irradiance,
-                                         prevTexture.Load(int3(pixel, 0)).xyz,
-                                         history),
-                               1.0);
-    outDistance[pixel] = float4(lerp(distanceMoments,
-                                          prevDistance.Load(int3(pixel, 0)).xy,
-                                          history),
+    float history = rt.frameIndex < stride ? 0.0 : clamp(rt.hysteresis, 0.0, 0.995);
+    float3 previousIrradiance = prevTexture.Load(int3(pixel, 0)).xyz;
+    float2 previousMoments = prevDistance.Load(int3(pixel, 0)).xy;
+    if (!all(isfinite(previousIrradiance)))
+        previousIrradiance = irradiance;
+    if (!all(isfinite(previousMoments)))
+        previousMoments = distanceMoments;
+    outTexture[pixel] = float4(lerp(irradiance, previousIrradiance, history), 1.0);
+    outDistance[pixel] = float4(lerp(distanceMoments, previousMoments, history),
                                 0.0, 1.0);
 }
