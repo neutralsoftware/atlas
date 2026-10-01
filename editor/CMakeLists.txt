@@ -211,6 +211,7 @@ else ()
             VERBATIM
     )
     if (WIN32)
+        set_target_properties(AtlasEditor PROPERTIES WIN32_EXECUTABLE TRUE)
         add_custom_command(TARGET AtlasEditor POST_BUILD
                 COMMAND "${CMAKE_COMMAND}" -E copy_if_different
                 "$<TARGET_FILE:ads::qtadvanceddocking-qt6>"
