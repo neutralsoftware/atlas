@@ -1716,10 +1716,28 @@ void updateEditorAreaLightProxy(AreaLight &light) {
     vertices[3].position = {-halfWidth, halfHeight, 0.0f};
     Color emissiveColor = light.color * 2.5f;
     emissiveColor.a = light.color.a;
+    bool verticesChanged = false;
+    for (std::size_t index = 0; index < vertices.size(); ++index) {
+        const auto &previous = light.debugObject->vertices[index];
+        const auto &next = vertices[index];
+        verticesChanged = verticesChanged ||
+                          previous.position.x != next.position.x ||
+                          previous.position.y != next.position.y ||
+                          previous.position.z != next.position.z ||
+                          previous.color.r != emissiveColor.r ||
+                          previous.color.g != emissiveColor.g ||
+                          previous.color.b != emissiveColor.b ||
+                          previous.color.a != emissiveColor.a;
+    }
     for (auto &vertex : vertices) {
         vertex.color = emissiveColor;
     }
-    light.debugObject->attachVertices(vertices);
+    if (verticesChanged) {
+        light.debugObject->attachVertices(vertices);
+        if (light.debugObject->vbo != nullptr) {
+            light.debugObject->updateVertices();
+        }
+    }
     light.debugObject->material.albedo = light.color;
     light.debugObject->material.emissiveColor = light.color;
     light.debugObject->material.emissiveIntensity =
