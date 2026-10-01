@@ -742,13 +742,9 @@ void Window::deferredRendering(
         if (shadow2DSamplerIndex >= 5) {
             break;
         }
-        std::string baseName =
-            "shadowParams[" + std::to_string(boundParameters) + "]";
         lightPipeline->bindTexture2D(
             "texture" + std::to_string(shadow2DSamplerIndex + 1),
             light->shadowRenderTarget->texture.id, boundTextures);
-        lightPipeline->setUniform1i(baseName + ".textureIndex",
-                                    shadow2DSamplerIndex);
         ShadowParams shadowParams = light->lastShadowParams;
         GPUShadowParams gpuShadow{};
         gpuShadow.lightView = shadowParams.lightView;
@@ -784,13 +780,9 @@ void Window::deferredRendering(
         if (shadow2DSamplerIndex >= 5) {
             break;
         }
-        std::string baseName =
-            "shadowParams[" + std::to_string(boundParameters) + "]";
         lightPipeline->bindTexture2D(
             "texture" + std::to_string(shadow2DSamplerIndex + 1),
             light->shadowRenderTarget->texture.id, boundTextures);
-        lightPipeline->setUniform1i(baseName + ".textureIndex",
-                                    shadow2DSamplerIndex);
         ShadowParams shadowParams = light->lastShadowParams;
         GPUShadowParams gpuShadow{};
         gpuShadow.lightView = shadowParams.lightView;
@@ -825,13 +817,9 @@ void Window::deferredRendering(
             break;
         }
 
-        std::string baseName =
-            "shadowParams[" + std::to_string(boundParameters) + "]";
         lightPipeline->bindTexture2D(
             "texture" + std::to_string(shadow2DSamplerIndex + 1),
             light->shadowRenderTarget->texture.id, boundTextures);
-        lightPipeline->setUniform1i(baseName + ".textureIndex",
-                                    shadow2DSamplerIndex);
         ShadowParams shadowParams = light->lastShadowParams;
         GPUShadowParams gpuShadow{};
         gpuShadow.lightView = shadowParams.lightView;
@@ -863,12 +851,9 @@ void Window::deferredRendering(
             break;
         }
 
-        std::string baseName =
-            "shadowParams[" + std::to_string(boundParameters) + "]";
         lightPipeline->bindTextureCubemap(
             "cubeMap" + std::to_string(boundCubemaps + 1),
             light->shadowRenderTarget->texture.id, 10 + boundCubemaps);
-        lightPipeline->setUniform1i(baseName + ".textureIndex", boundCubemaps);
         GPUShadowParams gpuShadow{};
         gpuShadow.lightView = glm::mat4(1.0f);
         gpuShadow.lightProjection = glm::mat4(1.0f);
