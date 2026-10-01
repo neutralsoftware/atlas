@@ -512,6 +512,8 @@ class CoreObject : public GameObject {
      */
     void updateVertices();
 
+    bool hasVertexBuffer() const { return vbo != nullptr; }
+
     /**
      * @brief Function that creates a copy of the object.
      *
