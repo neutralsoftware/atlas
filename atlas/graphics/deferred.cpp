@@ -233,42 +233,50 @@ void Window::deferredRendering(
 
     const int targetWidth = std::max(1, target->getWidth());
     const int targetHeight = std::max(1, target->getHeight());
-    bool recreateDeferredTargets = false;
     if (this->gBuffer == nullptr || this->gBuffer->getWidth() != targetWidth ||
         this->gBuffer->getHeight() != targetHeight) {
-        recreateDeferredTargets = true;
-    }
-    if (this->volumetricBuffer == nullptr ||
-        this->volumetricBuffer->getWidth() != targetWidth ||
-        this->volumetricBuffer->getHeight() != targetHeight) {
-        recreateDeferredTargets = true;
-    }
-    static constexpr float ssrScales[] = {0.67f, 0.85f, 1.0f};
-    const float ssrScale = ssrScales[std::clamp(this->ssrQuality, 0, 2)];
-    const int ssrWidth = std::max(1, static_cast<int>(targetWidth * ssrScale));
-    const int ssrHeight =
-        std::max(1, static_cast<int>(targetHeight * ssrScale));
-    if (this->ssrFramebuffer == nullptr ||
-        this->ssrFramebuffer->getWidth() != ssrWidth ||
-        this->ssrFramebuffer->getHeight() != ssrHeight ||
-        this->ssrHistoryFramebuffer == nullptr ||
-        this->ssrHistoryFramebuffer->getWidth() != ssrWidth ||
-        this->ssrHistoryFramebuffer->getHeight() != ssrHeight) {
-        recreateDeferredTargets = true;
-    }
-    if (recreateDeferredTargets) {
         this->gBuffer = std::make_shared<RenderTarget>(
             RenderTarget(*this, RenderTargetType::GBuffer));
+        this->ssaoMapsDirty = true;
+    }
+    if (this->volumetricBuffer != nullptr &&
+        (this->volumetricBuffer->getWidth() != targetWidth ||
+         this->volumetricBuffer->getHeight() != targetHeight)) {
         this->volumetricBuffer = std::make_shared<RenderTarget>(
             RenderTarget(*this, RenderTargetType::Scene));
+    }
+    const auto drawableSize = getSize();
+    static constexpr float ssrScales[] = {0.67f, 0.85f, 1.0f};
+    const float ssrScale = getRenderScale() *
+                          ssrScales[std::clamp(this->ssrQuality, 0, 2)];
+    const int ssrWidth = std::max(1, static_cast<int>(drawableSize.width * ssrScale));
+    const int ssrHeight = std::max(1, static_cast<int>(drawableSize.height * ssrScale));
+    if (this->ssrFramebuffer != nullptr &&
+        (this->ssrFramebuffer->getWidth() != ssrWidth ||
+         this->ssrFramebuffer->getHeight() != ssrHeight ||
+         this->ssrHistoryFramebuffer == nullptr ||
+         this->ssrHistoryFramebuffer->getWidth() != ssrWidth ||
+         this->ssrHistoryFramebuffer->getHeight() != ssrHeight)) {
         this->ssrFramebuffer = std::make_shared<RenderTarget>(
             RenderTarget(*this, RenderTargetType::SSR, this->ssrQuality));
         this->ssrHistoryFramebuffer = std::make_shared<RenderTarget>(
             RenderTarget(*this, RenderTargetType::SSR, this->ssrQuality));
-        this->ssaoBuffer = std::make_shared<RenderTarget>(
-            RenderTarget(*this, RenderTargetType::SSAO));
-        this->ssaoBlurBuffer = std::make_shared<RenderTarget>(
-            RenderTarget(*this, RenderTargetType::SSAOBlur));
+    }
+    const int ssaoWidth = std::max(1, static_cast<int>(drawableSize.width * getSSAORenderScale()));
+    const int ssaoHeight = std::max(1, static_cast<int>(drawableSize.height * getSSAORenderScale()));
+    if (this->ssaoBuffer == nullptr || this->ssaoBlurBuffer == nullptr ||
+        this->ssaoBuffer->getWidth() != ssaoWidth ||
+        this->ssaoBuffer->getHeight() != ssaoHeight ||
+        this->ssaoBlurBuffer->getWidth() != ssaoWidth ||
+        this->ssaoBlurBuffer->getHeight() != ssaoHeight) {
+        if (noiseTexture.texture == nullptr)
+            setupSSAO();
+        else {
+            this->ssaoBuffer = std::make_shared<RenderTarget>(
+                RenderTarget(*this, RenderTargetType::SSAO));
+            this->ssaoBlurBuffer = std::make_shared<RenderTarget>(
+                RenderTarget(*this, RenderTargetType::SSAOBlur));
+        }
         this->ssaoMapsDirty = true;
     }
 
