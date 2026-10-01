@@ -5,12 +5,10 @@ FetchContent_Declare(
         GIT_SHALLOW TRUE
 )
 
-if(UNIX AND NOT APPLE AND CMAKE_SYSTEM_PROCESSOR MATCHES "^(aarch64|arm64|ARM64)$")
-    set(
-        CMAKE_PROJECT_Geogram_INCLUDE
-        "${CMAKE_CURRENT_SOURCE_DIR}/cmake/GeogramPlatform.cmake"
-    )
-endif()
+set(
+    CMAKE_PROJECT_Geogram_INCLUDE
+    "${CMAKE_CURRENT_SOURCE_DIR}/cmake/GeogramPlatform.cmake"
+)
 
 add_subdirectory(
     ${CMAKE_CURRENT_SOURCE_DIR}/extern/fTetWild
@@ -104,11 +102,21 @@ get_target_property(ATLAS_TETRAHEDRAL_LINK_LIBRARIES FloatTetwild LINK_LIBRARIES
 list(REMOVE_ITEM ATLAS_TETRAHEDRAL_LINK_LIBRARIES warnings::all)
 set_property(TARGET FloatTetwild PROPERTY LINK_LIBRARIES "${ATLAS_TETRAHEDRAL_LINK_LIBRARIES}")
 
-foreach(ATLAS_TETRAHEDRAL_TARGET IN ITEMS FloatTetwild geogram)
+foreach(ATLAS_TETRAHEDRAL_TARGET IN ITEMS FloatTetwild geogram igl::core)
     if(TARGET ${ATLAS_TETRAHEDRAL_TARGET})
+        get_target_property(ATLAS_TETRAHEDRAL_ALIAS ${ATLAS_TETRAHEDRAL_TARGET} ALIASED_TARGET)
+        if(ATLAS_TETRAHEDRAL_ALIAS)
+            set(ATLAS_TETRAHEDRAL_TARGET ${ATLAS_TETRAHEDRAL_ALIAS})
+        endif()
         get_target_property(ATLAS_TETRAHEDRAL_INCLUDES ${ATLAS_TETRAHEDRAL_TARGET} INTERFACE_INCLUDE_DIRECTORIES)
         if(ATLAS_TETRAHEDRAL_INCLUDES)
             set_property(TARGET ${ATLAS_TETRAHEDRAL_TARGET} APPEND PROPERTY INTERFACE_SYSTEM_INCLUDE_DIRECTORIES "${ATLAS_TETRAHEDRAL_INCLUDES}")
         endif()
     endif()
 endforeach()
+
+if(CMAKE_CXX_COMPILER_ID MATCHES "Clang")
+    target_compile_options(geogram PRIVATE -Wno-deprecated-declarations)
+    target_compile_options(FloatTetwild PRIVATE
+        -Wno-deprecated-declarations -Wno-macro-redefined)
+endif()
