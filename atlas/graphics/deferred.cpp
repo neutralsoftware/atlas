@@ -977,6 +977,9 @@ void Window::deferredRendering(
                          volumetricSettings.exposure > 0.0f;
 
     if (useVolumetric) {
+        if (volumetricProgram.shader == nullptr)
+            volumetricProgram = ShaderProgram::fromDefaultShaders(
+                AtlasVertexShader::Volumetric, AtlasFragmentShader::Volumetric);
         if (!volumetricBuffer) {
             volumetricBuffer =
                 std::make_shared<RenderTarget>(*this, RenderTargetType::Scene);
@@ -1056,6 +1059,9 @@ void Window::deferredRendering(
     }
     if (this->ssrFramebuffer != nullptr &&
         (useSSR || useRealtimeTransmission)) {
+        if (ssrProgram.shader == nullptr)
+            ssrProgram = ShaderProgram::fromDefaultShaders(
+                AtlasVertexShader::Light, AtlasFragmentShader::SSR);
         if (targetPassActive) {
             commandBuffer->endPass();
             targetPassActive = false;

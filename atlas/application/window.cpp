@@ -1535,49 +1535,11 @@ Window::Window(const WindowConfiguration &config)
     lastMouseY = initialMouseY;
     relativeMousePos = {0.0f, 0.0f};
 
-    VertexShader vertexShader =
-        VertexShader::fromDefaultShader(AtlasVertexShader::Depth);
-    vertexShader.compile();
-    FragmentShader fragmentShader =
-        FragmentShader::fromDefaultShader(AtlasFragmentShader::Empty);
-    fragmentShader.compile();
-    ShaderProgram program = ShaderProgram();
-    program.vertexShader = vertexShader;
-    program.fragmentShader = fragmentShader;
-    program.compile();
-    this->depthProgram = program;
-
 #ifdef METAL
     this->shadowUpdateInterval = 1.0f / 6.0f;
     this->ssaoKernelSize = 16;
     this->bloomBlurPasses = 4;
 #endif
-
-    ShaderProgram pointProgram = ShaderProgram();
-    VertexShader pointVertexShader = VertexShader::fromDefaultShader(
-        AtlasVertexShader::PointLightShadowNoGeom);
-    pointVertexShader.compile();
-    FragmentShader pointFragmentShader = FragmentShader::fromDefaultShader(
-        AtlasFragmentShader::PointLightShadowNoGeom);
-    pointFragmentShader.compile();
-    pointProgram.vertexShader = pointVertexShader;
-    pointProgram.fragmentShader = pointFragmentShader;
-    pointProgram.compile();
-
-    this->pointDepthProgram = pointProgram;
-
-    this->deferredProgram = ShaderProgram::fromDefaultShaders(
-        AtlasVertexShader::Deferred, AtlasFragmentShader::Deferred);
-    this->lightProgram = ShaderProgram::fromDefaultShaders(
-        AtlasVertexShader::Light, AtlasFragmentShader::Light);
-    this->bloomBlurProgram = ShaderProgram::fromDefaultShaders(
-        AtlasVertexShader::Fullscreen, AtlasFragmentShader::GaussianBlur);
-    this->volumetricProgram = ShaderProgram::fromDefaultShaders(
-        AtlasVertexShader::Volumetric, AtlasFragmentShader::Volumetric);
-    this->ssrProgram = ShaderProgram::fromDefaultShaders(
-        AtlasVertexShader::Light, AtlasFragmentShader::SSR);
-
-    this->setupSSAO();
 
     audioEngine = std::make_shared<AudioEngine>();
     bool result = audioEngine->initialize();
@@ -4879,6 +4841,26 @@ void Window::renderLightsToShadowMaps(
         return;
     }
 
+    const auto hasShadows = [](const auto &lights) {
+        return std::any_of(lights.begin(), lights.end(), [](const auto *light) {
+            return light != nullptr && light->doesCastShadows &&
+                   light->shadowRenderTarget != nullptr;
+        });
+    };
+    const bool needsDepth = hasShadows(currentScene->directionalLights) ||
+                            hasShadows(currentScene->spotlights) ||
+                            hasShadows(currentScene->areaLights);
+    const bool needsPointDepth = hasShadows(currentScene->pointLights);
+    if (!needsDepth && !needsPointDepth)
+        return;
+    if (needsDepth && depthProgram.shader == nullptr)
+        depthProgram = ShaderProgram::fromDefaultShaders(
+            AtlasVertexShader::Depth, AtlasFragmentShader::Empty);
+    if (needsPointDepth && pointDepthProgram.shader == nullptr)
+        pointDepthProgram = ShaderProgram::fromDefaultShaders(
+            AtlasVertexShader::PointLightShadowNoGeom,
+            AtlasFragmentShader::PointLightShadowNoGeom);
+
     this->shadowUpdateCooldown =
         std::max(0.0f, this->shadowUpdateCooldown - this->deltaTime);
     if (this->shadowUpdateCooldown > 0.0f) {
@@ -5430,6 +5412,9 @@ void Window::renderPingpong(RenderTarget *target) {
     blurPipeline->enableDepthTest(false);
     blurPipeline->enableBlending(false);
 
+    if (bloomBlurProgram.shader == nullptr)
+        bloomBlurProgram = ShaderProgram::fromDefaultShaders(
+            AtlasVertexShader::Fullscreen, AtlasFragmentShader::GaussianBlur);
     blurPipeline = this->bloomBlurProgram.requestPipeline(blurPipeline);
 
     target->setPipeline(blurPipeline);
@@ -5492,17 +5477,17 @@ void Window::useDeferredRendering() {
     atlas_log("Enabling deferred rendering");
     this->usePathTracing = false;
     this->usesDeferred = true;
+    if (deferredProgram.shader == nullptr)
+        deferredProgram = ShaderProgram::fromDefaultShaders(
+            AtlasVertexShader::Deferred, AtlasFragmentShader::Deferred);
+    if (lightProgram.shader == nullptr)
+        lightProgram = ShaderProgram::fromDefaultShaders(
+            AtlasVertexShader::Light, AtlasFragmentShader::Light);
+    if (ssaoBuffer == nullptr || ssaoBlurBuffer == nullptr)
+        setupSSAO();
     auto target = std::make_shared<RenderTarget>(
         RenderTarget(*this, RenderTargetType::GBuffer));
     this->gBuffer = target;
-    auto volumetricTarget = std::make_shared<RenderTarget>(
-        RenderTarget(*this, RenderTargetType::Scene));
-    this->volumetricBuffer = volumetricTarget;
-    auto ssrTarget = std::make_shared<RenderTarget>(
-        RenderTarget(*this, RenderTargetType::SSR, this->ssrQuality));
-    this->ssrFramebuffer = ssrTarget;
-    this->ssrHistoryFramebuffer = std::make_shared<RenderTarget>(
-        RenderTarget(*this, RenderTargetType::SSR, this->ssrQuality));
     this->ssaoMapsDirty = true;
 }
 
