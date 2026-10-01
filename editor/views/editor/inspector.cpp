@@ -628,7 +628,8 @@ void refreshTaggedEditors(QFrame *card, const QJsonObject &properties) {
             auto *field = qobject_cast<QComboBox *>(editor);
             if (field != nullptr && value.isString()) {
                 const QSignalBlocker blocker(field);
-                field->setCurrentText(value.toString());
+                field->setCurrentIndex(field->findText(value.toString(),
+                                                        Qt::MatchFixedString));
             }
         } else if (kind == "choiceArray") {
             auto *field = qobject_cast<QComboBox *>(editor);
@@ -704,6 +705,20 @@ void refreshTaggedEditors(QFrame *card, const QJsonObject &properties) {
 
 QStringList choicesFor(const QString &path) {
     const QString key = path.section('/', -1).toLower();
+    if (path.startsWith("/variables/"))
+        return {};
+    if (key == "emissiontype")
+        return {"fountain", "ambient"};
+    if (key == "wrappingmodes" || key == "wrappingmodet" ||
+        key == "wraps" || key == "wrapt")
+        return {"repeat", "mirroredRepeat", "clampToEdge", "clampToBorder"};
+    if (key == "minifyingfilter" || key == "magnifyingfilter" ||
+        key == "minfilter" || key == "magfilter")
+        return {"nearest", "linear"};
+    if (key == "texturetype")
+        return {"color", "specular", "cubemap", "normal", "parallax",
+                "metallic", "roughness", "ao", "pbrPack", "opacity", "depth",
+                "hdr"};
     if (key == "scheme")
         return {"simple", "loop"};
     if (key == "bendtype")
@@ -712,7 +727,10 @@ QStringList choicesFor(const QString &path) {
         return {"static", "dynamic", "kinematic"};
     if (key == "space")
         return {"world", "local"};
-    if (key == "mode")
+    if (key == "mode" && path.contains("transmission"))
+        return {"automatic", "manual"};
+    if (key == "mode" && (path.contains("spring") ||
+                           path.contains("settings")))
         return {"frequencyAndDamping", "stiffnessAndDamping"};
     if (key == "type" && path.contains("transmission")) {
         return {"automatic", "manual"};
@@ -1113,6 +1131,23 @@ QWidget *primitiveField(const QString &name, const QString &path,
         layout->setContentsMargins(0, 0, 0, 0);
         layout->setSpacing(2);
         auto *field = numberField(value.toDouble(), container);
+        if (!path.startsWith("/variables/")) {
+            if (name.compare("radius", Qt::CaseInsensitive) == 0 ||
+                name.compare("vertexRadius", Qt::CaseInsensitive) == 0 ||
+                name.compare("spawnRadius", Qt::CaseInsensitive) == 0)
+                field->setRange(0.0, 1000000.0);
+            if (name.compare("sectorCount", Qt::CaseInsensitive) == 0) {
+                field->setRange(3.0, 512.0);
+                field->setDecimals(0);
+                field->setSingleStep(1.0);
+            }
+            if (name.compare("stackCount", Qt::CaseInsensitive) == 0) {
+                field->setRange(2.0, 256.0);
+                field->setDecimals(0);
+                field->setSingleStep(1.0);
+            }
+            field->setValue(value.toDouble());
+        }
         tagEditor(field, path, "number");
         layout->addWidget(field, 1);
         addSyncPicker(layout, path, value, changed, syncProvider, field,
@@ -1165,7 +1200,14 @@ QWidget *primitiveField(const QString &name, const QString &path,
         auto *field = new QComboBox(parent);
         tagEditor(field, path, "choice");
         field->addItems(choices);
-        field->setCurrentText(value.toString());
+        const QString current = value.toString();
+        const int currentIndex = field->findText(current, Qt::MatchFixedString);
+        if (currentIndex >= 0) {
+            field->setCurrentIndex(currentIndex);
+        } else {
+            field->addItem(current);
+            field->setCurrentIndex(field->count() - 1);
+        }
         QObject::connect(
             field, &QComboBox::currentTextChanged, parent,
             [changed, path](const QString &text) { changed(path, text); });
