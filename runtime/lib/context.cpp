@@ -2246,6 +2246,10 @@ json serializeNewObject(const Context &context, GameObject &object) {
 }
 
 CoreObject createCapsulePrimitive(float radius, float height, Color color) {
+    radius = std::isfinite(radius) ? std::clamp(radius, 0.001f, 1000000.0f)
+                                 : 0.35f;
+    height = std::isfinite(height) ? std::clamp(height, 0.0f, 1000000.0f)
+                                 : 1.0f;
     constexpr unsigned int sectorCount = 32;
     constexpr unsigned int hemisphereSegments = 8;
     std::vector<CoreVertex> vertices;
@@ -4705,8 +4709,10 @@ createRenderable(Context &context, const json &objectData,
             tryReadIntAny(objectData, {"sectorCount"}, sectorCount);
             tryReadIntAny(objectData, {"stackCount"}, stackCount);
             *object =
-                createSphere(radius, static_cast<unsigned int>(sectorCount),
-                             static_cast<unsigned int>(stackCount), color);
+                createSphere(radius,
+                             static_cast<unsigned int>(std::clamp(sectorCount, 3, 512)),
+                             static_cast<unsigned int>(std::clamp(stackCount, 2, 256)),
+                             color);
         } else if (normalizedSolidType == "capsule") {
             float radius = 0.35f;
             float height = 1.0f;
