@@ -69,6 +69,7 @@ class ViewportPanel : public QWidget {
                                     const QJsonValue &value);
     int addRuntimeObjectComponent(int id, const QString &type,
                                   const QJsonObject &properties);
+    bool generateRuntimeSoftbodyMesh(int id, int componentIndex);
     bool removeRuntimeObjectComponent(int id, int componentIndex);
     bool controlRuntimeAudio(int id, int componentIndex, const QString &action);
     bool setRuntimeObjectParent(int childId, int parentId);
