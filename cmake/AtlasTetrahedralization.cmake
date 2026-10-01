@@ -5,12 +5,10 @@ FetchContent_Declare(
         GIT_SHALLOW TRUE
 )
 
-if(UNIX AND NOT APPLE AND CMAKE_SYSTEM_PROCESSOR MATCHES "^(aarch64|arm64|ARM64)$")
-    set(
-        CMAKE_PROJECT_Geogram_INCLUDE
-        "${CMAKE_CURRENT_SOURCE_DIR}/cmake/GeogramPlatform.cmake"
-    )
-endif()
+set(
+    CMAKE_PROJECT_Geogram_INCLUDE
+    "${CMAKE_CURRENT_SOURCE_DIR}/cmake/GeogramPlatform.cmake"
+)
 
 add_subdirectory(
     ${CMAKE_CURRENT_SOURCE_DIR}/extern/fTetWild
@@ -112,3 +110,7 @@ foreach(ATLAS_TETRAHEDRAL_TARGET IN ITEMS FloatTetwild geogram)
         endif()
     endif()
 endforeach()
+
+if(CMAKE_CXX_COMPILER_ID MATCHES "Clang" AND TARGET geogram)
+    target_compile_options(geogram PRIVATE -Wno-deprecated-declarations)
+endif()
