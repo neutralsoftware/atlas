@@ -500,7 +500,7 @@ class RenderTarget : public Renderable {
      */
     RenderTarget(Window &window,
                  RenderTargetType type = RenderTargetType::Scene,
-                 int resolution = 1024);
+                 int resolution = 1024, Size2d pixelSize = {0, 0});
     void resize(Window &window);
 
     /**

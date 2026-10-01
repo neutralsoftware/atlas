@@ -24,7 +24,7 @@
 #include "opal/opal.h"
 
 RenderTarget::RenderTarget(Window &window, RenderTargetType type,
-                           int resolution) {
+                           int resolution, Size2d pixelSize) {
     creationResolution = resolution;
     atlas_log("Creating render target (type: " +
               std::to_string(static_cast<int>(type)) + ")");
@@ -47,6 +47,10 @@ RenderTarget::RenderTarget(Window &window, RenderTargetType type,
 
     int scaledWidth = std::max(1, static_cast<int>(fbWidth * targetScale));
     int scaledHeight = std::max(1, static_cast<int>(fbHeight * targetScale));
+    if (pixelSize.width > 0 && pixelSize.height > 0) {
+        scaledWidth = std::max(1, static_cast<int>(pixelSize.width));
+        scaledHeight = std::max(1, static_cast<int>(pixelSize.height));
+    }
     const auto width = scaledWidth;
     const auto height = scaledHeight;
     this->type = type;
