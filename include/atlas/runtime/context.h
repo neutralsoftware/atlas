@@ -91,7 +91,7 @@ class Context {
     bool cameraAutomaticMoving = false;
     bool editorCameraFocused = false;
     bool editorRuntime = false;
-    bool editorPathTracingPreview = true;
+    bool editorPathTracingPreview = false;
     bool materialPreviewRuntime = false;
     float materialPreviewYaw = 0.0f;
     float materialPreviewPitch = 0.0f;

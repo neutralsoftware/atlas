@@ -196,7 +196,7 @@ class ViewportPanel : public QWidget {
     int keyboardTransformAxes = 7;
     int playbackState = 0;
     int shadingMode = 0;
-    bool pbrPreview = true;
+    bool pbrPreview = false;
     int rightDragRuntimeButton = 0;
     int middleDragRuntimeButton = 0;
 };
