@@ -63,19 +63,6 @@ float calculatePointShadow(
     SamplerCube cubeMap3,
     SamplerCube cubeMap4,
     SamplerCube cubeMap5) {
-    int param = shadowParam.textureIndex;
-    float2 dims = getTextureDimensions(
-        param, texture1, texture2, texture3, texture4, texture5);
-    bool _739 = dims.x == 0.0;
-    bool _746;
-    if (!_739) {
-        _746 = dims.y == 0.0;
-    } else {
-        _746 = _739;
-    }
-    if (_746) {
-        return 0.0;
-    }
     float3 fragToLight = fragPos - shadowParam.lightPos;
     float currentDepth = length(fragToLight);
     if (currentDepth >= shadowParam.farPlane) {
