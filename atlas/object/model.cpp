@@ -181,6 +181,11 @@ void storeModelSceneCache(const aiScene *scene,
         }
         std::filesystem::rename(temporary, path, error);
         if (error) {
+            std::filesystem::remove(path, error);
+            if (!error)
+                std::filesystem::rename(temporary, path, error);
+        }
+        if (error) {
             std::filesystem::remove(temporary, error);
             return;
         }
