@@ -1113,6 +1113,23 @@ QWidget *primitiveField(const QString &name, const QString &path,
         layout->setContentsMargins(0, 0, 0, 0);
         layout->setSpacing(2);
         auto *field = numberField(value.toDouble(), container);
+        if (!path.startsWith("/variables/")) {
+            if (name.compare("radius", Qt::CaseInsensitive) == 0 ||
+                name.compare("vertexRadius", Qt::CaseInsensitive) == 0 ||
+                name.compare("spawnRadius", Qt::CaseInsensitive) == 0)
+                field->setRange(0.0, 1000000.0);
+            if (name.compare("sectorCount", Qt::CaseInsensitive) == 0) {
+                field->setRange(3.0, 512.0);
+                field->setDecimals(0);
+                field->setSingleStep(1.0);
+            }
+            if (name.compare("stackCount", Qt::CaseInsensitive) == 0) {
+                field->setRange(2.0, 256.0);
+                field->setDecimals(0);
+                field->setSingleStep(1.0);
+            }
+            field->setValue(value.toDouble());
+        }
         tagEditor(field, path, "number");
         layout->addWidget(field, 1);
         addSyncPicker(layout, path, value, changed, syncProvider, field,
