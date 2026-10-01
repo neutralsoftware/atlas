@@ -19,6 +19,7 @@
 #include <algorithm>
 #include <array>
 #include <memory>
+#include <stdexcept>
 #include <unordered_map>
 #include <vector>
 #define STB_IMAGE_IMPLEMENTATION
@@ -211,11 +212,12 @@ Texture Texture::fromResource(const Resource& resource, TextureType type,
     if (resource.type != ResourceType::Image &&
         resource.type != ResourceType::SpecularMap) {
         atlas_error("Resource is not an image: " + resource.name);
+        throw std::runtime_error("Resource is not an image: " + resource.name);
     }
 
     atlas_log("Loading texture: " + resource.name);
 
-    int width, height, channelsInFile;
+    int width = 0, height = 0, channelsInFile = 0;
 #ifdef OPENGL
     stbi_set_flip_vertically_on_load(true);
 #else
@@ -231,6 +233,8 @@ Texture Texture::fromResource(const Resource& resource, TextureType type,
                                  &height, &channels, 0);
         if (!data) {
             atlas_error("Failed to load HDR image: " + resource.path.string());
+            throw std::runtime_error("Failed to load HDR image: " +
+                                     resource.path.string());
         }
 
         creationData = TextureCreationData{.width = width, .height = height, .channels = channels};
@@ -261,6 +265,8 @@ Texture Texture::fromResource(const Resource& resource, TextureType type,
                                         requestedChannels);
         if (!data) {
             atlas_error("Failed to load image: " + resource.path.string());
+            throw std::runtime_error("Failed to load image: " +
+                                     resource.path.string());
         }
 
         int channels = requestedChannels > 0 ? requestedChannels : channelsInFile;
