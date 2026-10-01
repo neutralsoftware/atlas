@@ -5893,6 +5893,9 @@ bool Context::setObjectProperty(int id, const std::string &component,
 bool Context::setSceneProperty(const std::string &section, int index,
                                const std::string &propertyPath,
                                const json &value) {
+    if (window == nullptr)
+        return false;
+    WindowActivationScope activeWindow(*window);
     const std::string normalizedSection = normalizeToken(section);
     if (normalizedSection == "camera") {
         if (!setJsonProperty(editorCameraData, propertyPath, value)) {
