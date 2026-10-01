@@ -1734,7 +1734,7 @@ void updateEditorAreaLightProxy(AreaLight &light) {
     }
     if (verticesChanged) {
         light.debugObject->attachVertices(vertices);
-        if (light.debugObject->vbo != nullptr) {
+        if (light.debugObject->hasVertexBuffer()) {
             light.debugObject->updateVertices();
         }
     }
