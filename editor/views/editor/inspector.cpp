@@ -360,7 +360,8 @@ QJsonObject componentSchema(const QString &type) {
                 {"motionType", "dynamic"}};
     }
     if (normalized == "softbody") {
-        return {{"mass", 1.0},
+        return {{"tetrahedralCache", "assets/.atlas-tetrahedra"},
+                {"mass", 1.0},
                 {"sendSignal", ""},
                 {"isSensor", false},
                 {"stiffness", 0.8},
@@ -2081,6 +2082,18 @@ void InspectorPanel::showObject(const QJsonObject &object) {
                 }
             },
             QStringLiteral("component:%1").arg(index)));
+        if (componentType.toLower().remove('_').remove('-') == "softbody") {
+            auto *generate = new QPushButton("Generate Tetrahedra", content);
+            generate->setToolTip("Save tetrahedra for this mesh and scale for reuse at runtime");
+            contentLayout->addWidget(generate);
+            connect(generate, &QPushButton::clicked, this,
+                    [this, objectId, index] {
+                        if (viewport == nullptr ||
+                            !viewport->generateRuntimeSoftbodyMesh(objectId, index))
+                            QMessageBox::warning(this, "Generate Tetrahedra",
+                                                 "Tetrahedra could not be generated.");
+                    });
+        }
         if (componentType.toLower().remove('_').remove('-') == "audioplayer") {
             auto *controls = new QFrame(content);
             controls->setObjectName("inspectorAudioControls");

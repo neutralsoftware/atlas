@@ -32,6 +32,9 @@
 #include <cstdint>
 #include <chrono>
 #include <iostream>
+#include <filesystem>
+#include <fstream>
+#include <cmath>
 #include <mutex>
 #include <unordered_map>
 #include <unordered_set>
@@ -238,10 +241,122 @@ ClosestTrianglePoint closestPointOnTriangle(const glm::vec3 &p,
     };
 }
 
+struct TetrahedralCacheHeader {
+    uint64_t magic = 0x41544c4153544554ULL;
+    uint64_t key = 0;
+    uint64_t vertices = 0;
+    uint64_t tetrahedra = 0;
+};
+
+uint64_t tetrahedralCacheKey(const CoreObject &object) {
+    uint64_t hash = 1469598103934665603ULL;
+    auto append = [&hash](const auto &value) {
+        const auto *bytes = reinterpret_cast<const unsigned char *>(&value);
+        for (size_t index = 0; index < sizeof(value); ++index) {
+            hash ^= bytes[index];
+            hash *= 1099511628211ULL;
+        }
+    };
+    const uint32_t version = 1;
+    append(version);
+    append(object.scale.x);
+    append(object.scale.y);
+    append(object.scale.z);
+    const uint64_t vertexCount = object.vertices.size();
+    const uint64_t indexCount = object.indices.size();
+    append(vertexCount);
+    append(indexCount);
+    for (const auto &vertex : object.vertices) {
+        append(vertex.position.x);
+        append(vertex.position.y);
+        append(vertex.position.z);
+    }
+    for (const auto &index : object.indices)
+        append(index);
+    return hash;
+}
+
+bool loadTetrahedralCache(const std::filesystem::path &path, uint64_t key,
+                          SoftbodyMesh &mesh) {
+    std::ifstream input(path, std::ios::binary);
+    TetrahedralCacheHeader header;
+    input.read(reinterpret_cast<char *>(&header), sizeof(header));
+    std::error_code error;
+    const auto size = std::filesystem::file_size(path, error);
+    if (!input || error || header.magic != 0x41544c4153544554ULL ||
+        header.key != key || header.vertices == 0 || header.tetrahedra == 0 ||
+        header.vertices > 10000000 || header.tetrahedra > 20000000 ||
+        size != sizeof(header) + header.vertices * 3 * sizeof(float) +
+                    header.tetrahedra * 4 * sizeof(uint32_t))
+        return false;
+    SoftbodyMesh cached;
+    cached.vertices.resize(static_cast<size_t>(header.vertices));
+    cached.tetrahedra.resize(static_cast<size_t>(header.tetrahedra));
+    for (auto &vertex : cached.vertices) {
+        float position[3];
+        input.read(reinterpret_cast<char *>(position), sizeof(position));
+        if (!input || !std::isfinite(position[0]) ||
+            !std::isfinite(position[1]) || !std::isfinite(position[2]))
+            return false;
+        vertex.position = {position[0], position[1], position[2]};
+    }
+    for (auto &tet : cached.tetrahedra) {
+        uint32_t indices[4];
+        input.read(reinterpret_cast<char *>(indices), sizeof(indices));
+        if (!input || std::any_of(std::begin(indices), std::end(indices),
+                                 [&](uint32_t index) { return index >= header.vertices; }))
+            return false;
+        tet = {indices[0], indices[1], indices[2], indices[3]};
+    }
+    cached.surface = extractSurfaceTriangles(cached.tetrahedra);
+    if (cached.surface.empty())
+        return false;
+    mesh = std::move(cached);
+    return true;
+}
+
+bool storeTetrahedralCache(const std::filesystem::path &path, uint64_t key,
+                           const SoftbodyMesh &mesh) {
+    std::error_code error;
+    std::filesystem::create_directories(path.parent_path(), error);
+    if (error)
+        return false;
+    const auto nonce = std::chrono::steady_clock::now().time_since_epoch().count();
+    const std::filesystem::path temporary = path.string() + "." +
+                                             std::to_string(nonce) + ".tmp";
+    std::ofstream output(temporary, std::ios::binary | std::ios::trunc);
+    if (!output)
+        return false;
+    const TetrahedralCacheHeader header{0x41544c4153544554ULL, key,
+                                       mesh.vertices.size(), mesh.tetrahedra.size()};
+    output.write(reinterpret_cast<const char *>(&header), sizeof(header));
+    for (const auto &vertex : mesh.vertices) {
+        const float position[3]{vertex.position.x, vertex.position.y, vertex.position.z};
+        output.write(reinterpret_cast<const char *>(position), sizeof(position));
+    }
+    for (const auto &tet : mesh.tetrahedra) {
+        const uint32_t indices[4]{tet.a, tet.b, tet.c, tet.d};
+        output.write(reinterpret_cast<const char *>(indices), sizeof(indices));
+    }
+    output.close();
+    if (output) {
+        std::filesystem::rename(temporary, path, error);
+        if (error) {
+            std::filesystem::remove(path, error);
+            if (!error)
+                std::filesystem::rename(temporary, path, error);
+        }
+    }
+    if (!output || error) {
+        std::filesystem::remove(temporary, error);
+        return false;
+    }
+    return true;
+}
+
 } // namespace
 
 void Softbody::createMesh() {
-    initializeGeogram();
 
     const auto tetrahedralizationStarted = std::chrono::steady_clock::now();
     const auto reportProgress = [&](int percent, const char *phase) {
@@ -278,6 +393,25 @@ void Softbody::createMesh() {
         return;
     }
 
+    const uint64_t cacheKey = tetrahedralCacheKey(*object);
+    if (isMeshCreated && generatedMeshKey == cacheKey)
+        return;
+    isMeshCreated = false;
+    generatedMeshKey = cacheKey;
+    std::error_code cacheError;
+    const std::filesystem::path cacheDirectory = meshCacheDirectory.empty()
+        ? std::filesystem::temp_directory_path(cacheError) / "atlas-tetrahedra-v1"
+        : std::filesystem::path(meshCacheDirectory);
+    const std::filesystem::path cachePath = cacheDirectory /
+        (std::to_string(cacheKey) + ".tetra");
+    meshCacheFile.clear();
+    if (!cacheError && loadTetrahedralCache(cachePath, cacheKey, mesh)) {
+        meshCacheFile = cachePath.string();
+        reportProgress(100, "loaded cached tetrahedra");
+        isMeshCreated = true;
+        return;
+    }
+    initializeGeogram();
     mesh.vertices.clear();
     mesh.tetrahedra.clear();
     mesh.surface.clear();
@@ -396,6 +530,8 @@ void Softbody::createMesh() {
     }
 
     mesh.surface = extractSurfaceTriangles(mesh.tetrahedra);
+    if (!cacheError && storeTetrahedralCache(cachePath, cacheKey, mesh))
+        meshCacheFile = cachePath.string();
 
     reportProgress(100, "softbody mesh ready");
 

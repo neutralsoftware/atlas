@@ -745,8 +745,11 @@ struct Softbody {
     CoreObject *object = nullptr;
 
     bool isMeshCreated = false;
+    std::string meshCacheDirectory;
+    std::string meshCacheFile;
 
   private:
+    uint64_t generatedMeshKey = 0;
     SoftbodyMesh mesh;
 
     std::vector<SoftbodyRenderBinding> renderBindings;
