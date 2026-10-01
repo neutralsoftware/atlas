@@ -5070,6 +5070,7 @@ void Window::renderLightsToShadowMaps(
         depthPipeline->setCullMode(opal::CullMode::None);
         depthPipeline->setFrontFace(this->frontFace);
         depthPipeline->enableDepthTest(true);
+        depthPipeline->enableDepthWrite(true);
         depthPipeline->setDepthCompareOp(opal::CompareOp::Less);
         depthPipeline->enablePolygonOffset(true);
         depthPipeline->setPolygonOffset(1.0f, 1.0f);
@@ -5122,6 +5123,7 @@ void Window::renderLightsToShadowMaps(
         spotlightsPipeline->setCullMode(opal::CullMode::None);
         spotlightsPipeline->setFrontFace(this->frontFace);
         spotlightsPipeline->enableDepthTest(true);
+        spotlightsPipeline->enableDepthWrite(true);
         spotlightsPipeline->setDepthCompareOp(opal::CompareOp::Less);
         spotlightsPipeline->enablePolygonOffset(true);
         spotlightsPipeline->setPolygonOffset(1.0f, 1.0f);
@@ -5178,6 +5180,7 @@ void Window::renderLightsToShadowMaps(
         areaLightsPipeline->setCullMode(opal::CullMode::Front);
         areaLightsPipeline->setFrontFace(this->frontFace);
         areaLightsPipeline->enableDepthTest(true);
+        areaLightsPipeline->enableDepthWrite(true);
         areaLightsPipeline->setDepthCompareOp(opal::CompareOp::Less);
         areaLightsPipeline->enablePolygonOffset(true);
         areaLightsPipeline->setPolygonOffset(2.0f, 4.0f);
@@ -5228,6 +5231,7 @@ void Window::renderLightsToShadowMaps(
         pointLightPipeline->setCullMode(opal::CullMode::None);
         pointLightPipeline->setFrontFace(this->frontFace);
         pointLightPipeline->enableDepthTest(true);
+        pointLightPipeline->enableDepthWrite(true);
         pointLightPipeline->setDepthCompareOp(opal::CompareOp::Less);
         pointLightPipeline->enablePolygonOffset(true);
         pointLightPipeline->setPolygonOffset(1.0f, 1.0f);
