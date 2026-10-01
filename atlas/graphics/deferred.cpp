@@ -236,14 +236,18 @@ void Window::deferredRendering(
     if (this->gBuffer == nullptr || this->gBuffer->getWidth() != targetWidth ||
         this->gBuffer->getHeight() != targetHeight) {
         this->gBuffer = std::make_shared<RenderTarget>(
-            RenderTarget(*this, RenderTargetType::GBuffer));
+            RenderTarget(*this, RenderTargetType::GBuffer, 1024,
+                         Size2d{static_cast<float>(targetWidth),
+                                static_cast<float>(targetHeight)}));
         this->ssaoMapsDirty = true;
     }
     if (this->volumetricBuffer != nullptr &&
         (this->volumetricBuffer->getWidth() != targetWidth ||
          this->volumetricBuffer->getHeight() != targetHeight)) {
         this->volumetricBuffer = std::make_shared<RenderTarget>(
-            RenderTarget(*this, RenderTargetType::Scene));
+            RenderTarget(*this, RenderTargetType::Scene, 1024,
+                         Size2d{static_cast<float>(targetWidth),
+                                static_cast<float>(targetHeight)}));
     }
     const auto drawableSize = getSize();
     static constexpr float ssrScales[] = {0.67f, 0.85f, 1.0f};
