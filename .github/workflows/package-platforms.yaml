@@ -127,6 +127,7 @@ jobs:
             - uses: jurplel/install-qt-action@v4
               with:
                   version: "6.9.2"
+                  modules: "qtwaylandcompositor"
                   cache: true
             - name: Install dependencies
               run: |
