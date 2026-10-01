@@ -394,16 +394,23 @@ void Softbody::createMesh() {
     }
 
     const uint64_t cacheKey = tetrahedralCacheKey(*object);
-    if (isMeshCreated && generatedMeshKey == cacheKey)
-        return;
-    isMeshCreated = false;
-    generatedMeshKey = cacheKey;
     std::error_code cacheError;
     const std::filesystem::path cacheDirectory = meshCacheDirectory.empty()
         ? std::filesystem::temp_directory_path(cacheError) / "atlas-tetrahedra-v1"
         : std::filesystem::path(meshCacheDirectory);
     const std::filesystem::path cachePath = cacheDirectory /
         (std::to_string(cacheKey) + ".tetra");
+    if (isMeshCreated && generatedMeshKey == cacheKey) {
+        if (!cacheError && (meshCacheFile != cachePath.string() ||
+            !std::filesystem::is_regular_file(cachePath, cacheError))) {
+            meshCacheFile.clear();
+            if (storeTetrahedralCache(cachePath, cacheKey, mesh))
+                meshCacheFile = cachePath.string();
+        }
+        return;
+    }
+    isMeshCreated = false;
+    generatedMeshKey = cacheKey;
     meshCacheFile.clear();
     if (!cacheError && loadTetrahedralCache(cachePath, cacheKey, mesh)) {
         meshCacheFile = cachePath.string();
