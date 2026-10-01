@@ -737,8 +737,6 @@ void Window::deferredRendering(
         lightPipeline->bindTexture2D(
             "texture" + std::to_string(shadow2DSamplerIndex + 1),
             light->shadowRenderTarget->texture.id, boundTextures);
-        lightPipeline->setUniform1i(baseName + ".textureIndex",
-                                    shadow2DSamplerIndex);
         ShadowParams shadowParams = light->lastShadowParams;
         GPUShadowParams gpuShadow{};
         gpuShadow.lightView = shadowParams.lightView;
@@ -777,8 +775,6 @@ void Window::deferredRendering(
         lightPipeline->bindTexture2D(
             "texture" + std::to_string(shadow2DSamplerIndex + 1),
             light->shadowRenderTarget->texture.id, boundTextures);
-        lightPipeline->setUniform1i(baseName + ".textureIndex",
-                                    shadow2DSamplerIndex);
         ShadowParams shadowParams = light->lastShadowParams;
         GPUShadowParams gpuShadow{};
         gpuShadow.lightView = shadowParams.lightView;
@@ -816,8 +812,6 @@ void Window::deferredRendering(
         lightPipeline->bindTexture2D(
             "texture" + std::to_string(shadow2DSamplerIndex + 1),
             light->shadowRenderTarget->texture.id, boundTextures);
-        lightPipeline->setUniform1i(baseName + ".textureIndex",
-                                    shadow2DSamplerIndex);
         ShadowParams shadowParams = light->lastShadowParams;
         GPUShadowParams gpuShadow{};
         gpuShadow.lightView = shadowParams.lightView;
