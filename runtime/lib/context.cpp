@@ -1672,6 +1672,13 @@ json sizeToJson(const Size2d &value) {
                         std::isfinite(value.height) ? value.height : 1.0f});
 }
 
+Magnitude3d validLightDirection(const Position3d &value) {
+    const float length = glm::length(value.toGlm());
+    if (!std::isfinite(length) || length < 0.000001f)
+        return Position3d::down();
+    return Position3d::fromGlm(value.toGlm() / length);
+}
+
 Magnitude3d editorForwardDirection(GameObject &object) {
     glm::vec3 direction =
         object.getRotation().toGlmQuat() * glm::vec3(0.0f, -1.0f, 0.0f);
@@ -1752,7 +1759,7 @@ void syncEditorLightObject(Context &context, GameObject &object) {
         if (source != nullptr) {
             Position3d direction;
             if (tryReadVec3Any(*source, {"direction"}, direction)) {
-                it->second->direction = direction.normalized();
+                it->second->direction = validLightDirection(direction);
             }
             tryReadColorAny(*source, {"color"}, it->second->color);
             tryReadColorAny(*source, {"shineColor"}, it->second->shineColor);
@@ -1830,7 +1837,7 @@ void syncEditorLightObject(Context &context, GameObject &object) {
         if (source != nullptr) {
             Position3d direction;
             if (tryReadVec3Any(*source, {"direction"}, direction)) {
-                it->second->direction = direction.normalized();
+                it->second->direction = validLightDirection(direction);
             }
             tryReadColorAny(*source, {"color"}, it->second->color);
             tryReadColorAny(*source, {"shineColor"}, it->second->shineColor);
@@ -5769,9 +5776,10 @@ bool Context::setObjectProperty(int id, const std::string &component,
                                 const std::string &propertyPath,
                                 const json &value) {
     GameObject *object = findContextObject(*this, id);
-    if (object == nullptr) {
+    if (object == nullptr || window == nullptr) {
         return false;
     }
+    WindowActivationScope activeWindow(*window);
 
     const std::string normalizedComponent = normalizeToken(component);
     if (normalizedComponent == "transform") {
@@ -5805,6 +5813,11 @@ bool Context::setObjectProperty(int id, const std::string &component,
             json &lightSource = editorLightSourceData[id];
             setJsonProperty(lightSource, "/" + property,
                             property == "scale" ? vec3ToJson(vector) : value);
+            if (property == "rotation" &&
+                (editorDirectionalLights.contains(id) ||
+                 editorSpotlights.contains(id))) {
+                lightSource.erase("direction");
+            }
             if (property == "rotation" && editorAreaLights.contains(id)) {
                 lightSource.erase("right");
                 lightSource.erase("up");
@@ -7516,7 +7529,7 @@ void Context::loadScene(Window &window, const json &sceneData) {
                 JSON_READ_BOOL(lightData, "castsShadows", castsShadows);
 
                 auto light = std::make_unique<DirectionalLight>(
-                    direction.normalized(), color, shineColor, intensity);
+                    validLightDirection(direction), color, shineColor, intensity);
                 if (castsShadows) {
                     light->castShadows(window, shadowResolution);
                 }
@@ -7525,7 +7538,7 @@ void Context::loadScene(Window &window, const json &sceneData) {
                     tryReadVec3(lightData, "position", position);
                     auto object = createEditorLightProxy("directionalLight",
                                                          color, position);
-                    object->lookAt(position + direction.normalized(),
+                    object->lookAt(position + validLightDirection(direction),
                                    Position3d::up());
                     int id = registerEditorLightObject(*this, object, lightData,
                                                        "directionalLight");
