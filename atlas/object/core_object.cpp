@@ -342,7 +342,19 @@ void CoreObject::lookAt(const Position3d &target, const Normal3d &up) {
     glm::vec3 targetPos = target.toGlm();
     glm::vec3 upVec = up.toGlm();
 
-    glm::vec3 forward = glm::normalize(targetPos - pos);
+    glm::vec3 forward = targetPos - pos;
+    const float forwardLength = glm::length(forward);
+    if (!std::isfinite(forwardLength) || forwardLength < 0.000001f)
+        return;
+    forward /= forwardLength;
+    const float upLength = glm::length(upVec);
+    if (!std::isfinite(upLength) || upLength < 0.000001f)
+        upVec = glm::vec3(0.0f, 1.0f, 0.0f);
+    else
+        upVec /= upLength;
+    if (std::abs(glm::dot(forward, upVec)) > 0.999f)
+        upVec = std::abs(forward.z) < 0.9f ? glm::vec3(0.0f, 0.0f, 1.0f)
+                                        : glm::vec3(1.0f, 0.0f, 0.0f);
 
     glm::vec3 right = glm::normalize(glm::cross(forward, upVec));
 
