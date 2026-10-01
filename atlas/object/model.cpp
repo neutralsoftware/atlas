@@ -20,7 +20,7 @@
 #include <assimp/Exporter.hpp>
 #include <assimp/DefaultIOSystem.h>
 #include <assimp/version.h>
-#include <nlohmann/json.hpp>
+#include <json.hpp>
 #include <assimp/GltfMaterial.h>
 #include <assimp/ProgressHandler.hpp>
 #include <assimp/postprocess.h>
