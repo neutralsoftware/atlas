@@ -12,6 +12,8 @@
 
 #include "atlas/units.h"
 #include "glm/ext/vector_float3.hpp"
+#include <algorithm>
+#include <cmath>
 #include <cstdint>
 #include <memory>
 #include <string>
@@ -115,7 +117,8 @@ class CapsuleCollider : public Collider {
     }
 
     CapsuleCollider(float radius, float height)
-        : radius(radius), height(height) {}
+        : radius(std::isfinite(radius) ? std::clamp(radius, 0.001f, 1000000.0f) : 0.5f),
+          height(std::isfinite(height) ? std::clamp(height, 0.001f, 1000000.0f) : 1.0f) {}
 #ifndef BEZEL_NATIVE
     JPH::RefConst<JPH::Shape> getJoltShape() const override;
 #endif
@@ -130,7 +133,8 @@ class SphereCollider : public Collider {
 
     float getMinExtent() const override { return radius * 2.0f; }
 
-    explicit SphereCollider(float radius) : radius(radius) {}
+    explicit SphereCollider(float radius)
+        : radius(std::isfinite(radius) ? std::clamp(radius, 0.001f, 1000000.0f) : 0.5f) {}
 #ifndef BEZEL_NATIVE
     JPH::RefConst<JPH::Shape> getJoltShape() const override;
 #endif
