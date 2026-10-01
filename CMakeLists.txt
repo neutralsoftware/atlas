@@ -770,3 +770,17 @@ target_include_directories(atlasrun PRIVATE ${ATLAS_DEP_INCLUDE_DIRS})
 add_dependencies(atlasrun generate_shaders)
 
 add_subdirectory(editor)
+
+if (WIN32)
+    set(ATLAS_WINDOWS_RUNTIME_DLLS
+            "$<TARGET_RUNTIME_DLLS:AtlasEditor>"
+            "$<TARGET_RUNTIME_DLLS:atlasrun>"
+    )
+    if (TARGET slang)
+        list(APPEND ATLAS_WINDOWS_RUNTIME_DLLS "$<TARGET_FILE:slang>")
+    endif ()
+    file(GENERATE
+            OUTPUT "${CMAKE_BINARY_DIR}/atlas-runtime-dlls-$<CONFIG>.txt"
+            CONTENT "$<JOIN:${ATLAS_WINDOWS_RUNTIME_DLLS},\n>\n"
+    )
+endif ()

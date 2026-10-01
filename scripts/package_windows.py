@@ -46,6 +46,16 @@ def copy_required(source, destination):
     shutil.copy2(source, destination)
 
 
+def copy_runtime_dlls(manifest, destination):
+    if not manifest.is_file():
+        raise RuntimeError(f"Runtime DLL manifest was not produced: {manifest}")
+    sources = {Path(line.strip()) for line in manifest.read_text().splitlines() if line.strip()}
+    for source in sorted(sources):
+        if source.suffix.lower() != ".dll":
+            raise RuntimeError(f"Runtime dependency is not a DLL: {source}")
+        copy_required(source, destination / source.name)
+
+
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("--debug", action="store_true")
@@ -82,6 +92,10 @@ def main():
     for name in ["AtlasEditor.exe", "atlas.exe", "atlasrun.exe", "runtime.dll",
                  "qtadvanceddocking-qt6.dll"]:
         copy_required(bin_directory / name, package_directory / name)
+
+    copy_runtime_dlls(
+        build_directory / f"atlas-runtime-dlls-{configuration}.txt", package_directory
+    )
 
     deploy = [locate_windeployqt(), package_directory / "AtlasEditor.exe"]
     deploy.append("--release" if args.release else "--debug")
