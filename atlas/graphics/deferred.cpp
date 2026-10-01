@@ -440,9 +440,11 @@ void Window::deferredRendering(
 
     commandBuffer->endPass();
     this->gBuffer->unbind();
+#ifndef VULKAN
     if (this->useSSR) {
         commandBuffer->generateMipmaps(this->gBuffer->depthTexture.texture);
     }
+#endif
 
     if (usesGlobalIllumination) {
         if (this->ddgiSystem == nullptr) {
@@ -1081,6 +1083,11 @@ void Window::deferredRendering(
         ssrPipeline->setUniform1f("resolution", ssrScales[quality]);
         ssrPipeline->setUniform1i("steps", stepCounts[quality]);
         ssrPipeline->setUniform1i("binarySteps", binaryStepCounts[quality]);
+#ifdef VULKAN
+        ssrPipeline->setUniform1i("maxDepthMip", 0);
+#else
+        ssrPipeline->setUniform1i("maxDepthMip", 5);
+#endif
         ssrPipeline->setUniform1f("thickness", thicknesses[quality]);
         ssrPipeline->setUniform1f("maxRoughness", roughnessLimits[quality]);
         float viewDelta = 0.0f;
