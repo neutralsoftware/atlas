@@ -45,6 +45,10 @@ float3 reconstructViewPosition(float2 uv, float depth,
                                row_major float4x4 inverseProjection)
 {
     float4 clip = float4(uv * 2.0 - 1.0, depth * 2.0 - 1.0, 1.0);
+#if defined(ATLAS_BACKEND_VULKAN)
+    clip.y = -clip.y;
+    clip.z = depth;
+#endif
     float4 position = mul(clip, inverseProjection);
     return position.xyz / max(abs(position.w), 0.000001);
 }
@@ -162,6 +166,9 @@ float4 SSR(float3  worldPos, float3  normal, float3  viewDir, float  roughness, 
         projectedPos.y = _190.y;
         projectedPos.z = _190.z;
         float2 screenUV = (projectedPos.xy * 0.5) + float2(0.5);
+#if defined(ATLAS_BACKEND_VULKAN)
+        screenUV.y = 1.0 - screenUV.y;
+#endif
         bool _208 = screenUV.x < 0.0;
         bool _215;
         if (!_208)
@@ -244,6 +251,9 @@ float4 SSR(float3  worldPos, float3  normal, float3  viewDir, float  roughness, 
                 midProj.y = _307.y;
                 midProj.z = _307.z;
                 float2 midUV = (midProj.xy * 0.5) + float2(0.5);
+#if defined(ATLAS_BACKEND_VULKAN)
+                midUV.y = 1.0 - midUV.y;
+#endif
                 bool _321 = midUV.x < 0.0;
                 bool _328;
                 if (!_321)
@@ -303,6 +313,9 @@ float4 SSR(float3  worldPos, float3  normal, float3  viewDir, float  roughness, 
             finalProj.y = _368.y;
             finalProj.z = _368.z;
             hitUV = (finalProj.xy * 0.5) + float2(0.5);
+#if defined(ATLAS_BACKEND_VULKAN)
+            hitUV.y = 1.0 - hitUV.y;
+#endif
             hitDepth = length(currentPos - rayOrigin);
             hit = true;
             break;
