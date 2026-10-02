@@ -2480,7 +2480,9 @@ void Window::resize(int width, int height, float scale) {
     this->height = clampedHeight;
 
     if (this->windowRef != nullptr &&
-        (this->showHostWindow || this->externalNativeWindow != nullptr)) {
+        (this->showHostWindow ||
+         (this->externalNativeWindow != nullptr &&
+          this->externalNativeWindowType != opal::NativeWindowType::X11))) {
         SDL_SetWindowSize(this->windowRef, clampedWidth, clampedHeight);
     }
 
