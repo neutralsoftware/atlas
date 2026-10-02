@@ -1879,6 +1879,9 @@ bool Window::stepFrame() {
 
     SDL_Window *window = this->windowRef;
     auto commandBuffer = this->activeCommandBuffer;
+#ifdef VULKAN
+    commandBuffer->waitForSubmittedWork();
+#endif
     auto renderPass = this->runLoopRenderPass;
     constexpr float MAX_DELTA_TIME = 1.0f / 30.0f;
 
@@ -2466,6 +2469,12 @@ void Window::resize(int width, int height, float scale) {
         this->viewportHeight == pixelHeight) {
         return;
     }
+
+#ifdef VULKAN
+    if (activeCommandBuffer != nullptr) {
+        activeCommandBuffer->waitForSubmittedWork();
+    }
+#endif
 
     this->width = clampedWidth;
     this->height = clampedHeight;
