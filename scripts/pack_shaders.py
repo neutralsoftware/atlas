@@ -87,11 +87,12 @@ def generate(input_dir, output_file, backend, slangc, spirv_cross,
             raise ValueError(f"Unsupported shader stage: {stage}")
         spirv = artifact_dir / f"{symbol}.spv"
         profile = entry.get("profile", "spirv_1_3")
+        target_options = ["-fvk-invert-y"] if backend == "vulkan" else []
         run([slangc, str(source), "-I", str(input_dir), "-D",
              f"ATLAS_{stage.upper()}=1", "-D",
              f"ATLAS_BACKEND_{backend.upper()}=1", "-entry", entry["entry"],
              "-target", "spirv", "-profile", profile, "-preserve-params",
-             "-o", str(spirv)])
+             *target_options, "-o", str(spirv)])
         if spirv_cross:
             reflection = run([spirv_cross, str(spirv), "--reflect"])
             write_atomic(artifact_dir / f"{symbol}.json", reflection)
