@@ -227,12 +227,15 @@ float3 xyzToLinearSRGB(float3 xyz) {
 }
 
 float4 dielectricFresnel(float cosine, float4 eta) {
-    float4 sinSquared = eta * eta * max(0.0f, 1.0f - cosine * cosine);
-    float4 transmittedCosine = sqrt(max(float4(0.0f), 1.0f - sinSquared));
+    float4 etaSquared = eta * eta;
+    float4 transmittedCosineSquared =
+        (1.0f - etaSquared) + etaSquared * cosine * cosine;
+    float4 transmittedCosine =
+        sqrt(max(float4(0.0f), transmittedCosineSquared));
     float4 parallel = (cosine - eta * transmittedCosine) /
                       max(cosine + eta * transmittedCosine, float4(1e-7f));
     float4 perpendicular = (eta * cosine - transmittedCosine) /
                            max(eta * cosine + transmittedCosine, float4(1e-7f));
     return select(0.5f * (parallel * parallel + perpendicular * perpendicular),
-                  float4(1.0f), sinSquared >= 1.0f);
+                  float4(1.0f), transmittedCosineSquared <= 0.0f);
 }

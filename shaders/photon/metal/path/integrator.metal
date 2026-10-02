@@ -124,11 +124,8 @@ float3 sampleRadiance(
             float3 p2 = float3(vertices[i2].position);
             float3x3 normalMatrix = float3x3(
                 inst.normalCol0.xyz, inst.normalCol1.xyz, inst.normalCol2.xyz);
-            float3 localGeometricNormal =
-                normalizeOr(cross(p1 - p0, p2 - p0), localN);
-
             geometricNormal = normalizeOr(
-                localGeometricNormal,
+                cross(p1 - p0, p2 - p0),
                 normalizeOr(normalMatrix * localN, float3(0.0, 1.0, 0.0)));
 
             float alpha = resolveMaterialOpacity(mat, texUV,
