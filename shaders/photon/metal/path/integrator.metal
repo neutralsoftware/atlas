@@ -457,9 +457,19 @@ float3 sampleRadiance(
 
         float4 F0 = materialF0(albedo, metallic, reflectivity, ior);
         float NdotV = max(dot(N, V), 1e-4f);
-        float3 interfaceN = N;
-        float interfaceNdotV = max(dot(interfaceN, V), 1e-4f);
         float4 etaPacket = frontFace ? 1.0f / ior : ior;
+        float3 interfaceN = N;
+        if (deltaDielectric) {
+            float3 reflected = reflect(-V, interfaceN);
+            float3 transmitted =
+                refract(-V, interfaceN, etaPacket[spectralPath.heroIndex]);
+            if (dot(interfaceN, V) <= 0.0f || dot(reflected, Ng) <= 0.0f ||
+                (dot(transmitted, transmitted) > 1e-8f &&
+                 dot(transmitted, Ng) >= 0.0f)) {
+                interfaceN = Ng;
+            }
+        }
+        float interfaceNdotV = max(dot(interfaceN, V), 1e-4f);
 
         float4 ordinaryViewFresnel =
             deltaDielectric ? dielectricFresnel(interfaceNdotV, etaPacket)
