@@ -24,6 +24,9 @@ float3 reconstructViewPos(float2 uv, float depth,
     ndc.x = uv.x * 2.0 - 1.0;
     ndc.y = (1.0 - uv.y) * 2.0 - 1.0;
     float ndcZ = depth * 2.0 - 1.0;
+#if defined(ATLAS_BACKEND_VULKAN)
+    ndcZ = depth;
+#endif
     float4 clip = float4(ndc, ndcZ, 1.0);
     float4 viewPos = mul(clip, inverseProjection);
     float invW = 1.0 / max(abs(viewPos.w), 1e-6);

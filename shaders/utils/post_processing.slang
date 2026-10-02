@@ -62,6 +62,10 @@ float3 reconstructViewPos(float2  uv, float  depth)
 {
     float z = (depth * 2.0) - 1.0;
     float4 clipPos = float4((uv * 2.0) - float2(1.0), z, 1.0);
+#if defined(ATLAS_BACKEND_VULKAN)
+    clipPos.y = -clipPos.y;
+    clipPos.z = depth;
+#endif
     float4 viewPos = mul(clipPos, uniforms.invProjectionMatrix);
     viewPos /= float4(viewPos.w);
     return viewPos.xyz;
@@ -379,6 +383,9 @@ float4 applyMotionBlur(float2  texCoord, float  size, float  separation, float4 
     currentClipPos.y = _1547.y;
     currentClipPos.z = _1547.z;
     float2 currentUV = (currentClipPos.xy * 0.5) + float2(0.5);
+#if defined(ATLAS_BACKEND_VULKAN)
+    currentUV.y = 1.0 - currentUV.y;
+#endif
     float4 prevClipPos = mul(worldPos, (mul(uniforms.lastViewMatrix, uniforms.projectionMatrix)));
     float _1569 = prevClipPos.w;
     float4 _1570 = prevClipPos;
@@ -387,6 +394,9 @@ float4 applyMotionBlur(float2  texCoord, float  size, float  separation, float4 
     prevClipPos.y = _1573.y;
     prevClipPos.z = _1573.z;
     float2 prevUV = (prevClipPos.xy * 0.5) + float2(0.5);
+#if defined(ATLAS_BACKEND_VULKAN)
+    prevUV.y = 1.0 - prevUV.y;
+#endif
     float2 velocity = (currentUV - prevUV) * separation;
     float velocityLength = length(velocity);
     float maxVelocity = 0.119999997;
