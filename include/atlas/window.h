@@ -982,6 +982,15 @@ class Window {
     void renderAtlasHud(const std::shared_ptr<opal::CommandBuffer> &commandBuffer,
                         float cpuTimeMs, float renderTimeMs, int drawCalls);
 
+    std::shared_ptr<opal::DrawingState> quadState = nullptr;
+    std::shared_ptr<opal::Buffer> quadBuffer = nullptr;
+    std::shared_ptr<opal::DrawingState> ssaoState = nullptr;
+    std::shared_ptr<opal::Buffer> renderSSAOBuffer = nullptr;
+    std::shared_ptr<opal::Texture> fallbackSSAOTexture = nullptr;
+    std::shared_ptr<opal::Texture> fallbackShadowCubemapTexture = nullptr;
+    std::shared_ptr<opal::Texture> fallbackIrradianceTexture = nullptr;
+    std::shared_ptr<opal::Texture> fallbackSkyboxTexture = nullptr;
+
     ShaderProgram depthProgram;
     ShaderProgram pointDepthProgram;
     ShaderProgram deferredProgram;
