@@ -4479,6 +4479,14 @@ void Window::close() { this->shouldClose = true; }
 
 void Window::setCamera(Camera *newCamera) { this->camera = newCamera; }
 
+void Window::waitForRendering() {
+#ifdef VULKAN
+    if (activeCommandBuffer != nullptr) {
+        activeCommandBuffer->waitForSubmittedWork();
+    }
+#endif
+}
+
 void Window::applyScene(Scene *scene) {
     atlas_log("Setting active scene");
     this->pendingScene = nullptr;

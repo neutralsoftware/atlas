@@ -7306,6 +7306,7 @@ void Context::loadMainScene(Window &window) {
 }
 
 void Context::loadScene(Window &window, const json &sceneData) {
+    window.waitForRendering();
     auto sceneNameIt = sceneData.find("name");
     if (sceneNameIt != sceneData.end() && sceneNameIt->is_string()) {
         currentSceneName = sceneNameIt->get<std::string>();
