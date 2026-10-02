@@ -89,8 +89,6 @@ void Window::renderSSAO(std::shared_ptr<opal::CommandBuffer> commandBuffer) {
         ownsCommandBuffer = true;
     }
     ssaoCommandBuffer->clearColor(1.0f, 1.0f, 1.0f, 1.0f);
-    static std::shared_ptr<opal::DrawingState> ssaoState = nullptr;
-    static std::shared_ptr<opal::Buffer> renderSSAOBuffer = nullptr;
     if (ssaoState == nullptr) {
         CoreVertex quadVertices[] = {
 #if defined(METAL) || defined(VULKAN)

@@ -293,6 +293,12 @@ void Window::deferredRendering(
     static std::unordered_map<Renderable *, ShaderProgram> deferredPrograms;
     static std::unordered_map<Renderable *, DeferredPipelineCacheEntry>
         deferredPipelines;
+    static std::weak_ptr<opal::Device> deferredDevice;
+    if (deferredDevice.lock() != this->device) {
+        deferredPrograms.clear();
+        deferredPipelines.clear();
+        deferredDevice = this->device;
+    }
 
     auto gBufferRenderPass = opal::RenderPass::create();
     gBufferRenderPass->setFramebuffer(this->gBuffer->getFramebuffer());
@@ -486,8 +492,6 @@ void Window::deferredRendering(
                                    target->getHeight());
     commandBuffer->clearColor(0.0f, 0.0f, 0.0f, 1.0f);
 
-    static std::shared_ptr<opal::DrawingState> quadState = nullptr;
-    static std::shared_ptr<opal::Buffer> quadBuffer = nullptr;
     if (quadState == nullptr) {
         CoreVertex quadVertices[] = {
 #if defined(METAL) || defined(VULKAN)
@@ -562,16 +566,12 @@ void Window::deferredRendering(
 
     int boundTextures = 4;
 
-    static std::shared_ptr<opal::Texture> fallbackSSAOTexture = nullptr;
     if (fallbackSSAOTexture == nullptr) {
         fallbackSSAOTexture = createFallbackSSAOTexture();
     }
-    static std::shared_ptr<opal::Texture> fallbackShadowCubemapTexture =
-        nullptr;
     if (fallbackShadowCubemapTexture == nullptr) {
         fallbackShadowCubemapTexture = createFallbackShadowCubemapTexture();
     }
-    static std::shared_ptr<opal::Texture> fallbackIrradianceTexture = nullptr;
     if (fallbackIrradianceTexture == nullptr) {
         fallbackIrradianceTexture = createFallbackIrradianceTexture();
     }
@@ -892,7 +892,6 @@ void Window::deferredRendering(
     }
 
     // Bind skybox
-    static std::shared_ptr<opal::Texture> fallbackSkyboxTexture = nullptr;
     if (fallbackSkyboxTexture == nullptr) {
         fallbackSkyboxTexture = createFallbackSkyboxTexture();
     }
