@@ -19,6 +19,109 @@
 #include <QStyleHints>
 #include <QTimer>
 
+#ifdef Q_OS_WIN
+#include <QDir>
+#include <QStandardPaths>
+#ifndef NOMINMAX
+#define NOMINMAX
+#endif
+#include <windows.h>
+#include <dbghelp.h>
+#include <cstdio>
+#include <cstring>
+#include <cwchar>
+
+namespace {
+HANDLE editorLog = INVALID_HANDLE_VALUE;
+wchar_t editorLogPath[MAX_PATH]{};
+wchar_t editorDumpPath[MAX_PATH]{};
+
+void windowsMessageHandler(QtMsgType type, const QMessageLogContext &context,
+                           const QString &message) {
+    const QByteArray text =
+        (qFormatLogMessage(type, context, message) + '\n').toUtf8();
+    DWORD written = 0;
+    if (editorLog != INVALID_HANDLE_VALUE) {
+        WriteFile(editorLog, text.constData(), static_cast<DWORD>(text.size()),
+                  &written, nullptr);
+        FlushFileBuffers(editorLog);
+    }
+    std::fwrite(text.constData(), 1, text.size(), stderr);
+}
+
+LONG WINAPI windowsCrashHandler(EXCEPTION_POINTERS *exception) {
+    HMODULE module = nullptr;
+    wchar_t modulePath[MAX_PATH]{};
+    GetModuleHandleExW(
+        GET_MODULE_HANDLE_EX_FLAG_FROM_ADDRESS |
+            GET_MODULE_HANDLE_EX_FLAG_UNCHANGED_REFCOUNT,
+        reinterpret_cast<LPCWSTR>(exception->ExceptionRecord->ExceptionAddress),
+        &module);
+    GetModuleFileNameW(module, modulePath, MAX_PATH);
+    wchar_t message[2048]{};
+    const auto offset = reinterpret_cast<ULONG_PTR>(
+                            exception->ExceptionRecord->ExceptionAddress) -
+                        reinterpret_cast<ULONG_PTR>(module);
+    std::swprintf(message, 2048,
+                  L"Atlas encountered a native crash (0x%08lX).\n"
+                  L"Module: %ls\nOffset: 0x%llX\n\nLog: %ls",
+                  exception->ExceptionRecord->ExceptionCode, modulePath,
+                  static_cast<unsigned long long>(offset), editorLogPath);
+    if (editorLog != INVALID_HANDLE_VALUE) {
+        char logMessage[8192]{};
+        const int length =
+            WideCharToMultiByte(CP_UTF8, 0, message, -1, logMessage,
+                                sizeof(logMessage), nullptr, nullptr);
+        DWORD written = 0;
+        if (length > 0)
+            WriteFile(editorLog, logMessage, static_cast<DWORD>(length - 1),
+                      &written, nullptr);
+        FlushFileBuffers(editorLog);
+    }
+    HMODULE debugHelp =
+        LoadLibraryExW(L"dbghelp.dll", nullptr, LOAD_LIBRARY_SEARCH_SYSTEM32);
+    if (debugHelp != nullptr) {
+        auto entry = GetProcAddress(debugHelp, "MiniDumpWriteDump");
+        decltype(&MiniDumpWriteDump) writeDump = nullptr;
+        static_assert(sizeof(writeDump) == sizeof(entry));
+        std::memcpy(&writeDump, &entry, sizeof(writeDump));
+        HANDLE dump =
+            CreateFileW(editorDumpPath, GENERIC_WRITE, FILE_SHARE_READ, nullptr,
+                        CREATE_ALWAYS, FILE_ATTRIBUTE_NORMAL, nullptr);
+        if (writeDump != nullptr && dump != INVALID_HANDLE_VALUE) {
+            MINIDUMP_EXCEPTION_INFORMATION info{GetCurrentThreadId(), exception,
+                                                FALSE};
+            writeDump(GetCurrentProcess(), GetCurrentProcessId(), dump,
+                      MiniDumpNormal, &info, nullptr, nullptr);
+        }
+        if (dump != INVALID_HANDLE_VALUE)
+            CloseHandle(dump);
+    }
+    MessageBoxW(nullptr, message, L"Atlas Engine Crash", MB_OK | MB_ICONERROR);
+    return EXCEPTION_EXECUTE_HANDLER;
+}
+
+void installWindowsDiagnostics() {
+    const QString directory =
+        QStandardPaths::writableLocation(QStandardPaths::AppLocalDataLocation);
+    if (!QDir().mkpath(directory))
+        return;
+    const QString logPath = QDir::toNativeSeparators(directory + "/editor.log");
+    const QString dumpPath =
+        QDir::toNativeSeparators(directory + "/editor-crash.dmp");
+    if (logPath.size() >= MAX_PATH || dumpPath.size() >= MAX_PATH)
+        return;
+    logPath.toWCharArray(editorLogPath);
+    dumpPath.toWCharArray(editorDumpPath);
+    editorLog =
+        CreateFileW(editorLogPath, FILE_APPEND_DATA, FILE_SHARE_READ, nullptr,
+                    CREATE_ALWAYS, FILE_ATTRIBUTE_NORMAL, nullptr);
+    qInstallMessageHandler(windowsMessageHandler);
+    SetUnhandledExceptionFilter(windowsCrashHandler);
+}
+}
+#endif
+
 #include "DockManager.h"
 #include "DockWidget.h"
 #include "../include/editor/application/styling.h"
@@ -36,6 +139,9 @@ int main(int argc, char **argv) {
     app.setApplicationDisplayName("Atlas Engine");
     app.setOrganizationName("Neutral Software");
     app.setQuitOnLastWindowClosed(true);
+#ifdef Q_OS_WIN
+    installWindowsDiagnostics();
+#endif
 
     const int manropeFont = QFontDatabase::addApplicationFont(
         ":/editor/assets/Manrope-VariableFont_wght.ttf");
@@ -83,6 +189,14 @@ int main(int argc, char **argv) {
                     0, splash, [projectBrowser, projectFile, splash] {
                         auto *editor = new EditorWindow(projectFile);
                         editor->setAttribute(Qt::WA_DeleteOnClose);
+#ifdef Q_OS_WIN
+                        qInfo().noquote() << "Opening project:" << projectFile;
+                        QObject::connect(editor,
+                                         &EditorWindow::startupStatusChanged,
+                                         editor, [](const QString &status) {
+                                             qInfo().noquote() << status;
+                                         });
+#endif
                         QObject::connect(editor,
                                          &EditorWindow::startupStatusChanged,
                                          splash, &SplashScreen::setStatus);
