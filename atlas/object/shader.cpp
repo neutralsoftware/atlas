@@ -172,7 +172,7 @@ VertexShader VertexShader::fromSource(const char *source) {
 
 void VertexShader::compile() {
     if (shaderId != 0) {
-        if (shader != nullptr) {
+        if (shader != nullptr && shader->getShaderStatus()) {
             return;
         }
         shaderId = 0;
@@ -263,7 +263,7 @@ ComputeShader ComputeShader::fromSource(const char *source) {
 
 void ComputeShader::compile() {
     if (shaderId != 0) {
-        if (shader != nullptr) {
+        if (shader != nullptr && shader->getShaderStatus()) {
             return;
         }
         shaderId = 0;
@@ -435,7 +435,7 @@ FragmentShader FragmentShader::fromSource(const char *source) {
 
 void FragmentShader::compile() {
     if (shaderId != 0) {
-        if (shader != nullptr) {
+        if (shader != nullptr && shader->getShaderStatus()) {
             return;
         }
         shaderId = 0;
@@ -481,7 +481,7 @@ GeometryShader GeometryShader::fromSource(const char *source) {
 
 void GeometryShader::compile() {
     if (shaderId != 0) {
-        if (shader != nullptr) {
+        if (shader != nullptr && shader->getShaderStatus()) {
             return;
         }
         shaderId = 0;
@@ -532,7 +532,7 @@ TessellationShader TessellationShader::fromSource(const char *source,
 
 void TessellationShader::compile() {
     if (shaderId != 0) {
-        if (shader != nullptr) {
+        if (shader != nullptr && shader->getShaderStatus()) {
             return;
         }
         shaderId = 0;
@@ -577,11 +577,14 @@ void TessellationShader::compile() {
 
 void ShaderProgram::compile() {
     if (programId != 0) {
-        if (shader != nullptr) {
+        if (shader != nullptr && shader->getProgramStatus()) {
             return;
         }
         programId = 0;
     }
+
+    currentPipeline.reset();
+    pipelines.clear();
 
     bool hasComputeShader = computeShader.source != nullptr ||
                             computeShader.shader != nullptr ||
@@ -601,6 +604,7 @@ void ShaderProgram::compile() {
     }
 
     if (isComputeProgram) {
+        computeShader.compile();
         if (computeShader.shaderId == 0) {
             atlas_error("Compute shader not compiled");
             throw std::runtime_error("Compute shader not compiled");
@@ -613,8 +617,12 @@ void ShaderProgram::compile() {
         if (computeShader.fromDefaultShaderType.has_value()) {
             auto key = computeShader.fromDefaultShaderType.value();
             if (ShaderProgram::computeShaderCache.contains(key)) {
-                *this = ShaderProgram::computeShaderCache[key];
-                return;
+                const auto &cached = ShaderProgram::computeShaderCache[key];
+                if (cached.shader != nullptr &&
+                    cached.shader->getProgramStatus()) {
+                    *this = cached;
+                    return;
+                }
             }
         }
 
@@ -648,6 +656,14 @@ void ShaderProgram::compile() {
     }
 
     isComputeProgram = false;
+    vertexShader.compile();
+    fragmentShader.compile();
+    if (geometryShader.source != nullptr || geometryShader.shader != nullptr) {
+        geometryShader.compile();
+    }
+    for (auto &tessShader : tessellationShaders) {
+        tessShader.compile();
+    }
 
     if (vertexShader.shaderId == 0) {
         atlas_error("Vertex shader not compiled");
@@ -672,8 +688,11 @@ void ShaderProgram::compile() {
         auto key = std::make_pair(vertexShader.fromDefaultShaderType.value(),
                                   fragmentShader.fromDefaultShaderType.value());
         if (ShaderProgram::shaderCache.contains(key)) {
-            *this = ShaderProgram::shaderCache[key];
-            return;
+            const auto &cached = ShaderProgram::shaderCache[key];
+            if (cached.shader != nullptr && cached.shader->getProgramStatus()) {
+                *this = cached;
+                return;
+            }
         }
     }
 
@@ -719,7 +738,9 @@ ShaderProgram ShaderProgram::defaultProgram() {
     static ShaderProgram program;
     static bool initialized = false;
 
-    if (!initialized) {
+    if (!initialized || program.shader == nullptr ||
+        !program.shader->getProgramStatus()) {
+        program = ShaderProgram();
         program.vertexShader = VertexShader::fromDefaultShader(
             AtlasVertexShader::DEFAULT_VERT_SHADER);
         program.fragmentShader = FragmentShader::fromDefaultShader(
