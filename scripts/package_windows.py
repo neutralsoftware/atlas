@@ -96,6 +96,10 @@ def main():
     copy_runtime_dlls(
         build_directory / f"atlas-runtime-dlls-{configuration}.txt", package_directory
     )
+    copy_required(
+        root / "shaders" / "photon" / "metal" / "path" / "rgb_spectrum_basis.LICENSE",
+        package_directory / "pbrt-v3.LICENSE",
+    )
 
     deploy = [locate_windeployqt(), package_directory / "AtlasEditor.exe"]
     deploy.append("--release" if args.release else "--debug")

@@ -4,6 +4,7 @@
 using namespace metal;
 
 #include "sampling.metal"
+#include "rgb_spectrum_basis.metal"
 
 constant uint PHOTON_SPECTRAL_LANE_COUNT = 4;
 constant float PHOTON_LAMBDA_MIN_NM = 380.0;
@@ -76,22 +77,55 @@ float spectralGaussian(float wavelengthNm, float centerNm, float sigmaNm) {
     return exp(-0.5f * x * x);
 }
 
-float3 rgbSpectralWeights(float wavelengthNm) {
-    float red = spectralGaussian(wavelengthNm, 610.0f, 60.0f);
-    float green = spectralGaussian(wavelengthNm, 545.0f, 50.0f);
-    float blue = spectralGaussian(wavelengthNm, 460.0f, 45.0f);
-    float3 weights = float3(red, green, blue);
-    return weights / max(weights.x + weights.y + weights.z, 1e-6f);
+float sampleRgbReflectanceBasis(uint basis, float wavelengthNm) {
+    float position = clamp((wavelengthNm - 380.0f) * (31.0f / 340.0f),
+                           0.0f, 31.0f);
+    uint lower = min(uint(position), 30u);
+    return mix(PHOTON_RGB_REFLECTANCE_BASIS[basis][lower],
+               PHOTON_RGB_REFLECTANCE_BASIS[basis][lower + 1],
+               position - float(lower));
 }
 
 float rgbToReflectanceAtWavelength(float3 rgb, float wavelengthNm) {
     rgb = clamp(rgb, 0.0f, 1.0f);
-    return clamp(dot(rgb, rgbSpectralWeights(wavelengthNm)), 0.0f, 1.0f);
+    float spectrum;
+    if (rgb.x <= rgb.y && rgb.x <= rgb.z) {
+        spectrum = rgb.x * sampleRgbReflectanceBasis(0, wavelengthNm);
+        if (rgb.y <= rgb.z) {
+            spectrum += (rgb.y - rgb.x) * sampleRgbReflectanceBasis(1, wavelengthNm);
+            spectrum += (rgb.z - rgb.y) * sampleRgbReflectanceBasis(6, wavelengthNm);
+        } else {
+            spectrum += (rgb.z - rgb.x) * sampleRgbReflectanceBasis(1, wavelengthNm);
+            spectrum += (rgb.y - rgb.z) * sampleRgbReflectanceBasis(5, wavelengthNm);
+        }
+    } else if (rgb.y <= rgb.x && rgb.y <= rgb.z) {
+        spectrum = rgb.y * sampleRgbReflectanceBasis(0, wavelengthNm);
+        if (rgb.x <= rgb.z) {
+            spectrum += (rgb.x - rgb.y) * sampleRgbReflectanceBasis(2, wavelengthNm);
+            spectrum += (rgb.z - rgb.x) * sampleRgbReflectanceBasis(6, wavelengthNm);
+        } else {
+            spectrum += (rgb.z - rgb.y) * sampleRgbReflectanceBasis(2, wavelengthNm);
+            spectrum += (rgb.x - rgb.z) * sampleRgbReflectanceBasis(4, wavelengthNm);
+        }
+    } else {
+        spectrum = rgb.z * sampleRgbReflectanceBasis(0, wavelengthNm);
+        if (rgb.x <= rgb.y) {
+            spectrum += (rgb.x - rgb.z) * sampleRgbReflectanceBasis(3, wavelengthNm);
+            spectrum += (rgb.y - rgb.x) * sampleRgbReflectanceBasis(5, wavelengthNm);
+        } else {
+            spectrum += (rgb.y - rgb.z) * sampleRgbReflectanceBasis(3, wavelengthNm);
+            spectrum += (rgb.x - rgb.y) * sampleRgbReflectanceBasis(4, wavelengthNm);
+        }
+    }
+    return clamp(0.94f * spectrum, 0.0f, 1.0f);
 }
 
 float rgbToEmissionAtWavelength(float3 rgb, float wavelengthNm) {
     rgb = max(rgb, 0.0f);
-    return max(dot(rgb, rgbSpectralWeights(wavelengthNm)), 0.0f);
+    float scale = max(rgb.x, max(rgb.y, rgb.z));
+    return scale > 0.0f
+               ? scale * rgbToReflectanceAtWavelength(rgb / scale, wavelengthNm)
+               : 0.0f;
 }
 
 float4 evaluateReflectance(float3 rgb, thread const SpectralPath &path) {

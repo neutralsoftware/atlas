@@ -383,6 +383,10 @@ def main():
 
     plist_path = packaged_app / "Contents" / "Info.plist"
     resources_directory = packaged_app / "Contents" / "Resources"
+    shutil.copy2(
+        root / "shaders" / "photon" / "metal" / "path" / "rgb_spectrum_basis.LICENSE",
+        resources_directory / "pbrt-v3.LICENSE",
+    )
     modern_icon = resources_directory / "Assets.car"
     with plist_path.open("rb") as stream:
         plist = plistlib.load(stream)
