@@ -142,7 +142,7 @@ float calculateShadow(
     }
     float3 clipCoords = fragPosLightSpace.xyz / float3(fragPosLightSpace.w);
     float2 projCoordsXY = (clipCoords.xy * 0.5) + float2(0.5);
-#if defined(ATLAS_BACKEND_METAL)
+#if defined(ATLAS_BACKEND_METAL) || defined(ATLAS_BACKEND_VULKAN)
     projCoordsXY.y = 1.0 - projCoordsXY.y;
 #endif
     float3 projCoords = float3(projCoordsXY, clipCoords.z);

@@ -411,7 +411,7 @@ void Texture::display(Window& window, float zindex) {
     if (object == nullptr) {
         CoreObject obj;
         std::vector<CoreVertex> vertices = {
-#ifdef METAL
+#if defined(METAL) || defined(VULKAN)
             {{1.0f, 1.0f, zindex}, Color::white(), {1.0f, 0.0f}},
             {{1.0f, -1.0f, zindex}, Color::white(), {1.0f, 1.0f}},
             {{-1.0f, -1.0f, zindex}, Color::white(), {0.0f, 1.0f}},

@@ -88,7 +88,7 @@ void BloomRenderTarget::init(int width, int height, int chainLength) {
 
     if (quadState == nullptr) {
         CoreVertex quadVertices[] = {
-#ifdef METAL
+#if defined(METAL) || defined(VULKAN)
             {{-1.0f, 1.0f, 0.0f}, Color::white(), {0.0f, 0.0f}},
             {{-1.0f, -1.0f, 0.0f}, Color::white(), {0.0f, 1.0f}},
             {{1.0f, -1.0f, 0.0f}, Color::white(), {1.0f, 1.0f}},

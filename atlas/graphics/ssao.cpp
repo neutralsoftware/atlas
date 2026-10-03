@@ -93,7 +93,7 @@ void Window::renderSSAO(std::shared_ptr<opal::CommandBuffer> commandBuffer) {
     static std::shared_ptr<opal::Buffer> renderSSAOBuffer = nullptr;
     if (ssaoState == nullptr) {
         CoreVertex quadVertices[] = {
-#ifdef METAL
+#if defined(METAL) || defined(VULKAN)
             {{-1.0f, 1.0f, 0.0f}, Color::white(), {0.0f, 0.0f}},
             {{-1.0f, -1.0f, 0.0f}, Color::white(), {0.0f, 1.0f}},
             {{1.0f, -1.0f, 0.0f}, Color::white(), {1.0f, 1.0f}},
