@@ -738,6 +738,12 @@ void photon::GlobalIllumination::updateProbeLayout() {
     }
 
     if (resetHistory) {
+        if (!needCreate && !sizeChanged) {
+            clearDdgiTexture(irradianceMap);
+            clearDdgiTexture(irradianceMapPrev);
+            clearDdgiTexture(distanceMap);
+            clearDdgiTexture(distanceMapPrev);
+        }
         frameIndex = 0;
     }
 }

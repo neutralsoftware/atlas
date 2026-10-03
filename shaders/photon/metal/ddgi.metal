@@ -661,7 +661,7 @@ static inline float3 samplePreviousIrradiance(texture2d<float> previous,
         octEncode(safeNormalize(direction, float3(0.0f, 1.0f, 0.0f))) * 0.5f +
         0.5f;
     float2 pixel = float2(tile * tileRes + border) +
-                   inner * float(max(innerRes, 1u) - 1u) + 0.5f;
+                   inner * float(max(innerRes, 1u));
     float3 history =
         previous
             .sample(ddgiLinearSampler,
