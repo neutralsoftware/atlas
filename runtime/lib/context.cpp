@@ -3089,6 +3089,11 @@ std::shared_ptr<Component> attachComponent(Context &context,
         tryReadStringAny(pending.data, {"sendSignal", "signal"},
                          softbody->sendSignal);
         tryReadBoolAny(pending.data, {"isSensor"}, softbody->isSensor);
+        std::string cacheDirectory = "assets/.atlas-tetrahedra";
+        tryReadStringAny(pending.data, {"tetrahedralCache"}, cacheDirectory);
+        if (softbody->body != nullptr)
+            softbody->body->meshCacheDirectory =
+                resolveRuntimePath(context.projectDir, cacheDirectory);
 
         float value = 0.0f;
         if (tryReadFloatAny(pending.data, {"mass"}, value)) {
@@ -3497,6 +3502,11 @@ bool updateAttachedComponent(Context &context, GameObject &object,
         softbody != nullptr) {
         tryReadStringAny(data, {"sendSignal", "signal"}, softbody->sendSignal);
         tryReadBoolAny(data, {"isSensor"}, softbody->isSensor);
+        std::string cacheDirectory = "assets/.atlas-tetrahedra";
+        tryReadStringAny(data, {"tetrahedralCache"}, cacheDirectory);
+        if (softbody->body != nullptr)
+            softbody->body->meshCacheDirectory =
+                resolveRuntimePath(context.projectDir, cacheDirectory);
         float value = 0.0f;
         if (tryReadFloatAny(data, {"mass"}, value)) {
             softbody->setMass(value);
@@ -6966,6 +6976,25 @@ int Context::pasteObjectDefinition(
     const int result = pasteObjectDefinition(definition);
     modelImportProgress = std::move(previousProgress);
     return result;
+}
+
+bool Context::generateSoftbodyMesh(int id, int componentIndex) {
+    if (window == nullptr || !editorRuntime || window->isEditorSimulationEnabled())
+        return false;
+    auto found = editorRuntimeComponents.find(id);
+    if (found == editorRuntimeComponents.end() || componentIndex < 0 ||
+        componentIndex >= static_cast<int>(found->second.size()))
+        return false;
+    auto softbody = std::dynamic_pointer_cast<Softbody>(
+        found->second[static_cast<size_t>(componentIndex)].lock());
+    if (softbody == nullptr || softbody->body == nullptr || softbody->isCreated())
+        return false;
+    WindowActivationScope activeWindow(*window);
+    softbody->init();
+    softbody->body->createMesh();
+    std::error_code error;
+    return softbody->body->isMeshCreated &&
+           std::filesystem::is_regular_file(softbody->body->meshCacheFile, error);
 }
 
 bool Context::saveCurrentScene() {

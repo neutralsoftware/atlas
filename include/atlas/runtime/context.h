@@ -198,6 +198,7 @@ class Context {
     int pasteObjectDefinition(
         const std::string &definition,
         const std::function<void(float, const std::string &)> &progress);
+    bool generateSoftbodyMesh(int id, int componentIndex);
     bool saveCurrentScene();
     bool openSceneFile(const std::string &path);
     std::string currentScenePath() const;

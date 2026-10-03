@@ -106,6 +106,8 @@ void Softbody::update(float dt) {
     (void)dt;
 
     if (!createdSoftbody) {
+        if (!ensureSoftbodyAndWorld(this))
+            return;
         body->createMesh();
         body->create(Window::mainWindow->physicsWorld);
         createdSoftbody = true;

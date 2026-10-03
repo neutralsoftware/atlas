@@ -1601,6 +1601,25 @@ bool ViewportPanel::clearRuntimePropertySync(const QJsonObject &target) {
     return true;
 }
 
+bool ViewportPanel::generateRuntimeSoftbodyMesh(int id, int componentIndex) {
+    if (runtimeContext == nullptr || playbackState != 0)
+        return false;
+    frameTimer->stop();
+    emit runtimeLoadingStarted();
+    emit runtimeLoadingStatusChanged("Generating tetrahedra...");
+    QCoreApplication::processEvents(QEventLoop::ExcludeUserInputEvents);
+    bool generated = false;
+    try {
+        generated = runtimeContext->generateSoftbodyMesh(id, componentIndex);
+    } catch (const std::exception &error) {
+        emit runtimeErrorOccurred(QString::fromUtf8(error.what()));
+    }
+    emit runtimeLoadingFinished();
+    if (isVisible())
+        frameTimer->start(RuntimeFrameIntervalMs);
+    return generated;
+}
+
 bool ViewportPanel::applyRuntimeObjectProperty(int id, const QString &component,
                                                int componentIndex,
                                                const QString &propertyPath,
