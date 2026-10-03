@@ -701,9 +701,7 @@ class RuntimeRenameCommand : public QUndoCommand {
 ViewportPanel::ViewportPanel(const QString &projectFile, QWidget *parent)
     : QWidget(parent), projectFile(projectFile) {
     setAcceptDrops(true);
-#ifndef Q_OS_LINUX
     setAttribute(Qt::WA_DontCreateNativeAncestors);
-#endif
     setAttribute(Qt::WA_NativeWindow);
     setAttribute(Qt::WA_NoSystemBackground);
     setAttribute(Qt::WA_OpaquePaintEvent);
