@@ -102,6 +102,13 @@ def main():
         appimage.unlink()
     appimage_env = os.environ.copy()
     appimage_env["OUTPUT"] = str(appimage)
+    appimage_env["EXTRA_QT_MODULES"] = ";".join(filter(None, [
+        appimage_env.get("EXTRA_QT_MODULES", ""), "waylandcompositor",
+    ]))
+    appimage_env["EXTRA_PLATFORM_PLUGINS"] = ";".join(filter(None, [
+        appimage_env.get("EXTRA_PLATFORM_PLUGINS", ""),
+        "libqwayland-egl.so", "libqwayland-generic.so",
+    ]))
     run([
         linuxdeploy, "--appdir", app_directory,
         "--executable", bin_directory / "atlas-engine",
@@ -109,6 +116,14 @@ def main():
         "--icon-file", icon_directory / "atlas-engine.svg",
         "--plugin", "qt", "--output", "appimage",
     ], env=appimage_env)
+
+    for plugin in ["libqxcb.so", "libqwayland-egl.so",
+                   "libqwayland-generic.so"]:
+        if not (app_directory / "usr" / "plugins" / "platforms" / plugin).is_file():
+            raise RuntimeError(f"Packaged Linux artifact is missing Qt plugin {plugin}")
+    shell_plugins = app_directory / "usr" / "plugins" / "wayland-shell-integration"
+    if not any(shell_plugins.glob("*.so")):
+        raise RuntimeError("Packaged Linux artifact is missing Wayland shell integration")
 
     dependency_check = run(["ldd", bin_directory / "atlas-engine"], capture=True)
     if "not found" in dependency_check.stdout:
