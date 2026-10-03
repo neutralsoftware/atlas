@@ -4594,10 +4594,6 @@ glm::mat4 Window::calculateProjectionMatrix() {
                                 camera->nearClip, camera->farClip);
     }
 
-    // For Vulkan, flip Y in projection to match clip-space conventions
-#ifdef VULKAN
-    projection[1][1] *= -1.0f;
-#endif
     return projection;
 }
 
