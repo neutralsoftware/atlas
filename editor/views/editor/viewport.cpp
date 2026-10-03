@@ -36,6 +36,7 @@
 #include <QMessageBox>
 #include <QMimeData>
 #ifdef Q_OS_LINUX
+#include <SDL3/SDL_hints.h>
 #include <SDL3/SDL_init.h>
 #include <SDL3/SDL_properties.h>
 #include <SDL3/SDL_video.h>
@@ -1166,7 +1167,21 @@ void ViewportPanel::startRuntime() {
         nativeWindowType = opal::NativeWindowType::Win32;
 #elif defined(Q_OS_LINUX)
         const QString platform = QGuiApplication::platformName().toLower();
+        const auto ensureVideoDriver = [](const char *driver) {
+            if (SDL_WasInit(SDL_INIT_VIDEO) != 0) {
+                if (QString::fromLatin1(SDL_GetCurrentVideoDriver()) !=
+                    QString::fromLatin1(driver)) {
+                    throw std::runtime_error(
+                        "The SDL video driver does not match the Qt viewport");
+                }
+            } else if (!SDL_SetHintWithPriority(SDL_HINT_VIDEO_DRIVER, driver,
+                                                SDL_HINT_OVERRIDE)) {
+                throw std::runtime_error(
+                    "The SDL video driver could not match the Qt viewport");
+            }
+        };
         if (platform.contains("wayland")) {
+            ensureVideoDriver("wayland");
             auto *wayland =
                 qGuiApp
                     ->nativeInterface<QNativeInterface::QWaylandApplication>();
@@ -1190,6 +1205,7 @@ void ViewportPanel::startRuntime() {
             }
             nativeWindowType = opal::NativeWindowType::Wayland;
         } else if (platform.contains("xcb") || platform.contains("x11")) {
+            ensureVideoDriver("x11");
             nativeWindowType = opal::NativeWindowType::X11;
         }
 #endif
