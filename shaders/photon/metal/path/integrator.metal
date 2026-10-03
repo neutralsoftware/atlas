@@ -40,6 +40,7 @@ float3 sampleRadiance(
     uint rng = seedBase(gid, w, sceneData.frameIndex, sampleIndex);
     SpectralPath spectralPath = createSpectralPath(rng);
     float3 causticXYZ = float3(0.0f);
+    float4 transmissionEtaScale = float4(1.0f);
     uint bounceLimit = min(sceneData.maxBounces, 16u);
     ray surfaceRay = primaryRay;
     float previousBsdfPdf = 0.0;
@@ -648,6 +649,7 @@ float3 sampleRadiance(
                 spectralPath);
             bounceWeight = (1.0 - F) * transmittance * (1.0 - metallic) *
                            etaPacket * etaPacket / max(transmitProb, 1e-4);
+            transmissionEtaScale /= etaPacket * etaPacket;
 
             if (hasVolume) {
                 if (frontFace) {
@@ -762,7 +764,9 @@ float3 sampleRadiance(
 
         if (depth >= 2) {
             float survival =
-                clamp(spectralMax(spectralPath.throughput), 0.05, 0.95);
+                clamp(spectralMax(spectralPath.throughput *
+                                  transmissionEtaScale),
+                      0.05, 0.95);
             if (rand(rng) > survival) {
                 break;
             }
