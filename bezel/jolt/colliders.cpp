@@ -20,11 +20,17 @@ JPH::RefConst<JPH::Shape> bezel::BoxCollider::getJoltShape() const {
 }
 
 JPH::RefConst<JPH::Shape> bezel::CapsuleCollider::getJoltShape() const {
-    return new JPH::CapsuleShape(height / 2, radius);
+    const float safeRadius = std::isfinite(radius)
+        ? std::clamp(radius, 0.001f, 1000000.0f) : 0.5f;
+    const float safeHeight = std::isfinite(height)
+        ? std::clamp(height, 0.001f, 1000000.0f) : 1.0f;
+    return new JPH::CapsuleShape(safeHeight / 2, safeRadius);
 }
 
 JPH::RefConst<JPH::Shape> bezel::SphereCollider::getJoltShape() const {
-    return new JPH::SphereShape(radius);
+    const float safeRadius = std::isfinite(radius)
+        ? std::clamp(radius, 0.001f, 1000000.0f) : 0.5f;
+    return new JPH::SphereShape(safeRadius);
 }
 
 JPH::RefConst<JPH::Shape> bezel::MeshCollider::getJoltShape() const {
