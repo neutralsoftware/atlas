@@ -755,6 +755,8 @@ class Window {
      */
     std::shared_ptr<opal::Device> getDevice() const { return this->device; }
 
+    void waitForRendering();
+
     /**
      * @brief Returns the lazily created deferred geometry buffer.
      *
