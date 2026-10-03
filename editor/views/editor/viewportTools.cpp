@@ -222,7 +222,7 @@ ViewportTools::ViewportTools(ViewportPanel *viewport,
         button->setDefaultAction(action);
         shadingGroup->addAction(action);
         tools->addWidget(button);
-        if (index == 0) {
+        if (index == (pathTracingProject ? 1 : 0)) {
             action->setChecked(true);
         }
     }
