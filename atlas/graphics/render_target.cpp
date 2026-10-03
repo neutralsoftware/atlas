@@ -411,9 +411,13 @@ RenderTarget::RenderTarget(Window &window, RenderTargetType type,
         gMedium.creationData.height = scaledHeight;
         gMedium.type = TextureType::Color;
 
+#ifdef VULKAN
+        const unsigned int depthMipLevels = 1;
+#else
         const unsigned int depthMipLevels =
             static_cast<unsigned int>(std::floor(std::log2(std::max(width, height)))) +
             1;
+#endif
         auto gbufferDepth = opal::Texture::create(
             opal::TextureType::Texture2D, opal::TextureFormat::DepthComponent24,
             width, height, opal::TextureDataFormat::DepthComponent, nullptr,

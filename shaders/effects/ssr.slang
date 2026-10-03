@@ -14,6 +14,7 @@ struct SSRParameters
     float resolution;
     int steps;
     int binarySteps;
+    int maxDepthMip;
     float thickness;
     float maxRoughness;
     float historyWeight;
@@ -199,7 +200,7 @@ float4 SSR(float3  worldPos, float3  normal, float3  viewDir, float  roughness, 
             break;
         }
         float hierarchyLevel = clamp(floor(log2(1.0 + float(i) * 0.25)),
-                                           0.0, 5.0);
+                                           0.0, float(sSRParameters.maxDepthMip));
         float rawDepth = gDepth.SampleLevel(screenUV,
                                        hierarchyLevel).x;
         if (rawDepth >= 0.999899983)
