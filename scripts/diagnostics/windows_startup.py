@@ -2,7 +2,7 @@ import json
 import os
 from pathlib import Path
 import subprocess
-import struct
+import re
 import sys
 import time
 import winreg
@@ -11,13 +11,6 @@ from PIL import ImageGrab
 from pywinauto import Application
 
 executable = Path(sys.argv[1])
-if len(sys.argv) > 3 and int(sys.argv[3]):
-    data = bytearray(executable.read_bytes())
-    optional_header = struct.unpack_from("<I", data, 0x3C)[0] + 24
-    if struct.unpack_from("<H", data, optional_header)[0] != 0x20B:
-        raise RuntimeError("Expected a PE32+ executable")
-    struct.pack_into("<Q", data, optional_header + 72, int(sys.argv[3]))
-    executable.write_bytes(data)
 output = Path(sys.argv[2])
 output.mkdir(parents=True, exist_ok=True)
 project = output / "project"
@@ -29,19 +22,20 @@ assets = []
 [window]
 dimensions = [640, 360]
 mouse_capture = false
-multisampling = false
+multisampling = true
+ssaoScale = 0.5
 [renderer]
 default = "deferred"
 global_illumination = false
+use_upscaling = true
+upscaling_ratio = 0.67
 ''')
-(project / "main.ascene").write_text(json.dumps({
-    "name": "Windows startup regression",
-    "objects": [{"name": "Cube", "type": "solid", "solid_type": "cube",
-                 "position": [0, 0, 0], "scale": [1, 1, 1]}],
-    "camera": {"position": [0, 0, -5], "target": [0, 0, 0], "fov": 60},
-    "lights": [{"type": "ambient", "intensity": 0.5}],
-    "targets": [{"name": "Main Target", "type": "multisampled", "render": True, "display": True}],
-}))
+template_source = (Path(__file__).resolve().parents[2] / "editor/project/projectStore.cpp").read_text()
+scene = re.search(r'QByteArrayLiteral\(R"\((.*?)\)"\)', template_source, re.S).group(1)
+(project / "main.ascene").write_text(scene.replace("%RENDER_TARGET_TYPE%", "multisampled"))
+if len(sys.argv) > 3 and sys.argv[3] == "single-sample":
+    config = project / "project.atlas"
+    config.write_text(config.read_text().replace("multisampling = true", "multisampling = false"))
 with winreg.CreateKey(winreg.HKEY_CURRENT_USER, r"Software\Neutral Software\Atlas Engine\toolchain") as key:
     winreg.SetValueEx(key, "installationPromptDismissed", 0, winreg.REG_SZ, "true")
 log = Path(os.environ["LOCALAPPDATA"]) / "Neutral Software" / "Atlas Engine" / "editor.log"

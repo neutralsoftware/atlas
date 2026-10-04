@@ -14,7 +14,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        stack: [0, 16777216]
+        sampling: [msaa, single-sample]
     runs-on: windows-2025
     timeout-minutes: 20
     steps:
@@ -53,10 +53,10 @@ jobs:
           $env:VK_DRIVER_FILES = $icd.FullName
           $env:VK_ICD_FILENAMES = $icd.FullName
           $env:PATH = "$($icd.DirectoryName);$env:PATH"
-          python scripts/diagnostics/windows_startup.py "$env:RUNNER_TEMP\Atlas\AtlasEditor.exe" "$env:RUNNER_TEMP\startup-results" ${{ matrix.stack }}
+          python scripts/diagnostics/windows_startup.py "$env:RUNNER_TEMP\Atlas\AtlasEditor.exe" "$env:RUNNER_TEMP\startup-results" ${{ matrix.sampling }}
           if ($LASTEXITCODE -ne 0) { throw "Project startup failed" }
       - uses: actions/upload-artifact@v4
         if: always()
         with:
-          name: Windows-startup-diagnostics-${{ matrix.stack }}
+          name: Windows-startup-diagnostics-${{ matrix.sampling }}
           path: ${{ runner.temp }}/startup-results
