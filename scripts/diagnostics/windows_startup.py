@@ -31,10 +31,12 @@ upscaling_ratio = 0.67
 ''')
 template_source = (Path(__file__).resolve().parents[2] / "editor/project/projectStore.cpp").read_text()
 scene = re.search(r'QByteArrayLiteral\(R"\((.*?)\)"\)', template_source, re.S).group(1)
-(project / "main.ascene").write_text(scene.replace("%RENDER_TARGET_TYPE%", "multisampled"))
+render_target_type = "multisampled"
 if len(sys.argv) > 3 and sys.argv[3] == "single-sample":
+    render_target_type = "scene"
     config = project / "project.atlas"
     config.write_text(config.read_text().replace("multisampling = true", "multisampling = false"))
+(project / "main.ascene").write_text(scene.replace("%RENDER_TARGET_TYPE%", render_target_type))
 with winreg.CreateKey(winreg.HKEY_CURRENT_USER, r"Software\Neutral Software\Atlas Engine\toolchain") as key:
     winreg.SetValueEx(key, "installationPromptDismissed", 0, winreg.REG_SZ, "true")
 log = Path(os.environ["LOCALAPPDATA"]) / "Neutral Software" / "Atlas Engine" / "editor.log"
