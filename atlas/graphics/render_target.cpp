@@ -53,6 +53,20 @@ RenderTarget::RenderTarget(Window &window, RenderTargetType type,
     }
     const auto width = scaledWidth;
     const auto height = scaledHeight;
+    int samples = 4;
+#ifdef VULKAN
+    if (type == RenderTargetType::Multisampled) {
+        samples = opal::Texture::getSupportedSampleCount(
+            {opal::TextureFormat::Rgba16F,
+             opal::TextureFormat::DepthComponent24},
+            samples);
+        if (samples == 1) {
+            type = RenderTargetType::Scene;
+            atlas_warning("Viewport MSAA is unavailable for this GPU; using "
+                          "single-sample rendering");
+        }
+    }
+#endif
     this->type = type;
 
     if (type == RenderTargetType::Scene || type == RenderTargetType::SSR) {
@@ -108,8 +122,6 @@ RenderTarget::RenderTarget(Window &window, RenderTargetType type,
 
         fb->unbind();
     } else if (type == RenderTargetType::Multisampled) {
-        const int samples = 4;
-
         fb = opal::Framebuffer::create(width, height);
 
         auto msColor0 = opal::Texture::createMultisampled(
