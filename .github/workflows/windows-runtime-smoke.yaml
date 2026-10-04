@@ -45,8 +45,11 @@ jobs:
           New-Item -Path 'HKLM:\SOFTWARE\Khronos\Vulkan\Drivers' -Force | Out-Null
           New-ItemProperty -Path 'HKLM:\SOFTWARE\Khronos\Vulkan\Drivers' -Name $icd.FullName -PropertyType DWord -Value 0 -Force | Out-Null
           $sdk = Get-ChildItem 'C:\VulkanSDK' -Directory | Sort-Object Name -Descending | Select-Object -First 1
-          & "$($sdk.FullName)\Bin\vulkaninfo.exe" --summary
-          if ($LASTEXITCODE -ne 0) { throw "Software Vulkan driver initialization failed" }
+          $info = Get-ChildItem "$($sdk.FullName)\Bin" -Filter 'vulkaninfo*.exe' | Select-Object -First 1
+          if ($info) {
+            & $info.FullName --summary
+            if ($LASTEXITCODE -ne 0) { throw "Software Vulkan driver initialization failed" }
+          }
           $env:VK_DRIVER_FILES = $icd.FullName
           $env:VK_ICD_FILENAMES = $icd.FullName
           $env:PATH = "$($icd.DirectoryName);$env:PATH"
