@@ -2,6 +2,7 @@ import json
 import os
 from pathlib import Path
 import subprocess
+import struct
 import sys
 import time
 import winreg
@@ -10,6 +11,13 @@ from PIL import ImageGrab
 from pywinauto import Application
 
 executable = Path(sys.argv[1])
+if len(sys.argv) > 3 and int(sys.argv[3]):
+    data = bytearray(executable.read_bytes())
+    optional_header = struct.unpack_from("<I", data, 0x3C)[0] + 24
+    if struct.unpack_from("<H", data, optional_header)[0] != 0x20B:
+        raise RuntimeError("Expected a PE32+ executable")
+    struct.pack_into("<Q", data, optional_header + 72, int(sys.argv[3]))
+    executable.write_bytes(data)
 output = Path(sys.argv[2])
 output.mkdir(parents=True, exist_ok=True)
 project = output / "project"
@@ -42,7 +50,7 @@ try:
     browser = app.window(title_re="Atlas Engine.*Projects")
     browser.wait("visible", timeout=45)
     browser.child_window(title="Open existing", control_type="Button").invoke()
-    dialog = app.window(title="Open an Atlas project")
+    dialog = browser.child_window(title="Open an Atlas project", control_type="Window")
     dialog.wait("visible", timeout=20)
     dialog.child_window(auto_id="1148", control_type="Edit").set_edit_text(str(project / "project.atlas"))
     dialog.child_window(auto_id="1", control_type="Button").invoke()
@@ -69,6 +77,9 @@ finally:
     if log.exists():
         (output / "editor.log").write_bytes(log.read_bytes())
         print(log.read_text(errors="replace"), flush=True)
+    dump = log.with_name("editor-crash.dmp")
+    if dump.exists():
+        (output / dump.name).write_bytes(dump.read_bytes())
     if app.is_process_running():
         try:
             app.top_window().print_control_identifiers()
