@@ -1,6 +1,10 @@
 name: Windows project startup smoke
 
 on:
+  workflow_run:
+    workflows: [Package platform artifacts]
+    types: [completed]
+    branches: [main, prerelease]
   workflow_dispatch:
     inputs:
       package_run:
@@ -14,6 +18,7 @@ permissions:
 
 jobs:
   startup:
+    if: github.event_name == 'workflow_dispatch' || (github.event.workflow_run.conclusion == 'success' && github.event.workflow_run.head_repository.full_name == github.repository)
     strategy:
       fail-fast: false
       matrix:
@@ -22,6 +27,8 @@ jobs:
     timeout-minutes: 20
     steps:
       - uses: actions/checkout@v5
+        with:
+          ref: ${{ github.event.workflow_run.head_sha || github.sha }}
       - name: Install runtime test dependencies
         shell: pwsh
         run: |
@@ -33,7 +40,7 @@ jobs:
       - name: Download and install Windows package
         env:
           GH_TOKEN: ${{ github.token }}
-          PACKAGE_RUN: ${{ inputs.package_run }}
+          PACKAGE_RUN: ${{ inputs.package_run || github.event.workflow_run.id }}
         shell: pwsh
         run: |
           if ($env:PACKAGE_RUN -notmatch '^\d+$') { throw "Package run must be a numeric workflow run ID" }

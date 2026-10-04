@@ -6264,13 +6264,28 @@ void Window::enablePathTracing() {
     if (device == nullptr || !device->supportsRayTracing()) {
         pathTracingUnavailableError =
             "Path tracing is unavailable on the selected graphics device";
+        pathTracer.reset();
         useDeferredRendering();
         return;
     }
-    this->usesDeferred = false;
-    this->usePathTracing = true;
-    this->pathTracer = std::make_shared<photon::PathTracing>();
-    pathTracer->init();
+    try {
+        auto nextPathTracer = std::make_shared<photon::PathTracing>();
+        nextPathTracer->init();
+        pathTracer = std::move(nextPathTracer);
+        usesDeferred = false;
+        usePathTracing = true;
+    } catch (const std::exception &error) {
+        pathTracingUnavailableError =
+            "Path tracing initialization failed: " + std::string(error.what());
+        pathTracer.reset();
+        atlas_warning(pathTracingUnavailableError);
+        useDeferredRendering();
+    } catch (...) {
+        pathTracingUnavailableError = "Path tracing initialization failed";
+        pathTracer.reset();
+        atlas_warning(pathTracingUnavailableError);
+        useDeferredRendering();
+    }
 }
 
 void Window::configurePathTracing(int samplesPerPixel, int bounceLimit,

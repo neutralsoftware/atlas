@@ -19,6 +19,7 @@
 #include <cstdint>
 #include <cstring>
 #include <exception>
+#include <stdexcept>
 #include <unordered_map>
 #include <unordered_set>
 
@@ -234,6 +235,12 @@ void collectPathTracingObjectsFromQueue(
 } // namespace
 
 void photon::PathTracing::init() {
+    if (Window::mainWindow == nullptr ||
+        Window::mainWindow->device == nullptr ||
+        !Window::mainWindow->device->supportsRayTracing()) {
+        throw std::runtime_error(
+            "Path tracing is unavailable on this graphics device");
+    }
     materialTextures.clear();
     materialTextureBindings.clear();
     sceneBLAS.reset();
