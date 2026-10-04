@@ -45,6 +45,8 @@
 #include <QProgressDialog>
 #include <QPointer>
 #include <QResizeEvent>
+#include <QScopeGuard>
+#include <QScopedValueRollback>
 #include <QSize>
 #include <QSizePolicy>
 #include <QShowEvent>
@@ -721,10 +723,18 @@ ViewportPanel::ViewportPanel(const QString &projectFile, QWidget *parent)
     resizeTimer->setSingleShot(true);
     resizeTimer->setInterval(0);
     connect(frameTimer, &QTimer::timeout, this, [this] {
+        if (runtimeStarting || runtimeFrameInProgress || shuttingDown)
+            return;
         if (stepRuntime() && isVisible())
             frameTimer->start(RuntimeFrameIntervalMs);
     });
-    connect(resizeTimer, &QTimer::timeout, this, [this] { resizeRuntime(); });
+    connect(resizeTimer, &QTimer::timeout, this, [this] {
+        if (runtimeStarting || runtimeFrameInProgress) {
+            runtimeResizePending = true;
+            return;
+        }
+        resizeRuntime();
+    });
     if (auto *app = QCoreApplication::instance()) {
         connect(app, &QCoreApplication::aboutToQuit, this,
                 [this] { shutdownRuntime(); });
@@ -818,6 +828,8 @@ void ViewportPanel::setRuntimeStartupEnabled(bool enabled) {
 
 void ViewportPanel::showEvent(QShowEvent *event) {
     QWidget::showEvent(event);
+    if (runtimeStarting || runtimeFrameInProgress || shuttingDown)
+        return;
     if (playbackState == 1)
         captureRuntimeInput();
     if (runtimeContext != nullptr) {
@@ -900,14 +912,15 @@ void ViewportPanel::resizeEvent(QResizeEvent *event) {
 }
 
 void ViewportPanel::scheduleRuntimeStart() {
-    if (shuttingDown || runtimeContext != nullptr || runtimeStartQueued ||
+    if (shuttingDown || runtimeStarting || !runtimeStartupEnabled ||
+        runtimeContext != nullptr || runtimeStartQueued ||
         width() <= 1 || height() <= 1) {
         return;
     }
     runtimeStartQueued = true;
     QTimer::singleShot(0, this, [this] {
         runtimeStartQueued = false;
-        if (shuttingDown) {
+        if (shuttingDown || runtimeStarting || !runtimeStartupEnabled) {
             return;
         }
         if (runtimeContext == nullptr && width() > 1 && height() > 1) {
@@ -1129,10 +1142,15 @@ void ViewportPanel::keyReleaseEvent(QKeyEvent *event) {
 }
 
 void ViewportPanel::startRuntime() {
-    if (shuttingDown || runtimeContext != nullptr || width() <= 1 ||
-        height() <= 1) {
+    if (shuttingDown || runtimeStarting || runtimeContext != nullptr ||
+        width() <= 1 || height() <= 1) {
         return;
     }
+    QScopedValueRollback<bool> startupGuard(runtimeStarting, true);
+    const auto startupTimerGuard = qScopeGuard([this] {
+        if (!shuttingDown && runtimeContext != nullptr && isVisible())
+            frameTimer->start(RuntimeFrameIntervalMs);
+    });
 #if defined(METAL) || defined(VULKAN)
     const std::string runtimeProjectFile = projectFile.toUtf8().toStdString();
     if (runtimeProjectFile.empty()) {
@@ -1157,6 +1175,8 @@ void ViewportPanel::startRuntime() {
         emit runtimeLoadingStarted();
         emit runtimeLoadingStatusChanged("Loading assets...");
         QCoreApplication::processEvents(QEventLoop::ExcludeUserInputEvents);
+        if (shuttingDown)
+            return;
 #ifdef METAL
         runtimeContext =
             runtime::makeContextForMetalView(runtimeProjectFile, nativeView);
@@ -1247,7 +1267,9 @@ void ViewportPanel::startRuntime() {
         emit playbackStateChanged(playbackState);
         emit runtimeLoadingStatusChanged("Preparing viewport...");
         QCoreApplication::processEvents(QEventLoop::ExcludeUserInputEvents);
-        if (!stepRuntime()) {
+        if (shuttingDown)
+            return;
+        if (!stepRuntime(true)) {
             emit runtimeErrorOccurred("The first viewport frame failed");
             emit runtimeLoadingFinished();
             emit runtimeStartupFinished(false,
@@ -1270,7 +1292,6 @@ void ViewportPanel::startRuntime() {
             }
         }
         emit sceneOpened(currentRuntimeScene());
-        frameTimer->start(RuntimeFrameIntervalMs);
         emit runtimeLoadingFinished();
         emit runtimeStartupFinished(true, {});
         if (playAfterRuntimeStart) {
@@ -1338,10 +1359,19 @@ void ViewportPanel::stopRuntime() {
     frameRateTimer.invalidate();
 }
 
-bool ViewportPanel::stepRuntime() {
-    if (runtimeContext == nullptr) {
+bool ViewportPanel::stepRuntime(bool allowDuringStartup) {
+    if (runtimeContext == nullptr || runtimeFrameInProgress || shuttingDown ||
+        (runtimeStarting && !allowDuringStartup)) {
         return false;
     }
+    runtimeFrameInProgress = true;
+    const auto frameGuard = qScopeGuard([this] {
+        runtimeFrameInProgress = false;
+        if (runtimeResizePending && !shuttingDown) {
+            runtimeResizePending = false;
+            resizeTimer->start();
+        }
+    });
     if (!pollCapturedRuntimeInput())
         return false;
     try {

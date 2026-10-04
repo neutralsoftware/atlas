@@ -154,7 +154,7 @@ class ViewportPanel : public QWidget {
     void scheduleRuntimeStart();
     void startRuntime();
     void stopRuntime();
-    bool stepRuntime();
+    bool stepRuntime(bool allowDuringStartup = false);
     bool pollCapturedRuntimeInput();
     void resizeRuntime();
     void sendPointerEvent(int action, float x, float y, int button);
@@ -185,6 +185,9 @@ class ViewportPanel : public QWidget {
     QElapsedTimer snapshotTimer;
     QElapsedTimer frameRateTimer;
     bool runtimeStartQueued = false;
+    bool runtimeStarting = false;
+    bool runtimeFrameInProgress = false;
+    bool runtimeResizePending = false;
     bool runtimeStartupEnabled = false;
     bool shuttingDown = false;
     bool sceneDirty = false;
