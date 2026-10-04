@@ -1,0 +1,67 @@
+name: Windows project startup smoke
+
+on:
+  workflow_dispatch:
+    inputs:
+      package_run:
+        description: Package platform artifacts run to test
+        required: true
+        type: string
+
+permissions:
+  contents: read
+  actions: read
+
+jobs:
+  startup:
+    strategy:
+      fail-fast: false
+      matrix:
+        sampling: [multisampled, single-sample]
+    runs-on: windows-2025
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v5
+      - name: Install runtime test dependencies
+        shell: pwsh
+        run: |
+          choco install vulkan-sdk --no-progress -y
+          python -m pip install pywinauto pillow
+          Invoke-WebRequest https://github.com/pal1000/mesa-dist-win/releases/download/26.2.4/mesa3d-26.2.4-release-msvc.7z -OutFile "$env:RUNNER_TEMP\mesa.7z"
+          7z x "$env:RUNNER_TEMP\mesa.7z" "-o$env:RUNNER_TEMP\mesa"
+          if ($LASTEXITCODE -ne 0) { throw "Mesa extraction failed" }
+      - name: Download and install Windows package
+        env:
+          GH_TOKEN: ${{ github.token }}
+          PACKAGE_RUN: ${{ inputs.package_run }}
+        shell: pwsh
+        run: |
+          if ($env:PACKAGE_RUN -notmatch '^\d+$') { throw "Package run must be a numeric workflow run ID" }
+          gh run download $env:PACKAGE_RUN -n Atlas-Engine-Windows-x86_64 -D "$env:RUNNER_TEMP\installer"
+          if ($LASTEXITCODE -ne 0) { throw "Package download failed" }
+          $installer = Get-ChildItem "$env:RUNNER_TEMP\installer\*.exe" | Select-Object -First 1
+          $process = Start-Process $installer.FullName -ArgumentList '/S', "/D=$env:RUNNER_TEMP\Atlas" -Wait -PassThru
+          if ($process.ExitCode -ne 0) { throw "Installer failed: $($process.ExitCode)" }
+      - name: Open PBR project in packaged Windows editor
+        shell: pwsh
+        run: |
+          $icd = Get-ChildItem "$env:RUNNER_TEMP\mesa" -Recurse -Filter '*lvp*.json' | Where-Object { $_.FullName -match 'x64' } | Select-Object -First 1
+          if (-not $icd) { throw "Lavapipe ICD missing" }
+          New-Item -Path 'HKLM:\SOFTWARE\Khronos\Vulkan\Drivers' -Force | Out-Null
+          New-ItemProperty -Path 'HKLM:\SOFTWARE\Khronos\Vulkan\Drivers' -Name $icd.FullName -PropertyType DWord -Value 0 -Force | Out-Null
+          $sdk = Get-ChildItem 'C:\VulkanSDK' -Directory | Sort-Object Name -Descending | Select-Object -First 1
+          $info = Get-ChildItem "$($sdk.FullName)\Bin" -Filter 'vulkaninfo*.exe' | Select-Object -First 1
+          if ($info) {
+            & $info.FullName --summary
+            if ($LASTEXITCODE -ne 0) { throw "Software Vulkan driver initialization failed" }
+          }
+          $env:VK_DRIVER_FILES = $icd.FullName
+          $env:VK_ICD_FILENAMES = $icd.FullName
+          $env:PATH = "$($icd.DirectoryName);$env:PATH"
+          python scripts/diagnostics/windows_startup.py "$env:RUNNER_TEMP\Atlas\AtlasEditor.exe" "$env:RUNNER_TEMP\startup-results" ${{ matrix.sampling }}
+          if ($LASTEXITCODE -ne 0) { throw "Project startup failed" }
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: Windows-startup-diagnostics-${{ matrix.sampling }}
+          path: ${{ runner.temp }}/startup-results

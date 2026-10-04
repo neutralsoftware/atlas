@@ -111,6 +111,20 @@ void installWindowsDiagnostics() {
         QDir::toNativeSeparators(directory + "/editor-crash.dmp");
     if (logPath.size() >= MAX_PATH || dumpPath.size() >= MAX_PATH)
         return;
+    const QString runtimeLogPath =
+        QDir::toNativeSeparators(directory + "/editor-runtime.log");
+    DeleteFileW(reinterpret_cast<LPCWSTR>(runtimeLogPath.utf16()));
+    FILE *runtimeOutput = nullptr;
+    if (_wfreopen_s(&runtimeOutput,
+                    reinterpret_cast<LPCWSTR>(runtimeLogPath.utf16()), L"a",
+                    stdout) == 0) {
+        std::setvbuf(stdout, nullptr, _IONBF, 0);
+    }
+    if (_wfreopen_s(&runtimeOutput,
+                    reinterpret_cast<LPCWSTR>(runtimeLogPath.utf16()), L"a",
+                    stderr) == 0) {
+        std::setvbuf(stderr, nullptr, _IONBF, 0);
+    }
     logPath.toWCharArray(editorLogPath);
     dumpPath.toWCharArray(editorDumpPath);
     editorLog =
