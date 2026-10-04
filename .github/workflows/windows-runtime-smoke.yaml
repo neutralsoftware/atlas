@@ -14,7 +14,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        sampling: [msaa, single-sample]
+        package: [37191720213, 37140297654]
     runs-on: windows-2025
     timeout-minutes: 20
     steps:
@@ -32,7 +32,7 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         shell: pwsh
         run: |
-          gh run download 37191720213 -n Atlas-Engine-Windows-x86_64 -D "$env:RUNNER_TEMP\installer"
+          gh run download ${{ matrix.package }} -n Atlas-Engine-Windows-x86_64 -D "$env:RUNNER_TEMP\installer"
           if ($LASTEXITCODE -ne 0) { throw "Package download failed" }
           $installer = Get-ChildItem "$env:RUNNER_TEMP\installer\*.exe" | Select-Object -First 1
           $process = Start-Process $installer.FullName -ArgumentList '/S', "/D=$env:RUNNER_TEMP\Atlas" -Wait -PassThru
@@ -53,10 +53,10 @@ jobs:
           $env:VK_DRIVER_FILES = $icd.FullName
           $env:VK_ICD_FILENAMES = $icd.FullName
           $env:PATH = "$($icd.DirectoryName);$env:PATH"
-          python scripts/diagnostics/windows_startup.py "$env:RUNNER_TEMP\Atlas\AtlasEditor.exe" "$env:RUNNER_TEMP\startup-results" ${{ matrix.sampling }}
+          python scripts/diagnostics/windows_startup.py "$env:RUNNER_TEMP\Atlas\AtlasEditor.exe" "$env:RUNNER_TEMP\startup-results" ${{ matrix.package }}
           if ($LASTEXITCODE -ne 0) { throw "Project startup failed" }
       - uses: actions/upload-artifact@v4
         if: always()
         with:
-          name: Windows-startup-diagnostics-${{ matrix.sampling }}
+          name: Windows-startup-diagnostics-${{ matrix.package }}
           path: ${{ runner.temp }}/startup-results

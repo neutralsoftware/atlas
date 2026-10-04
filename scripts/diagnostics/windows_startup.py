@@ -1,4 +1,3 @@
-import json
 import os
 from pathlib import Path
 import subprocess
@@ -39,7 +38,9 @@ if len(sys.argv) > 3 and sys.argv[3] == "single-sample":
 with winreg.CreateKey(winreg.HKEY_CURRENT_USER, r"Software\Neutral Software\Atlas Engine\toolchain") as key:
     winreg.SetValueEx(key, "installationPromptDismissed", 0, winreg.REG_SZ, "true")
 log = Path(os.environ["LOCALAPPDATA"]) / "Neutral Software" / "Atlas Engine" / "editor.log"
-app = Application(backend="uia").start(str(executable), work_dir=str(executable.parent))
+engine_log = (output / "runtime-output.log").open("w")
+process = subprocess.Popen([str(executable)], cwd=executable.parent, stdout=engine_log, stderr=engine_log)
+app = Application(backend="uia").connect(process=process.pid, timeout=30)
 try:
     browser = app.window(title_re="Atlas Engine.*Projects")
     browser.wait("visible", timeout=45)
@@ -79,3 +80,5 @@ finally:
             app.top_window().print_control_identifiers()
         finally:
             subprocess.run(["taskkill", "/F", "/T", "/PID", str(app.process)], check=False)
+
+    engine_log.close()
