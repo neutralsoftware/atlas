@@ -19,6 +19,48 @@ def require(name, override=None):
     return Path(candidate)
 
 
+def locate_makensis():
+    configured = os.environ.get("ATLAS_MAKENSIS")
+    if configured:
+        candidate = Path(configured)
+        if candidate.is_file():
+            return candidate
+        raise RuntimeError(f"ATLAS_MAKENSIS does not point to a file: {candidate}")
+    found = shutil.which("makensis") or shutil.which("makensis.exe")
+    if found and Path(found).is_file():
+        return Path(found)
+    roots = []
+    for name in ("NSISDIR", "NSIS_HOME"):
+        if os.environ.get(name):
+            roots.append(Path(os.environ[name]))
+    if sys.platform == "win32":
+        import winreg
+
+        for hive in (winreg.HKEY_LOCAL_MACHINE, winreg.HKEY_CURRENT_USER):
+            for view in (winreg.KEY_WOW64_64KEY, winreg.KEY_WOW64_32KEY):
+                for key_name, value_name in (
+                    (r"SOFTWARE\NSIS", ""),
+                    (r"SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall\NSIS", "InstallLocation"),
+                ):
+                    try:
+                        with winreg.OpenKey(hive, key_name, 0, winreg.KEY_READ | view) as key:
+                            value, _ = winreg.QueryValueEx(key, value_name)
+                            if isinstance(value, str) and value:
+                                roots.append(Path(os.path.expandvars(value.strip('"'))))
+                    except OSError:
+                        pass
+    for name in ("ProgramFiles(x86)", "ProgramFiles", "ProgramW6432"):
+        if os.environ.get(name):
+            roots.append(Path(os.environ[name]) / "NSIS")
+    candidates = [root / relative for root in roots
+                  for relative in ("makensis.exe", "Bin/makensis.exe")]
+    for candidate in candidates:
+        if candidate.is_file():
+            return candidate
+    searched = ", ".join(str(candidate) for candidate in candidates) or "PATH"
+    raise RuntimeError(f"NSIS compiler was not found. Searched: {searched}. Set ATLAS_MAKENSIS to makensis.exe.")
+
+
 def locate_windeployqt():
     configured = os.environ.get("ATLAS_WINDEPLOYQT")
     if configured:
@@ -60,7 +102,11 @@ def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("--debug", action="store_true")
     parser.add_argument("--release", action="store_true")
+    parser.add_argument("--locate-makensis", action="store_true")
     args = parser.parse_args()
+    if args.locate_makensis:
+        print(locate_makensis())
+        return
     if args.debug == args.release:
         raise RuntimeError("Choose exactly one of --debug or --release")
     if platform.system() != "Windows":
@@ -143,7 +189,7 @@ def main():
     if installer.exists():
         installer.unlink()
     run([
-        require("makensis", os.environ.get("ATLAS_MAKENSIS")),
+        locate_makensis(),
         f"/DOUTPUT_FILE={installer}",
         f"/DSOURCE_DIR={package_directory}",
         root / "packaging" / "windows" / "AtlasEngine.nsi",
