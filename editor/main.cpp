@@ -30,11 +30,37 @@
 #include <cstdio>
 #include <cstring>
 #include <cwchar>
+#include <filesystem>
+#include <fstream>
+#include <iostream>
 
 namespace {
 HANDLE editorLog = INVALID_HANDLE_VALUE;
 wchar_t editorLogPath[MAX_PATH]{};
 wchar_t editorDumpPath[MAX_PATH]{};
+struct RuntimeLogOutput {
+    std::ofstream stream;
+    std::streambuf *originalOutput = nullptr;
+    std::streambuf *originalError = nullptr;
+
+    ~RuntimeLogOutput() {
+        if (originalOutput != nullptr)
+            std::cout.rdbuf(originalOutput);
+        if (originalError != nullptr)
+            std::cerr.rdbuf(originalError);
+    }
+
+    void open(const QString &path) {
+        stream.open(std::filesystem::path(path.toStdWString()),
+                    std::ios::out | std::ios::trunc);
+        if (!stream.is_open())
+            return;
+        originalOutput = std::cout.rdbuf(stream.rdbuf());
+        originalError = std::cerr.rdbuf(stream.rdbuf());
+        std::cout << std::unitbuf;
+        std::cerr << std::unitbuf;
+    }
+} runtimeLogOutput;
 
 void windowsMessageHandler(QtMsgType type, const QMessageLogContext &context,
                            const QString &message) {
@@ -113,18 +139,7 @@ void installWindowsDiagnostics() {
         return;
     const QString runtimeLogPath =
         QDir::toNativeSeparators(directory + "/editor-runtime.log");
-    DeleteFileW(reinterpret_cast<LPCWSTR>(runtimeLogPath.utf16()));
-    FILE *runtimeOutput = nullptr;
-    if (_wfreopen_s(&runtimeOutput,
-                    reinterpret_cast<LPCWSTR>(runtimeLogPath.utf16()), L"a",
-                    stdout) == 0) {
-        std::setvbuf(stdout, nullptr, _IONBF, 0);
-    }
-    if (_wfreopen_s(&runtimeOutput,
-                    reinterpret_cast<LPCWSTR>(runtimeLogPath.utf16()), L"a",
-                    stderr) == 0) {
-        std::setvbuf(stderr, nullptr, _IONBF, 0);
-    }
+    runtimeLogOutput.open(runtimeLogPath);
     logPath.toWCharArray(editorLogPath);
     dumpPath.toWCharArray(editorDumpPath);
     editorLog =

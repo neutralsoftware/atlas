@@ -1,0 +1,33 @@
+name: Windows packaging tools and logging smoke
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - editor/main.cpp
+      - scripts/package_windows.py
+      - scripts/diagnostics/windows_logging.py
+      - .github/workflows/windows-tooling-smoke.yaml
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  tooling:
+    runs-on: windows-2025
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v5
+      - uses: ilammy/msvc-dev-cmd@v1
+      - name: Discover and run the NSIS compiler
+        shell: pwsh
+        run: |
+          choco install nsis --no-progress -y
+          if ($LASTEXITCODE -ne 0) { throw "NSIS installation failed: $LASTEXITCODE" }
+          $makensis = python scripts/package_windows.py --locate-makensis
+          if ($LASTEXITCODE -ne 0) { throw "NSIS compiler discovery failed" }
+          & $makensis /VERSION
+          if ($LASTEXITCODE -ne 0) { throw "NSIS compiler could not run" }
+      - name: Verify native Windows runtime logging
+        run: python scripts/diagnostics/windows_logging.py
