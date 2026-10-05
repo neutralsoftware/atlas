@@ -16,8 +16,19 @@ jobs:
         runs-on: windows-2025
         steps:
             - uses: actions/checkout@v5
-              with:
-                  submodules: recursive
+            - name: Fetch dependencies with retries
+              shell: pwsh
+              run: |
+                  $PSNativeCommandUseErrorActionPreference = $false
+                  git submodule sync --recursive
+                  if ($LASTEXITCODE -ne 0) { throw "Submodule URL synchronization failed" }
+                  for ($attempt = 1; $attempt -le 3; $attempt++) {
+                    git -c protocol.version=2 submodule update --init --recursive --depth 1
+                    if ($LASTEXITCODE -eq 0) { break }
+                    if ($attempt -eq 3) { throw "Dependency checkout failed after three attempts" }
+                    Write-Host "Dependency checkout failed; retrying attempt $($attempt + 1)"
+                    Start-Sleep -Seconds (10 * $attempt)
+                  }
             - uses: actions-rust-lang/setup-rust-toolchain@v1
             - uses: ilammy/msvc-dev-cmd@v1
             - uses: jurplel/install-qt-action@v4
