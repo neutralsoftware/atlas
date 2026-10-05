@@ -33,13 +33,35 @@
 #include <filesystem>
 #include <fstream>
 #include <iostream>
+#include <mutex>
 
 namespace {
 HANDLE editorLog = INVALID_HANDLE_VALUE;
 wchar_t editorLogPath[MAX_PATH]{};
 wchar_t editorDumpPath[MAX_PATH]{};
 struct RuntimeLogOutput {
-    std::ofstream stream;
+    struct Buffer : std::streambuf {
+        std::filebuf file;
+        std::mutex mutex;
+
+        std::streamsize xsputn(const char *data,
+                               std::streamsize size) override {
+            std::lock_guard lock(mutex);
+            return file.sputn(data, size);
+        }
+
+        int_type overflow(int_type value) override {
+            std::lock_guard lock(mutex);
+            return traits_type::eq_int_type(value, traits_type::eof())
+                       ? traits_type::not_eof(value)
+                       : file.sputc(traits_type::to_char_type(value));
+        }
+
+        int sync() override {
+            std::lock_guard lock(mutex);
+            return file.pubsync();
+        }
+    } buffer;
     std::streambuf *originalOutput = nullptr;
     std::streambuf *originalError = nullptr;
 
@@ -51,12 +73,11 @@ struct RuntimeLogOutput {
     }
 
     void open(const QString &path) {
-        stream.open(std::filesystem::path(path.toStdWString()),
-                    std::ios::out | std::ios::trunc);
-        if (!stream.is_open())
+        if (buffer.file.open(std::filesystem::path(path.toStdWString()),
+                             std::ios::out | std::ios::trunc) == nullptr)
             return;
-        originalOutput = std::cout.rdbuf(stream.rdbuf());
-        originalError = std::cerr.rdbuf(stream.rdbuf());
+        originalOutput = std::cout.rdbuf(&buffer);
+        originalError = std::cerr.rdbuf(&buffer);
         std::cout << std::unitbuf;
         std::cerr << std::unitbuf;
     }

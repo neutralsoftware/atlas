@@ -1870,8 +1870,15 @@ void Window::pollEvents() {
     }
 }
 
+void Window::logViewportStartupStage(const char *stage) const {
+    if (editorControlsEnabled && firstFrame) {
+        std::cout << "[Viewport startup] " << stage << std::endl;
+    }
+}
+
 bool Window::stepFrame() {
     RenderingContextScope renderingContext(*this);
+    logViewportStartupStage("Initializing frame resources");
     this->initializeRunLoop();
     if (this->shouldClose) {
         return false;
@@ -2050,6 +2057,7 @@ bool Window::stepFrame() {
     DebugTimer gpuTimer("Gpu Data");
 
     if (!this->usePathTracing) {
+        logViewportStartupStage("Rendering shadow maps");
         renderLightsToShadowMaps(commandBuffer);
     }
 
@@ -2272,7 +2280,9 @@ bool Window::stepFrame() {
     }
 
     if (!this->renderDefaultFramebuffer) {
+        logViewportStartupStage("Submitting viewport frame");
         commandBuffer->commit();
+        logViewportStartupStage("Viewport frame submitted");
         commandBuffer->getAndResetDrawCallCount();
         ResourceTracker::getInstance().createdResources = 0;
         ResourceTracker::getInstance().loadedResources = 0;
@@ -2366,7 +2376,9 @@ bool Window::stepFrame() {
     this->lastViewMatrix = screenView;
 
     commandBuffer->endPass();
+    logViewportStartupStage("Submitting viewport frame");
     commandBuffer->commit();
+    logViewportStartupStage("Viewport frame submitted");
 #ifdef OPENGL
     SDL_GL_SwapWindow(window);
 #endif

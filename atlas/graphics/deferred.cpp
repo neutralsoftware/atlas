@@ -301,11 +301,16 @@ void Window::deferredRendering(
     }
 
     auto gBufferRenderPass = opal::RenderPass::create();
+    logViewportStartupStage("Starting deferred G-buffer pass");
     gBufferRenderPass->setFramebuffer(this->gBuffer->getFramebuffer());
+#ifdef VULKAN
+    this->gBuffer->getFramebuffer()->setDrawBuffers(6);
+#else
     const bool needsPhotonMaterialBuffers =
         (this->realtimePBRFeatureFlags & photon::Transmission) != 0;
     this->gBuffer->getFramebuffer()->setDrawBuffers(
         needsPhotonMaterialBuffers ? 6 : 4);
+#endif
     commandBuffer->beginPass(gBufferRenderPass);
 
     this->gBuffer->bind();
@@ -446,6 +451,7 @@ void Window::deferredRendering(
 
     commandBuffer->endPass();
     this->gBuffer->unbind();
+    logViewportStartupStage("Deferred G-buffer pass completed");
 #ifndef VULKAN
     if (this->useSSR) {
         commandBuffer->generateMipmaps(this->gBuffer->depthTexture.texture);
@@ -480,7 +486,9 @@ void Window::deferredRendering(
         }
     }
 
+    logViewportStartupStage("Rendering SSAO");
     this->renderSSAO(commandBuffer);
+    logViewportStartupStage("Starting deferred lighting pass");
 
     auto targetRenderPass = opal::RenderPass::create();
     targetRenderPass->setFramebuffer(outputFramebuffer);

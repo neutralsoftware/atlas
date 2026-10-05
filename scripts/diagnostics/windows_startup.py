@@ -61,6 +61,13 @@ try:
             text = log.read_text(errors="replace")
             if not app.is_process_running() or "native crash" in text or "runtime frame failed" in text:
                 raise RuntimeError("Editor failed after its first frame\n" + text)
+            runtime_text = log.with_name("editor-runtime.log").read_text(errors="replace")
+            if "[Viewport startup] Viewport frame submitted" not in runtime_text:
+                raise RuntimeError("Viewport did not submit its first frame\n" + runtime_text)
+            if any(name in runtime_text for name in ("entryPointParam_fragmentMain.gOptical", "entryPointParam_fragmentMain.gMedium")):
+                raise RuntimeError("Deferred fragment outputs have missing attachments\n" + runtime_text)
+            if re.search(r"\[ERROR\].*\bvk\w+\(", runtime_text):
+                raise RuntimeError("Vulkan validation failed\n" + runtime_text)
             ImageGrab.grab().save(output / "project-ready.png")
             app.top_window().close()
             app.wait_for_process_exit(timeout=30)

@@ -13,8 +13,11 @@ harness = r'''
 #include <fstream>
 #include <iostream>
 #include <iterator>
+#include <mutex>
 #include <stdexcept>
 #include <string>
+#include <thread>
+#include <vector>
 struct QString {
     std::wstring value;
     std::wstring toStdWString() const { return value; }
@@ -37,6 +40,25 @@ int main() {
     }
     if (std::cout.rdbuf() != output || std::cerr.rdbuf() != error)
         throw std::runtime_error("Runtime logging did not restore streams");
+    {
+        RuntimeLogOutput log;
+        log.open(QString{L"threaded.log"});
+        std::vector<std::thread> writers;
+        for (int writer = 0; writer < 8; ++writer) {
+            writers.emplace_back([] {
+                for (int entry = 0; entry < 1000; ++entry) {
+                    std::cout.write("x", 1);
+                    std::cerr.write("y", 1);
+                }
+            });
+        }
+        for (auto &writer : writers)
+            writer.join();
+        std::ifstream file("threaded.log");
+        std::string text((std::istreambuf_iterator<char>(file)), {});
+        if (text.size() != 16000)
+            throw std::runtime_error("Concurrent runtime logging lost data");
+    }
     {
         RuntimeLogOutput log;
         log.open(QString{L"missing-directory/runtime.log"});
