@@ -1031,6 +1031,7 @@ class Window {
     std::string pathTracingUnavailableError;
     unsigned int bloomBlurPasses = 4;
     int ssaoKernelSize = 32;
+    bool ssaoCompatibilityFallback = false;
     float ssaoUpdateInterval = 1.0f / 45.0f;
     float ssaoUpdateCooldown = 0.0f;
     bool ssaoMapsDirty = true;

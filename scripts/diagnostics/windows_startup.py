@@ -64,6 +64,9 @@ try:
             runtime_text = log.with_name("editor-runtime.log").read_text(errors="replace")
             if "[Viewport startup] Viewport frame submitted" not in runtime_text:
                 raise RuntimeError("Viewport did not submit its first frame\n" + runtime_text)
+            if os.environ.get("ATLAS_SSAO_COMPATIBILITY") == "1":
+                if "Clearing neutral SSAO compatibility buffers" not in runtime_text or "Compiling and recording SSAO" in runtime_text:
+                    raise RuntimeError("SSAO compatibility path did not bypass shader draws\n" + runtime_text)
             if any(name in runtime_text for name in ("entryPointParam_fragmentMain.gOptical", "entryPointParam_fragmentMain.gMedium")):
                 raise RuntimeError("Deferred fragment outputs have missing attachments\n" + runtime_text)
             if re.search(r"\[ERROR\].*\bvk\w+\(", runtime_text):

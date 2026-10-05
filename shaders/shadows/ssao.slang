@@ -4,6 +4,7 @@ struct Paramters {
     row_major float4x4 inverseProjection;
     row_major float4x4 view;
     float2 noiseScale;
+    int kernelSize;
 };
 
 struct Samples {
@@ -41,38 +42,38 @@ float3 reconstructViewPos(float2 uv, float depth,
 [shader("fragment")]
 FragmentOutput fragmentMain(FragmentInput input) {
     FragmentOutput output = {};
-    float3 sampledNormalWorld = gNormal.Sample(input.TexCoord).xyz;
+    float3 sampledNormalWorld = gNormal.SampleLevel(input.TexCoord, 0.0).xyz;
     float sampledNormalLength = length(sampledNormalWorld);
+    float centerDepth = gPosition.SampleLevel(input.TexCoord, 0.0).w;
+    float3 fragPos = reconstructViewPos(input.TexCoord,
+                                        clamp(centerDepth, 0.0, 1.0),
+                                        paramters.inverseProjection);
+    float3 dPosDx = ddx(fragPos);
+    float3 dPosDy = ddy(fragPos);
     if (!all(isfinite(sampledNormalWorld)) ||
         sampledNormalLength <= 0.00100000005) {
         output.FragColor = 1.0;
         return output;
     }
-    float4 gPositionCenter = gPosition.Sample(input.TexCoord);
-    float centerDepth = gPositionCenter.w;
-    if (!isfinite(centerDepth)) {
+    if (!isfinite(centerDepth) || !all(isfinite(fragPos))) {
         output.FragColor = 1.0;
         return output;
     }
-    centerDepth = clamp(centerDepth, 0.0, 1.0);
-    float3 fragPos = reconstructViewPos(input.TexCoord, centerDepth,
-                                        paramters.inverseProjection);
     float3 normalWorld = sampledNormalWorld / sampledNormalLength;
     float3 normal = normalize((mul(float4(normalWorld, 0.0), paramters.view)).xyz);
-    float3 randomVec = normalize(
-        (texNoise.Sample((input.TexCoord * paramters.noiseScale)).xyz *
-         2.0) -
-        float3(1.0));
-    float3 tangent =
-        normalize(randomVec - (normal * dot(randomVec, normal)));
+    float3 randomVec = texNoise.SampleLevel(input.TexCoord * paramters.noiseScale, 0.0).xyz;
+    float3 tangentVector = randomVec - normal * dot(randomVec, normal);
+    if (dot(tangentVector, tangentVector) < 1e-6) {
+        float3 axis = abs(normal.z) < 0.9 ? float3(0.0, 0.0, 1.0) : float3(0.0, 1.0, 0.0);
+        tangentVector = cross(axis, normal);
+    }
+    float3 tangent = normalize(tangentVector);
     float3 bitangent = cross(normal, tangent);
     row_major float3x3 TBN = float3x3(float3(tangent), float3(bitangent), float3(normal));
     float viewDepth = abs(fragPos.z);
     float baseRadius =
         lerp(0.550000012, 2.20000005,
             clamp(viewDepth / 140.0, 0.0, 1.0));
-    float3 dPosDx = ddx(fragPos);
-    float3 dPosDy = ddy(fragPos);
     float pixelWorldScale = max(length(dPosDx), length(dPosDy));
     if (!isfinite(pixelWorldScale)) {
         pixelWorldScale = 0.0;
@@ -88,10 +89,14 @@ FragmentOutput fragmentMain(FragmentInput input) {
         0.00300000003, 0.0799999982);
     float occlusion = 0.0;
     int validSamples = 0;
-    for (int i = 0; i < 64; i++) {
+    int sampleCount = clamp(paramters.kernelSize, 1, 64);
+    for (int i = 0; i < sampleCount; i++) {
         float3 samplePos = mul(samples.samples[i], TBN);
         samplePos = fragPos + (samplePos * sampleRadius);
         float4 offset = mul(float4(samplePos, 1.0), paramters.projection);
+        if (!all(isfinite(offset)) || abs(offset.w) < 1e-6) {
+            continue;
+        }
         float _160 = offset.w;
         float4 _161 = offset;
         float3 _164 = _161.xyz / float3(_160);
@@ -124,7 +129,7 @@ FragmentOutput fragmentMain(FragmentInput input) {
         if (_206) {
             continue;
         }
-        float sampleDepth = gPosition.Sample(offset.xy).w;
+        float sampleDepth = gPosition.SampleLevel(offset.xy, 0.0).w;
         if (!isfinite(sampleDepth)) {
             continue;
         }

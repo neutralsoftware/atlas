@@ -23,6 +23,10 @@ jobs:
       fail-fast: false
       matrix:
         sampling: [multisampled, single-sample]
+        ssao_compatibility: [false]
+        include:
+          - sampling: multisampled
+            ssao_compatibility: true
     runs-on: windows-2025
     timeout-minutes: 20
     steps:
@@ -50,6 +54,8 @@ jobs:
           $process = Start-Process $installer.FullName -ArgumentList '/S', "/D=$env:RUNNER_TEMP\Atlas" -Wait -PassThru
           if ($process.ExitCode -ne 0) { throw "Installer failed: $($process.ExitCode)" }
       - name: Open PBR project in packaged Windows editor
+        env:
+          ATLAS_SSAO_COMPATIBILITY: ${{ matrix.ssao_compatibility && '1' || '' }}
         shell: pwsh
         run: |
           $icd = Get-ChildItem "$env:RUNNER_TEMP\mesa" -Recurse -Filter '*lvp*.json' | Where-Object { $_.FullName -match 'x64' } | Select-Object -First 1
@@ -70,5 +76,5 @@ jobs:
       - uses: actions/upload-artifact@v4
         if: always()
         with:
-          name: Windows-startup-diagnostics-${{ matrix.sampling }}
+          name: Windows-startup-diagnostics-${{ matrix.sampling }}-${{ matrix.ssao_compatibility && 'ssao-fallback' || 'ssao' }}
           path: ${{ runner.temp }}/startup-results

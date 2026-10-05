@@ -11,6 +11,7 @@
 #include "atlas/tracer/log.h"
 #include <algorithm>
 #include <cstddef>
+#include <cstdlib>
 #include <glm/geometric.hpp>
 #include <glm/gtc/random.hpp>
 #include <random>
@@ -19,7 +20,31 @@
 #include "opal/opal.h"
 
 void Window::setupSSAO() {
-    this->ssaoKernelSize = std::max(this->ssaoKernelSize, 16);
+    this->ssaoBuffer = std::make_shared<RenderTarget>(
+        RenderTarget(*this, RenderTargetType::SSAO));
+    this->ssaoBlurBuffer = std::make_shared<RenderTarget>(
+        RenderTarget(*this, RenderTargetType::SSAOBlur));
+    this->ssaoMapsDirty = true;
+#if defined(VULKAN) && defined(_WIN32)
+    const auto info = device->getDeviceInfo();
+    this->ssaoCompatibilityFallback =
+        info.vendorName == "32902" &&
+        (info.deviceName.find("HD Graphics") != std::string::npos ||
+         info.deviceName.find("UHD") != std::string::npos);
+    if (const char *setting = std::getenv("ATLAS_SSAO_COMPATIBILITY")) {
+        if (std::string(setting) == "1") {
+            this->ssaoCompatibilityFallback = true;
+        } else if (std::string(setting) == "0") {
+            this->ssaoCompatibilityFallback = false;
+        }
+    }
+    if (this->ssaoCompatibilityFallback) {
+        atlas_warning("Using neutral SSAO compatibility fallback on " +
+                      info.deviceName);
+        return;
+    }
+#endif
+    this->ssaoKernelSize = std::clamp(this->ssaoKernelSize, 16, 64);
     atlas_log("Setting up SSAO (kernel size: " +
               std::to_string(this->ssaoKernelSize) + ")");
     std::uniform_real_distribution<float> randomFloats(0.0, 1.0);
@@ -68,12 +93,6 @@ void Window::setupSSAO() {
         AtlasVertexShader::Light, AtlasFragmentShader::SSAO);
     this->ssaoBlurProgram = ShaderProgram::fromDefaultShaders(
         AtlasVertexShader::Light, AtlasFragmentShader::SSAOBlur);
-
-    this->ssaoBuffer = std::make_shared<RenderTarget>(
-        RenderTarget(*this, RenderTargetType::SSAO));
-    this->ssaoBlurBuffer = std::make_shared<RenderTarget>(
-        RenderTarget(*this, RenderTargetType::SSAOBlur));
-    this->ssaoMapsDirty = true;
 }
 
 void Window::renderSSAO(std::shared_ptr<opal::CommandBuffer> commandBuffer) {
@@ -89,6 +108,21 @@ void Window::renderSSAO(std::shared_ptr<opal::CommandBuffer> commandBuffer) {
         ownsCommandBuffer = true;
     }
     ssaoCommandBuffer->clearColor(1.0f, 1.0f, 1.0f, 1.0f);
+    if (this->ssaoCompatibilityFallback) {
+        logViewportStartupStage("Clearing neutral SSAO compatibility buffers");
+        for (const auto &target : {this->ssaoBuffer, this->ssaoBlurBuffer}) {
+            auto pass = opal::RenderPass::create();
+            pass->setFramebuffer(target->getFramebuffer());
+            ssaoCommandBuffer->clearColor(1.0f, 1.0f, 1.0f, 1.0f);
+            ssaoCommandBuffer->beginPass(pass);
+            ssaoCommandBuffer->endPass();
+        }
+        if (ownsCommandBuffer) {
+            ssaoCommandBuffer->commit();
+        }
+        return;
+    }
+    logViewportStartupStage("Preparing SSAO vertex buffers");
     if (ssaoState == nullptr) {
         CoreVertex quadVertices[] = {
 #if defined(METAL) || defined(VULKAN)
@@ -146,6 +180,7 @@ void Window::renderSSAO(std::shared_ptr<opal::CommandBuffer> commandBuffer) {
         ssaoPipeline = opal::Pipeline::create();
     }
     ssaoPipeline = this->ssaoProgram.requestPipeline(ssaoPipeline);
+    logViewportStartupStage("SSAO uniform buffers initialized");
     ssaoPipeline->setCullMode(opal::CullMode::None);
     ssaoPipeline->enableDepthTest(false);
     ssaoPipeline->enableDepthWrite(false);
@@ -179,7 +214,9 @@ void Window::renderSSAO(std::shared_ptr<opal::CommandBuffer> commandBuffer) {
     ssaoPipeline->setUniform2f("noiseScale", screenSize.x / noiseSize.x,
                                screenSize.y / noiseSize.y);
     ssaoCommandBuffer->bindDrawingState(ssaoState);
+    logViewportStartupStage("Compiling and recording SSAO draw");
     ssaoCommandBuffer->draw(6, 1, 0, 0);
+    logViewportStartupStage("SSAO draw recorded");
     ssaoCommandBuffer->unbindDrawingState();
     ssaoCommandBuffer->endPass();
 
@@ -190,6 +227,7 @@ void Window::renderSSAO(std::shared_ptr<opal::CommandBuffer> commandBuffer) {
         ssaoBlurPipeline = opal::Pipeline::create();
     }
     ssaoBlurPipeline = this->ssaoBlurProgram.requestPipeline(ssaoBlurPipeline);
+    logViewportStartupStage("SSAO blur uniform buffers initialized");
     ssaoBlurPipeline->setCullMode(opal::CullMode::None);
     ssaoBlurPipeline->enableDepthTest(false);
     ssaoBlurPipeline->enableDepthWrite(false);
@@ -204,7 +242,9 @@ void Window::renderSSAO(std::shared_ptr<opal::CommandBuffer> commandBuffer) {
 
     ssaoBlurPipeline->bindTexture2D("inSSAO", this->ssaoBuffer->texture.id, 0);
     ssaoCommandBuffer->bindDrawingState(ssaoState);
+    logViewportStartupStage("Compiling and recording SSAO blur draw");
     ssaoCommandBuffer->draw(6, 1, 0, 0);
+    logViewportStartupStage("SSAO blur draw recorded");
     ssaoCommandBuffer->unbindDrawingState();
     ssaoCommandBuffer->endPass();
     if (ownsCommandBuffer) {
