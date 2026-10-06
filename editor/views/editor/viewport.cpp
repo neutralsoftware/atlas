@@ -1270,6 +1270,8 @@ void ViewportPanel::startRuntime() {
         if (shuttingDown)
             return;
         if (!stepRuntime(true)) {
+            stopRuntime();
+            playAfterRuntimeStart = false;
             emit runtimeErrorOccurred("The first viewport frame failed");
             emit runtimeLoadingFinished();
             emit runtimeStartupFinished(false,
@@ -1307,14 +1309,14 @@ void ViewportPanel::startRuntime() {
             << QStringLiteral("Failed to start Atlas viewport runtime: %1")
                    .arg(message);
         emit runtimeErrorOccurred(message);
-        runtimeContext.reset();
+        stopRuntime();
         playAfterRuntimeStart = false;
         emit runtimeLoadingFinished();
         emit runtimeStartupFinished(false, message);
     } catch (...) {
         qWarning() << "Failed to start Atlas viewport runtime";
         emit runtimeErrorOccurred("Runtime initialization failed");
-        runtimeContext.reset();
+        stopRuntime();
         playAfterRuntimeStart = false;
         emit runtimeLoadingFinished();
         emit runtimeStartupFinished(false, "Runtime initialization failed");
@@ -1380,6 +1382,10 @@ bool ViewportPanel::stepRuntime(bool allowDuringStartup) {
                 "The viewport runtime stopped unexpectedly");
             stopRuntime();
             return false;
+        }
+        if (allowDuringStartup) {
+            runtimeContext->window->waitForRendering();
+            qInfo() << "Atlas viewport first GPU frame completed";
         }
         if (playbackState == 1 &&
             (!snapshotTimer.isValid() ||

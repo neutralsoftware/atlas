@@ -4215,6 +4215,7 @@ void Window::endRunLoop() {
     if (!this->runLoopInitialized) {
         return;
     }
+    this->waitForRendering();
     this->activeCommandBuffer = nullptr;
     this->runLoopRenderPass = nullptr;
     if (this->modeScreenTarget) {

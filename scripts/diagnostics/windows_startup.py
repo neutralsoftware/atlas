@@ -40,6 +40,8 @@ if len(sys.argv) > 3 and sys.argv[3] == "single-sample":
 with winreg.CreateKey(winreg.HKEY_CURRENT_USER, r"Software\Neutral Software\Atlas Engine\toolchain") as key:
     winreg.SetValueEx(key, "installationPromptDismissed", 0, winreg.REG_SZ, "true")
 log = Path(os.environ["LOCALAPPDATA"]) / "Neutral Software" / "Atlas Engine" / "editor.log"
+for diagnostic in (log, log.with_name("editor-runtime.log"), log.with_name("editor-crash.dmp")):
+    diagnostic.unlink(missing_ok=True)
 engine_log = (output / "runtime-output.log").open("w")
 process = subprocess.Popen([str(executable)], cwd=executable.parent, stdout=engine_log, stderr=engine_log)
 app = Application(backend="uia").connect(process=process.pid, timeout=30)
@@ -61,6 +63,8 @@ try:
             text = log.read_text(errors="replace")
             if not app.is_process_running() or "native crash" in text or "runtime frame failed" in text:
                 raise RuntimeError("Editor failed after its first frame\n" + text)
+            if "Atlas viewport first GPU frame completed" not in text:
+                raise RuntimeError("Project was marked ready before its first GPU frame completed\n" + text)
             runtime_text = log.with_name("editor-runtime.log").read_text(errors="replace")
             if "[Viewport startup] Viewport frame submitted" not in runtime_text:
                 raise RuntimeError("Viewport did not submit its first frame\n" + runtime_text)
@@ -74,6 +78,8 @@ try:
             ImageGrab.grab().save(output / "project-ready.png")
             app.top_window().close()
             app.wait_for_process_exit(timeout=30)
+            if process.wait(timeout=10) != 0:
+                raise RuntimeError("Editor failed during shutdown")
             print("Packaged Windows editor opened a PBR project and shut down successfully", flush=True)
             break
         time.sleep(2)

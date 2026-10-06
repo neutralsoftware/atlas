@@ -22,6 +22,7 @@
 #ifdef Q_OS_WIN
 #include <QDir>
 #include <QStandardPaths>
+#include <QStringList>
 #ifndef NOMINMAX
 #define NOMINMAX
 #endif
@@ -149,25 +150,34 @@ LONG WINAPI windowsCrashHandler(EXCEPTION_POINTERS *exception) {
 }
 
 void installWindowsDiagnostics() {
-    const QString directory =
-        QStandardPaths::writableLocation(QStandardPaths::AppLocalDataLocation);
-    if (!QDir().mkpath(directory))
-        return;
-    const QString logPath = QDir::toNativeSeparators(directory + "/editor.log");
-    const QString dumpPath =
-        QDir::toNativeSeparators(directory + "/editor-crash.dmp");
-    if (logPath.size() >= MAX_PATH || dumpPath.size() >= MAX_PATH)
-        return;
-    const QString runtimeLogPath =
-        QDir::toNativeSeparators(directory + "/editor-runtime.log");
-    runtimeLogOutput.open(runtimeLogPath);
-    logPath.toWCharArray(editorLogPath);
-    dumpPath.toWCharArray(editorDumpPath);
-    editorLog =
-        CreateFileW(editorLogPath, FILE_APPEND_DATA, FILE_SHARE_READ, nullptr,
-                    CREATE_ALWAYS, FILE_ATTRIBUTE_NORMAL, nullptr);
-    qInstallMessageHandler(windowsMessageHandler);
+    const QStringList directories = {
+        QStandardPaths::writableLocation(QStandardPaths::AppLocalDataLocation),
+        QDir::homePath() + "/.atlas/logs", QDir::tempPath() + "/Atlas-Engine"};
     SetUnhandledExceptionFilter(windowsCrashHandler);
+    for (const QString &directory : directories) {
+        if (directory.isEmpty() || !QDir().mkpath(directory))
+            continue;
+        const QString logPath =
+            QDir::toNativeSeparators(directory + "/editor.log");
+        const QString dumpPath =
+            QDir::toNativeSeparators(directory + "/editor-crash.dmp");
+        if (logPath.size() >= MAX_PATH || dumpPath.size() >= MAX_PATH)
+            continue;
+        HANDLE log = CreateFileW(reinterpret_cast<LPCWSTR>(logPath.utf16()),
+                                 FILE_APPEND_DATA, FILE_SHARE_READ, nullptr,
+                                 CREATE_ALWAYS, FILE_ATTRIBUTE_NORMAL, nullptr);
+        if (log == INVALID_HANDLE_VALUE)
+            continue;
+        editorLog = log;
+        logPath.toWCharArray(editorLogPath);
+        dumpPath.toWCharArray(editorDumpPath);
+        runtimeLogOutput.open(
+            QDir::toNativeSeparators(directory + "/editor-runtime.log"));
+        qInstallMessageHandler(windowsMessageHandler);
+        qInfo().noquote() << "Atlas editor diagnostics:" << logPath;
+        return;
+    }
+    qWarning() << "Atlas editor could not create its diagnostic logs";
 }
 }
 #endif
