@@ -768,7 +768,6 @@ void RenderTarget::render(float dt,
 
     CoreObject *obj = this->object.get();
 
-    static std::shared_ptr<opal::Pipeline> renderTargetPipeline = nullptr;
     if (renderTargetPipeline == nullptr) {
         renderTargetPipeline = opal::Pipeline::create();
     }

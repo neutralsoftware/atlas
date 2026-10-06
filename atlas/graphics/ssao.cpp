@@ -175,7 +175,6 @@ void Window::renderSSAO(std::shared_ptr<opal::CommandBuffer> commandBuffer) {
         ssaoState->configureAttributes(bindings);
     }
 
-    static std::shared_ptr<opal::Pipeline> ssaoPipeline = nullptr;
     if (ssaoPipeline == nullptr) {
         ssaoPipeline = opal::Pipeline::create();
     }
@@ -222,7 +221,6 @@ void Window::renderSSAO(std::shared_ptr<opal::CommandBuffer> commandBuffer) {
 
     ssaoCommandBuffer->clearColor(1.0f, 1.0f, 1.0f, 1.0f);
 
-    static std::shared_ptr<opal::Pipeline> ssaoBlurPipeline = nullptr;
     if (ssaoBlurPipeline == nullptr) {
         ssaoBlurPipeline = opal::Pipeline::create();
     }

@@ -334,6 +334,7 @@ class ParticleEmitter : public GameObject {
     std::shared_ptr<opal::Buffer> instanceBuffer = nullptr;
     std::shared_ptr<opal::Buffer> indexBuffer = nullptr;
     ShaderProgram program;
+    std::shared_ptr<opal::Pipeline> particlePipeline;
     Texture texture;
     Color color = Color::white();
     bool useTexture = false;

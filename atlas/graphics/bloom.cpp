@@ -208,7 +208,6 @@ void BloomRenderTarget::renderDownsamples(
         return;
     }
 
-    static std::shared_ptr<opal::Pipeline> downsamplePipeline = nullptr;
     if (downsamplePipeline == nullptr) {
         downsamplePipeline = opal::Pipeline::create();
     }
@@ -253,7 +252,6 @@ void BloomRenderTarget::renderUpsamples(
         return;
     }
 
-    static std::shared_ptr<opal::Pipeline> upsamplePipeline = nullptr;
     if (upsamplePipeline == nullptr) {
         upsamplePipeline = opal::Pipeline::create();
     }

@@ -867,6 +867,14 @@ ShaderProgram ShaderProgram::fromComputeShader(ComputeShader cShader) {
 
 std::shared_ptr<opal::Pipeline> ShaderProgram::requestPipeline(
     std::shared_ptr<opal::Pipeline> unbuiltPipeline) {
+    if (unbuiltPipeline == nullptr || this->shader == nullptr) {
+        throw std::runtime_error(
+            "A pipeline requires a compiled shader program");
+    }
+    if (unbuiltPipeline->shaderProgram != nullptr &&
+        unbuiltPipeline->shaderProgram != this->shader) {
+        unbuiltPipeline = std::make_shared<opal::Pipeline>(*unbuiltPipeline);
+    }
     unbuiltPipeline->setShaderProgram(this->shader);
     if (isComputeProgram) {
         for (auto &existingPipeline : pipelines) {

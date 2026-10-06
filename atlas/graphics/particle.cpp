@@ -362,7 +362,6 @@ void ParticleEmitter::render(float dt,
     }
 
     // Get or create pipeline
-    static std::shared_ptr<opal::Pipeline> particlePipeline = nullptr;
     if (particlePipeline == nullptr) {
         particlePipeline = opal::Pipeline::create();
     }

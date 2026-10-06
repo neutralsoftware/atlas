@@ -552,7 +552,6 @@ void Window::deferredRendering(
         quadState->configureAttributes(bindings);
     }
 
-    static std::shared_ptr<opal::Pipeline> lightPipeline = nullptr;
     if (lightPipeline == nullptr) {
         lightPipeline = opal::Pipeline::create();
     }
@@ -964,7 +963,6 @@ void Window::deferredRendering(
             0, 0, volumetricBuffer->getWidth(), volumetricBuffer->getHeight());
         commandBuffer->clearColor(0.0f, 0.0f, 0.0f, 0.0f);
 
-        static std::shared_ptr<opal::Pipeline> volumetricPipeline = nullptr;
         if (volumetricPipeline == nullptr) {
             volumetricPipeline = opal::Pipeline::create();
         }
@@ -1040,7 +1038,6 @@ void Window::deferredRendering(
             0, 0, ssrFramebuffer->getWidth(), ssrFramebuffer->getHeight());
         commandBuffer->clearColor(0.0f, 0.0f, 0.0f, 0.0f);
 
-        static std::shared_ptr<opal::Pipeline> ssrPipeline = nullptr;
         if (ssrPipeline == nullptr) {
             ssrPipeline = opal::Pipeline::create();
         }

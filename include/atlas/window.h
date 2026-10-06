@@ -1001,6 +1001,11 @@ class Window {
     ShaderProgram volumetricProgram;
     ShaderProgram bloomBlurProgram;
     ShaderProgram ssrProgram;
+    std::shared_ptr<opal::Pipeline> lightPipeline;
+    std::shared_ptr<opal::Pipeline> ssaoPipeline;
+    std::shared_ptr<opal::Pipeline> ssaoBlurPipeline;
+    std::shared_ptr<opal::Pipeline> volumetricPipeline;
+    std::shared_ptr<opal::Pipeline> ssrPipeline;
 
     bool debug = false;
     bool useSSR = false;

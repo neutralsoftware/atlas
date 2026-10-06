@@ -591,6 +591,7 @@ class RenderTarget : public Renderable {
   private:
     std::shared_ptr<opal::Framebuffer> fb = nullptr;
     std::shared_ptr<opal::Framebuffer> resolveFb = nullptr;
+    std::shared_ptr<opal::Pipeline> renderTargetPipeline;
     std::shared_ptr<opal::DepthStencilBuffer> renderbuffer = nullptr;
     std::vector<std::shared_ptr<Effect>> effects;
     int creationResolution = 1024;
@@ -749,6 +750,8 @@ class BloomRenderTarget {
     glm::vec2 srcViewportSizef;
     ShaderProgram downsampleProgram;
     ShaderProgram upsampleProgram;
+    std::shared_ptr<opal::Pipeline> downsamplePipeline;
+    std::shared_ptr<opal::Pipeline> upsamplePipeline;
 
     std::shared_ptr<opal::DrawingState> quadState = nullptr;
     std::shared_ptr<opal::Buffer> quadBuffer = nullptr;
