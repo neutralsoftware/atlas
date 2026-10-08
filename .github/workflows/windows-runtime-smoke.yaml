@@ -23,10 +23,7 @@ jobs:
       fail-fast: false
       matrix:
         sampling: [multisampled, single-sample]
-        ssao_compatibility: [false]
-        include:
-          - sampling: multisampled
-            ssao_compatibility: true
+        ssao_compatibility: [false, true]
     runs-on: windows-2025
     timeout-minutes: 20
     steps:

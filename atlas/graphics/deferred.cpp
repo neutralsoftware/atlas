@@ -268,11 +268,12 @@ void Window::deferredRendering(
     }
     const int ssaoWidth = std::max(1, static_cast<int>(drawableSize.width * getSSAORenderScale()));
     const int ssaoHeight = std::max(1, static_cast<int>(drawableSize.height * getSSAORenderScale()));
-    if (this->ssaoBuffer == nullptr || this->ssaoBlurBuffer == nullptr ||
-        this->ssaoBuffer->getWidth() != ssaoWidth ||
-        this->ssaoBuffer->getHeight() != ssaoHeight ||
-        this->ssaoBlurBuffer->getWidth() != ssaoWidth ||
-        this->ssaoBlurBuffer->getHeight() != ssaoHeight) {
+    if (!this->ssaoCompatibilityFallback &&
+        (this->ssaoBuffer == nullptr || this->ssaoBlurBuffer == nullptr ||
+         this->ssaoBuffer->getWidth() != ssaoWidth ||
+         this->ssaoBuffer->getHeight() != ssaoHeight ||
+         this->ssaoBlurBuffer->getWidth() != ssaoWidth ||
+         this->ssaoBlurBuffer->getHeight() != ssaoHeight)) {
         if (noiseTexture.texture == nullptr)
             setupSSAO();
         else {
@@ -582,7 +583,7 @@ void Window::deferredRendering(
     if (fallbackIrradianceTexture == nullptr) {
         fallbackIrradianceTexture = createFallbackIrradianceTexture();
     }
-    if (this->ssaoBlurBuffer != nullptr &&
+    if (!this->ssaoCompatibilityFallback && this->ssaoBlurBuffer != nullptr &&
         this->ssaoBlurBuffer->texture.id != 0) {
         lightPipeline->bindTexture2D("ssao", this->ssaoBlurBuffer->texture.id,
                                      4);

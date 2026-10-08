@@ -20,10 +20,6 @@
 #include "opal/opal.h"
 
 void Window::setupSSAO() {
-    this->ssaoBuffer = std::make_shared<RenderTarget>(
-        RenderTarget(*this, RenderTargetType::SSAO));
-    this->ssaoBlurBuffer = std::make_shared<RenderTarget>(
-        RenderTarget(*this, RenderTargetType::SSAOBlur));
     this->ssaoMapsDirty = true;
 #if defined(VULKAN) && defined(_WIN32)
     const auto info = device->getDeviceInfo();
@@ -41,9 +37,15 @@ void Window::setupSSAO() {
     if (this->ssaoCompatibilityFallback) {
         atlas_warning("Using neutral SSAO compatibility fallback on " +
                       info.deviceName);
+        this->ssaoBuffer.reset();
+        this->ssaoBlurBuffer.reset();
         return;
     }
 #endif
+    this->ssaoBuffer = std::make_shared<RenderTarget>(
+        RenderTarget(*this, RenderTargetType::SSAO));
+    this->ssaoBlurBuffer = std::make_shared<RenderTarget>(
+        RenderTarget(*this, RenderTargetType::SSAOBlur));
     this->ssaoKernelSize = std::clamp(this->ssaoKernelSize, 16, 64);
     atlas_log("Setting up SSAO (kernel size: " +
               std::to_string(this->ssaoKernelSize) + ")");
@@ -96,6 +98,10 @@ void Window::setupSSAO() {
 }
 
 void Window::renderSSAO(std::shared_ptr<opal::CommandBuffer> commandBuffer) {
+    if (this->ssaoCompatibilityFallback) {
+        logViewportStartupStage("Using neutral SSAO texture without render passes");
+        return;
+    }
     if (this->ssaoBuffer == nullptr || this->ssaoBlurBuffer == nullptr) {
         return;
     }
@@ -108,20 +114,6 @@ void Window::renderSSAO(std::shared_ptr<opal::CommandBuffer> commandBuffer) {
         ownsCommandBuffer = true;
     }
     ssaoCommandBuffer->clearColor(1.0f, 1.0f, 1.0f, 1.0f);
-    if (this->ssaoCompatibilityFallback) {
-        logViewportStartupStage("Clearing neutral SSAO compatibility buffers");
-        for (const auto &target : {this->ssaoBuffer, this->ssaoBlurBuffer}) {
-            auto pass = opal::RenderPass::create();
-            pass->setFramebuffer(target->getFramebuffer());
-            ssaoCommandBuffer->clearColor(1.0f, 1.0f, 1.0f, 1.0f);
-            ssaoCommandBuffer->beginPass(pass);
-            ssaoCommandBuffer->endPass();
-        }
-        if (ownsCommandBuffer) {
-            ssaoCommandBuffer->commit();
-        }
-        return;
-    }
     logViewportStartupStage("Preparing SSAO vertex buffers");
     if (ssaoState == nullptr) {
         CoreVertex quadVertices[] = {
