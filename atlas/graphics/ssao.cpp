@@ -23,10 +23,7 @@ void Window::setupSSAO() {
     this->ssaoMapsDirty = true;
 #if defined(VULKAN) && defined(_WIN32)
     const auto info = device->getDeviceInfo();
-    this->ssaoCompatibilityFallback =
-        info.vendorName == "32902" &&
-        (info.deviceName.find("HD Graphics") != std::string::npos ||
-         info.deviceName.find("UHD") != std::string::npos);
+    this->ssaoCompatibilityFallback = true;
     if (const char *setting = std::getenv("ATLAS_SSAO_COMPATIBILITY")) {
         if (std::string(setting) == "1") {
             this->ssaoCompatibilityFallback = true;
@@ -35,12 +32,16 @@ void Window::setupSSAO() {
         }
     }
     if (this->ssaoCompatibilityFallback) {
-        atlas_warning("Using neutral SSAO compatibility fallback on " +
-                      info.deviceName);
+        atlas_warning("Windows SSAO is disabled for compatibility on " +
+                      info.deviceName +
+                      "; using a neutral texture without SSAO render passes");
         this->ssaoBuffer.reset();
         this->ssaoBlurBuffer.reset();
         return;
     }
+    atlas_warning(
+        "Windows SSAO explicitly enabled by ATLAS_SSAO_COMPATIBILITY=0 on " +
+        info.deviceName);
 #endif
     this->ssaoBuffer = std::make_shared<RenderTarget>(
         RenderTarget(*this, RenderTargetType::SSAO));

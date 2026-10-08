@@ -68,13 +68,22 @@ try:
             runtime_text = log.with_name("editor-runtime.log").read_text(errors="replace")
             if "[Viewport startup] Viewport frame submitted" not in runtime_text:
                 raise RuntimeError("Viewport did not submit its first frame\n" + runtime_text)
-            if os.environ.get("ATLAS_SSAO_COMPATIBILITY") == "1":
+            expected_revision = os.environ.get("ATLAS_EXPECTED_BUILD_REVISION")
+            if expected_revision and f"Atlas build revision: {expected_revision}" not in text:
+                raise RuntimeError("Installed editor does not match the package revision\n" + text)
+            if os.environ.get("ATLAS_SSAO_COMPATIBILITY") != "0":
                 if (
                     "Using neutral SSAO texture without render passes" not in runtime_text
                     or "Compiling and recording SSAO" in runtime_text
                     or "Clearing neutral SSAO compatibility buffers" in runtime_text
                 ):
                     raise RuntimeError("SSAO compatibility path did not bypass SSAO render passes\n" + runtime_text)
+            elif (
+                "Compiling and recording SSAO draw" not in runtime_text
+                or "Compiling and recording SSAO blur draw" not in runtime_text
+                or "Using neutral SSAO texture without render passes" in runtime_text
+            ):
+                raise RuntimeError("Explicit SSAO opt-in did not render SSAO and blur\n" + runtime_text)
             if any(name in runtime_text for name in ("entryPointParam_fragmentMain.gOptical", "entryPointParam_fragmentMain.gMedium")):
                 raise RuntimeError("Deferred fragment outputs have missing attachments\n" + runtime_text)
             if re.search(r"\[ERROR\].*\bvk\w+\(", runtime_text):

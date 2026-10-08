@@ -29,8 +29,25 @@ set(JOLT_VERSION "5.6.0")
 message(STATUS "Using Compiler: ${CMAKE_CXX_COMPILER_ID} ${CMAKE_CXX_COMPILER_VERSION}")
 message(STATUS "Compiler at path:" ${CMAKE_CXX_COMPILER})
 
+set(ATLAS_BUILD_REVISION "unknown")
+find_package(Git QUIET)
+if (GIT_FOUND)
+    execute_process(
+        COMMAND ${GIT_EXECUTABLE} rev-parse HEAD
+        WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}
+        OUTPUT_VARIABLE ATLAS_GIT_REVISION
+        OUTPUT_STRIP_TRAILING_WHITESPACE
+        ERROR_QUIET
+        RESULT_VARIABLE ATLAS_GIT_RESULT
+    )
+    if (ATLAS_GIT_RESULT EQUAL 0 AND ATLAS_GIT_REVISION MATCHES "^[0-9a-f]+$")
+        set(ATLAS_BUILD_REVISION "${ATLAS_GIT_REVISION}")
+    endif ()
+endif ()
+
 add_compile_definitions(
         ATLAS_VERSION="Beta 2 Lyra"
+        ATLAS_BUILD_REVISION="${ATLAS_BUILD_REVISION}"
 )
 if (WIN32)
     add_compile_definitions(NOMINMAX WIN32_LEAN_AND_MEAN _CRT_SECURE_NO_WARNINGS)

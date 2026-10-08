@@ -174,6 +174,10 @@ void installWindowsDiagnostics() {
         runtimeLogOutput.open(
             QDir::toNativeSeparators(directory + "/editor-runtime.log"));
         qInstallMessageHandler(windowsMessageHandler);
+        qInfo().noquote() << "Atlas build revision:" << ATLAS_BUILD_REVISION;
+        qInfo().noquote() << "Atlas executable:"
+                         << QCoreApplication::applicationFilePath();
+        std::cout << "Atlas build revision: " << ATLAS_BUILD_REVISION << std::endl;
         qInfo().noquote() << "Atlas editor diagnostics:" << logPath;
         return;
     }

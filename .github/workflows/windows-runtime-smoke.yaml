@@ -23,7 +23,7 @@ jobs:
       fail-fast: false
       matrix:
         sampling: [multisampled, single-sample]
-        ssao_compatibility: [false, true]
+        ssao_compatibility: [default, enabled, disabled]
     runs-on: windows-2025
     timeout-minutes: 20
     steps:
@@ -47,12 +47,15 @@ jobs:
           if ($env:PACKAGE_RUN -notmatch '^\d+$') { throw "Package run must be a numeric workflow run ID" }
           gh run download $env:PACKAGE_RUN -n Atlas-Engine-Windows-x86_64 -D "$env:RUNNER_TEMP\installer"
           if ($LASTEXITCODE -ne 0) { throw "Package download failed" }
+          $revision = gh run view $env:PACKAGE_RUN --json headSha --jq .headSha
+          if ($LASTEXITCODE -ne 0 -or $revision -notmatch '^[0-9a-f]{40}$') { throw "Package revision lookup failed" }
+          "ATLAS_EXPECTED_BUILD_REVISION=$revision" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
           $installer = Get-ChildItem "$env:RUNNER_TEMP\installer\*.exe" | Select-Object -First 1
           $process = Start-Process $installer.FullName -ArgumentList '/S', "/D=$env:RUNNER_TEMP\Atlas" -Wait -PassThru
           if ($process.ExitCode -ne 0) { throw "Installer failed: $($process.ExitCode)" }
       - name: Open PBR project in packaged Windows editor
         env:
-          ATLAS_SSAO_COMPATIBILITY: ${{ matrix.ssao_compatibility && '1' || '' }}
+          ATLAS_SSAO_COMPATIBILITY: ${{ matrix.ssao_compatibility == 'enabled' && '0' || matrix.ssao_compatibility == 'disabled' && '1' || '' }}
         shell: pwsh
         run: |
           $icd = Get-ChildItem "$env:RUNNER_TEMP\mesa" -Recurse -Filter '*lvp*.json' | Where-Object { $_.FullName -match 'x64' } | Select-Object -First 1
@@ -73,5 +76,5 @@ jobs:
       - uses: actions/upload-artifact@v4
         if: always()
         with:
-          name: Windows-startup-diagnostics-${{ matrix.sampling }}-${{ matrix.ssao_compatibility && 'ssao-fallback' || 'ssao' }}
+          name: Windows-startup-diagnostics-${{ matrix.sampling }}-${{ matrix.ssao_compatibility }}
           path: ${{ runner.temp }}/startup-results
