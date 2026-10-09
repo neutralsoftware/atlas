@@ -2,12 +2,103 @@
 
 #include "atlas/runtime/context.h"
 
+#include <algorithm>
 #include <exception>
+#include <iostream>
+#include <filesystem>
+#include <cstdio>
+#include <cstring>
+#ifdef _WIN32
+#include <windows.h>
+#include <dbghelp.h>
+#endif
 #include <memory>
 #include <string>
 
 namespace {
 using RuntimeContextHandle = std::shared_ptr<Context>;
+#ifdef _WIN32
+HANDLE runtimeCrashLog = INVALID_HANDLE_VALUE;
+std::wstring runtimeDumpPath;
+decltype(&MiniDumpWriteDump) runtimeWriteDump = nullptr;
+
+LONG WINAPI runtimeCrashHandler(EXCEPTION_POINTERS *exception) {
+    HMODULE module = nullptr;
+    GetModuleHandleExW(
+        GET_MODULE_HANDLE_EX_FLAG_FROM_ADDRESS |
+            GET_MODULE_HANDLE_EX_FLAG_UNCHANGED_REFCOUNT,
+        reinterpret_cast<LPCWSTR>(exception->ExceptionRecord->ExceptionAddress),
+        &module);
+    wchar_t modulePath[MAX_PATH]{};
+    GetModuleFileNameW(module, modulePath, MAX_PATH);
+    const auto offset = reinterpret_cast<ULONG_PTR>(
+                            exception->ExceptionRecord->ExceptionAddress) -
+                        reinterpret_cast<ULONG_PTR>(module);
+    char message[2048]{};
+    const int length = std::snprintf(
+        message, sizeof(message),
+        "Atlas runtime native crash: 0x%08lX\nModule: %ls\nOffset: 0x%llX\n",
+        exception->ExceptionRecord->ExceptionCode, modulePath,
+        static_cast<unsigned long long>(offset));
+    if (runtimeCrashLog != INVALID_HANDLE_VALUE && length > 0) {
+        DWORD written = 0;
+        WriteFile(runtimeCrashLog, message,
+                  static_cast<DWORD>(std::min<size_t>(length, sizeof(message) - 1)),
+                  &written, nullptr);
+        FlushFileBuffers(runtimeCrashLog);
+    }
+    if (runtimeWriteDump != nullptr) {
+        HANDLE dump = CreateFileW(runtimeDumpPath.c_str(), GENERIC_WRITE,
+                                  FILE_SHARE_READ, nullptr, CREATE_ALWAYS,
+                                  FILE_ATTRIBUTE_NORMAL, nullptr);
+        if (dump != INVALID_HANDLE_VALUE) {
+            MINIDUMP_EXCEPTION_INFORMATION info{GetCurrentThreadId(), exception,
+                                                FALSE};
+            runtimeWriteDump(GetCurrentProcess(), GetCurrentProcessId(), dump,
+                             MiniDumpNormal, &info, nullptr, nullptr);
+            CloseHandle(dump);
+        }
+    }
+    return EXCEPTION_EXECUTE_HANDLER;
+}
+
+class RuntimeDiagnostics {
+  public:
+    explicit RuntimeDiagnostics(const char *projectFile) {
+        const auto directory = std::filesystem::u8path(projectFile).parent_path() /
+                               ".atlas" / "logs";
+        std::error_code error;
+        std::filesystem::create_directories(directory, error);
+        runtimeDumpPath = (directory / "runtime-crash.dmp").wstring();
+        runtimeCrashLog = CreateFileW((directory / "runtime-crash.log").c_str(),
+                                      GENERIC_WRITE, FILE_SHARE_READ, nullptr,
+                                      CREATE_ALWAYS, FILE_ATTRIBUTE_NORMAL, nullptr);
+        debugHelp = LoadLibraryExW(L"dbghelp.dll", nullptr,
+                                   LOAD_LIBRARY_SEARCH_SYSTEM32);
+        if (debugHelp != nullptr) {
+            auto entry = GetProcAddress(debugHelp, "MiniDumpWriteDump");
+            static_assert(sizeof(runtimeWriteDump) == sizeof(entry));
+            std::memcpy(&runtimeWriteDump, &entry, sizeof(entry));
+        }
+        previousHandler = SetUnhandledExceptionFilter(runtimeCrashHandler);
+    }
+
+    ~RuntimeDiagnostics() {
+        SetUnhandledExceptionFilter(previousHandler);
+        if (runtimeCrashLog != INVALID_HANDLE_VALUE)
+            CloseHandle(runtimeCrashLog);
+        runtimeCrashLog = INVALID_HANDLE_VALUE;
+        runtimeWriteDump = nullptr;
+        if (debugHelp != nullptr)
+            FreeLibrary(debugHelp);
+    }
+
+  private:
+    HMODULE debugHelp = nullptr;
+    LPTOP_LEVEL_EXCEPTION_FILTER previousHandler = nullptr;
+};
+#endif
+
 }
 
 bool atlas_runtime_run_project(const char *projectFile) {
@@ -16,13 +107,20 @@ bool atlas_runtime_run_project(const char *projectFile) {
     }
 
     try {
+#ifdef _WIN32
+        RuntimeDiagnostics diagnostics(projectFile);
+#endif
+        std::cerr << "Atlas runtime build revision: " << ATLAS_BUILD_REVISION
+                  << std::endl;
         auto context = runtime::makeContext(projectFile);
         context->loadProject();
         context->runWindowed();
         return true;
-    } catch (const std::exception &) {
+    } catch (const std::exception &error) {
+        std::cerr << "Atlas runtime failed: " << error.what() << std::endl;
         return false;
     } catch (...) {
+        std::cerr << "Atlas runtime failed with an unknown exception" << std::endl;
         return false;
     }
 }

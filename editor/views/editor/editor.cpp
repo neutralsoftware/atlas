@@ -2449,6 +2449,16 @@ void EditorWindow::runProjectCommand(bool buildOnly) {
                                      bundledRuntime.absoluteFilePath());
         }
         process.setProcessEnvironment(launchEnvironment);
+        if (!buildOnly) {
+            const QString logDirectory = QDir(workingDirectory).filePath(".atlas/logs");
+            if (!QDir().mkpath(logDirectory)) {
+                QMessageBox::warning(this, "Run Project",
+                                     "Could not create runtime log directory: " + logDirectory);
+                return;
+            }
+            process.setProcessChannelMode(QProcess::MergedChannels);
+            process.setStandardOutputFile(QDir(logDirectory).filePath("runtime.log"));
+        }
         if (!process.startDetached()) {
             QMessageBox::warning(this,
                                  buildOnly ? "Build Project" : "Run Project",

@@ -264,7 +264,11 @@ fn load_runtime_entry(
     let wide_path: Vec<u16> = runtime_path.as_os_str().encode_wide().chain(Some(0)).collect();
     let handle = unsafe { LoadLibraryW(wide_path.as_ptr()) };
     if handle.is_null() {
-        return Err(format!("Failed to load runtime library {}", runtime_path.display()));
+        return Err(format!(
+            "Failed to load runtime library {}: {}",
+            runtime_path.display(),
+            std::io::Error::last_os_error()
+        ));
     }
     let symbol = unsafe { GetProcAddress(handle, c"atlas_runtime_run_project".as_ptr().cast()) };
     if symbol.is_null() {
@@ -335,7 +339,7 @@ pub fn run(cmd: Commands) {
         Ok(path) => path,
         Err(e) => {
             eprintln!("{}\n{e}", "atlas run failed".red().bold());
-            return;
+            std::process::exit(1);
         }
     };
 
@@ -348,7 +352,7 @@ pub fn run(cmd: Commands) {
                 "atlas run failed:".red().bold(),
                 "project path contains an embedded NUL byte"
             );
-            return;
+            std::process::exit(1);
         }
     };
 
@@ -362,12 +366,13 @@ pub fn run(cmd: Commands) {
         Ok(entry) => entry,
         Err(e) => {
             eprintln!("{}\n{e}", "atlas run failed".red().bold());
-            return;
+            std::process::exit(1);
         }
     };
 
     let ok = unsafe { run_project(project_file.as_ptr()) };
     if !ok {
         eprintln!("{} {}", "atlas run failed:".red().bold(), project_path_str);
+        std::process::exit(1);
     }
 }
