@@ -58,6 +58,7 @@ struct SpotLight {
 struct UBO {
     float3 cameraPosition;
     uint useIBL;
+    int useContactOcclusion;
 };
 
 struct Environment {
@@ -220,6 +221,35 @@ struct FragmentInput {
 [[vk::binding(19, 2)]] Texture2D<float4> gMedium;
 [[vk::binding(16, 6)]] Texture2D<float4> irradianceMap;
 [[vk::binding(17, 6)]] Texture2D<float4> ddgiDistanceMap;
+float contactOcclusion(float2 uv, float3 position, float3 normal) {
+    float2 texelSize = 1.0 / float2(textureSize(gPosition));
+    float occlusion = 0.0;
+    float radius = 0.75;
+    for (int i = 0; i < 16; ++i) {
+        float angle = float(i % 8) * 0.785398163;
+        float2 direction = float2(cos(angle), sin(angle));
+        float2 sampleUV = uv + direction * texelSize * (i < 8 ? 3.0 : 9.0);
+        if (any(sampleUV < float2(0.0)) || any(sampleUV > float2(1.0))) {
+            continue;
+        }
+        float3 sampleNormal = gNormal.SampleLevel(sampleUV, 0.0).xyz;
+        float3 samplePosition = gPosition.SampleLevel(sampleUV, 0.0).xyz;
+        if (!all(isfinite(sampleNormal)) || !all(isfinite(samplePosition)) ||
+            dot(sampleNormal, sampleNormal) < 0.0001) {
+            continue;
+        }
+        float3 delta = samplePosition - position;
+        float distanceSquared = dot(delta, delta);
+        if (distanceSquared < 0.000001 || distanceSquared >= radius * radius) {
+            continue;
+        }
+        float distance = sqrt(distanceSquared);
+        float horizon = max(dot(normal, delta) / distance - 0.05, 0.0);
+        occlusion += horizon * (1.0 - smoothstep(0.0, radius, distance));
+    }
+    return saturate(1.0 - occlusion * (2.0 / 16.0));
+}
+
 [shader("fragment")]
 FragmentOutput fragmentMain(FragmentInput input) {
     FragmentOutput output = {};
@@ -241,7 +271,7 @@ FragmentOutput fragmentMain(FragmentInput input) {
         float3 backgroundDir = normalize(float3(ndc.x, -ndc.y, 1.0f));
         float3 backgroundColor =
             sampleEnvironmentRadiance(backgroundDir, skybox);
-        output.FragColor = float4(acesToneMapping(backgroundColor), 1.0);
+        output.FragColor = float4(backgroundColor, 1.0);
         output.BrightColor = float4(0.0, 0.0, 0.0, 1.0);
         return output;
     }
@@ -323,7 +353,9 @@ FragmentOutput fragmentMain(FragmentInput input) {
     dielectricF0 = max(dielectricF0, reflectivity);
     float3 F0 = lerp(float3(dielectricF0), albedo, float3(metallic));
     float ssaoFactor =
-        clamp(ssao.Sample(input.TexCoord).x, 0.0, 1.0);
+        uniforms.useContactOcclusion != 0
+            ? contactOcclusion(input.TexCoord, FragPos, N)
+            : clamp(ssao.SampleLevel(input.TexCoord, 0.0).x, 0.0, 1.0);
 
     float ssaoContrast =
         clamp(powr(ssaoFactor, 1.10000002), 0.0, 1.0);
@@ -742,10 +774,8 @@ FragmentOutput fragmentMain(FragmentInput input) {
     float bloomContribution =
         max(brightness - environment.bloomThreshold, 0.0) /
         max(brightness, 0.00001);
-    float3 toneMappedColor = acesToneMapping(output.FragColor.xyz);
     output.BrightColor =
-        float4(toneMappedColor * bloomContribution, 1.0);
-    output.FragColor.xyz = toneMappedColor;
+        float4(finalColor * bloomContribution, 1.0);
     return output;
 }
 #endif

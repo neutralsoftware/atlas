@@ -647,6 +647,9 @@ void Window::deferredRendering(
                                      fallbackIrradianceTexture->textureID, 17);
     }
 
+    lightPipeline->setUniform1i("useContactOcclusion",
+                                this->ssaoCompatibilityFallback ? 1 : 0);
+
     int boundCubemaps = 0;
 
     Scene *scene = this->currentScene;

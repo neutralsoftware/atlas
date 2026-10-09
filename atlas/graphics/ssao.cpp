@@ -11,7 +11,6 @@
 #include "atlas/tracer/log.h"
 #include <algorithm>
 #include <cstddef>
-#include <cstdlib>
 #include <glm/geometric.hpp>
 #include <glm/gtc/random.hpp>
 #include <random>
@@ -24,24 +23,12 @@ void Window::setupSSAO() {
 #if defined(VULKAN) && defined(_WIN32)
     const auto info = device->getDeviceInfo();
     this->ssaoCompatibilityFallback = true;
-    if (const char *setting = std::getenv("ATLAS_SSAO_COMPATIBILITY")) {
-        if (std::string(setting) == "1") {
-            this->ssaoCompatibilityFallback = true;
-        } else if (std::string(setting) == "0") {
-            this->ssaoCompatibilityFallback = false;
-        }
-    }
-    if (this->ssaoCompatibilityFallback) {
-        atlas_warning("Windows SSAO is disabled for compatibility on " +
-                      info.deviceName +
-                      "; using a neutral texture without SSAO render passes");
-        this->ssaoBuffer.reset();
-        this->ssaoBlurBuffer.reset();
-        return;
-    }
-    atlas_warning(
-        "Windows SSAO explicitly enabled by ATLAS_SSAO_COMPATIBILITY=0 on " +
-        info.deviceName);
+    atlas_warning("Windows SSAO uses lighting-pass contact occlusion on " +
+                  info.deviceName +
+                  "; separate SSAO render passes are bypassed");
+    this->ssaoBuffer.reset();
+    this->ssaoBlurBuffer.reset();
+    return;
 #endif
     this->ssaoBuffer = std::make_shared<RenderTarget>(
         RenderTarget(*this, RenderTargetType::SSAO));
@@ -100,7 +87,8 @@ void Window::setupSSAO() {
 
 void Window::renderSSAO(std::shared_ptr<opal::CommandBuffer> commandBuffer) {
     if (this->ssaoCompatibilityFallback) {
-        logViewportStartupStage("Using neutral SSAO texture without render passes");
+        logViewportStartupStage(
+            "Using lighting-pass contact occlusion without SSAO render passes");
         return;
     }
     if (this->ssaoBuffer == nullptr || this->ssaoBlurBuffer == nullptr) {
