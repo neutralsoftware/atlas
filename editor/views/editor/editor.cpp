@@ -2538,6 +2538,8 @@ void EditorWindow::redoActiveEditor() {
 }
 
 bool EditorWindow::eventFilter(QObject *watched, QEvent *event) {
+    if (closing)
+        return QMainWindow::eventFilter(watched, event);
     if (event->type() == QEvent::Polish) {
         if (auto *menu = qobject_cast<QMenu *>(watched)) {
             menu->setAttribute(Qt::WA_TranslucentBackground);
@@ -2703,12 +2705,14 @@ void EditorWindow::closeEvent(QCloseEvent *event) {
         return;
     }
     closing = true;
+    qApp->removeEventFilter(this);
     if (layoutSaveTimer != nullptr)
         layoutSaveTimer->stop();
     saveLayout();
     for (auto *viewport : findChildren<ViewportPanel *>()) {
         viewport->shutdownRuntime();
     }
+    viewportPanel = nullptr;
     delete dockManager;
     dockManager = nullptr;
     if (coreManager != nullptr) {
