@@ -1963,14 +1963,23 @@ bool Window::stepFrame() {
     }
     this->pendingRemovals.clear();
 
-    for (auto *obj : this->pendingObjects) {
-        obj->initialize();
+    const auto objectsToInitialize = this->pendingObjects;
+    for (auto *obj : objectsToInitialize) {
+        const auto pending = std::find(this->pendingObjects.begin(),
+                                       this->pendingObjects.end(), obj);
+        if (pending == this->pendingObjects.end()) {
+            continue;
+        }
+        this->pendingObjects.erase(pending);
         this->renderables.push_back(obj);
-        if (obj->renderLateForward) {
+        obj->initialize();
+        if (obj->renderLateForward &&
+            std::find(this->pendingRemovals.begin(),
+                      this->pendingRemovals.end(), obj) ==
+                this->pendingRemovals.end()) {
             this->addLateForwardObject(obj);
         }
     }
-    this->pendingObjects.clear();
 
     for (auto *obj : this->pendingInitializedObjects) {
         this->renderables.push_back(obj);
@@ -2031,8 +2040,12 @@ bool Window::stepFrame() {
 
     if (runSimulation) {
 
-        for (auto &obj : this->firstRenderables) {
-            if (obj == nullptr) {
+        const auto firstObjectsToUpdate = this->firstRenderables;
+        for (auto *obj : firstObjectsToUpdate) {
+            if (obj == nullptr ||
+                std::find(this->firstRenderables.begin(),
+                          this->firstRenderables.end(), obj) ==
+                    this->firstRenderables.end()) {
                 continue;
             }
             obj->update(*this);
@@ -2045,7 +2058,14 @@ bool Window::stepFrame() {
             obj->update(*this);
         }
 
-        for (auto &obj : this->lateForwardRenderables) {
+        const auto lateObjectsToUpdate = this->lateForwardRenderables;
+        for (auto *obj : lateObjectsToUpdate) {
+            if (obj == nullptr ||
+                std::find(this->lateForwardRenderables.begin(),
+                          this->lateForwardRenderables.end(), obj) ==
+                    this->lateForwardRenderables.end()) {
+                continue;
+            }
             obj->update(*this);
         }
 

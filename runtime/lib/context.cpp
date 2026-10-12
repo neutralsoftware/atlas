@@ -5258,8 +5258,9 @@ std::string Context::registerScriptModule(const std::string &modulePath) {
 }
 
 void Context::runWindowed() {
-    window->setScene(scene.get());
-    window->run();
+    while (stepFrame()) {
+    }
+    end();
 }
 
 bool Context::stepFrame() {
@@ -7153,6 +7154,7 @@ Context::~Context() {
     if (context != nullptr) {
         runtime::scripting::clearSceneBindings(context, scriptHost);
         editorRuntimeComponents.clear();
+        retiredObjects.clear();
         objects.clear();
         directionalLights.clear();
         pointLights.clear();
