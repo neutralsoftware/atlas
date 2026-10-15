@@ -12,6 +12,7 @@
 #include "atlas/object.h"
 #include "atlas/tracer/log.h"
 #include "opal/opal.h"
+#include <algorithm>
 #include <map>
 #include <memory>
 #include <string>
@@ -905,6 +906,10 @@ std::shared_ptr<opal::Pipeline> ShaderProgram::requestPipeline(
 
     vertexAttributes.reserve(layoutDescriptors.size());
     for (const auto &attr : layoutDescriptors) {
+        if (std::find(activeLocations.begin(), activeLocations.end(),
+                      attr.layoutPos) == activeLocations.end()) {
+            continue;
+        }
         vertexAttributes.push_back(opal::VertexAttribute{
             .name = attr.name,
             .type = attr.type,
@@ -918,7 +923,11 @@ std::shared_ptr<opal::Pipeline> ShaderProgram::requestPipeline(
     }
 
     std::size_t vec4Size = sizeof(glm::vec4);
-    for (unsigned int i = 0; i < 4; ++i) {
+    const bool usesInstances =
+        desiredAttributes.empty() ||
+        std::find(capabilities.begin(), capabilities.end(),
+                  ShaderCapability::Instances) != capabilities.end();
+    for (unsigned int i = 0; usesInstances && i < 4; ++i) {
         vertexAttributes.push_back(opal::VertexAttribute{
             .name = "instanceModel" + std::to_string(i),
             .type = opal::VertexAttributeType::Float,

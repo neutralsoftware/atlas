@@ -1871,7 +1871,7 @@ void Window::pollEvents() {
 }
 
 void Window::logViewportStartupStage(const char *stage) const {
-    if (editorControlsEnabled && firstFrame) {
+    if (firstFrame) {
         std::cout << "[Viewport startup] " << stage << std::endl;
     }
 }
@@ -1963,6 +1963,7 @@ bool Window::stepFrame() {
     }
     this->pendingRemovals.clear();
 
+    logViewportStartupStage("Initializing scene objects");
     const auto objectsToInitialize = this->pendingObjects;
     for (auto *obj : objectsToInitialize) {
         const auto pending = std::find(this->pendingObjects.begin(),
@@ -1993,10 +1994,21 @@ bool Window::stepFrame() {
     DebugTimer mainTimer("Main Loop");
 
     if (runSimulation) {
-        for (auto &obj : this->renderables) {
+        logViewportStartupStage("Running beforePhysics callbacks");
+        const auto physicsObjects = this->renderables;
+        for (auto *obj : physicsObjects) {
+            if (obj == nullptr ||
+                std::find(this->renderables.begin(), this->renderables.end(),
+                          obj) == this->renderables.end() ||
+                std::find(this->pendingRemovals.begin(),
+                          this->pendingRemovals.end(), obj) !=
+                    this->pendingRemovals.end()) {
+                continue;
+            }
             obj->beforePhysics();
         }
 
+        logViewportStartupStage("Advancing physics");
         this->physicsWorld->update(this->deltaTime);
     }
 
@@ -2051,7 +2063,17 @@ bool Window::stepFrame() {
             obj->update(*this);
         }
 
-        for (auto &obj : this->renderables) {
+        logViewportStartupStage("Updating scene objects");
+        const auto objectsToUpdate = this->renderables;
+        for (auto *obj : objectsToUpdate) {
+            if (obj == nullptr ||
+                std::find(this->renderables.begin(), this->renderables.end(),
+                          obj) == this->renderables.end() ||
+                std::find(this->pendingRemovals.begin(),
+                          this->pendingRemovals.end(), obj) !=
+                    this->pendingRemovals.end()) {
+                continue;
+            }
             if (obj->renderLateForward) {
                 continue;
             }
