@@ -964,7 +964,20 @@ void ViewportPanel::mousePressEvent(QMouseEvent *event) {
         event->accept();
         return;
     }
+    if (event->button() == Qt::LeftButton &&
+        event->modifiers().testFlag(Qt::AltModifier)) {
+        leftDragRuntimeButton = runtimeMouseButton(
+            event->modifiers().testFlag(Qt::ShiftModifier)
+                ? Qt::RightButton : Qt::MiddleButton);
+        leftPointerMoved = false;
+        sendPointerEvent(0, static_cast<float>(event->position().x()),
+                         static_cast<float>(event->position().y()),
+                         leftDragRuntimeButton);
+        event->accept();
+        return;
+    }
     if (event->button() == Qt::LeftButton) {
+        leftDragRuntimeButton = 0;
         leftPointerMoved = false;
         const int selected = selectedRuntimeObjectId();
         transformUndoBefore = findSnapshotObject(
@@ -997,6 +1010,14 @@ void ViewportPanel::mousePressEvent(QMouseEvent *event) {
 void ViewportPanel::mouseMoveEvent(QMouseEvent *event) {
     if (routeRuntimeInputEvent(event))
         return;
+    if (leftDragRuntimeButton != 0 &&
+        event->buttons().testFlag(Qt::LeftButton)) {
+        sendPointerEvent(1, static_cast<float>(event->position().x()),
+                         static_cast<float>(event->position().y()),
+                         leftDragRuntimeButton);
+        event->accept();
+        return;
+    }
     if (event->buttons().testFlag(Qt::LeftButton))
         leftPointerMoved = true;
     sendPointerEvent(1, static_cast<float>(event->position().x()),
@@ -1031,6 +1052,15 @@ void ViewportPanel::mouseMoveEvent(QMouseEvent *event) {
 void ViewportPanel::mouseReleaseEvent(QMouseEvent *event) {
     if (routeRuntimeInputEvent(event))
         return;
+    if (event->button() == Qt::LeftButton && leftDragRuntimeButton != 0) {
+        sendPointerEvent(2, static_cast<float>(event->position().x()),
+                         static_cast<float>(event->position().y()),
+                         leftDragRuntimeButton);
+        leftDragRuntimeButton = 0;
+        leftPointerMoved = false;
+        event->accept();
+        return;
+    }
     const int pointerButton = event->button() == Qt::RightButton
                                   ? rightDragRuntimeButton
                               : event->button() == Qt::MiddleButton
@@ -2180,6 +2210,12 @@ void ViewportPanel::captureRuntimeInput() {
 }
 
 void ViewportPanel::releaseRuntimeInput() {
+    if (leftDragRuntimeButton != 0) {
+        sendPointerEvent(2, width() * 0.5f, height() * 0.5f,
+                         leftDragRuntimeButton);
+        leftDragRuntimeButton = 0;
+        leftPointerMoved = false;
+    }
     if (runtimeContext != nullptr)
         runtimeContext->clearEditorRuntimeInput();
     if (!runtimeInputCaptured)

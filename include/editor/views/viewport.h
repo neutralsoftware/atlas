@@ -203,6 +203,7 @@ class ViewportPanel : public QWidget {
     int playbackState = 0;
     int shadingMode = 0;
     bool pbrPreview = false;
+    int leftDragRuntimeButton = 0;
     int rightDragRuntimeButton = 0;
     int middleDragRuntimeButton = 0;
 };
