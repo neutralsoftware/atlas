@@ -33,6 +33,8 @@
 #include <QJsonValue>
 #include <QKeyEvent>
 #include <QMouseEvent>
+#include <QNativeGestureEvent>
+#include <QPointingDevice>
 #include <QMessageBox>
 #include <QMimeData>
 #ifdef Q_OS_LINUX
@@ -742,6 +744,21 @@ ViewportPanel::ViewportPanel(const QString &projectFile, QWidget *parent)
 }
 
 bool ViewportPanel::event(QEvent *event) {
+    if (event->type() == QEvent::NativeGesture && runtimeContext != nullptr &&
+        playbackState == 0 && !keyboardTransformActive && !shuttingDown) {
+        auto *gesture = static_cast<QNativeGestureEvent *>(event);
+        if (gesture->gestureType() == Qt::ZoomNativeGesture) {
+            runtimeContext->editorScrollEvent(
+                static_cast<float>(gesture->value()) * 10.0f, widgetScale(this));
+        } else if (gesture->gestureType() == Qt::PanNativeGesture) {
+            navigateTrackpad(gesture->delta(), true);
+        } else if (gesture->gestureType() != Qt::BeginNativeGesture &&
+                   gesture->gestureType() != Qt::EndNativeGesture) {
+            return QWidget::event(event);
+        }
+        event->accept();
+        return true;
+    }
     if (routeRuntimeInputEvent(event))
         return true;
     return QWidget::event(event);
@@ -1046,12 +1063,43 @@ void ViewportPanel::wheelEvent(QWheelEvent *event) {
         QWidget::wheelEvent(event);
         return;
     }
-    const float deltaX = static_cast<float>(event->angleDelta().x()) / 120.0f;
-    const float delta = static_cast<float>(event->angleDelta().y()) / 120.0f;
-    if (std::abs(delta) > 0.0f) {
-        runtimeContext->editorScrollEvent(delta, widgetScale(this));
+    if (keyboardTransformActive || shuttingDown) {
+        event->accept();
+        return;
+    }
+    const bool trackpad = !event->pixelDelta().isNull() ||
+        event->phase() != Qt::NoScrollPhase ||
+        (event->pointingDevice() != nullptr &&
+         event->pointingDevice()->type() == QInputDevice::DeviceType::TouchPad);
+    const QPointF delta = !event->pixelDelta().isNull()
+                              ? QPointF(event->pixelDelta())
+                              : QPointF(event->angleDelta()) / 8.0;
+    if (trackpad && !event->modifiers().testFlag(Qt::ControlModifier)) {
+        navigateTrackpad(delta, event->modifiers().testFlag(Qt::ShiftModifier));
+    } else {
+        const float zoom = !event->pixelDelta().isNull()
+                               ? static_cast<float>(delta.y()) / 40.0f
+                               : static_cast<float>(event->angleDelta().y()) / 120.0f;
+        runtimeContext->editorScrollEvent(zoom, widgetScale(this));
     }
     event->accept();
+}
+
+void ViewportPanel::navigateTrackpad(const QPointF &delta, bool pan) {
+    if (delta.isNull() || runtimeContext == nullptr || playbackState != 0 ||
+        keyboardTransformActive || shuttingDown ||
+        QApplication::mouseButtons() != Qt::NoButton) {
+        return;
+    }
+    setFocus(Qt::OtherFocusReason);
+    const int button = runtimeMouseButton(pan ? Qt::RightButton : Qt::MiddleButton);
+    const float x = static_cast<float>(width()) * 0.5f;
+    const float y = static_cast<float>(height()) * 0.5f;
+    const float endX = x + static_cast<float>(delta.x());
+    const float endY = y + static_cast<float>(delta.y());
+    sendPointerEvent(0, x, y, button);
+    sendPointerEvent(1, endX, endY, button);
+    sendPointerEvent(2, endX, endY, button);
 }
 
 void ViewportPanel::keyPressEvent(QKeyEvent *event) {

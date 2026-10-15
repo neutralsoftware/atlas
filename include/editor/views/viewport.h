@@ -10,6 +10,7 @@
 #ifndef ATLAS_VIEWPORT_H
 #define ATLAS_VIEWPORT_H
 
+#include <QPointF>
 #include <array>
 #include <cstdint>
 #include <memory>
@@ -158,6 +159,7 @@ class ViewportPanel : public QWidget {
     bool pollCapturedRuntimeInput();
     void resizeRuntime();
     void sendPointerEvent(int action, float x, float y, int button);
+    void navigateTrackpad(const QPointF &delta, bool pan);
     void captureRuntimeInput();
     void releaseRuntimeInput();
     void refreshSceneSnapshot();
