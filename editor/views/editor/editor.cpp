@@ -10,6 +10,7 @@
  */
 
 #include <editor/views/editorWindow.h>
+#include <algorithm>
 
 #include <editor/application/toolchainInstaller.h>
 #include <editor/project/projectStore.h>
@@ -2436,19 +2437,13 @@ void EditorWindow::runProjectCommand(bool buildOnly) {
 #endif
         const QStringList arguments =
             buildOnly ? QStringList{"pack", "--backend", backend}
-                      : QStringList{"run", "project.atlas"};
-        QProcess process;
-        process.setProgram(executable);
-        process.setArguments(arguments);
-        process.setWorkingDirectory(workingDirectory);
+                      : QStringList{"run", QFileInfo(projectFile).absoluteFilePath()};
         const QFileInfo bundledRuntime(
-            QDir(QCoreApplication::applicationDirPath())
-                .filePath(runtimeName));
+            QDir(QCoreApplication::applicationDirPath()).filePath(runtimeName));
         if (!buildOnly && bundledRuntime.isFile()) {
             launchEnvironment.insert("ATLAS_RUNTIME_LIB",
                                      bundledRuntime.absoluteFilePath());
         }
-        process.setProcessEnvironment(launchEnvironment);
         if (!buildOnly) {
             const QString logDirectory = QDir(workingDirectory).filePath(".atlas/logs");
             if (!QDir().mkpath(logDirectory)) {
@@ -2456,9 +2451,56 @@ void EditorWindow::runProjectCommand(bool buildOnly) {
                                      "Could not create runtime log directory: " + logDirectory);
                 return;
             }
-            process.setProcessChannelMode(QProcess::MergedChannels);
-            process.setStandardOutputFile(QDir(logDirectory).filePath("runtime.log"));
+            const QString logPath = QDir(logDirectory).filePath("runtime.log");
+#ifdef Q_OS_WIN
+            const QString runnerName = "atlasrun.exe";
+#else
+            const QString runnerName = "atlasrun";
+#endif
+            const QFileInfo runner(QDir(QCoreApplication::applicationDirPath())
+                                       .filePath(runnerName));
+            auto *runtimeProcess = new QProcess(this);
+            runtimeProcess->setProgram(runner.isExecutable()
+                                           ? runner.absoluteFilePath() : executable);
+            runtimeProcess->setArguments(runner.isExecutable()
+                ? QStringList{QFileInfo(projectFile).absoluteFilePath()} : arguments);
+            runtimeProcess->setWorkingDirectory(workingDirectory);
+            runtimeProcess->setProcessEnvironment(launchEnvironment);
+            runtimeProcess->setProcessChannelMode(QProcess::MergedChannels);
+            runtimeProcess->setStandardOutputFile(logPath);
+            connect(runtimeProcess, &QProcess::errorOccurred, this,
+                    [this, runtimeProcess, logPath](QProcess::ProcessError error) {
+                if (error != QProcess::FailedToStart)
+                    return;
+                if (!closing)
+                    QMessageBox::warning(this, "Runtime could not start",
+                        runtimeProcess->errorString() + "\nLog: " + logPath);
+                runtimeProcess->deleteLater();
+            });
+            connect(runtimeProcess, &QProcess::finished, this,
+                    [this, runtimeProcess, logPath](int code, QProcess::ExitStatus status) {
+                runtimeProcess->deleteLater();
+                if (closing || (status == QProcess::NormalExit && code == 0))
+                    return;
+                QFile log(logPath);
+                QString details;
+                if (log.open(QIODevice::ReadOnly)) {
+                    log.seek(std::max<qint64>(0, log.size() - 4096));
+                    details = QString::fromUtf8(log.readAll());
+                }
+                QMessageBox::warning(this, "Project runtime stopped",
+                    QString("Exit code: %1 (0x%2)\nLog: %3\n\n%4")
+                        .arg(code).arg(static_cast<quint32>(code), 8, 16, QChar('0'))
+                        .arg(logPath, details));
+            });
+            runtimeProcess->start();
+            return;
         }
+        QProcess process;
+        process.setProgram(executable);
+        process.setArguments(arguments);
+        process.setWorkingDirectory(workingDirectory);
+        process.setProcessEnvironment(launchEnvironment);
         if (!process.startDetached()) {
             QMessageBox::warning(this,
                                  buildOnly ? "Build Project" : "Run Project",
