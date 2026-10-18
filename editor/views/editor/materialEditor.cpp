@@ -233,12 +233,18 @@ class MaterialPreviewWidget : public QWidget {
             width() <= 1 || height() <= 1 || materialDefinition.isEmpty()) {
             return;
         }
-#ifdef METAL
+#if defined(METAL) || (defined(VULKAN) && defined(Q_OS_WIN))
         try {
-            void *metalView =
+            void *nativeView =
                 reinterpret_cast<void *>(static_cast<quintptr>(winId()));
+#ifdef METAL
             runtimeContext = runtime::makeMaterialPreviewContextForMetalView(
-                projectFile.toStdString(), metalView);
+                projectFile.toStdString(), nativeView);
+#else
+            runtimeContext = runtime::makeMaterialPreviewContextForNativeWindow(
+                projectFile.toStdString(), nativeView,
+                opal::NativeWindowType::Win32);
+#endif
             if (!runtimeContext->initializeMaterialPreview(
                     materialDefinition.toStdString(), baseDir.toStdString(),
                     environmentMode)) {

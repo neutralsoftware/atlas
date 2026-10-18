@@ -1448,8 +1448,8 @@ Window::Window(const WindowConfiguration &config)
 #endif
 
 #ifdef VULKAN
-    this->frontFace = opal::FrontFace::Clockwise;
-    this->deferredFrontFace = opal::FrontFace::Clockwise;
+    this->frontFace = opal::FrontFace::CounterClockwise;
+    this->deferredFrontFace = opal::FrontFace::CounterClockwise;
 #elif defined(METAL)
     frontFace = opal::FrontFace::
         CounterClockwise; // NOLINT(*-prefer-member-initializer)
@@ -1495,7 +1495,13 @@ Window::Window(const WindowConfiguration &config)
     this->windowRef = window;
     this->shouldClose = false;
 
-    SDL_SetWindowOpacity(window, config.opacity);
+    if (this->externalNativeWindow == nullptr &&
+        config.sdlInputWindow == nullptr && config.opacity != 1.0f) {
+        if (!SDL_SetWindowOpacity(window, config.opacity)) {
+            atlas_warning(std::string("Could not set window opacity: ") +
+                          SDL_GetError());
+        }
+    }
     if (config.mouseCaptured) {
         captureMouse();
     } else {

@@ -39,7 +39,7 @@ struct Material {
     int aoTextureIndex;
     int opacityTextureIndex;
     float abbeNumber;
-    float useNormalMap;
+    int useNormalMap;
     float transmittance;
     float ior;
     float reflectivity;

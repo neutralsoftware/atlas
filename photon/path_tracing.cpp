@@ -33,6 +33,11 @@ constexpr size_t kCausticPhotonCount = size_t{1} << 19;
 constexpr size_t kCausticBucketCount = size_t{1} << 17;
 constexpr size_t kCausticBucketSamples = 32;
 constexpr size_t kCausticBucketWords = 2 + kCausticBucketSamples;
+#ifdef VULKAN
+constexpr size_t kPathTracerVectorAlignment = 16;
+#else
+constexpr size_t kPathTracerVectorAlignment = alignof(float);
+#endif
 
 std::shared_ptr<opal::Texture> createFallbackSkyboxTexture() {
     auto texture = opal::Texture::create(
@@ -444,7 +449,7 @@ void photon::PathTracing::resetAccumulation() {
 
 bool photon::PathTracing::buildAccelerationStructure(
     const std::shared_ptr<opal::CommandBuffer> &commandBuffer) {
-    struct MaterialData {
+    struct alignas(kPathTracerVectorAlignment) MaterialData {
         float albedo[4];
         float metallic;
         float roughness;
@@ -472,12 +477,12 @@ bool photon::PathTracing::buildAccelerationStructure(
         float attenuationDistance;
         int isVolume;
         float volumeDensity;
-        float volumeAbsorptionColor[3];
+        alignas(kPathTracerVectorAlignment) float volumeAbsorptionColor[3];
         float volumeAbsorptionStrength;
-        float volumeScatteringColor[3];
+        alignas(kPathTracerVectorAlignment) float volumeScatteringColor[3];
         float volumeScatteringStrength;
         float volumeAnisotropy;
-        float volumeEmissionColor[3];
+        alignas(kPathTracerVectorAlignment) float volumeEmissionColor[3];
         float volumeEmissionStrength;
         float _pad3;
 
@@ -490,18 +495,18 @@ bool photon::PathTracing::buildAccelerationStructure(
         float subsurfaceScale;
         float subsurfaceAnisotropy;
         float _pad4;
-        float subsurfaceColor[3];
+        alignas(kPathTracerVectorAlignment) float subsurfaceColor[3];
         float _pad5;
-        float subsurfaceRadius[3];
+        alignas(kPathTracerVectorAlignment) float subsurfaceRadius[3];
         float _pad6;
     };
 
     struct VertexData {
-        float position[3];
-        float normal[3];
-        float uv[2];
-        float tangent[3];
-        float bitangent[3];
+        alignas(kPathTracerVectorAlignment) float position[3];
+        alignas(kPathTracerVectorAlignment) float normal[3];
+        alignas(kPathTracerVectorAlignment) float uv[2];
+        alignas(kPathTracerVectorAlignment) float tangent[3];
+        alignas(kPathTracerVectorAlignment) float bitangent[3];
     };
 
     struct EmissiveTriangleData {
@@ -516,8 +521,29 @@ bool photon::PathTracing::buildAccelerationStructure(
         float _pad[2];
     };
 
-    static_assert(sizeof(MaterialData) == 256);
+    struct InstanceData {
+        float model[16];
+        float normalCol0[4];
+        float normalCol1[4];
+        float normalCol2[4];
+    };
+
     static_assert(offsetof(MaterialData, isVolume) == 128);
+#ifdef VULKAN
+    static_assert(sizeof(MaterialData) == 288);
+    static_assert(offsetof(MaterialData, volumeAbsorptionColor) == 144);
+    static_assert(offsetof(MaterialData, volumeEmissionStrength) == 204);
+    static_assert(offsetof(MaterialData, iridescenceFactor) == 212);
+    static_assert(offsetof(MaterialData, subsurfaceWeight) == 228);
+    static_assert(offsetof(MaterialData, subsurfaceColor) == 256);
+    static_assert(offsetof(MaterialData, subsurfaceRadius) == 272);
+    static_assert(sizeof(VertexData) == 80);
+    static_assert(offsetof(VertexData, normal) == 16);
+    static_assert(offsetof(VertexData, uv) == 32);
+    static_assert(offsetof(VertexData, tangent) == 48);
+    static_assert(offsetof(VertexData, bitangent) == 64);
+#else
+    static_assert(sizeof(MaterialData) == 256);
     static_assert(offsetof(MaterialData, volumeAbsorptionColor) == 136);
     static_assert(offsetof(MaterialData, volumeEmissionStrength) == 184);
     static_assert(offsetof(MaterialData, iridescenceFactor) == 192);
@@ -528,7 +554,9 @@ bool photon::PathTracing::buildAccelerationStructure(
     static_assert(offsetof(MaterialData, subsurfaceColor) == 224);
     static_assert(offsetof(MaterialData, subsurfaceRadius) == 240);
     static_assert(sizeof(VertexData) == 56);
+#endif
     static_assert(sizeof(EmissiveTriangleData) == 96);
+    static_assert(sizeof(InstanceData) == 112);
 
     std::vector<CoreObject *> pathTracingObjects;
     std::unordered_set<CoreObject *> seenPathObjects;
@@ -582,6 +610,46 @@ bool photon::PathTracing::buildAccelerationStructure(
         traceableObjects = cachedObjects;
     }
     if (traceableObjects.empty()) {
+#ifdef VULKAN
+        if (pathTracingObjects.empty()) {
+            if (!needsRebuild && sceneTLAS != nullptr && sceneTLAS->isBuilt) {
+                lastError.clear();
+                return true;
+            }
+            const MaterialData emptyMaterial{};
+            const VertexData emptyVertex{};
+            const EmissiveTriangleData emptyEmission{};
+            const uint32_t emptyIndex = 0;
+            const InstanceData emptyInstance{};
+            materialBuffer = opal::Buffer::create(opal::BufferUsage::ShaderRead,
+                sizeof(emptyMaterial), &emptyMaterial);
+            globalVertices = opal::Buffer::create(opal::BufferUsage::ShaderRead,
+                sizeof(emptyVertex), &emptyVertex);
+            globalIndices = opal::Buffer::create(opal::BufferUsage::ShaderRead,
+                sizeof(emptyIndex), &emptyIndex);
+            meshInfo = opal::Buffer::create(opal::BufferUsage::ShaderRead,
+                sizeof(emptyIndex), &emptyIndex);
+            blasPrimitiveOffsets = opal::Buffer::create(opal::BufferUsage::ShaderRead,
+                sizeof(emptyIndex), &emptyIndex);
+            instanceDataBuffer = opal::Buffer::create(opal::BufferUsage::ShaderRead,
+                sizeof(emptyInstance), &emptyInstance);
+            emissiveTriangles = opal::Buffer::create(opal::BufferUsage::ShaderRead,
+                sizeof(emptyEmission), &emptyEmission);
+            sceneBLAS.reset();
+            sceneTLAS = commandBuffer->buildAccelerationStructures({}, {});
+            cachedInstanceTransforms.clear();
+            cachedBLASPrimitiveOffsets.clear();
+            materialTextures.clear();
+            materialTextureBindings.clear();
+            emissiveTriangleCount = 0;
+            causticGeometryPresent = false;
+            causticMapDirty = true;
+            frameIndex = 0;
+            accelerationBuildFailed = false;
+            lastError.clear();
+            return true;
+        }
+#endif
         lastError = pathTracingObjects.empty()
                         ? "No renderable scene geometry was found"
                         : "Scene geometry is not valid for path tracing";
@@ -987,13 +1055,6 @@ bool photon::PathTracing::buildAccelerationStructure(
         return false;
     }
 
-    struct InstanceData {
-        float model[16];
-        float normalCol0[4];
-        float normalCol1[4];
-        float normalCol2[4];
-    };
-
     std::vector<InstanceData> instanceData(traceableObjects.size());
 
     for (size_t objectIndex = 0; objectIndex < traceableObjects.size();
@@ -1071,7 +1132,7 @@ bool photon::PathTracing::createLightBuffers() {
         float range;
     };
 
-    struct SpotLightData {
+    struct alignas(kPathTracerVectorAlignment) SpotLightData {
         float position[3];
         float intensity;
 
@@ -1082,10 +1143,10 @@ bool photon::PathTracing::createLightBuffers() {
         float outerCos;
 
         float range;
-        float _pad0[3];
+        alignas(kPathTracerVectorAlignment) float _pad0[3];
     };
 
-    struct AreaLightData {
+    struct alignas(kPathTracerVectorAlignment) AreaLightData {
         float position[3];
         float intensity;
 
@@ -1098,12 +1159,17 @@ bool photon::PathTracing::createLightBuffers() {
         float color[3];
         float twoSided;
         float emissionCos;
-        float _pad[3];
+        alignas(kPathTracerVectorAlignment) float _pad[3];
     };
 
     static_assert(sizeof(PointLightData) == 32);
+#ifdef VULKAN
+    static_assert(sizeof(SpotLightData) == 80);
+    static_assert(sizeof(AreaLightData) == 96);
+#else
     static_assert(sizeof(SpotLightData) == 64);
     static_assert(sizeof(AreaLightData) == 80);
+#endif
 
     std::vector<PointLightData> pointLightData;
     std::vector<SpotLightData> spotLightData;

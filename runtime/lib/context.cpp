@@ -5138,6 +5138,34 @@ runtime::makeContextForNativeWindow(std::string projectFile,
 }
 
 std::shared_ptr<Context>
+runtime::makeMaterialPreviewContextForNativeWindow(
+    std::string projectFile, void *nativeWindow,
+    opal::NativeWindowType nativeWindowType) {
+    Window *previousWindow = Window::mainWindow;
+    opal::Device *previousDevice = opal::Device::globalInstance;
+    auto restorePrevious = [&] {
+        if (previousWindow != nullptr) {
+            previousWindow->activateRenderingContext();
+        } else {
+            Window::mainWindow = nullptr;
+            opal::Device::globalInstance = previousDevice;
+        }
+    };
+    try {
+        auto context = makeContextForNativeWindow(
+            std::move(projectFile), nativeWindow, nativeWindowType);
+        context->editorRuntime = false;
+        context->materialPreviewRuntime = true;
+        context->loadProject();
+        restorePrevious();
+        return context;
+    } catch (...) {
+        restorePrevious();
+        throw;
+    }
+}
+
+std::shared_ptr<Context>
 runtime::makeMaterialPreviewContextForMetalView(std::string projectFile,
                                                 void *metalView) {
 #ifdef METAL
@@ -6208,7 +6236,7 @@ bool Context::setMaterialPreviewMaterial(const std::string &definition,
         WindowActivationScope activeWindow(*window);
         applyMaterial(*sphere,
                       loadMaterialDefinition(json::parse(definition), baseDir));
-#ifdef METAL
+#if defined(METAL) || defined(VULKAN)
         window->resetPathTracingAccumulation();
 #endif
         return true;
@@ -6308,7 +6336,7 @@ bool Context::setMaterialPreviewEnvironment(int mode) {
     areaLights[1]->shineColor = rim;
     areaLights[1]->intensity = rimIntensity;
     window->setClearColor(background);
-#ifdef METAL
+#if defined(METAL) || defined(VULKAN)
     window->resetPathTracingAccumulation();
 #endif
 
@@ -6329,7 +6357,7 @@ bool Context::rotateMaterialPreview(float yawDelta, float pitchDelta) {
     WindowActivationScope activeWindow(*window);
     sphere->setRotation(
         Rotation3d{materialPreviewPitch, materialPreviewYaw, 0.0f});
-#ifdef METAL
+#if defined(METAL) || defined(VULKAN)
     window->resetPathTracingAccumulation();
 #endif
     return true;

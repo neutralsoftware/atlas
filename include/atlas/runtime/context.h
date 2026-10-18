@@ -223,6 +223,10 @@ makeContextForNativeWindow(std::string projectFile, void *nativeWindow,
 std::shared_ptr<Context>
 makeMaterialPreviewContextForMetalView(std::string projectFile,
                                        void *metalView);
+std::shared_ptr<Context>
+makeMaterialPreviewContextForNativeWindow(
+    std::string projectFile, void *nativeWindow,
+    opal::NativeWindowType nativeWindowType);
 void runProjectInMetalView(std::string projectFile, void *metalView,
                            CoreWindowReference sdlInputWindow = nullptr);
 std::shared_ptr<Context> makeContextForMetalViewNonBlocking(
