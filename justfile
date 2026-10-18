@@ -1,162 +1,91 @@
+
+set windows-shell := ["pwsh", "-NoLogo", "-NoProfile", "-Command"]
+
 GENERATOR := "Ninja"
+PYTHON := if os() == "windows" { "python" } else { "python3" }
+FTET_WILD := if os() == "windows" { "OFF" } else { "ON" }
 
 build:
-    cd build && ninja
+    cmake --build build --parallel
 
-config backend="AUTO" bezel_native="OFF":
-    mkdir -p build
-    cd build && cmake -G "{{ GENERATOR }}" \
-        -DCMAKE_C_COMPILER=/usr/bin/clang \
-        -DCMAKE_CXX_COMPILER=/usr/bin/clang++ \
-        -DCMAKE_C_COMPILER_LAUNCHER= \
-        -DCMAKE_CXX_COMPILER_LAUNCHER= \
-        -DBACKEND={{ backend }} \
-        -DBEZEL_NATIVE={{ bezel_native }} \
-        -DCMAKE_EXPORT_COMPILE_COMMANDS=ON \
-        ..
+single:
+    cmake --build build --parallel 1
 
-target target backend="AUTO" bezel_native="OFF":
-    mkdir -p build
-    cd build && cmake -G "{{ GENERATOR }}" \
-        -DBACKEND={{ backend }} \
-        -DBEZEL_NATIVE={{ bezel_native }} \
-        -DCMAKE_EXPORT_COMPILE_COMMANDS=ON \
-        -DCMAKE_C_COMPILER_LAUNCHER= \
-        -DCMAKE_CXX_COMPILER_LAUNCHER= \
-        ..
-    cd build && ninja {{ target }}
+config backend="AUTO" bezel_native="OFF" ftet_wild=FTET_WILD:
+    cmake -S . -B build -G {{GENERATOR}} -DCMAKE_C_COMPILER=clang -DCMAKE_CXX_COMPILER=clang++ -DCMAKE_C_COMPILER_LAUNCHER= -DCMAKE_CXX_COMPILER_LAUNCHER= -DBACKEND={{backend}} -DBEZEL_NATIVE={{bezel_native}} -DENABLE_FTET_WILD={{ftet_wild}} -DCMAKE_EXPORT_COMPILE_COMMANDS=ON
 
+target target_name backend="AUTO" bezel_native="OFF" ftet_wild=FTET_WILD:
+    just config {{backend}} {{bezel_native}} {{ftet_wild}}
+    cmake --build build --target {{target_name}} --parallel
 
 run test="" backend="AUTO" bezel_native="OFF":
-    test_dir="{{ test }}"; if [ -z "$test_dir" ]; then test_dir="$(tr -d '\n' < tests/default.txt)"; fi; cd "tests/$test_dir" && atlas script compile && cd "../.."; MTL_HUD_ENABLED=0 ./build/bin/atlasrun "tests/$test_dir/project.atlas"
+    {{PYTHON}} scripts/atlas_tasks.py run "{{test}}"
 
 addTest name:
-    test_dir="tests/{{ name }}"; [ ! -e "$test_dir" ] || { echo "Test already exists: $test_dir" >&2; exit 1; }; mkdir -p "$test_dir/assets/scripts" && cp tests/simple/project.atlas "$test_dir/project.atlas" && cp tests/simple/main.ascene "$test_dir/main.ascene" && cp tests/simple/assets/scripts/simpleLog.ts "$test_dir/assets/scripts/simpleLog.ts" && (cd "$test_dir" && cargo run --quiet --manifest-path ../../cli/Cargo.toml -- script init) && rm -f "$test_dir/lib/atlas.d.ts" && ln -s ../../../runtime/atlas.d.ts "$test_dir/lib/atlas.d.ts"
+    {{PYTHON}} scripts/atlas_tasks.py add-test "{{name}}"
 
-debug backend="AUTO" bezel_native="OFF":
-    just build {{ backend }} {{ bezel_native }}
-    MTL_HUD_ENABLED=1 ./build/bin/atlas_test
+debug backend="AUTO" bezel_native="OFF" ftet_wild=FTET_WILD:
+    just target atlas_test {{backend}} {{bezel_native}} {{ftet_wild}}
+    {{PYTHON}} scripts/atlas_tasks.py debug
 
-clangd backend="AUTO" bezel_native="OFF":
-    mkdir -p build
-    cd build && cmake -G "{{ GENERATOR }}" \
-        -DCMAKE_EXPORT_COMPILE_COMMANDS=ON \
-        -DBACKEND={{ backend }} \
-        -DBEZEL_NATIVE={{ bezel_native }} \
-        -DCMAKE_C_COMPILER_LAUNCHER= \
-        -DCMAKE_CXX_COMPILER_LAUNCHER= \
-        ..
-    ln -sf build/compile_commands.json compile_commands.json
+clangd backend="AUTO" bezel_native="OFF" ftet_wild=FTET_WILD:
+    just config {{backend}} {{bezel_native}} {{ftet_wild}}
+    {{PYTHON}} scripts/atlas_tasks.py clangd
 
 lint:
-    run-clang-tidy -p build -quiet -warnings-as-errors='*'
+    {{PYTHON}} scripts/atlas_tasks.py lint
 
 clean:
-    rm -rf build include/atlas/core/default_shaders.h docs/html
+    {{PYTHON}} scripts/atlas_tasks.py clean
 
 frametest:
     just build
-    timeout 2 ./build/bin/atlas_test
+    {{PYTHON}} scripts/atlas_tasks.py frametest
 
 cli:
-    cargo build 
+    cargo build
 
 copy-cli:
     cargo build --release
-    cp target/release/atlas /usr/local/bin/atlas 
+    {{PYTHON}} scripts/atlas_tasks.py copy-cli
 
 package-debug-macos args="":
-    ATLAS_ALLOW_UNNOTARIZED_RELEASE=1 ./scripts/package_app.py --debug --macOS 
-    ./scripts/sign_macos_local.py
+    {{PYTHON}} scripts/atlas_tasks.py package debug
 
 package-release-macos:
-    ATLAS_ALLOW_UNNOTARIZED_RELEASE=1 ./scripts/package_app.py --release --macOS
-    ./scripts/sign_macos_local.py
+    {{PYTHON}} scripts/atlas_tasks.py package release
 
 release-macos:
-    ATLAS_ALLOW_UNNOTARIZED_RELEASE=1 ./scripts/package_app.py --release --macOS
-    ./scripts/sign_macos_local.py
+    just package-release-macos
 
 release-metal:
-    rm -rf build/release-metal
-    mkdir -p build/release-metal dist/release
-    cd build/release-metal && cmake -G "{{ GENERATOR }}" \
-        -DCMAKE_BUILD_TYPE=Release \
-        -DBACKEND=METAL \
-        -DCMAKE_C_COMPILER_LAUNCHER= \
-        -DCMAKE_CXX_COMPILER_LAUNCHER= \
-        ../..
-    cd build/release-metal && ninja
+    {{PYTHON}} scripts/atlas_tasks.py release-build METAL
 
 release-opengl:
-    rm -rf build/release-opengl
-    mkdir -p build/release-opengl dist/release
-    cd build/release-opengl && cmake -G "{{ GENERATOR }}" \
-        -DCMAKE_BUILD_TYPE=Release \
-        -DBACKEND=OPENGL \
-        -DCMAKE_C_COMPILER_LAUNCHER= \
-        -DCMAKE_CXX_COMPILER_LAUNCHER= \
-        ../..
-    cd build/release-opengl && ninja atlas bezel finewave aurora hydra opal photon graphite
+    {{PYTHON}} scripts/atlas_tasks.py release-build OPENGL
 
 release-vulkan:
-    rm -rf build/release-vulkan
-    mkdir -p build/release-vulkan dist/release
-    cd build/release-vulkan && cmake -G "{{ GENERATOR }}" \
-        -DCMAKE_BUILD_TYPE=Release \
-        -DBACKEND=VULKAN \
-        -DCMAKE_C_COMPILER_LAUNCHER= \
-        -DCMAKE_CXX_COMPILER_LAUNCHER= \
-        ../..
-    cd build/release-vulkan && ninja atlas bezel finewave aurora hydra opal photon graphite
-
-docs backend="AUTO":
-    mkdir -p build
-    doxygen -w html header.html delete.html delete.css
-    rm delete.html delete.css
-    cd build && cmake -G "{{ GENERATOR }}" \
-        -DBACKEND={{ backend }} \
-        -DCMAKE_C_COMPILER_LAUNCHER= \
-        -DCMAKE_CXX_COMPILER_LAUNCHER= \
-        ..
-    cp header.html build/_deps/doxygen-awesome-css-src/header.html
-    rm header.html
-    doxygen Doxyfile
+    {{PYTHON}} scripts/atlas_tasks.py release-build VULKAN
 
 release backend="AUTO":
-    if [ "{{ backend }}" = "AUTO" ] || [ "{{ backend }}" = "all" ] || [ "{{ backend }}" = "ALL" ]; then just release-metal && just release-opengl && just release-vulkan; elif [ "{{ backend }}" = "metal" ] || [ "{{ backend }}" = "METAL" ]; then just release-metal; elif [ "{{ backend }}" = "opengl" ] || [ "{{ backend }}" = "OPENGL" ]; then just release-opengl; elif [ "{{ backend }}" = "vulkan" ] || [ "{{ backend }}" = "VULKAN" ]; then just release-vulkan; else echo "Unknown backend '{{ backend }}'. Use AUTO|metal|opengl|vulkan" && exit 1; fi
+    {{PYTHON}} scripts/atlas_tasks.py release "{{backend}}"
+
+docs backend="AUTO":
+    {{PYTHON}} scripts/atlas_tasks.py docs "{{backend}}"
 
 run-docs:
     just docs
-    python3 -m http.server 8000 --directory docs/html
+    {{PYTHON}} scripts/atlas_tasks.py serve-docs
 
-editor backend="AUTO" bezel_native="OFF":
-    just target AtlasEditor {{ backend }} {{ bezel_native }}
-    "./build/bin/Atlas Engine.app/Contents/MacOS/Atlas Engine"
-
-clang-tidy-full:
-    find include src atlas aurora bezel editor finewave graphite hydra opal photon \
-        \( -path '*/extern/*' -o -path '*/third-party/*' -o -path '*/build/*' \) -prune -o \
-        \( -name '*.cpp' -o -name '*.cc' -o -name '*.cxx' \) \
-        -print0 | xargs -0 -P "$(sysctl -n hw.logicalcpu)" -n1 \
-        clang-tidy \
-        -p build \
-        -checks='-*,clang-diagnostic-*,bugprone-*,performance-*,portability-*,misc-include-cleaner' \
-        > clang-tidy.log 2>&1
+editor backend="AUTO" bezel_native="OFF" ftet_wild=FTET_WILD:
+    just target AtlasEditor {{backend}} {{bezel_native}} {{ftet_wild}}
+    {{PYTHON}} scripts/atlas_tasks.py editor
 
 clang-tidy:
-    find include src atlas aurora bezel editor finewave graphite hydra opal photon \
-        \( -path '*/extern/*' -o -path '*/third-party/*' -o -path '*/build/*' \) -prune -o \
-        \( -name '*.cpp' -o -name '*.cc' -o -name '*.cxx' \) \
-        -print0 | xargs -0 -P "$(sysctl -n hw.logicalcpu)" -n1 \
-        clang-tidy \
-        -p build \
-        -checks='-*,clang-diagnostic-*,portability-*,misc-include-cleaner' \
-        2>&1 | tee clang-tidy.log
+    {{PYTHON}} scripts/atlas_tasks.py tidy
+
+clang-tidy-full:
+    {{PYTHON}} scripts/atlas_tasks.py tidy-full
 
 refresh-opal:
-    git submodule sync --recursive
-    git -C opal fetch origin
-    git -C opal checkout main
-    git -C opal reset --hard origin/main
-    git add opal
+    {{PYTHON}} scripts/atlas_tasks.py refresh-opal

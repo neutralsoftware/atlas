@@ -12,6 +12,7 @@
 #include "atlas/object.h"
 #include "bezel/bezel.h"
 
+#ifdef ENABLE_FTET_WILD
 #include <geogram/basic/common.h>
 #include "geogram/mesh/mesh.h"
 
@@ -20,6 +21,7 @@
 #include <floattetwild/MeshIO.hpp>
 
 #include <Eigen/Core>
+#endif
 
 #include <Jolt/Physics/Body/BodyLock.h>
 #include <Jolt/Physics/SoftBody/SoftBodyCreationSettings.h>
@@ -104,11 +106,13 @@ EdgeKey makeEdgeKey(uint32_t a, uint32_t b) {
     return {.a = a, .b = b};
 }
 
+#ifdef ENABLE_FTET_WILD
 void initializeGeogram() {
     static std::once_flag initializationFlag;
 
     std::call_once(initializationFlag, [] { GEO::initialize(); });
 }
+#endif
 
 void addFace(std::unordered_map<FaceKey, FaceEntry, FaceKeyHash> &faces,
              uint32_t a, uint32_t b, uint32_t c) {
@@ -418,6 +422,7 @@ void Softbody::createMesh() {
         isMeshCreated = true;
         return;
     }
+#ifdef ENABLE_FTET_WILD
     initializeGeogram();
     mesh.vertices.clear();
     mesh.tetrahedra.clear();
@@ -548,6 +553,12 @@ void Softbody::createMesh() {
                   std::to_string(mesh.surface.size()) + " surface triangles");
 
     isMeshCreated = true;
+#else
+    throw std::runtime_error(
+        "Cannot generate softbody mesh: fTetWild is disabled and no cached "
+        "tetrahedral mesh is available. Configure with -DENABLE_FTET_WILD=ON "
+        "on a supported platform to generate the cache.");
+#endif
 }
 
 void Softbody::setObject(CoreObject *object) {

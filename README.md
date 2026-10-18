@@ -85,6 +85,8 @@ To work on the engine itself, build it from source using the instructions below.
 
 Atlas fetches SDL3, GLM, fmt, FreeType, Assimp, OpenAL Soft, and Jolt during configuration. Vulkan builds additionally require a Vulkan SDK or equivalent Vulkan loader and SPIRV-Cross development packages.
 
+fTetWild softbody tetrahedralization is enabled by default on supported platforms and disabled on Windows. Use `-DENABLE_FTET_WILD=OFF` when configuring CMake to disable it, or `just config AUTO OFF OFF`. Cached tetrahedral meshes remain usable with fTetWild disabled; generating new meshes requires `-DENABLE_FTET_WILD=ON` on a supported platform.
+
 ### macOS
 
 Install the Xcode command-line tools and build dependencies:

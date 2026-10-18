@@ -1,0 +1,1649 @@
+cmake --build build --parallel
+[0/2] Re-checking globbed directories...
+[1/910] C:\WINDOWS\system32\cmd.exe /C "cd /D D:\Coding\Atlas\build\opal\third-party\slang\source\slang && "C:\Program Files\CMake\bin\cmake.exe" -E make_directory D:/Coding/Atlas/build/opal/third-party/slang/Debug/include && "C:\Program Files\CMake\bin\cmake.exe" -E copy_directory D:/Coding/Atlas/opal/third-party/slang/include D:/Coding/Atlas/build/opal/third-party/slang/Debug/include && "C:\Program Files\CMake\bin\cmake.exe" -E copy D:/Coding/Atlas/build/opal/third-party/slang/source/slang/slang-version-header/slang-tag-version.h D:/Coding/Atlas/build/opal/third-party/slang/Debug/include/slang-tag-version.h"
+[2/910] Packing runtime scripts into atlasScripts.h
+Runtime scripts packed successfully to D:/Coding/Atlas/include/atlas/runtime/atlasScripts.h
+[3/910] Generate language specific header for OpenCLDebugInfo100.
+[4/910] Generate language specific header for DebugInfo.
+[5/910] Linking CXX static library lib\opal.lib
+[6/910] Generate grammar tables
+[7/910] Scanning D:/Coding/Atlas/build/_deps/openal_soft-src/alc/effects/reverb.cpp for CXX dependencies
+[8/910] Linking CXX static library lib\bezel.lib
+[9/910] Generating CXX dyndep file _deps/openal_soft-build/CMakeFiles/OpenAL.dir/CXX.dd
+[10/806] Building C object CMakeFiles/quickjs.dir/extern/quickjs/dtoa.c.obj
+[11/806] Building C object CMakeFiles/quickjs.dir/extern/quickjs/libregexp.c.obj
+[12/806] Building C object CMakeFiles/quickjs.dir/extern/quickjs/libunicode.c.obj
+[13/806] Building C object external/mimalloc/CMakeFiles/mimalloc-static.dir/src/libc.c.obj
+[14/806] Building C object external/mimalloc/CMakeFiles/mimalloc-static.dir/src/alloc-posix.c.obj
+[15/806] Building C object external/mimalloc/CMakeFiles/mimalloc-static.dir/src/bitmap.c.obj
+[16/806] Building C object external/mimalloc/CMakeFiles/mimalloc-static.dir/src/alloc-aligned.c.obj
+[17/806] Building C object external/mimalloc/CMakeFiles/mimalloc-static.dir/src/init.c.obj
+[18/806] Building C object external/mimalloc/CMakeFiles/mimalloc-static.dir/src/arena.c.obj
+[19/806] Building C object external/mimalloc/CMakeFiles/mimalloc-static.dir/src/options.c.obj
+[20/806] Building C object external/mimalloc/CMakeFiles/mimalloc-static.dir/src/random.c.obj
+[21/806] Building C object external/mimalloc/CMakeFiles/mimalloc-static.dir/src/heap.c.obj
+[22/806] Building C object external/mimalloc/CMakeFiles/mimalloc-static.dir/src/os.c.obj
+[23/806] Building C object external/mimalloc/CMakeFiles/mimalloc-static.dir/src/stats.c.obj
+[24/806] Building C object external/mimalloc/CMakeFiles/mimalloc-static.dir/src/segment-map.c.obj
+[25/806] Building C object external/mimalloc/CMakeFiles/mimalloc-static.dir/src/alloc.c.obj
+[26/806] Building C object external/mimalloc/CMakeFiles/mimalloc-static.dir/src/page.c.obj
+[27/806] Building C object external/mimalloc/CMakeFiles/mimalloc-static.dir/src/segment.c.obj
+[28/806] Building CXX object CMakeFiles/atlas.dir/atlas/application/native_window.cpp.obj
+[29/806] Automatic MOC and UIC for target qtadvanceddocking-qt6
+[30/806] Building CXX object CMakeFiles/aurora.dir/aurora/noise.cpp.obj
+[31/806] Building C object CMakeFiles/quickjs.dir/extern/quickjs/quickjs.c.obj
+[32/806] Building CXX object CMakeFiles/atlas.dir/atlas/application/workspace.cpp.obj
+[33/806] Building CXX object CMakeFiles/aurora.dir/aurora/biome.cpp.obj
+[34/806] Building CXX object CMakeFiles/hydra.dir/hydra/clouds.cpp.obj
+[35/806] Building CXX object CMakeFiles/hydra.dir/hydra/worley.cpp.obj
+[36/806] Building CXX object CMakeFiles/graphite.dir/graphite/image.cpp.obj
+[37/806] Building CXX object _deps/openal_soft-build/CMakeFiles/OpenAL.dir/alc/effects/reverb.cpp.obj
+D:/Coding/Atlas/build/_deps/openal_soft-src/alc/effects/reverb.cpp:1618:48: warning: implicit conversion changes signedness: 'unsigned long long' to 'ptrdiff_t' (aka 'long long') [-Wsign-conversion]
+ 1618 |             auto out = outSamples[j].begin() + base;
+      |                                              ~ ^~~~
+In file included from D:/Coding/Atlas/build/_deps/openal_soft-src/alc/effects/reverb.cpp:43:
+D:/Coding/Atlas/build/_deps/openal_soft-src\core/mixer.h:72:31: warning: function with 'nonblocking' attribute must not call non-'nonblocking' function 'std::span<const float, 3>::operator[]' [-Wfunction-effects]
+   72 |     return CalcAmbiCoeffs(-dir[0], dir[1], -dir[2], spread);
+      |                               ^
+C:\Program Files\Microsoft Visual Studio\18\Community\VC\Tools\MSVC\14.51.36231\include\span:462:9: note: function cannot be inferred 'nonblocking' because it calls non-'nonblocking' function '_CrtDbgReport'
+  462 |         _STL_VERIFY(_Off < _Mysize, "span subscript out of range");
+      |         ^
+C:\Program Files\Microsoft Visual Studio\18\Community\VC\Tools\MSVC\14.51.36231\include\yvals.h:258:9: note: expanded from macro '_STL_VERIFY'
+  258 |         _STL_REPORT_ERROR(mesg); \
+      |         ^
+C:\Program Files\Microsoft Visual Studio\18\Community\VC\Tools\MSVC\14.51.36231\include\yvals.h:253:5: note: expanded from macro '_STL_REPORT_ERROR'
+  253 |     _RPTF0(_CRT_ASSERT, mesg);  \
+      |     ^
+C:\Program Files (x86)\Windows Kits\10\Include\10.0.26100.0\ucrt\crtdbg.h:764:37: note: expanded from macro '_RPTF0'
+  764 |     #define _RPTF0(rptno, msg)      _RPT_BASE(rptno, __FILE__, __LINE__, NULL, "%s", msg)
+      |                                     ^
+C:\Program Files (x86)\Windows Kits\10\Include\10.0.26100.0\ucrt\crtdbg.h:751:23: note: expanded from macro '_RPT_BASE'
+  751 |         (void) ((1 != _CrtDbgReport(__VA_ARGS__)) || \
+      |                       ^
+D:/Coding/Atlas/build/_deps/openal_soft-src\core/mixer.h:72:31: note: in template expansion here
+   72 |     return CalcAmbiCoeffs(-dir[0], dir[1], -dir[2], spread);
+      |                               ^
+C:\Program Files (x86)\Windows Kits\10\Include\10.0.26100.0\ucrt\crtdbg.h:611:26: note: declaration cannot be inferred 'nonblocking' because it has no definition in this translation unit
+  611 |     _ACRTIMP int __cdecl _CrtDbgReport(
+      |                          ^
+In file included from D:/Coding/Atlas/build/_deps/openal_soft-src/alc/effects/reverb.cpp:43:
+D:/Coding/Atlas/build/_deps/openal_soft-src\core/mixer.h:72:39: warning: function with 'nonblocking' attribute must not call non-'nonblocking' function 'std::span<const float, 3>::operator[]' [-Wfunction-effects]
+   72 |     return CalcAmbiCoeffs(-dir[0], dir[1], -dir[2], spread);
+      |                                       ^
+C:\Program Files\Microsoft Visual Studio\18\Community\VC\Tools\MSVC\14.51.36231\include\span:462:9: note: function cannot be inferred 'nonblocking' because it calls non-'nonblocking' function '_CrtDbgReport'
+  462 |         _STL_VERIFY(_Off < _Mysize, "span subscript out of range");
+      |         ^
+C:\Program Files\Microsoft Visual Studio\18\Community\VC\Tools\MSVC\14.51.36231\include\yvals.h:258:9: note: expanded from macro '_STL_VERIFY'
+  258 |         _STL_REPORT_ERROR(mesg); \
+      |         ^
+C:\Program Files\Microsoft Visual Studio\18\Community\VC\Tools\MSVC\14.51.36231\include\yvals.h:253:5: note: expanded from macro '_STL_REPORT_ERROR'
+  253 |     _RPTF0(_CRT_ASSERT, mesg);  \
+      |     ^
+C:\Program Files (x86)\Windows Kits\10\Include\10.0.26100.0\ucrt\crtdbg.h:764:37: note: expanded from macro '_RPTF0'
+  764 |     #define _RPTF0(rptno, msg)      _RPT_BASE(rptno, __FILE__, __LINE__, NULL, "%s", msg)
+      |                                     ^
+C:\Program Files (x86)\Windows Kits\10\Include\10.0.26100.0\ucrt\crtdbg.h:751:23: note: expanded from macro '_RPT_BASE'
+  751 |         (void) ((1 != _CrtDbgReport(__VA_ARGS__)) || \
+      |                       ^
+D:/Coding/Atlas/build/_deps/openal_soft-src\core/mixer.h:72:31: note: in template expansion here
+   72 |     return CalcAmbiCoeffs(-dir[0], dir[1], -dir[2], spread);
+      |                               ^
+C:\Program Files (x86)\Windows Kits\10\Include\10.0.26100.0\ucrt\crtdbg.h:611:26: note: declaration cannot be inferred 'nonblocking' because it has no definition in this translation unit
+  611 |     _ACRTIMP int __cdecl _CrtDbgReport(
+      |                          ^
+In file included from D:/Coding/Atlas/build/_deps/openal_soft-src/alc/effects/reverb.cpp:43:
+D:/Coding/Atlas/build/_deps/openal_soft-src\core/mixer.h:72:48: warning: function with 'nonblocking' attribute must not call non-'nonblocking' function 'std::span<const float, 3>::operator[]' [-Wfunction-effects]
+   72 |     return CalcAmbiCoeffs(-dir[0], dir[1], -dir[2], spread);
+      |                                                ^
+C:\Program Files\Microsoft Visual Studio\18\Community\VC\Tools\MSVC\14.51.36231\include\span:462:9: note: function cannot be inferred 'nonblocking' because it calls non-'nonblocking' function '_CrtDbgReport'
+  462 |         _STL_VERIFY(_Off < _Mysize, "span subscript out of range");
+      |         ^
+C:\Program Files\Microsoft Visual Studio\18\Community\VC\Tools\MSVC\14.51.36231\include\yvals.h:258:9: note: expanded from macro '_STL_VERIFY'
+  258 |         _STL_REPORT_ERROR(mesg); \
+      |         ^
+C:\Program Files\Microsoft Visual Studio\18\Community\VC\Tools\MSVC\14.51.36231\include\yvals.h:253:5: note: expanded from macro '_STL_REPORT_ERROR'
+  253 |     _RPTF0(_CRT_ASSERT, mesg);  \
+      |     ^
+C:\Program Files (x86)\Windows Kits\10\Include\10.0.26100.0\ucrt\crtdbg.h:764:37: note: expanded from macro '_RPTF0'
+  764 |     #define _RPTF0(rptno, msg)      _RPT_BASE(rptno, __FILE__, __LINE__, NULL, "%s", msg)
+      |                                     ^
+C:\Program Files (x86)\Windows Kits\10\Include\10.0.26100.0\ucrt\crtdbg.h:751:23: note: expanded from macro '_RPT_BASE'
+  751 |         (void) ((1 != _CrtDbgReport(__VA_ARGS__)) || \
+      |                       ^
+D:/Coding/Atlas/build/_deps/openal_soft-src\core/mixer.h:72:31: note: in template expansion here
+   72 |     return CalcAmbiCoeffs(-dir[0], dir[1], -dir[2], spread);
+      |                               ^
+C:\Program Files (x86)\Windows Kits\10\Include\10.0.26100.0\ucrt\crtdbg.h:611:26: note: declaration cannot be inferred 'nonblocking' because it has no definition in this translation unit
+  611 |     _ACRTIMP int __cdecl _CrtDbgReport(
+      |                          ^
+In file included from D:/Coding/Atlas/build/_deps/openal_soft-src/alc/effects/reverb.cpp:43:
+D:/Coding/Atlas/build/_deps/openal_soft-src\core/mixer.h:85:31: warning: function with 'nonblocking' attribute must not call non-'nonblocking' function 'std::span<const float, 3>::operator[]' [-Wfunction-effects]
+   85 |     return CalcAmbiCoeffs(-dir[0], dir[1], -dir[2]);
+      |                               ^
+C:\Program Files\Microsoft Visual Studio\18\Community\VC\Tools\MSVC\14.51.36231\include\span:462:9: note: function cannot be inferred 'nonblocking' because it calls non-'nonblocking' function '_CrtDbgReport'
+  462 |         _STL_VERIFY(_Off < _Mysize, "span subscript out of range");
+      |         ^
+C:\Program Files\Microsoft Visual Studio\18\Community\VC\Tools\MSVC\14.51.36231\include\yvals.h:258:9: note: expanded from macro '_STL_VERIFY'
+  258 |         _STL_REPORT_ERROR(mesg); \
+      |         ^
+C:\Program Files\Microsoft Visual Studio\18\Community\VC\Tools\MSVC\14.51.36231\include\yvals.h:253:5: note: expanded from macro '_STL_REPORT_ERROR'
+  253 |     _RPTF0(_CRT_ASSERT, mesg);  \
+      |     ^
+C:\Program Files (x86)\Windows Kits\10\Include\10.0.26100.0\ucrt\crtdbg.h:764:37: note: expanded from macro '_RPTF0'
+  764 |     #define _RPTF0(rptno, msg)      _RPT_BASE(rptno, __FILE__, __LINE__, NULL, "%s", msg)
+      |                                     ^
+C:\Program Files (x86)\Windows Kits\10\Include\10.0.26100.0\ucrt\crtdbg.h:751:23: note: expanded from macro '_RPT_BASE'
+  751 |         (void) ((1 != _CrtDbgReport(__VA_ARGS__)) || \
+      |                       ^
+D:/Coding/Atlas/build/_deps/openal_soft-src\core/mixer.h:72:31: note: in template expansion here
+   72 |     return CalcAmbiCoeffs(-dir[0], dir[1], -dir[2], spread);
+      |                               ^
+C:\Program Files (x86)\Windows Kits\10\Include\10.0.26100.0\ucrt\crtdbg.h:611:26: note: declaration cannot be inferred 'nonblocking' because it has no definition in this translation unit
+  611 |     _ACRTIMP int __cdecl _CrtDbgReport(
+      |                          ^
+In file included from D:/Coding/Atlas/build/_deps/openal_soft-src/alc/effects/reverb.cpp:43:
+D:/Coding/Atlas/build/_deps/openal_soft-src\core/mixer.h:85:39: warning: function with 'nonblocking' attribute must not call non-'nonblocking' function 'std::span<const float, 3>::operator[]' [-Wfunction-effects]
+   85 |     return CalcAmbiCoeffs(-dir[0], dir[1], -dir[2]);
+      |                                       ^
+C:\Program Files\Microsoft Visual Studio\18\Community\VC\Tools\MSVC\14.51.36231\include\span:462:9: note: function cannot be inferred 'nonblocking' because it calls non-'nonblocking' function '_CrtDbgReport'
+  462 |         _STL_VERIFY(_Off < _Mysize, "span subscript out of range");
+      |         ^
+C:\Program Files\Microsoft Visual Studio\18\Community\VC\Tools\MSVC\14.51.36231\include\yvals.h:258:9: note: expanded from macro '_STL_VERIFY'
+  258 |         _STL_REPORT_ERROR(mesg); \
+      |         ^
+C:\Program Files\Microsoft Visual Studio\18\Community\VC\Tools\MSVC\14.51.36231\include\yvals.h:253:5: note: expanded from macro '_STL_REPORT_ERROR'
+  253 |     _RPTF0(_CRT_ASSERT, mesg);  \
+      |     ^
+C:\Program Files (x86)\Windows Kits\10\Include\10.0.26100.0\ucrt\crtdbg.h:764:37: note: expanded from macro '_RPTF0'
+  764 |     #define _RPTF0(rptno, msg)      _RPT_BASE(rptno, __FILE__, __LINE__, NULL, "%s", msg)
+      |                                     ^
+C:\Program Files (x86)\Windows Kits\10\Include\10.0.26100.0\ucrt\crtdbg.h:751:23: note: expanded from macro '_RPT_BASE'
+  751 |         (void) ((1 != _CrtDbgReport(__VA_ARGS__)) || \
+      |                       ^
+D:/Coding/Atlas/build/_deps/openal_soft-src\core/mixer.h:72:31: note: in template expansion here
+   72 |     return CalcAmbiCoeffs(-dir[0], dir[1], -dir[2], spread);
+      |                               ^
+C:\Program Files (x86)\Windows Kits\10\Include\10.0.26100.0\ucrt\crtdbg.h:611:26: note: declaration cannot be inferred 'nonblocking' because it has no definition in this translation unit
+  611 |     _ACRTIMP int __cdecl _CrtDbgReport(
+      |                          ^
+In file included from D:/Coding/Atlas/build/_deps/openal_soft-src/alc/effects/reverb.cpp:43:
+D:/Coding/Atlas/build/_deps/openal_soft-src\core/mixer.h:85:48: warning: function with 'nonblocking' attribute must not call non-'nonblocking' function 'std::span<const float, 3>::operator[]' [-Wfunction-effects]
+   85 |     return CalcAmbiCoeffs(-dir[0], dir[1], -dir[2]);
+      |                                                ^
+C:\Program Files\Microsoft Visual Studio\18\Community\VC\Tools\MSVC\14.51.36231\include\span:462:9: note: function cannot be inferred 'nonblocking' because it calls non-'nonblocking' function '_CrtDbgReport'
+  462 |         _STL_VERIFY(_Off < _Mysize, "span subscript out of range");
+      |         ^
+C:\Program Files\Microsoft Visual Studio\18\Community\VC\Tools\MSVC\14.51.36231\include\yvals.h:258:9: note: expanded from macro '_STL_VERIFY'
+  258 |         _STL_REPORT_ERROR(mesg); \
+      |         ^
+C:\Program Files\Microsoft Visual Studio\18\Community\VC\Tools\MSVC\14.51.36231\include\yvals.h:253:5: note: expanded from macro '_STL_REPORT_ERROR'
+  253 |     _RPTF0(_CRT_ASSERT, mesg);  \
+      |     ^
+C:\Program Files (x86)\Windows Kits\10\Include\10.0.26100.0\ucrt\crtdbg.h:764:37: note: expanded from macro '_RPTF0'
+  764 |     #define _RPTF0(rptno, msg)      _RPT_BASE(rptno, __FILE__, __LINE__, NULL, "%s", msg)
+      |                                     ^
+C:\Program Files (x86)\Windows Kits\10\Include\10.0.26100.0\ucrt\crtdbg.h:751:23: note: expanded from macro '_RPT_BASE'
+  751 |         (void) ((1 != _CrtDbgReport(__VA_ARGS__)) || \
+      |                       ^
+D:/Coding/Atlas/build/_deps/openal_soft-src\core/mixer.h:72:31: note: in template expansion here
+   72 |     return CalcAmbiCoeffs(-dir[0], dir[1], -dir[2], spread);
+      |                               ^
+C:\Program Files (x86)\Windows Kits\10\Include\10.0.26100.0\ucrt\crtdbg.h:611:26: note: declaration cannot be inferred 'nonblocking' because it has no definition in this translation unit
+  611 |     _ACRTIMP int __cdecl _CrtDbgReport(
+      |                          ^
+7 warnings generated.
+[38/806] Building CXX object CMakeFiles/graphite.dir/graphite/layout.cpp.obj
+[39/806] Building CXX object CMakeFiles/hydra.dir/hydra/atmosphere.cpp.obj
+[40/806] Building CXX object CMakeFiles/photon.dir/photon/gi.cpp.obj
+[41/806] Building CXX object CMakeFiles/atlas.dir/atlas/application/input.cpp.obj
+[42/806] Building CXX object CMakeFiles/atlas.dir/atlas/camera.cpp.obj
+[43/806] Building CXX object CMakeFiles/graphite.dir/graphite/input/button.cpp.obj
+[44/806] Building CXX object CMakeFiles/hydra.dir/hydra/fluid.cpp.obj
+[45/806] Building CXX object CMakeFiles/aurora.dir/aurora/terrain.cpp.obj
+[46/806] Building CXX object CMakeFiles/atlas.dir/atlas/application/scene.cpp.obj
+[47/806] Building CXX object CMakeFiles/graphite.dir/graphite/input/checkbox.cpp.obj
+[48/806] Building CXX object CMakeFiles/graphite.dir/graphite/text.cpp.obj
+[49/806] Building CXX object CMakeFiles/photon.dir/photon/path_tracing.cpp.obj
+[50/806] Building CXX object CMakeFiles/graphite.dir/graphite/input/text_field.cpp.obj
+[51/806] Building CXX object CMakeFiles/atlas.dir/atlas/graphics/bloom.cpp.obj
+[52/806] Linking CXX static library lib\hydra.lib
+[53/806] Linking CXX static library lib\aurora.lib
+[54/806] Building CXX object CMakeFiles/graphite.dir/graphite/style.cpp.obj
+[55/806] Linking CXX static library lib\photon.lib
+[56/806] Linking CXX static library lib\graphite.lib
+[57/806] Linking CXX static library lib\OpenAL32.lib
+[58/806] Linking CXX static library lib\finewave.lib
+[59/806] Building CXX object CMakeFiles/atlas.dir/atlas/graphics/particle.cpp.obj
+[60/806] Building CXX object CMakeFiles/atlas.dir/atlas/graphics/light.cpp.obj
+[61/806] Linking C static library lib\quickjs.lib
+[62/806] Building CXX object CMakeFiles/atlas.dir/atlas/graphics/deferred.cpp.obj
+[63/806] Building CXX object CMakeFiles/atlas.dir/atlas/graphics/render_target.cpp.obj
+[64/806] Generate tables based on the SPIR-V XML registry.
+[65/806] Automatic RCC for ads.qrc
+[66/806] Building CXX object CMakeFiles/atlas.dir/atlas/network/pipe.cpp.obj
+[67/806] Building CXX object CMakeFiles/atlas.dir/atlas/graphics/texture_create.cpp.obj
+[68/806] Building CXX object CMakeFiles/atlas.dir/atlas/graphics/ssao.cpp.obj
+[69/806] Building CXX object CMakeFiles/atlas.dir/atlas/application/window.cpp.obj
+[70/806] Building CXX object CMakeFiles/runtime_lib.dir/runtime/lib/script_instance.cpp.obj
+[71/806] Building CXX object CMakeFiles/atlas.dir/atlas/tracer/data/object.cpp.obj
+[72/806] Building CXX object CMakeFiles/atlas.dir/atlas/tracer/data/memory.cpp.obj
+[73/806] Building CXX object CMakeFiles/atlas.dir/atlas/tracer/data/graphics.cpp.obj
+[74/806] Building CXX object CMakeFiles/atlas.dir/atlas/tracer/data/profiling.cpp.obj
+[75/806] Building CXX object CMakeFiles/atlas.dir/atlas/tracer/data/resources.cpp.obj
+[76/806] Building CXX object CMakeFiles/atlas.dir/atlas/object/compound.cpp.obj
+[77/806] Building CXX object CMakeFiles/atlas.dir/atlas/tracer/log.cpp.obj
+[78/806] Building CXX object CMakeFiles/runtime_lib.dir/runtime/lib/script_modules.cpp.obj
+[79/806] Building CXX object CMakeFiles/atlas.dir/atlas/graphics/texture.cpp.obj
+[80/806] Building CXX object CMakeFiles/atlas.dir/atlas/physics/cloth_dynamics.cpp.obj
+[81/806] Building CXX object CMakeFiles/atlas.dir/atlas/object/shape.cpp.obj
+[82/806] Building CXX object CMakeFiles/atlas.dir/atlas/physics/softbody.cpp.obj
+[83/806] Building CXX object CMakeFiles/atlas.dir/atlas/object/shader.cpp.obj
+[84/806] Building CXX object CMakeFiles/atlas.dir/atlas/physics/vehicle.cpp.obj
+[85/806] Building CXX object CMakeFiles/atlas.dir/atlas/physics/atlas_joints.cpp.obj
+[86/806] Update build-version.inc in the SPIRV-Tools build directory (if necessary).
+[87/806] Building CXX object CMakeFiles/atlas.dir/atlas/physics/rigidbody.cpp.obj
+[88/806] Building CXX object CMakeFiles/atlas.dir/atlas/object/core_object.cpp.obj
+[89/806] Building CXX object extern/QtDockingSystem/src/CMakeFiles/qtadvanceddocking-qt6.dir/DockingStateReader.cpp.obj
+[90/806] Building CXX object extern/QtDockingSystem/src/CMakeFiles/qtadvanceddocking-qt6.dir/DockAreaTabBar.cpp.obj
+In file included from D:/Coding/Atlas/extern/QtDockingSystem/src/DockAreaTabBar.cpp:30:
+In file included from D:/Coding/Atlas/extern/QtDockingSystem/src\FloatingDragPreview.h:14:
+In file included from D:/Coding/Atlas/extern/QtDockingSystem/src\FloatingDockContainer.h:32:
+D:/Coding/Atlas/extern/QtDockingSystem/src\ads_globals.h:163:1: warning: macro 'Q_ENUMS' has been marked as deprecated: Use Q_ENUM instead. [-Wdeprecated-pragma]
+  163 | Q_ENUMS(SideBarLocation)
+      | ^
+C:/Qt/6.12.0/msvc2022_64/include\QtCore/qtmetamacros.h:69:1: note: macro marked 'deprecated' here
+   69 | QT_DEPRECATED_MACRO_6_12(Q_ENUMS, "Use Q_ENUM instead.")
+      | ^
+C:/Qt/6.12.0/msvc2022_64/include\QtCore/qtdeprecationmarkers.h:248:48: note: expanded from macro 'QT_DEPRECATED_MACRO_6_12'
+  248 | # define QT_DEPRECATED_MACRO_6_12(macro, text) QT_DEPRECATED_MACRO(macro, text)
+      |                                                ^
+C:/Qt/6.12.0/msvc2022_64/include\QtCore/qtdeprecationmarkers.h:38:44: note: expanded from macro 'QT_DEPRECATED_MACRO'
+   38 | #  define QT_DEPRECATED_MACRO(macro, text) Q_DECL_DEPRECATED_MACRO(macro, text)
+      |                                            ^
+C:/Qt/6.12.0/msvc2022_64/include\QtCore/qcompilerdetection.h:1025:48: note: expanded from macro 'Q_DECL_DEPRECATED_MACRO'
+ 1025 | #  define Q_DECL_DEPRECATED_MACRO(macro, text) QT_DO_PRAGMA(clang deprecated(macro, text))
+      |                                                ^
+C:/Qt/6.12.0/msvc2022_64/include\QtCore/qcompilerdetection.h:1223:49: note: expanded from macro 'QT_DO_PRAGMA'
+ 1223 | #define QT_DO_PRAGMA(text)                      _Pragma(#text)
+      |                                                 ^
+<scratch space>:247:49: note: expanded from here
+  247 |  clang deprecated(Q_ENUMS, "Use Q_ENUM instead.")
+      |                                                 ^
+1 warning generated.
+[91/806] Building CXX object extern/QtDockingSystem/src/CMakeFiles/qtadvanceddocking-qt6.dir/ads_globals.cpp.obj
+In file included from D:/Coding/Atlas/extern/QtDockingSystem/src/ads_globals.cpp:37:
+In file included from D:/Coding/Atlas/extern/QtDockingSystem/src\DockSplitter.h:34:
+D:/Coding/Atlas/extern/QtDockingSystem/src\ads_globals.h:163:1: warning: macro 'Q_ENUMS' has been marked as deprecated: Use Q_ENUM instead. [-Wdeprecated-pragma]
+  163 | Q_ENUMS(SideBarLocation)
+      | ^
+C:/Qt/6.12.0/msvc2022_64/include\QtCore/qtmetamacros.h:69:1: note: macro marked 'deprecated' here
+   69 | QT_DEPRECATED_MACRO_6_12(Q_ENUMS, "Use Q_ENUM instead.")
+      | ^
+C:/Qt/6.12.0/msvc2022_64/include\QtCore/qtdeprecationmarkers.h:248:48: note: expanded from macro 'QT_DEPRECATED_MACRO_6_12'
+  248 | # define QT_DEPRECATED_MACRO_6_12(macro, text) QT_DEPRECATED_MACRO(macro, text)
+      |                                                ^
+C:/Qt/6.12.0/msvc2022_64/include\QtCore/qtdeprecationmarkers.h:38:44: note: expanded from macro 'QT_DEPRECATED_MACRO'
+   38 | #  define QT_DEPRECATED_MACRO(macro, text) Q_DECL_DEPRECATED_MACRO(macro, text)
+      |                                            ^
+C:/Qt/6.12.0/msvc2022_64/include\QtCore/qcompilerdetection.h:1025:48: note: expanded from macro 'Q_DECL_DEPRECATED_MACRO'
+ 1025 | #  define Q_DECL_DEPRECATED_MACRO(macro, text) QT_DO_PRAGMA(clang deprecated(macro, text))
+      |                                                ^
+C:/Qt/6.12.0/msvc2022_64/include\QtCore/qcompilerdetection.h:1223:49: note: expanded from macro 'QT_DO_PRAGMA'
+ 1223 | #define QT_DO_PRAGMA(text)                      _Pragma(#text)
+      |                                                 ^
+<scratch space>:257:49: note: expanded from here
+  257 |  clang deprecated(Q_ENUMS, "Use Q_ENUM instead.")
+      |                                                 ^
+1 warning generated.
+[92/806] Building CXX object extern/QtDockingSystem/src/CMakeFiles/qtadvanceddocking-qt6.dir/DockAreaTitleBar.cpp.obj
+In file included from D:/Coding/Atlas/extern/QtDockingSystem/src/DockAreaTitleBar.cpp:30:
+In file included from D:/Coding/Atlas/extern/QtDockingSystem/src\DockAreaTitleBar.h:36:
+D:/Coding/Atlas/extern/QtDockingSystem/src\ads_globals.h:163:1: warning: macro 'Q_ENUMS' has been marked as deprecated: Use Q_ENUM instead. [-Wdeprecated-pragma]
+  163 | Q_ENUMS(SideBarLocation)
+      | ^
+C:/Qt/6.12.0/msvc2022_64/include\QtCore/qtmetamacros.h:69:1: note: macro marked 'deprecated' here
+   69 | QT_DEPRECATED_MACRO_6_12(Q_ENUMS, "Use Q_ENUM instead.")
+      | ^
+C:/Qt/6.12.0/msvc2022_64/include\QtCore/qtdeprecationmarkers.h:248:48: note: expanded from macro 'QT_DEPRECATED_MACRO_6_12'
+  248 | # define QT_DEPRECATED_MACRO_6_12(macro, text) QT_DEPRECATED_MACRO(macro, text)
+      |                                                ^
+C:/Qt/6.12.0/msvc2022_64/include\QtCore/qtdeprecationmarkers.h:38:44: note: expanded from macro 'QT_DEPRECATED_MACRO'
+   38 | #  define QT_DEPRECATED_MACRO(macro, text) Q_DECL_DEPRECATED_MACRO(macro, text)
+      |                                            ^
+C:/Qt/6.12.0/msvc2022_64/include\QtCore/qcompilerdetection.h:1025:48: note: expanded from macro 'Q_DECL_DEPRECATED_MACRO'
+ 1025 | #  define Q_DECL_DEPRECATED_MACRO(macro, text) QT_DO_PRAGMA(clang deprecated(macro, text))
+      |                                                ^
+C:/Qt/6.12.0/msvc2022_64/include\QtCore/qcompilerdetection.h:1223:49: note: expanded from macro 'QT_DO_PRAGMA'
+ 1223 | #define QT_DO_PRAGMA(text)                      _Pragma(#text)
+      |                                                 ^
+<scratch space>:6:49: note: expanded from here
+    6 |  clang deprecated(Q_ENUMS, "Use Q_ENUM instead.")
+      |                                                 ^
+1 warning generated.
+[93/806] Building CXX object extern/QtDockingSystem/src/CMakeFiles/qtadvanceddocking-qt6.dir/DockAreaWidget.cpp.obj
+In file included from D:/Coding/Atlas/extern/QtDockingSystem/src/DockAreaWidget.cpp:31:
+In file included from D:/Coding/Atlas/extern/QtDockingSystem/src\AutoHideDockContainer.h:32:
+D:/Coding/Atlas/extern/QtDockingSystem/src\ads_globals.h:163:1: warning: macro 'Q_ENUMS' has been marked as deprecated: Use Q_ENUM instead. [-Wdeprecated-pragma]
+  163 | Q_ENUMS(SideBarLocation)
+      | ^
+C:/Qt/6.12.0/msvc2022_64/include\QtCore/qtmetamacros.h:69:1: note: macro marked 'deprecated' here
+   69 | QT_DEPRECATED_MACRO_6_12(Q_ENUMS, "Use Q_ENUM instead.")
+      | ^
+C:/Qt/6.12.0/msvc2022_64/include\QtCore/qtdeprecationmarkers.h:248:48: note: expanded from macro 'QT_DEPRECATED_MACRO_6_12'
+  248 | # define QT_DEPRECATED_MACRO_6_12(macro, text) QT_DEPRECATED_MACRO(macro, text)
+      |                                                ^
+C:/Qt/6.12.0/msvc2022_64/include\QtCore/qtdeprecationmarkers.h:38:44: note: expanded from macro 'QT_DEPRECATED_MACRO'
+   38 | #  define QT_DEPRECATED_MACRO(macro, text) Q_DECL_DEPRECATED_MACRO(macro, text)
+      |                                            ^
+C:/Qt/6.12.0/msvc2022_64/include\QtCore/qcompilerdetection.h:1025:48: note: expanded from macro 'Q_DECL_DEPRECATED_MACRO'
+ 1025 | #  define Q_DECL_DEPRECATED_MACRO(macro, text) QT_DO_PRAGMA(clang deprecated(macro, text))
+      |                                                ^
+C:/Qt/6.12.0/msvc2022_64/include\QtCore/qcompilerdetection.h:1223:49: note: expanded from macro 'QT_DO_PRAGMA'
+ 1223 | #define QT_DO_PRAGMA(text)                      _Pragma(#text)
+      |                                                 ^
+<scratch space>:247:49: note: expanded from here
+  247 |  clang deprecated(Q_ENUMS, "Use Q_ENUM instead.")
+      |                                                 ^
+1 warning generated.
+[94/806] Building CXX object extern/QtDockingSystem/src/CMakeFiles/qtadvanceddocking-qt6.dir/DockWidgetTab.cpp.obj
+In file included from D:/Coding/Atlas/extern/QtDockingSystem/src/DockWidgetTab.cpp:31:
+In file included from D:/Coding/Atlas/extern/QtDockingSystem/src\AutoHideDockContainer.h:32:
+D:/Coding/Atlas/extern/QtDockingSystem/src\ads_globals.h:163:1: warning: macro 'Q_ENUMS' has been marked as deprecated: Use Q_ENUM instead. [-Wdeprecated-pragma]
+  163 | Q_ENUMS(SideBarLocation)
+      | ^
+C:/Qt/6.12.0/msvc2022_64/include\QtCore/qtmetamacros.h:69:1: note: macro marked 'deprecated' here
+   69 | QT_DEPRECATED_MACRO_6_12(Q_ENUMS, "Use Q_ENUM instead.")
+      | ^
+C:/Qt/6.12.0/msvc2022_64/include\QtCore/qtdeprecationmarkers.h:248:48: note: expanded from macro 'QT_DEPRECATED_MACRO_6_12'
+  248 | # define QT_DEPRECATED_MACRO_6_12(macro, text) QT_DEPRECATED_MACRO(macro, text)
+      |                                                ^
+C:/Qt/6.12.0/msvc2022_64/include\QtCore/qtdeprecationmarkers.h:38:44: note: expanded from macro 'QT_DEPRECATED_MACRO'
+   38 | #  define QT_DEPRECATED_MACRO(macro, text) Q_DECL_DEPRECATED_MACRO(macro, text)
+      |                                            ^
+C:/Qt/6.12.0/msvc2022_64/include\QtCore/qcompilerdetection.h:1025:48: note: expanded from macro 'Q_DECL_DEPRECATED_MACRO'
+ 1025 | #  define Q_DECL_DEPRECATED_MACRO(macro, text) QT_DO_PRAGMA(clang deprecated(macro, text))
+      |                                                ^
+C:/Qt/6.12.0/msvc2022_64/include\QtCore/qcompilerdetection.h:1223:49: note: expanded from macro 'QT_DO_PRAGMA'
+ 1223 | #define QT_DO_PRAGMA(text)                      _Pragma(#text)
+      |                                                 ^
+<scratch space>:247:49: note: expanded from here
+  247 |  clang deprecated(Q_ENUMS, "Use Q_ENUM instead.")
+      |                                                 ^
+1 warning generated.
+[95/806] Building CXX object CMakeFiles/runtime_lib.dir/runtime/lib/runtime.cpp.obj
+[96/806] Building CXX object extern/QtDockingSystem/src/CMakeFiles/qtadvanceddocking-qt6.dir/ElidingLabel.cpp.obj
+In file included from D:/Coding/Atlas/extern/QtDockingSystem/src/ElidingLabel.cpp:30:
+In file included from D:/Coding/Atlas/extern/QtDockingSystem/src\ElidingLabel.h:34:
+D:/Coding/Atlas/extern/QtDockingSystem/src\ads_globals.h:163:1: warning: macro 'Q_ENUMS' has been marked as deprecated: Use Q_ENUM instead. [-Wdeprecated-pragma]
+  163 | Q_ENUMS(SideBarLocation)
+      | ^
+C:/Qt/6.12.0/msvc2022_64/include\QtCore/qtmetamacros.h:69:1: note: macro marked 'deprecated' here
+   69 | QT_DEPRECATED_MACRO_6_12(Q_ENUMS, "Use Q_ENUM instead.")
+      | ^
+C:/Qt/6.12.0/msvc2022_64/include\QtCore/qtdeprecationmarkers.h:248:48: note: expanded from macro 'QT_DEPRECATED_MACRO_6_12'
+  248 | # define QT_DEPRECATED_MACRO_6_12(macro, text) QT_DEPRECATED_MACRO(macro, text)
+      |                                                ^
+C:/Qt/6.12.0/msvc2022_64/include\QtCore/qtdeprecationmarkers.h:38:44: note: expanded from macro 'QT_DEPRECATED_MACRO'
+   38 | #  define QT_DEPRECATED_MACRO(macro, text) Q_DECL_DEPRECATED_MACRO(macro, text)
+      |                                            ^
+C:/Qt/6.12.0/msvc2022_64/include\QtCore/qcompilerdetection.h:1025:48: note: expanded from macro 'Q_DECL_DEPRECATED_MACRO'
+ 1025 | #  define Q_DECL_DEPRECATED_MACRO(macro, text) QT_DO_PRAGMA(clang deprecated(macro, text))
+      |                                                ^
+C:/Qt/6.12.0/msvc2022_64/include\QtCore/qcompilerdetection.h:1223:49: note: expanded from macro 'QT_DO_PRAGMA'
+ 1223 | #define QT_DO_PRAGMA(text)                      _Pragma(#text)
+      |                                                 ^
+<scratch space>:247:49: note: expanded from here
+  247 |  clang deprecated(Q_ENUMS, "Use Q_ENUM instead.")
+      |                                                 ^
+1 warning generated.
+[97/806] Building CXX object extern/QtDockingSystem/src/CMakeFiles/qtadvanceddocking-qt6.dir/DockSplitter.cpp.obj
+In file included from D:/Coding/Atlas/extern/QtDockingSystem/src/DockSplitter.cpp:30:
+In file included from D:/Coding/Atlas/extern/QtDockingSystem/src\DockSplitter.h:34:
+D:/Coding/Atlas/extern/QtDockingSystem/src\ads_globals.h:163:1: warning: macro 'Q_ENUMS' has been marked as deprecated: Use Q_ENUM instead. [-Wdeprecated-pragma]
+  163 | Q_ENUMS(SideBarLocation)
+      | ^
+C:/Qt/6.12.0/msvc2022_64/include\QtCore/qtmetamacros.h:69:1: note: macro marked 'deprecated' here
+   69 | QT_DEPRECATED_MACRO_6_12(Q_ENUMS, "Use Q_ENUM instead.")
+      | ^
+C:/Qt/6.12.0/msvc2022_64/include\QtCore/qtdeprecationmarkers.h:248:48: note: expanded from macro 'QT_DEPRECATED_MACRO_6_12'
+  248 | # define QT_DEPRECATED_MACRO_6_12(macro, text) QT_DEPRECATED_MACRO(macro, text)
+      |                                                ^
+C:/Qt/6.12.0/msvc2022_64/include\QtCore/qtdeprecationmarkers.h:38:44: note: expanded from macro 'QT_DEPRECATED_MACRO'
+   38 | #  define QT_DEPRECATED_MACRO(macro, text) Q_DECL_DEPRECATED_MACRO(macro, text)
+      |                                            ^
+C:/Qt/6.12.0/msvc2022_64/include\QtCore/qcompilerdetection.h:1025:48: note: expanded from macro 'Q_DECL_DEPRECATED_MACRO'
+ 1025 | #  define Q_DECL_DEPRECATED_MACRO(macro, text) QT_DO_PRAGMA(clang deprecated(macro, text))
+      |                                                ^
+C:/Qt/6.12.0/msvc2022_64/include\QtCore/qcompilerdetection.h:1223:49: note: expanded from macro 'QT_DO_PRAGMA'
+ 1223 | #define QT_DO_PRAGMA(text)                      _Pragma(#text)
+      |                                                 ^
+<scratch space>:247:49: note: expanded from here
+  247 |  clang deprecated(Q_ENUMS, "Use Q_ENUM instead.")
+      |                                                 ^
+1 warning generated.
+[98/806] Building CXX object extern/QtDockingSystem/src/CMakeFiles/qtadvanceddocking-qt6.dir/DockFocusController.cpp.obj
+In file included from D:/Coding/Atlas/extern/QtDockingSystem/src/DockFocusController.cpp:11:
+In file included from D:/Coding/Atlas/extern/QtDockingSystem/src\AutoHideTab.h:32:
+In file included from D:/Coding/Atlas/extern/QtDockingSystem/src\PushButton.h:13:
+D:/Coding/Atlas/extern/QtDockingSystem/src\ads_globals.h:163:1: warning: macro 'Q_ENUMS' has been marked as deprecated: Use Q_ENUM instead. [-Wdeprecated-pragma]
+  163 | Q_ENUMS(SideBarLocation)
+      | ^
+C:/Qt/6.12.0/msvc2022_64/include\QtCore/qtmetamacros.h:69:1: note: macro marked 'deprecated' here
+   69 | QT_DEPRECATED_MACRO_6_12(Q_ENUMS, "Use Q_ENUM instead.")
+      | ^
+C:/Qt/6.12.0/msvc2022_64/include\QtCore/qtdeprecationmarkers.h:248:48: note: expanded from macro 'QT_DEPRECATED_MACRO_6_12'
+  248 | # define QT_DEPRECATED_MACRO_6_12(macro, text) QT_DEPRECATED_MACRO(macro, text)
+      |                                                ^
+C:/Qt/6.12.0/msvc2022_64/include\QtCore/qtdeprecationmarkers.h:38:44: note: expanded from macro 'QT_DEPRECATED_MACRO'
+   38 | #  define QT_DEPRECATED_MACRO(macro, text) Q_DECL_DEPRECATED_MACRO(macro, text)
+      |                                            ^
+C:/Qt/6.12.0/msvc2022_64/include\QtCore/qcompilerdetection.h:1025:48: note: expanded from macro 'Q_DECL_DEPRECATED_MACRO'
+ 1025 | #  define Q_DECL_DEPRECATED_MACRO(macro, text) QT_DO_PRAGMA(clang deprecated(macro, text))
+      |                                                ^
+C:/Qt/6.12.0/msvc2022_64/include\QtCore/qcompilerdetection.h:1223:49: note: expanded from macro 'QT_DO_PRAGMA'
+ 1223 | #define QT_DO_PRAGMA(text)                      _Pragma(#text)
+      |                                                 ^
+<scratch space>:247:49: note: expanded from here
+  247 |  clang deprecated(Q_ENUMS, "Use Q_ENUM instead.")
+      |                                                 ^
+1 warning generated.
+[99/806] Building CXX object extern/QtDockingSystem/src/CMakeFiles/qtadvanceddocking-qt6.dir/DockWidget.cpp.obj
+In file included from D:/Coding/Atlas/extern/QtDockingSystem/src/DockWidget.cpp:31:
+In file included from D:/Coding/Atlas/extern/QtDockingSystem/src\AutoHideDockContainer.h:32:
+D:/Coding/Atlas/extern/QtDockingSystem/src\ads_globals.h:163:1: warning: macro 'Q_ENUMS' has been marked as deprecated: Use Q_ENUM instead. [-Wdeprecated-pragma]
+  163 | Q_ENUMS(SideBarLocation)
+      | ^
+C:/Qt/6.12.0/msvc2022_64/include\QtCore/qtmetamacros.h:69:1: note: macro marked 'deprecated' here
+   69 | QT_DEPRECATED_MACRO_6_12(Q_ENUMS, "Use Q_ENUM instead.")
+      | ^
+C:/Qt/6.12.0/msvc2022_64/include\QtCore/qtdeprecationmarkers.h:248:48: note: expanded from macro 'QT_DEPRECATED_MACRO_6_12'
+  248 | # define QT_DEPRECATED_MACRO_6_12(macro, text) QT_DEPRECATED_MACRO(macro, text)
+      |                                                ^
+C:/Qt/6.12.0/msvc2022_64/include\QtCore/qtdeprecationmarkers.h:38:44: note: expanded from macro 'QT_DEPRECATED_MACRO'
+   38 | #  define QT_DEPRECATED_MACRO(macro, text) Q_DECL_DEPRECATED_MACRO(macro, text)
+      |                                            ^
+C:/Qt/6.12.0/msvc2022_64/include\QtCore/qcompilerdetection.h:1025:48: note: expanded from macro 'Q_DECL_DEPRECATED_MACRO'
+ 1025 | #  define Q_DECL_DEPRECATED_MACRO(macro, text) QT_DO_PRAGMA(clang deprecated(macro, text))
+      |                                                ^
+C:/Qt/6.12.0/msvc2022_64/include\QtCore/qcompilerdetection.h:1223:49: note: expanded from macro 'QT_DO_PRAGMA'
+ 1223 | #define QT_DO_PRAGMA(text)                      _Pragma(#text)
+      |                                                 ^
+<scratch space>:247:49: note: expanded from here
+  247 |  clang deprecated(Q_ENUMS, "Use Q_ENUM instead.")
+      |                                                 ^
+1 warning generated.
+[100/806] Building CXX object extern/QtDockingSystem/src/CMakeFiles/qtadvanceddocking-qt6.dir/DockOverlay.cpp.obj
+In file included from D:/Coding/Atlas/extern/QtDockingSystem/src/DockOverlay.cpp:23:
+In file included from D:/Coding/Atlas/extern/QtDockingSystem/src\DockOverlay.h:30:
+D:/Coding/Atlas/extern/QtDockingSystem/src\ads_globals.h:163:1: warning: macro 'Q_ENUMS' has been marked as deprecated: Use Q_ENUM instead. [-Wdeprecated-pragma]
+  163 | Q_ENUMS(SideBarLocation)
+      | ^
+C:/Qt/6.12.0/msvc2022_64/include\QtCore/qtmetamacros.h:69:1: note: macro marked 'deprecated' here
+   69 | QT_DEPRECATED_MACRO_6_12(Q_ENUMS, "Use Q_ENUM instead.")
+      | ^
+C:/Qt/6.12.0/msvc2022_64/include\QtCore/qtdeprecationmarkers.h:248:48: note: expanded from macro 'QT_DEPRECATED_MACRO_6_12'
+  248 | # define QT_DEPRECATED_MACRO_6_12(macro, text) QT_DEPRECATED_MACRO(macro, text)
+      |                                                ^
+C:/Qt/6.12.0/msvc2022_64/include\QtCore/qtdeprecationmarkers.h:38:44: note: expanded from macro 'QT_DEPRECATED_MACRO'
+   38 | #  define QT_DEPRECATED_MACRO(macro, text) Q_DECL_DEPRECATED_MACRO(macro, text)
+      |                                            ^
+C:/Qt/6.12.0/msvc2022_64/include\QtCore/qcompilerdetection.h:1025:48: note: expanded from macro 'Q_DECL_DEPRECATED_MACRO'
+ 1025 | #  define Q_DECL_DEPRECATED_MACRO(macro, text) QT_DO_PRAGMA(clang deprecated(macro, text))
+      |                                                ^
+C:/Qt/6.12.0/msvc2022_64/include\QtCore/qcompilerdetection.h:1223:49: note: expanded from macro 'QT_DO_PRAGMA'
+ 1223 | #define QT_DO_PRAGMA(text)                      _Pragma(#text)
+      |                                                 ^
+<scratch space>:6:49: note: expanded from here
+    6 |  clang deprecated(Q_ENUMS, "Use Q_ENUM instead.")
+      |                                                 ^
+1 warning generated.
+[101/806] Building CXX object CMakeFiles/runtime_lib.dir/runtime/lib/runtime_controls.cpp.obj
+[102/806] Building RC object extern/QtDockingSystem/src/CMakeFiles/qtadvanceddocking-qt6.dir/qtadvanceddocking-qt6_version.rc.res
+[103/806] Building CXX object extern/QtDockingSystem/src/CMakeFiles/qtadvanceddocking-qt6.dir/qtadvanceddocking-qt6_autogen/EWIEGA46WW/qrc_ads.cpp.obj
+[104/806] Building CXX object CMakeFiles/atlas.dir/atlas/object/model.cpp.obj
+[105/806] Building CXX object CMakeFiles/runtime_lib.dir/runtime/lib/runtime_scene.cpp.obj
+[106/806] Building CXX object extern/QtDockingSystem/src/CMakeFiles/qtadvanceddocking-qt6.dir/DockContainerWidget.cpp.obj
+In file included from D:/Coding/Atlas/extern/QtDockingSystem/src/DockContainerWidget.cpp:31:
+In file included from D:/Coding/Atlas/extern/QtDockingSystem/src\DockContainerWidget.h:35:
+D:/Coding/Atlas/extern/QtDockingSystem/src\ads_globals.h:163:1: warning: macro 'Q_ENUMS' has been marked as deprecated: Use Q_ENUM instead. [-Wdeprecated-pragma]
+  163 | Q_ENUMS(SideBarLocation)
+      | ^
+C:/Qt/6.12.0/msvc2022_64/include\QtCore/qtmetamacros.h:69:1: note: macro marked 'deprecated' here
+   69 | QT_DEPRECATED_MACRO_6_12(Q_ENUMS, "Use Q_ENUM instead.")
+      | ^
+C:/Qt/6.12.0/msvc2022_64/include\QtCore/qtdeprecationmarkers.h:248:48: note: expanded from macro 'QT_DEPRECATED_MACRO_6_12'
+  248 | # define QT_DEPRECATED_MACRO_6_12(macro, text) QT_DEPRECATED_MACRO(macro, text)
+      |                                                ^
+C:/Qt/6.12.0/msvc2022_64/include\QtCore/qtdeprecationmarkers.h:38:44: note: expanded from macro 'QT_DEPRECATED_MACRO'
+   38 | #  define QT_DEPRECATED_MACRO(macro, text) Q_DECL_DEPRECATED_MACRO(macro, text)
+      |                                            ^
+C:/Qt/6.12.0/msvc2022_64/include\QtCore/qcompilerdetection.h:1025:48: note: expanded from macro 'Q_DECL_DEPRECATED_MACRO'
+ 1025 | #  define Q_DECL_DEPRECATED_MACRO(macro, text) QT_DO_PRAGMA(clang deprecated(macro, text))
+      |                                                ^
+C:/Qt/6.12.0/msvc2022_64/include\QtCore/qcompilerdetection.h:1223:49: note: expanded from macro 'QT_DO_PRAGMA'
+ 1223 | #define QT_DO_PRAGMA(text)                      _Pragma(#text)
+      |                                                 ^
+<scratch space>:247:49: note: expanded from here
+  247 |  clang deprecated(Q_ENUMS, "Use Q_ENUM instead.")
+      |                                                 ^
+1 warning generated.
+[107/806] Building CXX object extern/QtDockingSystem/src/CMakeFiles/qtadvanceddocking-qt6.dir/DockComponentsFactory.cpp.obj
+In file included from D:/Coding/Atlas/extern/QtDockingSystem/src/DockComponentsFactory.cpp:11:
+In file included from D:/Coding/Atlas/extern/QtDockingSystem/src\AutoHideTab.h:32:
+In file included from D:/Coding/Atlas/extern/QtDockingSystem/src\PushButton.h:13:
+D:/Coding/Atlas/extern/QtDockingSystem/src\ads_globals.h:163:1: warning: macro 'Q_ENUMS' has been marked as deprecated: Use Q_ENUM instead. [-Wdeprecated-pragma]
+  163 | Q_ENUMS(SideBarLocation)
+      | ^
+C:/Qt/6.12.0/msvc2022_64/include\QtCore/qtmetamacros.h:69:1: note: macro marked 'deprecated' here
+   69 | QT_DEPRECATED_MACRO_6_12(Q_ENUMS, "Use Q_ENUM instead.")
+      | ^
+C:/Qt/6.12.0/msvc2022_64/include\QtCore/qtdeprecationmarkers.h:248:48: note: expanded from macro 'QT_DEPRECATED_MACRO_6_12'
+  248 | # define QT_DEPRECATED_MACRO_6_12(macro, text) QT_DEPRECATED_MACRO(macro, text)
+      |                                                ^
+C:/Qt/6.12.0/msvc2022_64/include\QtCore/qtdeprecationmarkers.h:38:44: note: expanded from macro 'QT_DEPRECATED_MACRO'
+   38 | #  define QT_DEPRECATED_MACRO(macro, text) Q_DECL_DEPRECATED_MACRO(macro, text)
+      |                                            ^
+C:/Qt/6.12.0/msvc2022_64/include\QtCore/qcompilerdetection.h:1025:48: note: expanded from macro 'Q_DECL_DEPRECATED_MACRO'
+ 1025 | #  define Q_DECL_DEPRECATED_MACRO(macro, text) QT_DO_PRAGMA(clang deprecated(macro, text))
+      |                                                ^
+C:/Qt/6.12.0/msvc2022_64/include\QtCore/qcompilerdetection.h:1223:49: note: expanded from macro 'QT_DO_PRAGMA'
+ 1223 | #define QT_DO_PRAGMA(text)                      _Pragma(#text)
+      |                                                 ^
+<scratch space>:247:49: note: expanded from here
+  247 |  clang deprecated(Q_ENUMS, "Use Q_ENUM instead.")
+      |                                                 ^
+1 warning generated.
+[108/806] Building CXX object extern/QtDockingSystem/src/CMakeFiles/qtadvanceddocking-qt6.dir/qtadvanceddocking-qt6_autogen/mocs_compilation.cpp.obj
+In file included from D:/Coding/Atlas/build/extern/QtDockingSystem/src/qtadvanceddocking-qt6_autogen/mocs_compilation.cpp:2:
+In file included from D:/Coding/Atlas/build/extern/QtDockingSystem/src/qtadvanceddocking-qt6_autogen\EWIEGA46WW/moc_AutoHideDockContainer.cpp:9:
+In file included from D:/Coding/Atlas/build/extern/QtDockingSystem/src/qtadvanceddocking-qt6_autogen\EWIEGA46WW\../../../../../../extern/QtDockingSystem/src/AutoHideDockContainer.h:32:
+D:/Coding/Atlas/build/extern/QtDockingSystem/src/qtadvanceddocking-qt6_autogen\EWIEGA46WW\../../../../../../extern/QtDockingSystem/src\ads_globals.h:163:1: warning: macro 'Q_ENUMS' has been marked as deprecated: Use Q_ENUM instead. [-Wdeprecated-pragma]
+  163 | Q_ENUMS(SideBarLocation)
+      | ^
+C:/Qt/6.12.0/msvc2022_64/include\QtCore/qtmetamacros.h:69:1: note: macro marked 'deprecated' here
+   69 | QT_DEPRECATED_MACRO_6_12(Q_ENUMS, "Use Q_ENUM instead.")
+      | ^
+C:/Qt/6.12.0/msvc2022_64/include\QtCore/qtdeprecationmarkers.h:248:48: note: expanded from macro 'QT_DEPRECATED_MACRO_6_12'
+  248 | # define QT_DEPRECATED_MACRO_6_12(macro, text) QT_DEPRECATED_MACRO(macro, text)
+      |                                                ^
+C:/Qt/6.12.0/msvc2022_64/include\QtCore/qtdeprecationmarkers.h:38:44: note: expanded from macro 'QT_DEPRECATED_MACRO'
+   38 | #  define QT_DEPRECATED_MACRO(macro, text) Q_DECL_DEPRECATED_MACRO(macro, text)
+      |                                            ^
+C:/Qt/6.12.0/msvc2022_64/include\QtCore/qcompilerdetection.h:1025:48: note: expanded from macro 'Q_DECL_DEPRECATED_MACRO'
+ 1025 | #  define Q_DECL_DEPRECATED_MACRO(macro, text) QT_DO_PRAGMA(clang deprecated(macro, text))
+      |                                                ^
+C:/Qt/6.12.0/msvc2022_64/include\QtCore/qcompilerdetection.h:1223:49: note: expanded from macro 'QT_DO_PRAGMA'
+ 1223 | #define QT_DO_PRAGMA(text)                      _Pragma(#text)
+      |                                                 ^
+<scratch space>:247:49: note: expanded from here
+  247 |  clang deprecated(Q_ENUMS, "Use Q_ENUM instead.")
+      |                                                 ^
+1 warning generated.
+[109/806] Building CXX object extern/QtDockingSystem/src/CMakeFiles/qtadvanceddocking-qt6.dir/IconProvider.cpp.obj
+In file included from D:/Coding/Atlas/extern/QtDockingSystem/src/IconProvider.cpp:11:
+In file included from D:/Coding/Atlas/extern/QtDockingSystem/src\IconProvider.h:15:
+D:/Coding/Atlas/extern/QtDockingSystem/src\ads_globals.h:163:1: warning: macro 'Q_ENUMS' has been marked as deprecated: Use Q_ENUM instead. [-Wdeprecated-pragma]
+  163 | Q_ENUMS(SideBarLocation)
+      | ^
+C:/Qt/6.12.0/msvc2022_64/include\QtCore/qtmetamacros.h:69:1: note: macro marked 'deprecated' here
+   69 | QT_DEPRECATED_MACRO_6_12(Q_ENUMS, "Use Q_ENUM instead.")
+      | ^
+C:/Qt/6.12.0/msvc2022_64/include\QtCore/qtdeprecationmarkers.h:248:48: note: expanded from macro 'QT_DEPRECATED_MACRO_6_12'
+  248 | # define QT_DEPRECATED_MACRO_6_12(macro, text) QT_DEPRECATED_MACRO(macro, text)
+      |                                                ^
+C:/Qt/6.12.0/msvc2022_64/include\QtCore/qtdeprecationmarkers.h:38:44: note: expanded from macro 'QT_DEPRECATED_MACRO'
+   38 | #  define QT_DEPRECATED_MACRO(macro, text) Q_DECL_DEPRECATED_MACRO(macro, text)
+      |                                            ^
+C:/Qt/6.12.0/msvc2022_64/include\QtCore/qcompilerdetection.h:1025:48: note: expanded from macro 'Q_DECL_DEPRECATED_MACRO'
+ 1025 | #  define Q_DECL_DEPRECATED_MACRO(macro, text) QT_DO_PRAGMA(clang deprecated(macro, text))
+      |                                                ^
+C:/Qt/6.12.0/msvc2022_64/include\QtCore/qcompilerdetection.h:1223:49: note: expanded from macro 'QT_DO_PRAGMA'
+ 1223 | #define QT_DO_PRAGMA(text)                      _Pragma(#text)
+      |                                                 ^
+<scratch space>:6:49: note: expanded from here
+    6 |  clang deprecated(Q_ENUMS, "Use Q_ENUM instead.")
+      |                                                 ^
+1 warning generated.
+[110/806] Building CXX object extern/QtDockingSystem/src/CMakeFiles/qtadvanceddocking-qt6.dir/FloatingDragPreview.cpp.obj
+In file included from D:/Coding/Atlas/extern/QtDockingSystem/src/FloatingDragPreview.cpp:11:
+In file included from D:/Coding/Atlas/extern/QtDockingSystem/src\AutoHideDockContainer.h:32:
+D:/Coding/Atlas/extern/QtDockingSystem/src\ads_globals.h:163:1: warning: macro 'Q_ENUMS' has been marked as deprecated: Use Q_ENUM instead. [-Wdeprecated-pragma]
+  163 | Q_ENUMS(SideBarLocation)
+      | ^
+C:/Qt/6.12.0/msvc2022_64/include\QtCore/qtmetamacros.h:69:1: note: macro marked 'deprecated' here
+   69 | QT_DEPRECATED_MACRO_6_12(Q_ENUMS, "Use Q_ENUM instead.")
+      | ^
+C:/Qt/6.12.0/msvc2022_64/include\QtCore/qtdeprecationmarkers.h:248:48: note: expanded from macro 'QT_DEPRECATED_MACRO_6_12'
+  248 | # define QT_DEPRECATED_MACRO_6_12(macro, text) QT_DEPRECATED_MACRO(macro, text)
+      |                                                ^
+C:/Qt/6.12.0/msvc2022_64/include\QtCore/qtdeprecationmarkers.h:38:44: note: expanded from macro 'QT_DEPRECATED_MACRO'
+   38 | #  define QT_DEPRECATED_MACRO(macro, text) Q_DECL_DEPRECATED_MACRO(macro, text)
+      |                                            ^
+C:/Qt/6.12.0/msvc2022_64/include\QtCore/qcompilerdetection.h:1025:48: note: expanded from macro 'Q_DECL_DEPRECATED_MACRO'
+ 1025 | #  define Q_DECL_DEPRECATED_MACRO(macro, text) QT_DO_PRAGMA(clang deprecated(macro, text))
+      |                                                ^
+C:/Qt/6.12.0/msvc2022_64/include\QtCore/qcompilerdetection.h:1223:49: note: expanded from macro 'QT_DO_PRAGMA'
+ 1223 | #define QT_DO_PRAGMA(text)                      _Pragma(#text)
+      |                                                 ^
+<scratch space>:247:49: note: expanded from here
+  247 |  clang deprecated(Q_ENUMS, "Use Q_ENUM instead.")
+      |                                                 ^
+1 warning generated.
+[111/806] Linking CXX static library lib\atlas.lib
+[112/806] Building CXX object extern/QtDockingSystem/src/CMakeFiles/qtadvanceddocking-qt6.dir/FloatingDockContainer.cpp.obj
+In file included from D:/Coding/Atlas/extern/QtDockingSystem/src/FloatingDockContainer.cpp:29:
+In file included from D:/Coding/Atlas/extern/QtDockingSystem/src\FloatingDockContainer.h:32:
+D:/Coding/Atlas/extern/QtDockingSystem/src\ads_globals.h:163:1: warning: macro 'Q_ENUMS' has been marked as deprecated: Use Q_ENUM instead. [-Wdeprecated-pragma]
+  163 | Q_ENUMS(SideBarLocation)
+      | ^
+C:/Qt/6.12.0/msvc2022_64/include\QtCore/qtmetamacros.h:69:1: note: macro marked 'deprecated' here
+   69 | QT_DEPRECATED_MACRO_6_12(Q_ENUMS, "Use Q_ENUM instead.")
+      | ^
+C:/Qt/6.12.0/msvc2022_64/include\QtCore/qtdeprecationmarkers.h:248:48: note: expanded from macro 'QT_DEPRECATED_MACRO_6_12'
+  248 | # define QT_DEPRECATED_MACRO_6_12(macro, text) QT_DEPRECATED_MACRO(macro, text)
+      |                                                ^
+C:/Qt/6.12.0/msvc2022_64/include\QtCore/qtdeprecationmarkers.h:38:44: note: expanded from macro 'QT_DEPRECATED_MACRO'
+   38 | #  define QT_DEPRECATED_MACRO(macro, text) Q_DECL_DEPRECATED_MACRO(macro, text)
+      |                                            ^
+C:/Qt/6.12.0/msvc2022_64/include\QtCore/qcompilerdetection.h:1025:48: note: expanded from macro 'Q_DECL_DEPRECATED_MACRO'
+ 1025 | #  define Q_DECL_DEPRECATED_MACRO(macro, text) QT_DO_PRAGMA(clang deprecated(macro, text))
+      |                                                ^
+C:/Qt/6.12.0/msvc2022_64/include\QtCore/qcompilerdetection.h:1223:49: note: expanded from macro 'QT_DO_PRAGMA'
+ 1223 | #define QT_DO_PRAGMA(text)                      _Pragma(#text)
+      |                                                 ^
+<scratch space>:247:49: note: expanded from here
+  247 |  clang deprecated(Q_ENUMS, "Use Q_ENUM instead.")
+      |                                                 ^
+1 warning generated.
+[113/806] Building CXX object CMakeFiles/runtime_lib.dir/runtime/lib/c_api.cpp.obj
+D:/Coding/Atlas/runtime/lib/c_api.cpp:68:49: warning: 'u8path<const char *, 0>' is deprecated: warning STL4021: The std::filesystem::u8path() overloads are deprecated in C++20. The constructors of std::filesystem::path provide equivalent functionality via construction from u8string, u8string_view, or iterators with value_type char8_t. You can define _SILENCE_CXX20_U8PATH_DEPRECATION_WARNING or _SILENCE_ALL_CXX20_DEPRECATION_WARNINGS to suppress this warning. [-Wdeprecated-declarations]
+   68 |         const auto directory = std::filesystem::u8path(projectFile).parent_path() /
+      |                                                 ^
+C:\Program Files\Microsoft Visual Studio\18\Community\VC\Tools\MSVC\14.51.36231\include\filesystem:1410:5: note: 'u8path<const char *, 0>' has been explicitly marked deprecated here
+ 1410 |     _CXX20_DEPRECATE_U8PATH _NODISCARD path u8path(const _Src& _Source) { // construct a path from UTF-8 _Source
+      |     ^
+C:\Program Files\Microsoft Visual Studio\18\Community\VC\Tools\MSVC\14.51.36231\include\yvals_core.h:1251:7: note: expanded from macro '_CXX20_DEPRECATE_U8PATH'
+ 1251 |     [[deprecated("warning STL4021: "                                                                                 \
+      |       ^
+1 warning generated.
+[114/806] Building CXX object extern/QtDockingSystem/src/CMakeFiles/qtadvanceddocking-qt6.dir/DockManager.cpp.obj
+In file included from D:/Coding/Atlas/extern/QtDockingSystem/src/DockManager.cpp:31:
+In file included from D:/Coding/Atlas/extern/QtDockingSystem/src\AutoHideDockContainer.h:32:
+D:/Coding/Atlas/extern/QtDockingSystem/src\ads_globals.h:163:1: warning: macro 'Q_ENUMS' has been marked as deprecated: Use Q_ENUM instead. [-Wdeprecated-pragma]
+  163 | Q_ENUMS(SideBarLocation)
+      | ^
+C:/Qt/6.12.0/msvc2022_64/include\QtCore/qtmetamacros.h:69:1: note: macro marked 'deprecated' here
+   69 | QT_DEPRECATED_MACRO_6_12(Q_ENUMS, "Use Q_ENUM instead.")
+      | ^
+C:/Qt/6.12.0/msvc2022_64/include\QtCore/qtdeprecationmarkers.h:248:48: note: expanded from macro 'QT_DEPRECATED_MACRO_6_12'
+  248 | # define QT_DEPRECATED_MACRO_6_12(macro, text) QT_DEPRECATED_MACRO(macro, text)
+      |                                                ^
+C:/Qt/6.12.0/msvc2022_64/include\QtCore/qtdeprecationmarkers.h:38:44: note: expanded from macro 'QT_DEPRECATED_MACRO'
+   38 | #  define QT_DEPRECATED_MACRO(macro, text) Q_DECL_DEPRECATED_MACRO(macro, text)
+      |                                            ^
+C:/Qt/6.12.0/msvc2022_64/include\QtCore/qcompilerdetection.h:1025:48: note: expanded from macro 'Q_DECL_DEPRECATED_MACRO'
+ 1025 | #  define Q_DECL_DEPRECATED_MACRO(macro, text) QT_DO_PRAGMA(clang deprecated(macro, text))
+      |                                                ^
+C:/Qt/6.12.0/msvc2022_64/include\QtCore/qcompilerdetection.h:1223:49: note: expanded from macro 'QT_DO_PRAGMA'
+ 1223 | #define QT_DO_PRAGMA(text)                      _Pragma(#text)
+      |                                                 ^
+<scratch space>:247:49: note: expanded from here
+  247 |  clang deprecated(Q_ENUMS, "Use Q_ENUM instead.")
+      |                                                 ^
+1 warning generated.
+[115/806] Building CXX object opal/third-party/slang/external/spirv-tools/source/CMakeFiles/SPIRV-Tools-static.dir/software_version.cpp.obj
+[116/806] Building CXX object opal/third-party/slang/external/spirv-tools/source/CMakeFiles/SPIRV-Tools-static.dir/spirv_endian.cpp.obj
+[117/806] Building C object external/mimalloc/CMakeFiles/mimalloc-static.dir/src/prim/prim.c.obj
+[118/806] Building CXX object opal/third-party/slang/external/spirv-tools/source/CMakeFiles/SPIRV-Tools-static.dir/spirv_optimizer_options.cpp.obj
+[119/806] Building CXX object extern/QtDockingSystem/src/CMakeFiles/qtadvanceddocking-qt6.dir/AutoHideSideBar.cpp.obj
+In file included from D:/Coding/Atlas/extern/QtDockingSystem/src/AutoHideSideBar.cpp:31:
+In file included from D:/Coding/Atlas/extern/QtDockingSystem/src\AutoHideSideBar.h:33:
+D:/Coding/Atlas/extern/QtDockingSystem/src\ads_globals.h:163:1: warning: macro 'Q_ENUMS' has been marked as deprecated: Use Q_ENUM instead. [-Wdeprecated-pragma]
+  163 | Q_ENUMS(SideBarLocation)
+      | ^
+C:/Qt/6.12.0/msvc2022_64/include\QtCore/qtmetamacros.h:69:1: note: macro marked 'deprecated' here
+   69 | QT_DEPRECATED_MACRO_6_12(Q_ENUMS, "Use Q_ENUM instead.")
+      | ^
+C:/Qt/6.12.0/msvc2022_64/include\QtCore/qtdeprecationmarkers.h:248:48: note: expanded from macro 'QT_DEPRECATED_MACRO_6_12'
+  248 | # define QT_DEPRECATED_MACRO_6_12(macro, text) QT_DEPRECATED_MACRO(macro, text)
+      |                                                ^
+C:/Qt/6.12.0/msvc2022_64/include\QtCore/qtdeprecationmarkers.h:38:44: note: expanded from macro 'QT_DEPRECATED_MACRO'
+   38 | #  define QT_DEPRECATED_MACRO(macro, text) Q_DECL_DEPRECATED_MACRO(macro, text)
+      |                                            ^
+C:/Qt/6.12.0/msvc2022_64/include\QtCore/qcompilerdetection.h:1025:48: note: expanded from macro 'Q_DECL_DEPRECATED_MACRO'
+ 1025 | #  define Q_DECL_DEPRECATED_MACRO(macro, text) QT_DO_PRAGMA(clang deprecated(macro, text))
+      |                                                ^
+C:/Qt/6.12.0/msvc2022_64/include\QtCore/qcompilerdetection.h:1223:49: note: expanded from macro 'QT_DO_PRAGMA'
+ 1223 | #define QT_DO_PRAGMA(text)                      _Pragma(#text)
+      |                                                 ^
+<scratch space>:247:49: note: expanded from here
+  247 |  clang deprecated(Q_ENUMS, "Use Q_ENUM instead.")
+      |                                                 ^
+1 warning generated.
+[120/806] Building CXX object opal/third-party/slang/external/spirv-tools/source/CMakeFiles/SPIRV-Tools-static.dir/spirv_validator_options.cpp.obj
+[121/806] Building CXX object opal/third-party/slang/external/spirv-tools/source/CMakeFiles/SPIRV-Tools-static.dir/util/bit_vector.cpp.obj
+[122/806] Building CXX object opal/third-party/slang/external/spirv-tools/source/CMakeFiles/SPIRV-Tools-static.dir/util/string_utils.cpp.obj
+[123/806] Building CXX object opal/third-party/slang/external/spirv-tools/source/CMakeFiles/SPIRV-Tools-static.dir/ext_inst.cpp.obj
+[124/806] Building CXX object opal/third-party/slang/external/spirv-tools/source/CMakeFiles/SPIRV-Tools-static.dir/assembly_grammar.cpp.obj
+[125/806] Building CXX object opal/third-party/slang/external/spirv-tools/source/CMakeFiles/SPIRV-Tools-static.dir/diagnostic.cpp.obj
+[126/806] Building CXX object opal/third-party/slang/external/spirv-tools/source/CMakeFiles/SPIRV-Tools-static.dir/util/parse_number.cpp.obj
+[127/806] Building CXX object opal/third-party/slang/external/spirv-tools/source/CMakeFiles/SPIRV-Tools-static.dir/extensions.cpp.obj
+[128/806] Building CXX object opal/third-party/slang/external/spirv-tools/source/CMakeFiles/SPIRV-Tools-static.dir/spirv_fuzzer_options.cpp.obj
+[129/806] Building CXX object opal/third-party/slang/external/spirv-tools/source/CMakeFiles/SPIRV-Tools-static.dir/libspirv.cpp.obj
+[130/806] Building CXX object opal/third-party/slang/external/spirv-tools/source/CMakeFiles/SPIRV-Tools-static.dir/opcode.cpp.obj
+[131/806] Building CXX object opal/third-party/slang/external/spirv-tools/source/CMakeFiles/SPIRV-Tools-static.dir/spirv_reducer_options.cpp.obj
+[132/806] Building CXX object extern/QtDockingSystem/src/CMakeFiles/qtadvanceddocking-qt6.dir/AutoHideTab.cpp.obj
+In file included from D:/Coding/Atlas/extern/QtDockingSystem/src/AutoHideTab.cpp:30:
+In file included from D:/Coding/Atlas/extern/QtDockingSystem/src\AutoHideTab.h:32:
+In file included from D:/Coding/Atlas/extern/QtDockingSystem/src\PushButton.h:13:
+D:/Coding/Atlas/extern/QtDockingSystem/src\ads_globals.h:163:1: warning: macro 'Q_ENUMS' has been marked as deprecated: Use Q_ENUM instead. [-Wdeprecated-pragma]
+  163 | Q_ENUMS(SideBarLocation)
+      | ^
+C:/Qt/6.12.0/msvc2022_64/include\QtCore/qtmetamacros.h:69:1: note: macro marked 'deprecated' here
+   69 | QT_DEPRECATED_MACRO_6_12(Q_ENUMS, "Use Q_ENUM instead.")
+      | ^
+C:/Qt/6.12.0/msvc2022_64/include\QtCore/qtdeprecationmarkers.h:248:48: note: expanded from macro 'QT_DEPRECATED_MACRO_6_12'
+  248 | # define QT_DEPRECATED_MACRO_6_12(macro, text) QT_DEPRECATED_MACRO(macro, text)
+      |                                                ^
+C:/Qt/6.12.0/msvc2022_64/include\QtCore/qtdeprecationmarkers.h:38:44: note: expanded from macro 'QT_DEPRECATED_MACRO'
+   38 | #  define QT_DEPRECATED_MACRO(macro, text) Q_DECL_DEPRECATED_MACRO(macro, text)
+      |                                            ^
+C:/Qt/6.12.0/msvc2022_64/include\QtCore/qcompilerdetection.h:1025:48: note: expanded from macro 'Q_DECL_DEPRECATED_MACRO'
+ 1025 | #  define Q_DECL_DEPRECATED_MACRO(macro, text) QT_DO_PRAGMA(clang deprecated(macro, text))
+      |                                                ^
+C:/Qt/6.12.0/msvc2022_64/include\QtCore/qcompilerdetection.h:1223:49: note: expanded from macro 'QT_DO_PRAGMA'
+ 1223 | #define QT_DO_PRAGMA(text)                      _Pragma(#text)
+      |                                                 ^
+<scratch space>:247:49: note: expanded from here
+  247 |  clang deprecated(Q_ENUMS, "Use Q_ENUM instead.")
+      |                                                 ^
+1 warning generated.
+[133/806] Building CXX object opal/third-party/slang/external/spirv-tools/source/CMakeFiles/SPIRV-Tools-static.dir/parsed_operand.cpp.obj
+[134/806] Building CXX object opal/third-party/slang/external/spirv-tools/source/CMakeFiles/SPIRV-Tools-static.dir/spirv_target_env.cpp.obj
+[135/806] Building CXX object opal/third-party/slang/external/spirv-tools/source/CMakeFiles/SPIRV-Tools-static.dir/operand.cpp.obj
+[136/806] Building CXX object opal/third-party/slang/external/spirv-tools/source/CMakeFiles/SPIRV-Tools-static.dir/name_mapper.cpp.obj
+[137/806] Building CXX object opal/third-party/slang/external/spirv-tools/source/CMakeFiles/SPIRV-Tools-static.dir/print.cpp.obj
+[138/806] Building CXX object opal/third-party/slang/external/spirv-tools/source/CMakeFiles/SPIRV-Tools-static.dir/binary.cpp.obj
+[139/806] Building CXX object extern/QtDockingSystem/src/CMakeFiles/qtadvanceddocking-qt6.dir/AutoHideDockContainer.cpp.obj
+In file included from D:/Coding/Atlas/extern/QtDockingSystem/src/AutoHideDockContainer.cpp:30:
+In file included from D:/Coding/Atlas/extern/QtDockingSystem/src\AutoHideDockContainer.h:32:
+D:/Coding/Atlas/extern/QtDockingSystem/src\ads_globals.h:163:1: warning: macro 'Q_ENUMS' has been marked as deprecated: Use Q_ENUM instead. [-Wdeprecated-pragma]
+  163 | Q_ENUMS(SideBarLocation)
+      | ^
+C:/Qt/6.12.0/msvc2022_64/include\QtCore/qtmetamacros.h:69:1: note: macro marked 'deprecated' here
+   69 | QT_DEPRECATED_MACRO_6_12(Q_ENUMS, "Use Q_ENUM instead.")
+      | ^
+C:/Qt/6.12.0/msvc2022_64/include\QtCore/qtdeprecationmarkers.h:248:48: note: expanded from macro 'QT_DEPRECATED_MACRO_6_12'
+  248 | # define QT_DEPRECATED_MACRO_6_12(macro, text) QT_DEPRECATED_MACRO(macro, text)
+      |                                                ^
+C:/Qt/6.12.0/msvc2022_64/include\QtCore/qtdeprecationmarkers.h:38:44: note: expanded from macro 'QT_DEPRECATED_MACRO'
+   38 | #  define QT_DEPRECATED_MACRO(macro, text) Q_DECL_DEPRECATED_MACRO(macro, text)
+      |                                            ^
+C:/Qt/6.12.0/msvc2022_64/include\QtCore/qcompilerdetection.h:1025:48: note: expanded from macro 'Q_DECL_DEPRECATED_MACRO'
+ 1025 | #  define Q_DECL_DEPRECATED_MACRO(macro, text) QT_DO_PRAGMA(clang deprecated(macro, text))
+      |                                                ^
+C:/Qt/6.12.0/msvc2022_64/include\QtCore/qcompilerdetection.h:1223:49: note: expanded from macro 'QT_DO_PRAGMA'
+ 1223 | #define QT_DO_PRAGMA(text)                      _Pragma(#text)
+      |                                                 ^
+<scratch space>:247:49: note: expanded from here
+  247 |  clang deprecated(Q_ENUMS, "Use Q_ENUM instead.")
+      |                                                 ^
+1 warning generated.
+[140/806] Building CXX object extern/QtDockingSystem/src/CMakeFiles/qtadvanceddocking-qt6.dir/ResizeHandle.cpp.obj
+In file included from D:/Coding/Atlas/extern/QtDockingSystem/src/ResizeHandle.cpp:11:
+In file included from D:/Coding/Atlas/extern/QtDockingSystem/src\ResizeHandle.h:13:
+D:/Coding/Atlas/extern/QtDockingSystem/src\ads_globals.h:163:1: warning: macro 'Q_ENUMS' has been marked as deprecated: Use Q_ENUM instead. [-Wdeprecated-pragma]
+  163 | Q_ENUMS(SideBarLocation)
+      | ^
+C:/Qt/6.12.0/msvc2022_64/include\QtCore/qtmetamacros.h:69:1: note: macro marked 'deprecated' here
+   69 | QT_DEPRECATED_MACRO_6_12(Q_ENUMS, "Use Q_ENUM instead.")
+      | ^
+C:/Qt/6.12.0/msvc2022_64/include\QtCore/qtdeprecationmarkers.h:248:48: note: expanded from macro 'QT_DEPRECATED_MACRO_6_12'
+  248 | # define QT_DEPRECATED_MACRO_6_12(macro, text) QT_DEPRECATED_MACRO(macro, text)
+      |                                                ^
+C:/Qt/6.12.0/msvc2022_64/include\QtCore/qtdeprecationmarkers.h:38:44: note: expanded from macro 'QT_DEPRECATED_MACRO'
+   38 | #  define QT_DEPRECATED_MACRO(macro, text) Q_DECL_DEPRECATED_MACRO(macro, text)
+      |                                            ^
+C:/Qt/6.12.0/msvc2022_64/include\QtCore/qcompilerdetection.h:1025:48: note: expanded from macro 'Q_DECL_DEPRECATED_MACRO'
+ 1025 | #  define Q_DECL_DEPRECATED_MACRO(macro, text) QT_DO_PRAGMA(clang deprecated(macro, text))
+      |                                                ^
+C:/Qt/6.12.0/msvc2022_64/include\QtCore/qcompilerdetection.h:1223:49: note: expanded from macro 'QT_DO_PRAGMA'
+ 1223 | #define QT_DO_PRAGMA(text)                      _Pragma(#text)
+      |                                                 ^
+<scratch space>:247:49: note: expanded from here
+  247 |  clang deprecated(Q_ENUMS, "Use Q_ENUM instead.")
+      |                                                 ^
+1 warning generated.
+[141/806] Building CXX object extern/QtDockingSystem/src/CMakeFiles/qtadvanceddocking-qt6.dir/PushButton.cpp.obj
+In file included from D:/Coding/Atlas/extern/QtDockingSystem/src/PushButton.cpp:11:
+In file included from D:/Coding/Atlas/extern/QtDockingSystem/src\PushButton.h:13:
+D:/Coding/Atlas/extern/QtDockingSystem/src\ads_globals.h:163:1: warning: macro 'Q_ENUMS' has been marked as deprecated: Use Q_ENUM instead. [-Wdeprecated-pragma]
+  163 | Q_ENUMS(SideBarLocation)
+      | ^
+C:/Qt/6.12.0/msvc2022_64/include\QtCore/qtmetamacros.h:69:1: note: macro marked 'deprecated' here
+   69 | QT_DEPRECATED_MACRO_6_12(Q_ENUMS, "Use Q_ENUM instead.")
+      | ^
+C:/Qt/6.12.0/msvc2022_64/include\QtCore/qtdeprecationmarkers.h:248:48: note: expanded from macro 'QT_DEPRECATED_MACRO_6_12'
+  248 | # define QT_DEPRECATED_MACRO_6_12(macro, text) QT_DEPRECATED_MACRO(macro, text)
+      |                                                ^
+C:/Qt/6.12.0/msvc2022_64/include\QtCore/qtdeprecationmarkers.h:38:44: note: expanded from macro 'QT_DEPRECATED_MACRO'
+   38 | #  define QT_DEPRECATED_MACRO(macro, text) Q_DECL_DEPRECATED_MACRO(macro, text)
+      |                                            ^
+C:/Qt/6.12.0/msvc2022_64/include\QtCore/qcompilerdetection.h:1025:48: note: expanded from macro 'Q_DECL_DEPRECATED_MACRO'
+ 1025 | #  define Q_DECL_DEPRECATED_MACRO(macro, text) QT_DO_PRAGMA(clang deprecated(macro, text))
+      |                                                ^
+C:/Qt/6.12.0/msvc2022_64/include\QtCore/qcompilerdetection.h:1223:49: note: expanded from macro 'QT_DO_PRAGMA'
+ 1223 | #define QT_DO_PRAGMA(text)                      _Pragma(#text)
+      |                                                 ^
+<scratch space>:247:49: note: expanded from here
+  247 |  clang deprecated(Q_ENUMS, "Use Q_ENUM instead.")
+      |                                                 ^
+1 warning generated.
+[142/806] Building CXX object opal/third-party/slang/external/spirv-tools/source/CMakeFiles/SPIRV-Tools-static.dir/disassemble.cpp.obj
+[143/806] Building CXX object opal/third-party/slang/external/spirv-tools/source/CMakeFiles/SPIRV-Tools-static.dir/table.cpp.obj
+[144/806] Building CXX object opal/third-party/slang/external/spirv-tools/source/CMakeFiles/SPIRV-Tools-static.dir/to_string.cpp.obj
+[145/806] Building CXX object opal/third-party/slang/external/spirv-tools/source/CMakeFiles/SPIRV-Tools-static.dir/table2.cpp.obj
+[146/806] Building CXX object opal/third-party/slang/external/spirv-tools/source/CMakeFiles/SPIRV-Tools-static.dir/text.cpp.obj
+[147/806] Building CXX object opal/third-party/slang/external/spirv-tools/source/CMakeFiles/SPIRV-Tools-static.dir/text_handler.cpp.obj
+[148/806] Building CXX object opal/third-party/slang/external/spirv-tools/source/CMakeFiles/SPIRV-Tools-static.dir/val/validate_bitwise.cpp.obj
+[149/806] Building CXX object opal/third-party/slang/external/spirv-tools/source/CMakeFiles/SPIRV-Tools-static.dir/val/validate_barriers.cpp.obj
+[150/806] Building CXX object opal/third-party/slang/external/spirv-tools/source/CMakeFiles/SPIRV-Tools-static.dir/val/validate_atomics.cpp.obj
+[151/806] Building CXX object opal/third-party/slang/external/spirv-tools/source/CMakeFiles/SPIRV-Tools-static.dir/val/validate_adjacency.cpp.obj
+[152/806] Building CXX object opal/third-party/slang/external/spirv-tools/source/CMakeFiles/SPIRV-Tools-static.dir/val/validate_capability.cpp.obj
+[153/806] Building CXX object opal/third-party/slang/external/spirv-tools/source/CMakeFiles/SPIRV-Tools-static.dir/val/validate_arithmetics.cpp.obj
+[154/806] Building CXX object opal/third-party/slang/external/spirv-tools/source/CMakeFiles/SPIRV-Tools-static.dir/val/validate_debug.cpp.obj
+[155/806] Building CXX object opal/third-party/slang/external/spirv-tools/source/CMakeFiles/SPIRV-Tools-static.dir/val/validate_annotation.cpp.obj
+[156/806] Building CXX object opal/third-party/slang/external/spirv-tools/source/CMakeFiles/SPIRV-Tools-static.dir/val/validate_composites.cpp.obj
+[157/806] Building CXX object opal/third-party/slang/external/spirv-tools/source/CMakeFiles/SPIRV-Tools-static.dir/val/validate_constants.cpp.obj
+[158/806] Building CXX object opal/third-party/slang/external/spirv-tools/source/CMakeFiles/SPIRV-Tools-static.dir/val/validate_conversion.cpp.obj
+[159/806] Building CXX object opal/third-party/slang/external/spirv-tools/source/CMakeFiles/SPIRV-Tools-static.dir/val/validate_dot_product.cpp.obj
+[160/806] Building CXX object opal/third-party/slang/external/spirv-tools/source/CMakeFiles/SPIRV-Tools-static.dir/val/validate_derivatives.cpp.obj
+[161/806] Building CXX object opal/third-party/slang/external/spirv-tools/source/CMakeFiles/SPIRV-Tools-static.dir/val/validate_execution_limitations.cpp.obj
+[162/806] Building CXX object opal/third-party/slang/external/spirv-tools/source/CMakeFiles/SPIRV-Tools-static.dir/val/validate_function.cpp.obj
+[163/806] Building CXX object opal/third-party/slang/external/spirv-tools/source/CMakeFiles/SPIRV-Tools-static.dir/val/validate.cpp.obj
+[164/806] Building CXX object opal/third-party/slang/external/spirv-tools/source/CMakeFiles/SPIRV-Tools-static.dir/val/validate_explicit_layout.cpp.obj
+[165/806] Building CXX object opal/third-party/slang/external/spirv-tools/source/CMakeFiles/SPIRV-Tools-static.dir/val/validate_cfg.cpp.obj
+[166/806] Building CXX object opal/third-party/slang/external/spirv-tools/source/CMakeFiles/SPIRV-Tools-static.dir/val/validate_decorations.cpp.obj
+[167/806] Building CXX object opal/third-party/slang/external/spirv-tools/source/CMakeFiles/SPIRV-Tools-static.dir/val/validate_extensions.cpp.obj
+[168/806] Building CXX object opal/third-party/slang/external/spirv-tools/source/CMakeFiles/SPIRV-Tools-static.dir/val/validate_graph.cpp.obj
+[169/806] Building CXX object opal/third-party/slang/external/spirv-tools/source/CMakeFiles/SPIRV-Tools-static.dir/val/validate_group.cpp.obj
+[170/806] Building CXX object opal/third-party/slang/external/spirv-tools/source/CMakeFiles/SPIRV-Tools-static.dir/val/validate_literals.cpp.obj
+[171/806] Building CXX object opal/third-party/slang/external/spirv-tools/source/CMakeFiles/SPIRV-Tools-static.dir/val/validate_layout.cpp.obj
+[172/806] Building CXX object opal/third-party/slang/external/spirv-tools/source/CMakeFiles/SPIRV-Tools-static.dir/val/validate_builtins.cpp.obj
+[173/806] Building CXX object opal/third-party/slang/external/spirv-tools/source/CMakeFiles/SPIRV-Tools-static.dir/val/validate_logicals.cpp.obj
+[174/806] Building CXX object opal/third-party/slang/external/spirv-tools/source/CMakeFiles/SPIRV-Tools-static.dir/val/validate_id.cpp.obj
+[175/806] Building CXX object opal/third-party/slang/external/spirv-tools/source/CMakeFiles/SPIRV-Tools-static.dir/val/validate_image.cpp.obj
+[176/806] Building CXX object opal/third-party/slang/external/spirv-tools/source/CMakeFiles/SPIRV-Tools-static.dir/val/validate_instruction.cpp.obj
+[177/806] Building CXX object opal/third-party/slang/external/spirv-tools/source/CMakeFiles/SPIRV-Tools-static.dir/val/validate_mesh_shading.cpp.obj
+[178/806] Building CXX object opal/third-party/slang/external/spirv-tools/source/CMakeFiles/SPIRV-Tools-static.dir/val/validate_memory_semantics.cpp.obj
+[179/806] Building CXX object opal/third-party/slang/external/spirv-tools/source/CMakeFiles/SPIRV-Tools-static.dir/val/validate_logical_pointers.cpp.obj
+[180/806] Building CXX object opal/third-party/slang/external/spirv-tools/source/CMakeFiles/SPIRV-Tools-static.dir/val/validate_non_uniform.cpp.obj
+[181/806] Building CXX object opal/third-party/slang/external/spirv-tools/source/CMakeFiles/SPIRV-Tools-static.dir/val/validate_misc.cpp.obj
+[182/806] Building CXX object opal/third-party/slang/external/spirv-tools/source/CMakeFiles/SPIRV-Tools-static.dir/val/validate_pipe.cpp.obj
+[183/806] Generating slang-rhi-resources resource loader
+[184/806] Building CXX object opal/third-party/slang/external/spirv-tools/source/CMakeFiles/SPIRV-Tools-static.dir/val/validate_interfaces.cpp.obj
+[185/806] Generating intermediate file for D:/Coding/Atlas/opal/third-party/slang/external/slang-rhi/src/cuda/kernels/clear-texture.cu
+[186/806] Generating embedded QSS theme header
+[187/806] Generating intermediate file for D:/Coding/Atlas/opal/third-party/slang/external/slang-rhi/src/metal/shaders/clear-texture.metal
+[188/806] Building CXX object opal/third-party/slang/external/spirv-tools/source/CMakeFiles/SPIRV-Tools-static.dir/val/validate_memory.cpp.obj
+[189/806] Building CXX object opal/third-party/slang/external/spirv-tools/source/CMakeFiles/SPIRV-Tools-static.dir/val/validate_ray_query.cpp.obj
+[190/806] Linking C static library lib\mimalloc-static-debug.lib
+[191/806] Building CXX object opal/third-party/slang/external/spirv-tools/source/CMakeFiles/SPIRV-Tools-static.dir/val/validate_primitives.cpp.obj
+[192/806] Building CXX object opal/third-party/slang/external/spirv-tools/source/CMakeFiles/SPIRV-Tools-static.dir/val/validate_mode_setting.cpp.obj
+[193/806] Linking CXX shared library x64\bin\qtadvanceddocking-qt6d.dll
+[194/806] Building CXX object opal/third-party/slang/external/spirv-tools/source/CMakeFiles/SPIRV-Tools-static.dir/val/basic_block.cpp.obj
+[195/806] Building CXX object opal/third-party/slang/external/spirv-tools/source/CMakeFiles/SPIRV-Tools-static.dir/val/validate_ray_tracing.cpp.obj
+[196/806] Building CXX object opal/third-party/slang/external/spirv-tools/source/CMakeFiles/SPIRV-Tools-static.dir/val/validate_tensor_layout.cpp.obj
+[197/806] Building CXX object CMakeFiles/runtime_lib.dir/runtime/lib/scripting.cpp.obj
+[198/806] Building CXX object opal/third-party/slang/external/spirv-tools/source/CMakeFiles/SPIRV-Tools-static.dir/val/validate_tensor.cpp.obj
+[199/806] Building CXX object opal/third-party/slang/external/spirv-tools/source/CMakeFiles/SPIRV-Tools-static.dir/val/validate_ray_tracing_reorder.cpp.obj
+[200/806] Building CXX object opal/third-party/slang/external/spirv-tools/source/CMakeFiles/SPIRV-Tools-static.dir/val/validate_small_type_uses.cpp.obj
+[201/806] Building CXX object opal/third-party/slang/external/spirv-tools/source/CMakeFiles/SPIRV-Tools-static.dir/val/validate_scopes.cpp.obj
+[202/806] Building CXX object opal/third-party/slang/external/spirv-tools/source/CMakeFiles/SPIRV-Tools-static.dir/val/validate_invalid_type.cpp.obj
+[203/806] Building CXX object opal/third-party/slang/external/spirv-tools/source/CMakeFiles/SPIRV-Tools-static.dir/val/instruction.cpp.obj
+[204/806] Building CXX object opal/third-party/slang/external/spirv-tools/source/CMakeFiles/SPIRV-Tools-static.dir/val/construct.cpp.obj
+[205/806] Building CXX object opal/third-party/slang/external/spirv-tools/source/CMakeFiles/SPIRV-Tools-static.dir/val/validate_type.cpp.obj
+[206/806] Building CXX object opal/third-party/slang/external/spirv-tools/source/CMakeFiles/SPIRV-Tools-static.dir/val/function.cpp.obj
+[207/806] Building CXX object opal/third-party/slang/external/spirv-tools/source/opt/CMakeFiles/SPIRV-Tools-opt.dir/control_dependence.cpp.obj
+[208/806] Building CXX object opal/third-party/slang/external/spirv-tools/source/opt/CMakeFiles/SPIRV-Tools-opt.dir/block_merge_pass.cpp.obj
+[209/806] Building CXX object CMakeFiles/runtime_lib.dir/runtime/lib/context.cpp.obj
+[210/806] Building CXX object opal/third-party/slang/external/spirv-tools/source/opt/CMakeFiles/SPIRV-Tools-opt.dir/fix_func_call_arguments.cpp.obj
+[211/806] Building CXX object opal/third-party/slang/external/spirv-tools/source/CMakeFiles/SPIRV-Tools-static.dir/val/validation_state.cpp.obj
+[212/806] Building CXX object opal/third-party/slang/external/spirv-tools/source/opt/CMakeFiles/SPIRV-Tools-opt.dir/analyze_live_input_pass.cpp.obj
+[213/806] Building CXX object opal/third-party/slang/external/spirv-tools/source/opt/CMakeFiles/SPIRV-Tools-opt.dir/cfg_cleanup_pass.cpp.obj
+[214/806] Building CXX object opal/third-party/slang/external/spirv-tools/source/opt/CMakeFiles/SPIRV-Tools-opt.dir/block_merge_util.cpp.obj
+[215/806] Building CXX object opal/third-party/slang/external/spirv-tools/source/opt/CMakeFiles/SPIRV-Tools-opt.dir/composite.cpp.obj
+[216/806] Building CXX object opal/third-party/slang/external/spirv-tools/source/opt/CMakeFiles/SPIRV-Tools-opt.dir/basic_block.cpp.obj
+[217/806] Building CXX object opal/third-party/slang/external/spirv-tools/source/opt/CMakeFiles/SPIRV-Tools-opt.dir/build_module.cpp.obj
+[218/806] Building CXX object opal/third-party/slang/external/spirv-tools/source/opt/CMakeFiles/SPIRV-Tools-opt.dir/combine_access_chains.cpp.obj
+[219/806] Building CXX object opal/third-party/slang/external/spirv-tools/source/opt/CMakeFiles/SPIRV-Tools-opt.dir/ccp_pass.cpp.obj
+[220/806] Building CXX object opal/third-party/slang/external/spirv-tools/source/opt/CMakeFiles/SPIRV-Tools-opt.dir/code_sink.cpp.obj
+[221/806] Building CXX object opal/third-party/slang/external/spirv-tools/source/opt/CMakeFiles/SPIRV-Tools-opt.dir/amd_ext_to_khr.cpp.obj
+[222/806] Building CXX object opal/third-party/slang/external/spirv-tools/source/opt/CMakeFiles/SPIRV-Tools-opt.dir/compact_ids_pass.cpp.obj
+[223/806] Building CXX object opal/third-party/slang/external/spirv-tools/source/opt/CMakeFiles/SPIRV-Tools-opt.dir/constants.cpp.obj
+[224/806] Linking CXX static library lib\SPIRV-Tools.lib
+[225/806] Building CXX object opal/third-party/slang/external/spirv-tools/source/opt/CMakeFiles/SPIRV-Tools-opt.dir/aggressive_dead_code_elim_pass.cpp.obj
+[226/806] Building CXX object opal/third-party/slang/external/spirv-tools/source/opt/CMakeFiles/SPIRV-Tools-opt.dir/cfg.cpp.obj
+[227/806] Building CXX object opal/third-party/slang/external/spirv-tools/source/opt/CMakeFiles/SPIRV-Tools-opt.dir/convert_to_untyped.cpp.obj
+[228/806] Building CXX object opal/third-party/slang/external/spirv-tools/source/opt/CMakeFiles/SPIRV-Tools-opt.dir/const_folding_rules.cpp.obj
+[229/806] Building CXX object opal/third-party/slang/external/spirv-tools/source/opt/CMakeFiles/SPIRV-Tools-opt.dir/convert_to_sampled_image_pass.cpp.obj
+[230/806] Building CXX object opal/third-party/slang/external/spirv-tools/source/opt/CMakeFiles/SPIRV-Tools-opt.dir/convert_to_half_pass.cpp.obj
+[231/806] Building CXX object opal/third-party/slang/external/spirv-tools/source/opt/CMakeFiles/SPIRV-Tools-opt.dir/copy_prop_arrays.cpp.obj
+[232/806] Building CXX object opal/third-party/slang/external/spirv-tools/source/opt/CMakeFiles/SPIRV-Tools-opt.dir/dataflow.cpp.obj
+[233/806] Building CXX object opal/third-party/slang/external/spirv-tools/source/opt/CMakeFiles/SPIRV-Tools-opt.dir/def_use_manager.cpp.obj
+[234/806] Building CXX object opal/third-party/slang/external/spirv-tools/source/opt/CMakeFiles/SPIRV-Tools-opt.dir/dead_branch_elim_pass.cpp.obj
+[235/806] Building CXX object opal/third-party/slang/external/spirv-tools/source/opt/CMakeFiles/SPIRV-Tools-opt.dir/dead_variable_elimination.cpp.obj
+[236/806] Building CXX object opal/third-party/slang/external/spirv-tools/source/opt/CMakeFiles/SPIRV-Tools-opt.dir/dead_insert_elim_pass.cpp.obj
+[237/806] Building CXX object opal/third-party/slang/external/spirv-tools/source/opt/CMakeFiles/SPIRV-Tools-opt.dir/feature_manager.cpp.obj
+[238/806] Building CXX object opal/third-party/slang/external/spirv-tools/source/opt/CMakeFiles/SPIRV-Tools-opt.dir/dominator_analysis.cpp.obj
+[239/806] Building CXX object opal/third-party/slang/external/spirv-tools/source/opt/CMakeFiles/SPIRV-Tools-opt.dir/desc_sroa.cpp.obj
+[240/806] Building CXX object opal/third-party/slang/external/spirv-tools/source/opt/CMakeFiles/SPIRV-Tools-opt.dir/desc_sroa_util.cpp.obj
+[241/806] Building CXX object opal/third-party/slang/external/spirv-tools/source/opt/CMakeFiles/SPIRV-Tools-opt.dir/decoration_manager.cpp.obj
+[242/806] Building CXX object opal/third-party/slang/external/spirv-tools/source/opt/CMakeFiles/SPIRV-Tools-opt.dir/eliminate_dead_functions_pass.cpp.obj
+[243/806] Building CXX object opal/third-party/slang/external/spirv-tools/source/opt/CMakeFiles/SPIRV-Tools-opt.dir/eliminate_dead_functions_util.cpp.obj
+[244/806] Building CXX object opal/third-party/slang/external/spirv-tools/source/opt/CMakeFiles/SPIRV-Tools-opt.dir/eliminate_dead_constant_pass.cpp.obj
+[245/806] Building CXX object opal/third-party/slang/external/spirv-tools/source/opt/CMakeFiles/SPIRV-Tools-opt.dir/debug_info_manager.cpp.obj
+[246/806] Building CXX object opal/third-party/slang/external/spirv-tools/source/opt/CMakeFiles/SPIRV-Tools-opt.dir/eliminate_dead_output_stores_pass.cpp.obj
+[247/806] Building CXX object opal/third-party/slang/external/spirv-tools/source/opt/CMakeFiles/SPIRV-Tools-opt.dir/graph.cpp.obj
+[248/806] Building CXX object opal/third-party/slang/external/spirv-tools/source/opt/CMakeFiles/SPIRV-Tools-opt.dir/fix_storage_class.cpp.obj
+[249/806] Building CXX object opal/third-party/slang/external/spirv-tools/source/opt/CMakeFiles/SPIRV-Tools-opt.dir/eliminate_dead_members_pass.cpp.obj
+[250/806] Building CXX object opal/third-party/slang/external/spirv-tools/source/opt/CMakeFiles/SPIRV-Tools-opt.dir/dominator_tree.cpp.obj
+[251/806] Building CXX object opal/third-party/slang/external/spirv-tools/source/opt/CMakeFiles/SPIRV-Tools-opt.dir/eliminate_dead_io_components_pass.cpp.obj
+[252/806] Building CXX object opal/third-party/slang/external/spirv-tools/source/opt/CMakeFiles/SPIRV-Tools-opt.dir/flatten_decoration_pass.cpp.obj
+[253/806] Building CXX object opal/third-party/slang/external/spirv-tools/source/opt/CMakeFiles/SPIRV-Tools-opt.dir/fold.cpp.obj
+[254/806] Building CXX object opal/third-party/slang/external/spirv-tools/source/opt/CMakeFiles/SPIRV-Tools-opt.dir/freeze_spec_constant_value_pass.cpp.obj
+[255/806] Building CXX object opal/third-party/slang/external/spirv-tools/source/opt/CMakeFiles/SPIRV-Tools-opt.dir/instruction_list.cpp.obj
+[256/806] Building CXX object opal/third-party/slang/external/spirv-tools/source/opt/CMakeFiles/SPIRV-Tools-opt.dir/fold_spec_constant_op_and_composite_pass.cpp.obj
+[257/806] Linking CXX shared library bin\runtime.dll
+lld-link: warning: ignoring unknown argument '--as-needed'
+lld-link: warning: ignoring unknown argument '--no-copy-dt-needed-entries'
+[258/806] Building CXX object opal/third-party/slang/external/spirv-tools/source/opt/CMakeFiles/SPIRV-Tools-opt.dir/function.cpp.obj
+[259/806] Building CXX object opal/third-party/slang/external/spirv-tools/source/opt/CMakeFiles/SPIRV-Tools-opt.dir/folding_rules.cpp.obj
+[260/806] Building CXX object opal/third-party/slang/external/spirv-tools/source/opt/CMakeFiles/SPIRV-Tools-opt.dir/inline_exhaustive_pass.cpp.obj
+[261/806] Building CXX object opal/third-party/slang/external/spirv-tools/source/opt/CMakeFiles/SPIRV-Tools-opt.dir/inline_opaque_pass.cpp.obj
+[262/806] Building CXX object opal/third-party/slang/external/spirv-tools/source/opt/CMakeFiles/SPIRV-Tools-opt.dir/graphics_robust_access_pass.cpp.obj
+[263/806] Building CXX object opal/third-party/slang/external/spirv-tools/source/opt/CMakeFiles/SPIRV-Tools-opt.dir/if_conversion.cpp.obj
+[264/806] Building CXX object opal/third-party/slang/external/spirv-tools/source/opt/CMakeFiles/SPIRV-Tools-opt.dir/interp_fixup_pass.cpp.obj
+[265/806] Building CXX object opal/third-party/slang/external/spirv-tools/source/opt/CMakeFiles/SPIRV-Tools-opt.dir/invocation_interlock_placement_pass.cpp.obj
+[266/806] Building CXX object opal/third-party/slang/external/spirv-tools/source/opt/CMakeFiles/SPIRV-Tools-opt.dir/opextinst_forward_ref_fixup_pass.cpp.obj
+[267/806] Building CXX object opal/third-party/slang/external/spirv-tools/source/opt/CMakeFiles/SPIRV-Tools-opt.dir/instruction.cpp.obj
+[268/806] Building CXX object opal/third-party/slang/external/spirv-tools/source/opt/CMakeFiles/SPIRV-Tools-opt.dir/inline_pass.cpp.obj
+[269/806] Building CXX object opal/third-party/slang/external/spirv-tools/source/opt/CMakeFiles/SPIRV-Tools-opt.dir/ir_loader.cpp.obj
+[270/806] Building CXX object opal/third-party/slang/external/spirv-tools/source/opt/CMakeFiles/SPIRV-Tools-opt.dir/legalize_multidim_array_pass.cpp.obj
+[271/806] Building CXX object opal/third-party/slang/external/spirv-tools/source/opt/CMakeFiles/SPIRV-Tools-opt.dir/interface_var_sroa.cpp.obj
+[272/806] Building CXX object opal/third-party/slang/external/spirv-tools/source/opt/CMakeFiles/SPIRV-Tools-opt.dir/licm_pass.cpp.obj
+[273/806] Building CXX object opal/third-party/slang/external/spirv-tools/source/opt/CMakeFiles/SPIRV-Tools-opt.dir/local_single_block_elim_pass.cpp.obj
+[274/806] Building CXX object opal/third-party/slang/external/spirv-tools/source/opt/CMakeFiles/SPIRV-Tools-opt.dir/liveness.cpp.obj
+[275/806] Building CXX object opal/third-party/slang/external/spirv-tools/source/opt/CMakeFiles/SPIRV-Tools-opt.dir/local_access_chain_convert_pass.cpp.obj
+[276/806] Building CXX object opal/third-party/slang/external/spirv-tools/source/opt/CMakeFiles/SPIRV-Tools-opt.dir/local_redundancy_elimination.cpp.obj
+[277/806] Building CXX object opal/third-party/slang/external/spirv-tools/source/opt/CMakeFiles/SPIRV-Tools-opt.dir/ir_context.cpp.obj
+[278/806] Building CXX object opal/third-party/slang/external/spirv-tools/source/opt/CMakeFiles/SPIRV-Tools-opt.dir/local_single_store_elim_pass.cpp.obj
+[279/806] Building CXX object opal/third-party/slang/external/spirv-tools/source/opt/CMakeFiles/SPIRV-Tools-opt.dir/loop_dependence.cpp.obj
+[280/806] Building CXX object opal/third-party/slang/external/spirv-tools/source/opt/CMakeFiles/SPIRV-Tools-opt.dir/loop_dependence_helpers.cpp.obj
+[281/806] Building CXX object opal/third-party/slang/external/spirv-tools/source/opt/CMakeFiles/SPIRV-Tools-opt.dir/loop_fusion_pass.cpp.obj
+[282/806] Building CXX object opal/third-party/slang/external/spirv-tools/source/opt/CMakeFiles/SPIRV-Tools-opt.dir/loop_descriptor.cpp.obj
+[283/806] Building CXX object opal/third-party/slang/external/spirv-tools/source/opt/CMakeFiles/SPIRV-Tools-opt.dir/loop_fusion.cpp.obj
+[284/806] Building CXX object opal/third-party/slang/external/spirv-tools/source/opt/CMakeFiles/SPIRV-Tools-opt.dir/loop_fission.cpp.obj
+[285/806] Building CXX object opal/third-party/slang/external/spirv-tools/source/opt/CMakeFiles/SPIRV-Tools-opt.dir/loop_utils.cpp.obj
+[286/806] Building CXX object opal/third-party/slang/external/spirv-tools/source/opt/CMakeFiles/SPIRV-Tools-opt.dir/loop_peeling.cpp.obj
+[287/806] Building CXX object opal/third-party/slang/external/spirv-tools/source/opt/CMakeFiles/SPIRV-Tools-opt.dir/modify_maximal_reconvergence.cpp.obj
+[288/806] Building CXX object opal/third-party/slang/external/spirv-tools/source/opt/CMakeFiles/SPIRV-Tools-opt.dir/loop_unroller.cpp.obj
+[289/806] Building CXX object opal/third-party/slang/external/spirv-tools/source/opt/CMakeFiles/SPIRV-Tools-opt.dir/pass_manager.cpp.obj
+[290/806] Building CXX object opal/third-party/slang/external/spirv-tools/source/opt/CMakeFiles/SPIRV-Tools-opt.dir/propagator.cpp.obj
+[291/806] Building CXX object opal/third-party/slang/external/spirv-tools/source/opt/CMakeFiles/SPIRV-Tools-opt.dir/merge_return_pass.cpp.obj
+[292/806] Building CXX object opal/third-party/slang/external/spirv-tools/source/opt/CMakeFiles/SPIRV-Tools-opt.dir/pass.cpp.obj
+[293/806] Building CXX object opal/third-party/slang/external/spirv-tools/source/opt/CMakeFiles/SPIRV-Tools-opt.dir/mem_pass.cpp.obj
+[294/806] Building CXX object opal/third-party/slang/external/spirv-tools/source/opt/CMakeFiles/SPIRV-Tools-opt.dir/loop_unswitch_pass.cpp.obj
+[295/806] Building CXX object opal/third-party/slang/external/spirv-tools/source/opt/CMakeFiles/SPIRV-Tools-opt.dir/redundancy_elimination.cpp.obj
+[296/806] Building CXX object opal/third-party/slang/external/spirv-tools/source/opt/CMakeFiles/SPIRV-Tools-opt.dir/reduce_load_size.cpp.obj
+[297/806] Building CXX object opal/third-party/slang/external/spirv-tools/source/opt/CMakeFiles/SPIRV-Tools-opt.dir/module.cpp.obj
+[298/806] Building CXX object opal/third-party/slang/external/spirv-tools/source/opt/CMakeFiles/SPIRV-Tools-opt.dir/private_to_local_pass.cpp.obj
+[299/806] Building CXX object opal/third-party/slang/external/spirv-tools/source/opt/CMakeFiles/SPIRV-Tools-opt.dir/scalar_analysis_simplification.cpp.obj
+[300/806] Building CXX object opal/third-party/slang/external/spirv-tools/source/opt/CMakeFiles/SPIRV-Tools-opt.dir/register_pressure.cpp.obj
+[301/806] Building CXX object opal/third-party/slang/external/spirv-tools/source/opt/CMakeFiles/SPIRV-Tools-opt.dir/remove_dontinline_pass.cpp.obj
+[302/806] Building CXX object opal/third-party/slang/external/spirv-tools/source/opt/CMakeFiles/SPIRV-Tools-opt.dir/canonicalize_ids_pass.cpp.obj
+[303/806] Building CXX object opal/third-party/slang/external/spirv-tools/source/opt/CMakeFiles/SPIRV-Tools-opt.dir/relax_float_ops_pass.cpp.obj
+[304/806] Building CXX object opal/third-party/slang/external/spirv-tools/source/opt/CMakeFiles/SPIRV-Tools-opt.dir/optimizer.cpp.obj
+[305/806] Building CXX object opal/third-party/slang/external/spirv-tools/source/opt/CMakeFiles/SPIRV-Tools-opt.dir/remove_unused_interface_variables_pass.cpp.obj
+[306/806] Building CXX object opal/third-party/slang/external/spirv-tools/source/opt/CMakeFiles/SPIRV-Tools-opt.dir/remove_duplicates_pass.cpp.obj
+[307/806] Building CXX object opal/third-party/slang/external/spirv-tools/source/opt/CMakeFiles/SPIRV-Tools-opt.dir/replace_invalid_opc.cpp.obj
+[308/806] Building CXX object opal/third-party/slang/external/spirv-tools/source/opt/CMakeFiles/SPIRV-Tools-opt.dir/scalar_analysis.cpp.obj
+[309/806] Building CXX object opal/third-party/slang/external/spirv-tools/source/opt/CMakeFiles/SPIRV-Tools-opt.dir/resolve_binding_conflicts_pass.cpp.obj
+[310/806] Building CXX object opal/third-party/slang/external/spirv-tools/source/opt/CMakeFiles/SPIRV-Tools-opt.dir/replace_desc_array_access_using_var_index.cpp.obj
+[311/806] Building CXX object opal/third-party/slang/external/spirv-tools/source/opt/CMakeFiles/SPIRV-Tools-opt.dir/set_spec_constant_default_value_pass.cpp.obj
+[312/806] Building CXX object opal/third-party/slang/external/spirv-tools/source/opt/CMakeFiles/SPIRV-Tools-opt.dir/spread_volatile_semantics.cpp.obj
+[313/806] Building CXX object opal/third-party/slang/external/slang-rhi/CMakeFiles/slang-rhi-resources.dir/__cmrc_slang-rhi-resources/intermediate/src/cuda/kernels/clear-texture.cu.cpp.obj
+[314/806] Building CXX object opal/third-party/slang/external/spirv-tools/source/opt/CMakeFiles/SPIRV-Tools-opt.dir/types.cpp.obj
+[315/806] Building CXX object opal/third-party/slang/external/spirv-tools/source/opt/CMakeFiles/SPIRV-Tools-opt.dir/strip_nonsemantic_info_pass.cpp.obj
+[316/806] Building CXX object opal/third-party/slang/external/slang-rhi/CMakeFiles/slang-rhi-resources.dir/__cmrc_slang-rhi-resources/intermediate/src/metal/shaders/clear-texture.metal.cpp.obj
+[317/806] Building CXX object opal/third-party/slang/external/spirv-tools/source/opt/CMakeFiles/SPIRV-Tools-opt.dir/strength_reduction_pass.cpp.obj
+[318/806] Building CXX object opal/third-party/slang/external/spirv-tools/source/opt/CMakeFiles/SPIRV-Tools-opt.dir/struct_packing_pass.cpp.obj
+[319/806] Building CXX object opal/third-party/slang/external/spirv-tools/source/opt/CMakeFiles/SPIRV-Tools-opt.dir/scalar_replacement_pass.cpp.obj
+[320/806] Building CXX object opal/third-party/slang/external/spirv-tools/source/opt/CMakeFiles/SPIRV-Tools-opt.dir/simplification_pass.cpp.obj
+[321/806] Building CXX object opal/third-party/slang/external/spirv-tools/source/opt/CMakeFiles/SPIRV-Tools-opt.dir/strip_debug_info_pass.cpp.obj
+[322/806] Building CXX object opal/third-party/slang/external/spirv-tools/source/opt/CMakeFiles/SPIRV-Tools-opt.dir/__/mimalloc.cpp.obj
+[323/806] Copying d3d12SDKLayers.dll
+[324/806] Copying dawn.dll
+[325/806] Copying D3D12Core.dll
+[326/806] Copying optix.h
+[327/806] Building CXX object opal/third-party/slang/external/spirv-tools/source/opt/CMakeFiles/SPIRV-Tools-opt.dir/struct_cfg_analysis.cpp.obj
+[328/806] Copying WinPixEventRuntime.dll
+[329/806] Copying dxcompiler.dll
+[330/806] Copying optix_device_impl.h
+[331/806] Copying optix_types.h
+[332/806] Copying optix.h
+[333/806] Copying optix_device_impl_transformations.h
+[334/806] Copying dxil.dll
+[335/806] Copying optix_device_impl.h
+[336/806] Copying optix_device_impl_transformations.h
+[337/806] Copying optix_device.h
+[338/806] Building CXX object opal/third-party/slang/external/spirv-tools/source/opt/CMakeFiles/SPIRV-Tools-opt.dir/split_combined_image_sampler_pass.cpp.obj
+[339/806] Copying optix_device_impl.h
+[340/806] Copying optix_types.h
+[341/806] Copying optix_device.h
+[342/806] Building CXX object opal/third-party/slang/external/spirv-tools/source/opt/CMakeFiles/SPIRV-Tools-opt.dir/switch_descriptorset_pass.cpp.obj
+[343/806] Building CXX object opal/third-party/slang/external/glslang/SPIRV/CMakeFiles/SPIRV.dir/__/glslang/stub.cpp.obj
+[344/806] Copying optix.h
+[345/806] Copying optix_device_impl_transformations.h
+[346/806] Copying optix_types.h
+[347/806] Copying optix_device.h
+[348/806] Building CXX object opal/third-party/slang/external/slang-rhi/CMakeFiles/slang-rhi-resources.dir/__cmrc_slang-rhi-resources/lib.cpp.obj
+[349/806] Building CXX object opal/third-party/slang/external/spirv-tools/source/opt/CMakeFiles/SPIRV-Tools-opt.dir/unify_const_pass.cpp.obj
+[350/806] Building CXX object opal/third-party/slang/external/glslang/glslang/CMakeFiles/glslang.dir/OSDependent/Windows/ossource.cpp.obj
+[351/806] Building CXX object opal/third-party/slang/external/spirv-tools/source/opt/CMakeFiles/SPIRV-Tools-opt.dir/ssa_rewrite_pass.cpp.obj
+[352/806] Building CXX object opal/third-party/slang/external/spirv-tools/source/opt/CMakeFiles/SPIRV-Tools-opt.dir/trim_capabilities_pass.cpp.obj
+[353/806] Building CXX object opal/third-party/slang/external/spirv-tools/source/opt/CMakeFiles/SPIRV-Tools-opt.dir/value_number_table.cpp.obj
+[354/806] Building CXX object opal/third-party/slang/external/slang-rhi/CMakeFiles/slang-rhi-d3d12ma.dir/external/d3d12ma/D3D12MemAlloc.cpp.obj
+[355/806] Building CXX object opal/third-party/slang/external/slang-rhi/CMakeFiles/slang-rhi-vma.dir/external/vma/vk_mem_alloc.cpp.obj
+[356/806] Building CXX object opal/third-party/slang/external/spirv-tools/source/opt/CMakeFiles/SPIRV-Tools-opt.dir/vector_dce.cpp.obj
+[357/806] Building CXX object opal/third-party/slang/external/spirv-tools/source/opt/CMakeFiles/SPIRV-Tools-opt.dir/wrap_opkill.cpp.obj
+[358/806] Building CXX object opal/third-party/slang/external/glslang/glslang/CMakeFiles/glslang.dir/MachineIndependent/InfoSink.cpp.obj
+[359/806] Building CXX object opal/third-party/slang/external/glslang/glslang/CMakeFiles/glslang.dir/GenericCodeGen/CodeGen.cpp.obj
+[360/806] Building CXX object opal/third-party/slang/external/glslang/glslang/CMakeFiles/glslang.dir/GenericCodeGen/Link.cpp.obj
+[361/806] Building CXX object opal/third-party/slang/external/glslang/glslang/CMakeFiles/glslang.dir/MachineIndependent/IntermTraverse.cpp.obj
+[362/806] Building CXX object opal/third-party/slang/external/spirv-tools/source/opt/CMakeFiles/SPIRV-Tools-opt.dir/type_manager.cpp.obj
+[363/806] Building CXX object opal/third-party/slang/external/glslang/glslang/CMakeFiles/glslang.dir/MachineIndependent/PoolAlloc.cpp.obj
+[364/806] Building CXX object opal/third-party/slang/external/spirv-tools/source/opt/CMakeFiles/SPIRV-Tools-opt.dir/workaround1209.cpp.obj
+[365/806] Building CXX object opal/third-party/slang/external/glslang/glslang/CMakeFiles/glslang.dir/MachineIndependent/Constant.cpp.obj
+[366/806] Building CXX object opal/third-party/slang/external/spirv-tools/source/opt/CMakeFiles/SPIRV-Tools-opt.dir/upgrade_memory_model.cpp.obj
+[367/806] Building CXX object opal/third-party/slang/external/glslang/glslang/CMakeFiles/glslang.dir/MachineIndependent/RemoveTree.cpp.obj
+[368/806] Building CXX object opal/third-party/slang/external/glslang/glslang/CMakeFiles/glslang.dir/CInterface/glslang_c_interface.cpp.obj
+[369/806] Building CXX object opal/third-party/slang/external/glslang/glslang/CMakeFiles/glslang.dir/MachineIndependent/attribute.cpp.obj
+[370/806] Building CXX object opal/third-party/slang/external/glslang/glslang/CMakeFiles/glslang.dir/MachineIndependent/Initialize.cpp.obj
+[371/806] Building CXX object opal/third-party/slang/external/glslang/glslang/CMakeFiles/glslang.dir/MachineIndependent/glslang_tab.cpp.obj
+[372/806] Building CXX object opal/third-party/slang/external/glslang/glslang/CMakeFiles/glslang.dir/MachineIndependent/Intermediate.cpp.obj
+[373/806] Building CXX object opal/third-party/slang/external/glslang/glslang/CMakeFiles/glslang.dir/MachineIndependent/iomapper.cpp.obj
+[374/806] Building CXX object opal/third-party/slang/external/glslang/glslang/CMakeFiles/glslang.dir/MachineIndependent/ParseContextBase.cpp.obj
+[375/806] Building CXX object opal/third-party/slang/external/glslang/glslang/CMakeFiles/glslang.dir/MachineIndependent/parseConst.cpp.obj
+[376/806] Building CXX object opal/third-party/slang/external/glslang/glslang/CMakeFiles/glslang.dir/MachineIndependent/SpirvIntrinsics.cpp.obj
+[377/806] Building CXX object opal/third-party/slang/external/glslang/glslang/CMakeFiles/glslang.dir/MachineIndependent/SymbolTable.cpp.obj
+[378/806] Building CXX object opal/third-party/slang/external/glslang/glslang/CMakeFiles/glslang.dir/MachineIndependent/Versions.cpp.obj
+[379/806] Building CXX object opal/third-party/slang/external/glslang/glslang/CMakeFiles/glslang.dir/MachineIndependent/Scan.cpp.obj
+[380/806] Linking CXX static library lib\SPIRV-Tools-opt.lib
+[381/806] Building CXX object opal/third-party/slang/external/glslang/glslang/CMakeFiles/glslang.dir/MachineIndependent/intermOut.cpp.obj
+[382/806] Building CXX object opal/third-party/slang/external/glslang/glslang/CMakeFiles/glslang.dir/MachineIndependent/limits.cpp.obj
+[383/806] Building CXX object opal/third-party/slang/external/glslang/glslang/CMakeFiles/glslang.dir/MachineIndependent/preprocessor/PpContext.cpp.obj
+[384/806] Building CXX object opal/third-party/slang/external/glslang/glslang/CMakeFiles/glslang.dir/MachineIndependent/reflection.cpp.obj
+[385/806] Building CXX object opal/third-party/slang/external/glslang/glslang/CMakeFiles/glslang.dir/MachineIndependent/propagateNoContraction.cpp.obj
+[386/806] Building CXX object opal/third-party/slang/external/glslang/glslang/CMakeFiles/glslang.dir/MachineIndependent/preprocessor/PpTokens.cpp.obj
+[387/806] Building CXX object opal/third-party/slang/external/glslang/glslang/CMakeFiles/glslang.dir/MachineIndependent/preprocessor/PpAtom.cpp.obj
+[388/806] Linking CXX static library lib\slang-rhi-d3d12ma.lib
+[389/806] Building CXX object opal/third-party/slang/external/glslang/glslang/CMakeFiles/glslang.dir/MachineIndependent/preprocessor/PpScanner.cpp.obj
+[390/806] Building CXX object opal/third-party/slang/external/glslang/glslang/CMakeFiles/glslang.dir/MachineIndependent/ShaderLang.cpp.obj
+[391/806] Building CXX object opal/third-party/slang/external/glslang/glslang/CMakeFiles/glslang.dir/__/SPIRV/InReadableOrder.cpp.obj
+[392/806] Building CXX object opal/third-party/slang/external/glslang/glslang/CMakeFiles/glslang.dir/__/SPIRV/Logger.cpp.obj
+[393/806] Building CXX object opal/third-party/slang/external/glslang/glslang/CMakeFiles/glslang.dir/MachineIndependent/linkValidate.cpp.obj
+[394/806] Building CXX object opal/third-party/slang/external/glslang/glslang/CMakeFiles/glslang.dir/HLSL/hlslAttributes.cpp.obj
+[395/806] Building CXX object opal/third-party/slang/external/glslang/glslang/CMakeFiles/glslang.dir/MachineIndependent/preprocessor/Pp.cpp.obj
+[396/806] Building CXX object opal/third-party/slang/external/spirv-tools/source/link/CMakeFiles/SPIRV-Tools-link.dir/fnvar.cpp.obj
+[397/806] Building CXX object opal/third-party/slang/external/glslang/glslang/CMakeFiles/glslang.dir/MachineIndependent/ParseHelper.cpp.obj
+[398/806] Linking CXX static library lib\slang-rhi-vma.lib
+[399/806] Linking CXX static library lib\slang-rhi-resources.lib
+[400/806] Building CXX object opal/third-party/slang/external/glslang/glslang/CMakeFiles/glslang.dir/HLSL/hlslOpMap.cpp.obj
+[401/806] Building CXX object opal/third-party/slang/external/spirv-tools/source/link/CMakeFiles/SPIRV-Tools-link.dir/linker.cpp.obj
+[402/806] Building CXX object opal/third-party/slang/external/glslang/glslang/CMakeFiles/glslang.dir/__/SPIRV/doc.cpp.obj
+[403/806] Building CXX object opal/third-party/slang/external/glslang/glslang/CMakeFiles/glslang.dir/__/SPIRV/CInterface/spirv_c_interface.cpp.obj
+[404/806] Building CXX object opal/third-party/slang/external/glslang/glslang/CMakeFiles/glslang.dir/__/SPIRV/disassemble.cpp.obj
+[405/806] Building CXX object opal/third-party/slang/external/glslang/glslang/CMakeFiles/glslang.dir/HLSL/hlslParseables.cpp.obj
+[406/806] Building CXX object opal/third-party/slang/external/glslang/glslang/CMakeFiles/glslang.dir/HLSL/hlslTokenStream.cpp.obj
+[407/806] Building CXX object opal/third-party/slang/external/glslang/glslang/CMakeFiles/glslang.dir/__/SPIRV/SpvTools.cpp.obj
+[408/806] Building CXX object opal/third-party/slang/external/slang-rhi/CMakeFiles/slang-rhi.dir/src/aftermath.cpp.obj
+[409/806] Building CXX object opal/third-party/slang/external/slang-rhi/CMakeFiles/slang-rhi.dir/src/core/assert.cpp.obj
+[410/806] Building CXX object opal/third-party/slang/external/glslang/glslang/CMakeFiles/glslang.dir/HLSL/hlslScanContext.cpp.obj
+[411/806] Building CXX object opal/third-party/slang/external/glslang/glslang/CMakeFiles/glslang.dir/__/SPIRV/SpvPostProcess.cpp.obj
+[412/806] Building CXX object opal/third-party/slang/external/slang-rhi/CMakeFiles/slang-rhi.dir/src/enum-strings.cpp.obj
+[413/806] Building CXX object opal/third-party/slang/external/glslang/glslang/CMakeFiles/glslang.dir/HLSL/hlslGrammar.cpp.obj
+[414/806] Building CXX object opal/third-party/slang/external/slang-rhi/CMakeFiles/slang-rhi.dir/src/cuda-driver-api.cpp.obj
+[415/806] Building CXX object opal/third-party/slang/external/glslang/glslang/CMakeFiles/glslang.dir/__/SPIRV/SpvBuilder.cpp.obj
+[416/806] Building CXX object opal/third-party/slang/external/slang-rhi/CMakeFiles/slang-rhi.dir/src/device-child.cpp.obj
+[417/806] Building CXX object opal/third-party/slang/external/slang-rhi/CMakeFiles/slang-rhi.dir/src/resource-desc-utils.cpp.obj
+[418/806] Building CXX object opal/third-party/slang/external/slang-rhi/CMakeFiles/slang-rhi.dir/src/format-conversion.cpp.obj
+[419/806] Building CXX object opal/third-party/slang/external/slang-rhi/CMakeFiles/slang-rhi.dir/src/pipeline.cpp.obj
+[420/806] Building CXX object opal/third-party/slang/external/slang-rhi/CMakeFiles/slang-rhi.dir/src/command-list.cpp.obj
+[421/806] Building CXX object opal/third-party/slang/external/slang-rhi/CMakeFiles/slang-rhi.dir/src/core/offset-allocator.cpp.obj
+[422/806] Building CXX object opal/third-party/slang/external/slang-rhi/CMakeFiles/slang-rhi.dir/src/command-buffer.cpp.obj
+[423/806] Building CXX object opal/third-party/slang/external/slang-rhi/CMakeFiles/slang-rhi.dir/src/heap.cpp.obj
+[424/806] Building CXX object opal/third-party/slang/external/slang-rhi/CMakeFiles/slang-rhi.dir/src/core/sha1.cpp.obj
+[425/806] Building CXX object opal/third-party/slang/external/slang-rhi/CMakeFiles/slang-rhi.dir/src/rhi-shared.cpp.obj
+[426/806] Building CXX object opal/third-party/slang/external/slang-rhi/CMakeFiles/slang-rhi.dir/src/core/blob.cpp.obj
+[427/806] Building CXX object opal/third-party/slang/external/slang-rhi/CMakeFiles/slang-rhi.dir/src/core/smart-pointer.cpp.obj
+[428/806] Building CXX object opal/third-party/slang/external/slang-rhi/CMakeFiles/slang-rhi.dir/src/core/platform.cpp.obj
+[429/806] Building CXX object opal/third-party/slang/external/slang-rhi/CMakeFiles/slang-rhi.dir/src/device.cpp.obj
+[430/806] Building CXX object opal/third-party/slang/external/slang-rhi/CMakeFiles/slang-rhi.dir/src/pipeline-resolver.cpp.obj
+[431/806] Building CXX object opal/third-party/slang/external/slang-rhi/CMakeFiles/slang-rhi.dir/src/shader-object.cpp.obj
+[432/806] Building CXX object opal/third-party/slang/external/glslang/glslang/CMakeFiles/glslang.dir/HLSL/hlslParseHelper.cpp.obj
+[433/806] Building CXX object opal/third-party/slang/external/slang-rhi/CMakeFiles/slang-rhi.dir/src/core/diagnostics.cpp.obj
+[434/806] Building CXX object opal/third-party/slang/external/slang-rhi/CMakeFiles/slang-rhi.dir/src/core/task-pool.cpp.obj
+[435/806] Building CXX object opal/third-party/slang/external/slang-rhi/CMakeFiles/slang-rhi.dir/src/staging-heap.cpp.obj
+[436/806] Building CXX object opal/third-party/slang/external/slang-rhi/CMakeFiles/slang-rhi.dir/src/shader.cpp.obj
+[437/806] Building CXX object opal/third-party/slang/external/slang-rhi/CMakeFiles/slang-rhi.dir/src/rhi.cpp.obj
+[438/806] Building CXX object opal/third-party/slang/external/slang-rhi/CMakeFiles/slang-rhi.dir/src/core/timer.cpp.obj
+[439/806] Building CXX object opal/third-party/slang/external/slang-rhi/CMakeFiles/slang-rhi.dir/src/debug-layer/debug-command-buffer.cpp.obj
+[440/806] Building CXX object opal/third-party/slang/external/slang-rhi/CMakeFiles/slang-rhi.dir/src/debug-layer/debug-command-queue.cpp.obj
+[441/806] Building CXX object opal/third-party/slang/external/slang-rhi/CMakeFiles/slang-rhi.dir/src/debug-layer/debug-query.cpp.obj
+[442/806] Building CXX object opal/third-party/slang/external/slang-rhi/CMakeFiles/slang-rhi.dir/src/debug-layer/debug-helper-functions.cpp.obj
+[443/806] Building CXX object opal/third-party/slang/external/slang-rhi/CMakeFiles/slang-rhi.dir/src/debug-layer/debug-heap.cpp.obj
+[444/806] Building CXX object opal/third-party/slang/external/slang-rhi/CMakeFiles/slang-rhi.dir/src/debug-layer/debug-fence.cpp.obj
+[445/806] Building CXX object opal/third-party/slang/external/slang-rhi/CMakeFiles/slang-rhi.dir/src/debug-layer/debug-command-encoder.cpp.obj
+[446/806] Building CXX object opal/third-party/slang/external/slang-rhi/CMakeFiles/slang-rhi.dir/src/debug-layer/debug-surface.cpp.obj
+[447/806] Building CXX object opal/third-party/slang/external/slang-rhi/CMakeFiles/slang-rhi.dir/src/debug-layer/debug-device.cpp.obj
+[448/806] Building CXX object opal/third-party/slang/external/glslang/glslang/CMakeFiles/glslang.dir/__/SPIRV/GlslangToSpv.cpp.obj
+[449/806] Building CXX object opal/third-party/slang/external/slang-rhi/CMakeFiles/slang-rhi.dir/src/cpu/cpu-buffer.cpp.obj
+[450/806] Building CXX object opal/third-party/slang/external/slang-rhi/CMakeFiles/slang-rhi.dir/src/debug-layer/debug-shader-object.cpp.obj
+[451/806] Building CXX object opal/third-party/slang/external/slang-rhi/CMakeFiles/slang-rhi.dir/src/cpu/cpu-backend.cpp.obj
+[452/806] Building CXX object opal/third-party/slang/external/slang-rhi/CMakeFiles/slang-rhi.dir/src/cpu/cpu-command.cpp.obj
+[453/806] Building CXX object opal/third-party/slang/external/slang-rhi/CMakeFiles/slang-rhi.dir/src/cpu/cpu-device.cpp.obj
+[454/806] Building CXX object opal/third-party/slang/external/slang-rhi/CMakeFiles/slang-rhi.dir/src/cpu/cpu-pipeline.cpp.obj
+[455/806] Building CXX object opal/third-party/slang/external/slang-rhi/CMakeFiles/slang-rhi.dir/src/nvapi/nvapi-util.cpp.obj
+[456/806] Building CXX object opal/third-party/slang/external/slang-rhi/CMakeFiles/slang-rhi.dir/src/cpu/cpu-query.cpp.obj
+[457/806] Building CXX object opal/third-party/slang/external/slang-rhi/CMakeFiles/slang-rhi.dir/src/cpu/cpu-shader-program.cpp.obj
+[458/806] Building CXX object opal/third-party/slang/external/slang-rhi/CMakeFiles/slang-rhi.dir/src/cpu/cpu-shader-object.cpp.obj
+[459/806] Building CXX object opal/third-party/slang/external/slang-rhi/CMakeFiles/slang-rhi.dir/src/cpu/cpu-shader-object-layout.cpp.obj
+[460/806] Building CXX object opal/third-party/slang/external/slang-rhi/CMakeFiles/slang-rhi.dir/src/cpu/cpu-texture.cpp.obj
+[461/806] Building CXX object opal/third-party/slang/external/slang-rhi/CMakeFiles/slang-rhi.dir/src/cpu/cpu-fence.cpp.obj
+[462/806] Building CXX object opal/third-party/slang/external/slang-rhi/CMakeFiles/slang-rhi.dir/src/d3d/d3d-utils.cpp.obj
+[463/806] Building CXX object opal/third-party/slang/external/slang-rhi/CMakeFiles/slang-rhi.dir/src/d3d11/d3d11-backend.cpp.obj
+[464/806] Building CXX object opal/third-party/slang/external/slang-rhi/CMakeFiles/slang-rhi.dir/src/d3d11/d3d11-buffer.cpp.obj
+[465/806] Building CXX object opal/third-party/slang/external/slang-rhi/CMakeFiles/slang-rhi.dir/src/d3d11/d3d11-constant-buffer-pool.cpp.obj
+[466/806] Building CXX object opal/third-party/slang/external/slang-rhi/CMakeFiles/slang-rhi.dir/src/d3d11/d3d11-pipeline.cpp.obj
+[467/806] Building CXX object opal/third-party/slang/external/slang-rhi/CMakeFiles/slang-rhi.dir/src/d3d11/d3d11-input-layout.cpp.obj
+[468/806] Building CXX object opal/third-party/slang/external/slang-rhi/CMakeFiles/slang-rhi.dir/src/d3d11/d3d11-sampler.cpp.obj
+[469/806] Building CXX object opal/third-party/slang/external/slang-rhi/CMakeFiles/slang-rhi.dir/src/d3d11/d3d11-shader-object-layout.cpp.obj
+[470/806] Building CXX object opal/third-party/slang/external/slang-rhi/CMakeFiles/slang-rhi.dir/src/d3d11/d3d11-shader-program.cpp.obj
+[471/806] Building CXX object opal/third-party/slang/external/slang-rhi/CMakeFiles/slang-rhi.dir/src/d3d11/d3d11-shader-object.cpp.obj
+[472/806] Building CXX object opal/third-party/slang/external/slang-rhi/CMakeFiles/slang-rhi.dir/src/d3d11/d3d11-utils.cpp.obj
+[473/806] Building CXX object opal/third-party/slang/external/slang-rhi/CMakeFiles/slang-rhi.dir/src/d3d11/d3d11-surface.cpp.obj
+[474/806] Building CXX object opal/third-party/slang/external/slang-rhi/CMakeFiles/slang-rhi.dir/src/d3d12/d3d12-bindless-descriptor-set.cpp.obj
+[475/806] Building CXX object opal/third-party/slang/external/slang-rhi/CMakeFiles/slang-rhi.dir/src/d3d12/d3d12-constant-buffer-pool.cpp.obj
+[476/806] Building CXX object opal/third-party/slang/external/slang-rhi/CMakeFiles/slang-rhi.dir/src/d3d11/d3d11-query.cpp.obj
+[477/806] Building CXX object opal/third-party/slang/external/slang-rhi/CMakeFiles/slang-rhi.dir/src/d3d11/d3d11-texture.cpp.obj
+[478/806] Building CXX object opal/third-party/slang/external/slang-rhi/CMakeFiles/slang-rhi.dir/src/d3d11/d3d11-command.cpp.obj
+[479/806] Building CXX object opal/third-party/slang/external/slang-rhi/CMakeFiles/slang-rhi.dir/src/d3d12/d3d12-acceleration-structure.cpp.obj
+[480/806] Building CXX object opal/third-party/slang/external/slang-rhi/CMakeFiles/slang-rhi.dir/src/d3d12/d3d12-descriptor-heap.cpp.obj
+[481/806] Building CXX object opal/third-party/slang/external/slang-rhi/CMakeFiles/slang-rhi.dir/src/d3d12/d3d12-buffer.cpp.obj
+[482/806] Building CXX object opal/third-party/slang/external/slang-rhi/CMakeFiles/slang-rhi.dir/src/d3d12/d3d12-posix-synchapi.cpp.obj
+[483/806] Building CXX object opal/third-party/slang/external/slang-rhi/CMakeFiles/slang-rhi.dir/src/d3d11/d3d11-device.cpp.obj
+[484/806] Building CXX object opal/third-party/slang/external/slang-rhi/CMakeFiles/slang-rhi.dir/src/d3d12/d3d12-backend.cpp.obj
+[485/806] Building CXX object opal/third-party/slang/external/slang-rhi/CMakeFiles/slang-rhi.dir/src/d3d12/d3d12-fence.cpp.obj
+[486/806] Building CXX object opal/third-party/slang/external/slang-rhi/CMakeFiles/slang-rhi.dir/src/d3d12/d3d12-command.cpp.obj
+[487/806] Building CXX object opal/third-party/slang/external/slang-rhi/CMakeFiles/slang-rhi.dir/src/d3d12/d3d12-device.cpp.obj
+[488/806] Building CXX object opal/third-party/slang/external/slang-rhi/CMakeFiles/slang-rhi.dir/src/d3d12/d3d12-pipeline.cpp.obj
+[489/806] Building CXX object opal/third-party/slang/external/slang-rhi/CMakeFiles/slang-rhi.dir/src/d3d12/d3d12-resource.cpp.obj
+[490/806] Building CXX object opal/third-party/slang/external/slang-rhi/CMakeFiles/slang-rhi.dir/src/d3d12/d3d12-query.cpp.obj
+[491/806] Building CXX object opal/third-party/slang/external/slang-rhi/CMakeFiles/slang-rhi.dir/src/d3d12/d3d12-sampler.cpp.obj
+[492/806] Building CXX object opal/third-party/slang/external/slang-rhi/CMakeFiles/slang-rhi.dir/src/d3d12/d3d12-shader-object.cpp.obj
+[493/806] Building CXX object opal/third-party/slang/external/slang-rhi/CMakeFiles/slang-rhi.dir/src/d3d12/d3d12-shader-table.cpp.obj
+[494/806] Building CXX object opal/third-party/slang/external/slang-rhi/CMakeFiles/slang-rhi.dir/src/d3d12/d3d12-shader-object-layout.cpp.obj
+[495/806] Building CXX object opal/third-party/slang/external/slang-rhi/CMakeFiles/slang-rhi.dir/src/d3d12/d3d12-shader-program.cpp.obj
+[496/806] Building CXX object opal/third-party/slang/external/slang-rhi/CMakeFiles/slang-rhi.dir/src/d3d12/d3d12-texture.cpp.obj
+[497/806] Building CXX object opal/third-party/slang/external/slang-rhi/CMakeFiles/slang-rhi.dir/src/d3d12/d3d12-surface.cpp.obj
+[498/806] Building CXX object opal/third-party/slang/external/slang-rhi/CMakeFiles/slang-rhi.dir/src/vulkan/vk-descriptor-allocator.cpp.obj
+[499/806] Building CXX object opal/third-party/slang/external/slang-rhi/CMakeFiles/slang-rhi.dir/src/d3d12/d3d12-utils.cpp.obj
+[500/806] Building CXX object opal/third-party/slang/external/slang-rhi/CMakeFiles/slang-rhi.dir/src/vulkan/vk-api.cpp.obj
+[501/806] Building CXX object opal/third-party/slang/external/slang-rhi/CMakeFiles/slang-rhi.dir/src/vulkan/vk-bindless-descriptor-set.cpp.obj
+[502/806] Building CXX object opal/third-party/slang/external/slang-rhi/CMakeFiles/slang-rhi.dir/src/vulkan/vk-backend.cpp.obj
+[503/806] Building CXX object opal/third-party/slang/external/slang-rhi/CMakeFiles/slang-rhi.dir/src/vulkan/vk-constant-buffer-pool.cpp.obj
+[504/806] Building CXX object opal/third-party/slang/external/slang-rhi/CMakeFiles/slang-rhi.dir/src/vulkan/vk-acceleration-structure.cpp.obj
+[505/806] Building CXX object opal/third-party/slang/external/slang-rhi/CMakeFiles/slang-rhi.dir/src/vulkan/vk-device-queue.cpp.obj
+[506/806] Building CXX object opal/third-party/slang/external/slang-rhi/CMakeFiles/slang-rhi.dir/src/vulkan/vk-fence.cpp.obj
+[507/806] Building CXX object opal/third-party/slang/external/slang-rhi/CMakeFiles/slang-rhi.dir/src/vulkan/vk-buffer.cpp.obj
+[508/806] Building CXX object opal/third-party/slang/external/slang-rhi/CMakeFiles/slang-rhi.dir/src/vulkan/vk-heap.cpp.obj
+[509/806] Building CXX object opal/third-party/slang/external/slang-rhi/CMakeFiles/slang-rhi.dir/src/vulkan/vk-command.cpp.obj
+[510/806] Building CXX object opal/third-party/slang/external/slang-rhi/CMakeFiles/slang-rhi.dir/src/vulkan/vk-query.cpp.obj
+[511/806] Building CXX object opal/third-party/slang/external/slang-rhi/CMakeFiles/slang-rhi.dir/src/vulkan/vk-sampler.cpp.obj
+[512/806] Building CXX object opal/third-party/slang/external/slang-rhi/CMakeFiles/slang-rhi.dir/src/vulkan/vk-pipeline.cpp.obj
+[513/806] Building CXX object opal/third-party/slang/external/slang-rhi/CMakeFiles/slang-rhi.dir/src/cuda/cuda-acceleration-structure.cpp.obj
+[514/806] Building CXX object opal/third-party/slang/external/slang-rhi/CMakeFiles/slang-rhi.dir/src/cuda/cuda-buffer.cpp.obj
+[515/806] Building CXX object opal/third-party/slang/external/slang-rhi/CMakeFiles/slang-rhi.dir/src/vulkan/vk-shader-object.cpp.obj
+[516/806] Building CXX object opal/third-party/slang/external/slang-rhi/CMakeFiles/slang-rhi.dir/src/vulkan/vk-device.cpp.obj
+[517/806] Building CXX object opal/third-party/slang/external/slang-rhi/CMakeFiles/slang-rhi.dir/src/vulkan/vk-shader-program.cpp.obj
+[518/806] Building CXX object opal/third-party/slang/external/slang-rhi/CMakeFiles/slang-rhi.dir/src/vulkan/vk-shader-object-layout.cpp.obj
+[519/806] Building CXX object opal/third-party/slang/external/slang-rhi/CMakeFiles/slang-rhi.dir/src/cuda/cuda-backend.cpp.obj
+[520/806] Building CXX object opal/third-party/slang/external/slang-rhi/CMakeFiles/slang-rhi.dir/src/cuda/cuda-constant-buffer-pool.cpp.obj
+[521/806] Building CXX object opal/third-party/slang/external/slang-rhi/CMakeFiles/slang-rhi.dir/src/vulkan/vk-shader-table.cpp.obj
+[522/806] Building CXX object opal/third-party/slang/external/slang-rhi/CMakeFiles/slang-rhi.dir/src/cuda/cuda-clear-engine.cpp.obj
+[523/806] Building CXX object opal/third-party/slang/external/slang-rhi/CMakeFiles/slang-rhi.dir/src/vulkan/vk-utils.cpp.obj
+[524/806] Building CXX object opal/third-party/slang/external/slang-rhi/CMakeFiles/slang-rhi.dir/src/vulkan/vk-surface.cpp.obj
+[525/806] Building CXX object opal/third-party/slang/external/slang-rhi/CMakeFiles/slang-rhi.dir/src/cuda/cuda-heap.cpp.obj
+[526/806] Building CXX object opal/third-party/slang/external/slang-rhi/CMakeFiles/slang-rhi.dir/src/cuda/cuda-device.cpp.obj
+[527/806] Building CXX object opal/third-party/slang/external/slang-rhi/CMakeFiles/slang-rhi.dir/src/vulkan/vk-texture.cpp.obj
+[528/806] Building CXX object opal/third-party/slang/external/slang-rhi/CMakeFiles/slang-rhi.dir/src/cuda/cuda-pipeline.cpp.obj
+[529/806] Building CXX object opal/third-party/slang/external/slang-rhi/CMakeFiles/slang-rhi.dir/src/cuda/cuda-query.cpp.obj
+[530/806] Building CXX object opal/third-party/slang/external/slang-rhi/CMakeFiles/slang-rhi.dir/src/cuda/cuda-sampler.cpp.obj
+[531/806] Building CXX object opal/third-party/slang/external/slang-rhi/CMakeFiles/slang-rhi.dir/src/cuda/cuda-shader-object-layout.cpp.obj
+[532/806] Building CXX object opal/third-party/slang/external/slang-rhi/CMakeFiles/slang-rhi.dir/src/cuda/cuda-fence.cpp.obj
+[533/806] Building CXX object opal/third-party/slang/external/slang-rhi/CMakeFiles/slang-rhi.dir/src/cuda/cuda-shader-table.cpp.obj
+[534/806] Building CXX object opal/third-party/slang/external/slang-rhi/CMakeFiles/slang-rhi.dir/src/cuda/cuda-shader-object.cpp.obj
+[535/806] Building CXX object opal/third-party/slang/external/slang-rhi/CMakeFiles/slang-rhi.dir/src/cuda/cuda-shader-program.cpp.obj
+[536/806] Building CXX object opal/third-party/slang/external/slang-rhi/CMakeFiles/slang-rhi.dir/src/cuda/cuda-command.cpp.obj
+[537/806] Building CXX object opal/third-party/slang/external/slang-rhi/CMakeFiles/slang-rhi.dir/src/cuda/cuda-utils.cpp.obj
+[538/806] Building CXX object opal/third-party/slang/external/slang-rhi/CMakeFiles/slang-rhi.dir/src/cuda/optix-api.cpp.obj
+[539/806] Building CXX object opal/third-party/slang/external/slang-rhi/CMakeFiles/slang-rhi.dir/src/cuda/cuda-nvrtc.cpp.obj
+[540/806] Generating slang-proxy.def from slang-compiler.dll exports
+FAILED: [code=1] opal/third-party/slang/source/slang/slang-proxy.def D:/Coding/Atlas/build/opal/third-party/slang/source/slang/slang-proxy.def 
+C:\WINDOWS\system32\cmd.exe /C "cd /D D:\Coding\Atlas\build\opal\third-party\slang\source\slang && "C:\Program Files\CMake\bin\cmake.exe" -P D:/Coding/Atlas/build/opal/third-party/slang/source/slang/generate-def-wrapper-Debug.cmake"
+CMake Error at D:/Coding/Atlas/opal/third-party/slang/cmake/RegenerateDllExports.cmake:33 (message):
+  dumpbin not found.  Make sure you are running in a Visual Studio Developer
+  Command Prompt.
+Call Stack (most recent call first):
+  generate-def-wrapper-Debug.cmake:5 (include)
+
+
+[541/806] Building CXX object opal/third-party/slang/external/slang-rhi/CMakeFiles/slang-rhi.dir/src/cuda/cuda-texture.cpp.obj
+[542/806] Building CXX object opal/third-party/slang/external/slang-rhi/CMakeFiles/slang-rhi.dir/src/wgpu/wgpu-buffer.cpp.obj
+[543/806] Building CXX object opal/third-party/slang/external/slang-rhi/CMakeFiles/slang-rhi.dir/src/wgpu/wgpu-constant-buffer-pool.cpp.obj
+[544/806] Building CXX object opal/third-party/slang/external/slang-rhi/CMakeFiles/slang-rhi.dir/src/wgpu/wgpu-pipeline.cpp.obj
+[545/806] Building CXX object opal/third-party/slang/external/slang-rhi/CMakeFiles/slang-rhi.dir/src/wgpu/wgpu-command.cpp.obj
+[546/806] Building CXX object opal/third-party/slang/external/slang-rhi/CMakeFiles/slang-rhi.dir/src/wgpu/wgpu-backend.cpp.obj
+[547/806] Building CXX object opal/third-party/slang/external/slang-rhi/CMakeFiles/slang-rhi.dir/src/wgpu/wgpu-input-layout.cpp.obj
+[548/806] Building CXX object opal/third-party/slang/external/slang-rhi/CMakeFiles/slang-rhi.dir/src/wgpu/wgpu-query.cpp.obj
+[549/806] Building CXX object opal/third-party/slang/external/slang-rhi/CMakeFiles/slang-rhi.dir/src/wgpu/wgpu-api.cpp.obj
+[550/806] Building CXX object opal/third-party/slang/external/slang-rhi/CMakeFiles/slang-rhi.dir/src/wgpu/wgpu-sampler.cpp.obj
+[551/806] Building CXX object opal/third-party/slang/external/slang-rhi/CMakeFiles/slang-rhi.dir/src/wgpu/wgpu-device.cpp.obj
+[552/806] Building CXX object opal/third-party/slang/external/slang-rhi/CMakeFiles/slang-rhi.dir/src/cuda/cuda-surface.cpp.obj
+[553/806] Building CXX object opal/third-party/slang/external/slang-rhi/CMakeFiles/slang-rhi.dir/src/cuda/optix-api-impl-8_0.cpp.obj
+[554/806] Building CXX object opal/third-party/slang/external/slang-rhi/CMakeFiles/slang-rhi.dir/src/wgpu/wgpu-shader-program.cpp.obj
+[555/806] Building CXX object opal/third-party/slang/external/slang-rhi/CMakeFiles/slang-rhi.dir/src/cuda/optix-api-impl-9_0.cpp.obj
+[556/806] Building CXX object opal/third-party/slang/external/slang-rhi/CMakeFiles/slang-rhi.dir/src/wgpu/wgpu-surface.cpp.obj
+[557/806] Building CXX object opal/third-party/slang/external/slang-rhi/CMakeFiles/slang-rhi.dir/src/wgpu/wgpu-texture.cpp.obj
+[558/806] Building CXX object opal/third-party/slang/external/slang-rhi/CMakeFiles/slang-rhi.dir/src/wgpu/wgpu-utils.cpp.obj
+[559/806] Building CXX object opal/third-party/slang/external/slang-rhi/CMakeFiles/slang-rhi.dir/src/cuda/optix-api-impl-8_1.cpp.obj
+[560/806] Building CXX object opal/third-party/slang/external/slang-rhi/CMakeFiles/slang-rhi.dir/src/wgpu/wgpu-shader-object.cpp.obj
+[561/806] Building CXX object opal/third-party/slang/external/slang-rhi/CMakeFiles/slang-rhi.dir/src/wgpu/wgpu-fence.cpp.obj
+[562/806] Building CXX object opal/third-party/slang/external/slang-rhi/CMakeFiles/slang-rhi.dir/src/wgpu/wgpu-shader-object-layout.cpp.obj
+[563/806] Building CXX object opal/third-party/slang/tools/CMakeFiles/slang-cpp-parser.dir/cmake_pch.hxx.pch
+[564/806] Generating ../../../Debug/bin/slang-standard-module-2026.17.1/slang/numerics/__builtin.slang-module
+[565/806] Building Atlas CLI for editor project export
+    Updating crates.io index
+ Downloading crates ...
+  Downloaded adler2 v2.0.1
+  Downloaded anstream v0.6.21
+  Downloaded anstyle-query v1.1.4
+  Downloaded cfg-if v1.0.3
+  Downloaded crc-catalog v2.4.0
+  Downloaded colorchoice v1.0.4
+  Downloaded constant_time_eq v0.3.1
+  Downloaded atomic-waker v1.1.2
+  Downloaded clap_lex v0.7.5
+  Downloaded anstyle-wincon v3.0.10
+  Downloaded anstyle v1.0.13
+  Downloaded anstyle-parse v0.2.7
+  Downloaded cipher v0.4.4
+  Downloaded aes v0.8.4
+  Downloaded crc v3.4.0
+  Downloaded deflate64 v0.1.11
+  Downloaded colored v2.2.0
+  Downloaded clap_derive v4.5.47
+  Downloaded bzip2 v0.5.2
+  Downloaded crc32fast v1.5.0
+  Downloaded bitflags v2.9.4
+  Downloaded console v0.15.11
+  Downloaded clap v4.5.48
+  Downloaded bytes v1.10.1
+  Downloaded cc v1.2.40
+  Downloaded dialoguer v0.11.0
+  Downloaded bumpalo v3.19.0
+  Downloaded clap_builder v4.5.48
+  Downloaded bzip2-sys v0.1.13+1.0.8
+  Downloaded displaydoc v0.2.5
+  Downloaded encode_unicode v1.0.0
+  Downloaded tower-service v0.3.3
+  Downloaded fastrand v2.3.0
+  Downloaded find-msvc-tools v0.1.3
+  Downloaded flate2 v1.1.9
+  Downloaded tower-layer v0.3.3
+  Downloaded form_urlencoded v1.2.2
+  Downloaded futures-core v0.3.31
+  Downloaded futures-io v0.3.31
+  Downloaded futures-task v0.3.31
+  Downloaded encoding_rs v0.8.35
+  Downloaded futures-channel v0.3.31
+  Downloaded futures-sink v0.3.31
+  Downloaded futures-util v0.3.31
+  Downloaded getrandom v0.2.16
+  Downloaded tokio-native-tls v0.3.1
+  Downloaded h2 v0.4.12
+  Downloaded toml_datetime v0.6.11
+  Downloaded getrandom v0.3.3
+  Downloaded hashbrown v0.16.0
+  Downloaded hmac v0.12.1
+  Downloaded http v1.3.1
+  Downloaded http-body v1.0.1
+  Downloaded icu_normalizer_data v2.0.0
+  Downloaded indexmap v2.11.4
+  Downloaded indicatif v0.17.11
+  Downloaded inout v0.1.4
+  Downloaded itoa v1.0.15
+  Downloaded hyper-rustls v0.27.7
+  Downloaded icu_provider v2.0.0
+  Downloaded is_terminal_polyfill v1.70.1
+  Downloaded idna_adapter v1.2.1
+  Downloaded ipnet v2.11.0
+  Downloaded hyper-tls v0.6.0
+  Downloaded lazy_static v1.5.0
+  Downloaded http-body-util v0.1.3
+  Downloaded jobserver v0.1.34
+  Downloaded httparse v1.10.1
+  Downloaded litemap v0.8.0
+  Downloaded mime v0.3.17
+  Downloaded pbkdf2 v0.12.2
+  Downloaded pin-utils v0.1.0
+  Downloaded potential_utf v0.1.3
+  Downloaded icu_properties v2.0.1
+  Downloaded once_cell_polyfill v1.70.1
+  Downloaded number_prefix v0.4.0
+  Downloaded num-conv v0.2.0
+  Downloaded pin-project-lite v0.2.16
+  Downloaded pkg-config v0.3.32
+  Downloaded untrusted v0.9.0
+  Downloaded lzma-rs v0.3.0
+  Downloaded native-tls v0.2.14
+  Downloaded try-lock v0.2.5
+  Downloaded icu_normalizer v2.0.0
+  Downloaded icu_collections v2.0.0
+  Downloaded hyper-util v0.1.17
+  Downloaded icu_locale_core v2.0.0
+  Downloaded log v0.4.28
+  Downloaded once_cell v1.21.3
+  Downloaded miniz_oxide v0.8.9
+  Downloaded memchr v2.7.6
+  Downloaded mio v1.0.4
+  Downloaded iri-string v0.7.8
+  Downloaded hyper v1.7.0
+  Downloaded icu_properties_data v2.0.1
+  Downloaded idna v1.1.0
+  Downloaded quote v1.0.41
+  Downloaded ryu v1.0.20
+  Downloaded portable-atomic v1.13.1
+  Downloaded rustls-pki-types v1.12.0
+  Downloaded schannel v0.1.28
+  Downloaded proc-macro2 v1.0.101
+  Downloaded rustls-webpki v0.103.7
+  Downloaded reqwest v0.12.23
+  Downloaded serde_spanned v0.6.9
+  Downloaded serde_urlencoded v0.7.1
+  Downloaded sha1 v0.10.6
+  Downloaded serde_core v1.0.228
+  Downloaded serde_derive v1.0.228
+  Downloaded shell-words v1.1.1
+  Downloaded stable_deref_trait v1.2.0
+  Downloaded shlex v1.3.0
+  Downloaded simd-adler32 v0.3.8
+  Downloaded slab v0.4.11
+  Downloaded tracing v0.1.41
+  Downloaded serde v1.0.228
+  Downloaded smallvec v1.15.1
+  Downloaded socket2 v0.6.0
+  Downloaded subtle v2.6.1
+  Downloaded sync_wrapper v1.0.2
+  Downloaded synstructure v0.13.2
+  Downloaded serde_json v1.0.145
+  Downloaded tempfile v3.23.0
+  Downloaded rustls v0.23.32
+  Downloaded thiserror v2.0.18
+  Downloaded tokio-macros v2.5.0
+  Downloaded thiserror-impl v2.0.18
+  Downloaded time-core v0.1.8
+  Downloaded tinystr v0.8.1
+  Downloaded toml_edit v0.19.15
+  Downloaded tracing-core v0.1.34
+  Downloaded syn v2.0.106
+  Downloaded unicode-ident v1.0.19
+  Downloaded lzma-sys v0.1.20
+  Downloaded libc v0.2.176
+  Downloaded time v0.3.47
+  Downloaded tokio-rustls v0.26.4
+  Downloaded toml v0.7.8
+  Downloaded tokio-util v0.7.16
+  Downloaded typenum v1.19.0
+  Downloaded url v2.5.7
+  Downloaded tower v0.5.2
+  Downloaded zerofrom v0.1.6
+  Downloaded tower-http v0.6.6
+  Downloaded tokio v1.47.1
+  Downloaded ring v0.17.14
+  Downloaded windows-link v0.1.3
+  Downloaded windows-targets v0.52.6
+  Downloaded windows-result v0.3.4
+  Downloaded windows-strings v0.4.2
+  Downloaded windows-link v0.2.0
+  Downloaded want v0.3.1
+  Downloaded windows-registry v0.5.3
+  Downloaded zeroize v1.8.2
+  Downloaded zopfli v0.8.3
+  Downloaded zerofrom-derive v0.1.6
+  Downloaded yoke v0.8.0
+  Downloaded zeroize_derive v1.4.3
+  Downloaded windows-targets v0.53.4
+  Downloaded zerovec v0.11.4
+  Downloaded xz2 v0.1.7
+  Downloaded zstd v0.13.3
+  Downloaded yoke-derive v0.8.0
+  Downloaded writeable v0.6.1
+  Downloaded zerovec-derive v0.11.1
+  Downloaded zstd-safe v7.2.4
+  Downloaded winnow v0.5.40
+  Downloaded zerotrie v0.2.2
+  Downloaded zip v2.4.2
+  Downloaded windows_x86_64_msvc v0.53.0
+  Downloaded windows_x86_64_msvc v0.52.6
+  Downloaded zstd-sys v2.0.16+zstd.1.5.7
+  Downloaded windows-sys v0.60.2
+  Downloaded windows-sys v0.59.0
+  Downloaded windows-sys v0.61.1
+   Compiling proc-macro2 v1.0.101
+   Compiling unicode-ident v1.0.19
+   Compiling quote v1.0.41
+   Compiling cfg-if v1.0.3
+   Compiling windows_x86_64_msvc v0.52.6
+   Compiling getrandom v0.3.3
+   Compiling windows-link v0.2.0
+   Compiling find-msvc-tools v0.1.3
+   Compiling smallvec v1.15.1
+   Compiling shlex v1.3.0
+   Compiling pkg-config v0.3.32
+   Compiling stable_deref_trait v1.2.0
+   Compiling parking_lot_core v0.9.12
+   Compiling version_check v0.9.5
+   Compiling pin-project-lite v0.2.16
+   Compiling bytes v1.10.1
+   Compiling typenum v1.19.0
+   Compiling scopeguard v1.2.0
+   Compiling futures-core v0.3.31
+   Compiling serde_core v1.0.228
+   Compiling once_cell v1.21.3
+   Compiling itoa v1.0.15
+   Compiling libc v0.2.176
+   Compiling futures-sink v0.3.31
+   Compiling lock_api v0.4.14
+   Compiling hashbrown v0.16.0
+   Compiling windows_x86_64_msvc v0.53.0
+   Compiling equivalent v1.0.2
+   Compiling fnv v1.0.7
+   Compiling serde v1.0.228
+   Compiling memchr v2.7.6
+   Compiling writeable v0.6.1
+   Compiling litemap v0.8.0
+   Compiling slab v0.4.11
+   Compiling windows-sys v0.61.1
+   Compiling pin-utils v0.1.0
+   Compiling generic-array v0.14.7
+   Compiling http v1.3.1
+   Compiling icu_properties_data v2.0.1
+   Compiling icu_normalizer_data v2.0.0
+   Compiling tracing-core v0.1.34
+   Compiling httparse v1.10.1
+   Compiling futures-task v0.3.31
+   Compiling futures-io v0.3.31
+   Compiling percent-encoding v2.3.2
+   Compiling windows-link v0.1.3
+   Compiling indexmap v2.11.4
+   Compiling native-tls v0.2.14
+   Compiling futures-util v0.3.31
+   Compiling tracing v0.1.41
+   Compiling atomic-waker v1.1.2
+   Compiling crc32fast v1.5.0
+   Compiling http-body v1.0.1
+   Compiling tower-service v0.3.3
+   Compiling subtle v2.6.1
+   Compiling try-lock v0.2.5
+   Compiling schannel v0.1.28
+   Compiling windows-result v0.3.4
+   Compiling windows-strings v0.4.2
+   Compiling futures-channel v0.3.31
+   Compiling once_cell_polyfill v1.70.1
+   Compiling zstd-safe v7.2.4
+   Compiling utf8parse v0.2.2
+   Compiling simd-adler32 v0.3.8
+   Compiling anstyle v1.0.13
+   Compiling windows-targets v0.52.6
+   Compiling want v0.3.1
+   Compiling form_urlencoded v1.2.2
+   Compiling sync_wrapper v1.0.2
+   Compiling ipnet v2.11.0
+   Compiling portable-atomic v1.13.1
+   Compiling windows-registry v0.5.3
+   Compiling serde_json v1.0.145
+   Compiling ryu v1.0.20
+   Compiling windows-sys v0.59.0
+   Compiling jobserver v0.1.34
+   Compiling windows-targets v0.53.4
+   Compiling anstyle-parse v0.2.7
+   Compiling utf8_iter v1.0.4
+   Compiling unicode-width v0.2.2
+   Compiling tower-layer v0.3.3
+   Compiling colorchoice v1.0.4
+   Compiling syn v2.0.106
+   Compiling log v0.4.28
+   Compiling encode_unicode v1.0.0
+   Compiling base64 v0.22.1
+   Compiling parking_lot v0.12.5
+   Compiling crc-catalog v2.4.0
+   Compiling is_terminal_polyfill v1.70.1
+   Compiling windows-sys v0.60.2
+   Compiling cc v1.2.40
+   Compiling adler2 v2.0.1
+   Compiling powerfmt v0.2.0
+   Compiling thiserror v1.0.69
+   Compiling thiserror v2.0.18
+   Compiling cpufeatures v0.2.17
+   Compiling crc v3.4.0
+   Compiling http-body-util v0.1.3
+   Compiling miniz_oxide v0.8.9
+   Compiling zip v2.4.2
+   Compiling bitflags v2.9.4
+   Compiling strsim v0.11.1
+   Compiling byteorder v1.5.0
+   Compiling heck v0.5.0
+   Compiling clap_lex v0.7.5
+   Compiling deranged v0.5.8
+   Compiling bumpalo v3.19.0
+   Compiling iri-string v0.7.8
+   Compiling crypto-common v0.1.7
+   Compiling block-buffer v0.10.4
+   Compiling inout v0.1.4
+   Compiling num-conv v0.2.0
+   Compiling winnow v0.5.40
+   Compiling anstyle-query v1.1.4
+   Compiling anstyle-wincon v3.0.10
+   Compiling fastrand v2.3.0
+   Compiling time-core v0.1.8
+   Compiling lzma-rs v0.3.0
+   Compiling encoding_rs v0.8.35
+   Compiling flate2 v1.1.9
+   Compiling number_prefix v0.4.0
+   Compiling zstd-sys v2.0.16+zstd.1.5.7
+   Compiling socket2 v0.6.0
+   Compiling synstructure v0.13.2
+   Compiling zerovec-derive v0.11.1
+   Compiling displaydoc v0.2.5
+   Compiling tokio-macros v2.5.0
+   Compiling mio v1.0.4
+   Compiling serde_derive v1.0.228
+   Compiling zeroize_derive v1.4.3
+   Compiling digest v0.10.7
+   Compiling bzip2-sys v0.1.13+1.0.8
+   Compiling lzma-sys v0.1.20
+   Compiling anstream v0.6.21
+   Compiling cipher v0.4.4
+   Compiling thiserror-impl v2.0.18
+   Compiling thiserror-impl v1.0.69
+   Compiling console v0.15.11
+   Compiling tempfile v3.23.0
+   Compiling time v0.3.47
+   Compiling zopfli v0.8.3
+   Compiling hmac v0.12.1
+   Compiling sha1 v0.10.6
+   Compiling pbkdf2 v0.12.2
+   Compiling clap_builder v4.5.48
+   Compiling aes v0.8.4
+   Compiling clap_derive v4.5.47
+   Compiling deflate64 v0.1.11
+   Compiling mime v0.3.17
+   Compiling zeroize v1.8.2
+   Compiling tokio v1.47.1
+   Compiling zerofrom-derive v0.1.6
+   Compiling yoke-derive v0.8.0
+   Compiling lazy_static v1.5.0
+   Compiling shell-words v1.1.1
+   Compiling constant_time_eq v0.3.1
+   Compiling bzip2 v0.5.2
+   Compiling colored v2.2.0
+   Compiling indicatif v0.17.11
+   Compiling rustls-pki-types v1.12.0
+   Compiling dialoguer v0.11.0
+   Compiling zerofrom v0.1.6
+   Compiling serde_spanned v0.6.9
+   Compiling toml_datetime v0.6.11
+   Compiling serde_urlencoded v0.7.1
+   Compiling toml_edit v0.19.15
+   Compiling clap v4.5.48
+   Compiling xz2 v0.1.7
+   Compiling yoke v0.8.0
+   Compiling zstd v0.13.3
+   Compiling toml v0.7.8
+   Compiling zerovec v0.11.4
+   Compiling zerotrie v0.2.2
+   Compiling tokio-util v0.7.16
+   Compiling tokio-native-tls v0.3.1
+   Compiling tower v0.5.2
+   Compiling tower-http v0.6.6
+   Compiling h2 v0.4.12
+   Compiling tinystr v0.8.1
+   Compiling potential_utf v0.1.3
+   Compiling icu_collections v2.0.0
+   Compiling icu_locale_core v2.0.0
+   Compiling icu_provider v2.0.0
+   Compiling icu_normalizer v2.0.0
+   Compiling icu_properties v2.0.1
+   Compiling hyper v1.7.0
+   Compiling idna_adapter v1.2.1
+   Compiling idna v1.1.0
+   Compiling url v2.5.7
+   Compiling hyper-util v0.1.17
+   Compiling hyper-tls v0.6.0
+   Compiling reqwest v0.12.23
+   Compiling atlas-cli v0.1.0 (D:\Coding\Atlas\cli)
+    Finished ]8;;https://doc.rust-lang.org/cargo/reference/profiles.html#default-profiles\`dev` profile [unoptimized + debuginfo]]8;;\ target(s) in 1m 25s
+ninja: build stopped: subcommand failed.
+error: recipe `build` failed on line 9 with exit code 1

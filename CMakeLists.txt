@@ -118,6 +118,10 @@ message(STATUS "Selected backend: ${BACKEND}")
 
 # ─── Options ─────────────────────────────────────────────────────────────────
 option(BEZEL_NATIVE "Enable Bezel Native" OFF)
+option(ENABLE_FTET_WILD "Enable fTetWild softbody tetrahedralization" ON)
+if (WIN32)
+    set(ENABLE_FTET_WILD OFF CACHE BOOL "Enable fTetWild softbody tetrahedralization" FORCE)
+endif ()
 
 # Force static third-party builds where possible.
 set(BUILD_SHARED_LIBS OFF CACHE BOOL "Build dependencies as static libraries" FORCE)
@@ -393,7 +397,7 @@ if (NOT BEZEL_NATIVE)
 
     message(STATUS "Downloaded Jolt Physics, version ${JOLT_VERSION}")
 endif ()
-if (NOT BEZEL_NATIVE)
+if (NOT BEZEL_NATIVE AND ENABLE_FTET_WILD)
     include(cmake/AtlasTetrahedralization.cmake)
 endif ()
 
@@ -640,9 +644,13 @@ target_include_directories(bezel PRIVATE ${ATLAS_DEP_INCLUDE_DIRS})
 if (BEZEL_NATIVE)
     target_compile_definitions(bezel PRIVATE NATIVE)
 else ()
-    target_include_directories(bezel SYSTEM PRIVATE
-        ${CMAKE_CURRENT_SOURCE_DIR}/extern/fTetWild/src)
-    target_link_libraries(bezel PRIVATE Jolt::Jolt FloatTetwild)
+    target_link_libraries(bezel PRIVATE Jolt::Jolt)
+    if (ENABLE_FTET_WILD)
+        target_include_directories(bezel SYSTEM PRIVATE
+            ${CMAKE_CURRENT_SOURCE_DIR}/extern/fTetWild/src)
+        target_link_libraries(bezel PRIVATE FloatTetwild)
+        target_compile_definitions(bezel PRIVATE ENABLE_FTET_WILD)
+    endif ()
     target_compile_definitions(bezel PRIVATE
             JPH_PROFILE_ENABLED=1
             JPH_DEBUG_RENDERER=1
