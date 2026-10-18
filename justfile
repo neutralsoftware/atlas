@@ -1,8 +1,7 @@
 GENERATOR := "Ninja"
-JOBS := `sysctl -n hw.logicalcpu`
 
 build:
-    cd build && ninja -j{{JOBS}}
+    cd build && ninja
 
 config backend="AUTO" bezel_native="OFF":
     mkdir -p build
@@ -25,7 +24,7 @@ target target backend="AUTO" bezel_native="OFF":
         -DCMAKE_C_COMPILER_LAUNCHER= \
         -DCMAKE_CXX_COMPILER_LAUNCHER= \
         ..
-    cd build && ninja -j{{JOBS}} {{ target }}
+    cd build && ninja {{ target }}
 
 
 run test="" backend="AUTO" bezel_native="OFF":
@@ -87,7 +86,7 @@ release-metal:
         -DCMAKE_C_COMPILER_LAUNCHER= \
         -DCMAKE_CXX_COMPILER_LAUNCHER= \
         ../..
-    cd build/release-metal && ninja -j{{JOBS}}
+    cd build/release-metal && ninja
 
 release-opengl:
     rm -rf build/release-opengl
@@ -98,7 +97,7 @@ release-opengl:
         -DCMAKE_C_COMPILER_LAUNCHER= \
         -DCMAKE_CXX_COMPILER_LAUNCHER= \
         ../..
-    cd build/release-opengl && ninja -j{{JOBS}} atlas bezel finewave aurora hydra opal photon graphite
+    cd build/release-opengl && ninja atlas bezel finewave aurora hydra opal photon graphite
 
 release-vulkan:
     rm -rf build/release-vulkan
@@ -109,7 +108,7 @@ release-vulkan:
         -DCMAKE_C_COMPILER_LAUNCHER= \
         -DCMAKE_CXX_COMPILER_LAUNCHER= \
         ../..
-    cd build/release-vulkan && ninja -j{{JOBS}} atlas bezel finewave aurora hydra opal photon graphite
+    cd build/release-vulkan && ninja atlas bezel finewave aurora hydra opal photon graphite
 
 docs backend="AUTO":
     mkdir -p build
