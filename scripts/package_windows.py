@@ -169,8 +169,10 @@ def main():
 
     icon = package_directory / "atlas-star.ico"
     run([
-        require("magick"), root / "editor" / "assets" / "atlasStarBright.svg",
-        "-background", "none", "-define", "icon:auto-resize=256,128,64,48,32,16",
+        require("magick"), "-background", "none",
+        root / "editor" / "assets" / "atlas-star.png",
+        "-resize", "256x256", "-gravity", "center", "-extent", "256x256",
+        "-define", "icon:auto-resize=256,128,64,48,32,16",
         icon,
     ])
     rcedit = Path(os.environ.get("ATLAS_RCEDIT", ""))

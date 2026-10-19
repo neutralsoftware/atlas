@@ -1628,7 +1628,8 @@ bool photon::PathTracing::render(
     cachedCloudsEnabled = cloudsEnabled;
 
     const int refinementFrame = std::max(frameIndex, 0);
-    const int pixelStride = interactive ? 2 : 1;
+    const int pixelStride =
+        interactive && !Window::mainWindow->isRenderingToExternalView() ? 2 : 1;
     const int effectiveSamples = interactive ? 1 : this->raysPerPixel;
     const int effectiveBounces =
         interactive ? std::min(this->maxBounces, causticGeometryPresent ? 6 : 2)

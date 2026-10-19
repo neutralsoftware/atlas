@@ -746,6 +746,7 @@ class Window {
     bool isRenderingToExternalMetalView() const {
         return this->renderToExternalMetalView;
     }
+    bool isRenderingToExternalView() const { return this->renderToExternalView; }
     /**
      * @brief Returns the SSAO-specific render scale.
      */

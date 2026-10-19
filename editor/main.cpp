@@ -220,12 +220,16 @@ int main(int argc, char **argv) {
     styling::loadIconFont();
 
 #ifndef Q_OS_MACOS
+#ifdef Q_OS_WIN
+    app.setWindowIcon(QIcon(":/editor/assets/atlas-star.png"));
+#else
 #ifdef ATLAS_DEBUG_BUILD
     app.setWindowIcon(
         QIcon(":/editor/assets/atlas-app-dev.png"));
 #else
     app.setWindowIcon(
         QIcon(":/editor/assets/atlas-app.png"));
+#endif
 #endif
 #endif
 
