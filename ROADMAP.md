@@ -1,6 +1,6 @@
 # Atlas Roadmap
 
-## For Beta 3
+## For Beta 3 - Bringing a world to life
 
 ### Editor and User Experience
 
@@ -21,17 +21,18 @@
 - Add procedural material nodes, including noise, gradients, mathematical operations, UV manipulation and texture blending M9
 - Integrate custom material graphs with Atlas PBR and Photon rendering pipelines M10
 - Add material instances, reusable parameters and live material previews M11
+- Add Decals and Projector Materials M12
 
 ### Asset Pipeline and Scene Workflow
 
-- Improve the asset importing pipeline and introduce reliable asset reimporting and hot reload M12
-- Add reusable scene prefabs with editable properties and instancing M13
-- Improve asset serialization, dependency tracking and project organization M14
+- Improve the asset importing pipeline and introduce reliable asset reimporting and hot reload M13
+- Add reusable scene prefabs with editable properties and instancing M14
+- Improve asset serialization, dependency tracking and project organization M15
 
 ### Final Integration
 
-- Optimize editor responsiveness, material compilation and animation performance M15
-- Build a complete demo scene showcasing animated characters, procedural materials and the redesigned editor M16
+- Optimize editor responsiveness, material compilation and animation performance M16
+- Build a complete demo scene showcasing animated characters, procedural materials and the redesigned editor M17
 
 ---
 
@@ -55,3 +56,34 @@
 - Move Photon to slang to be prepared for Windows _M14_
 - Add Vulkan Ray Tracing API support _M15_
 - Build Atlas for Windows and Linux _M16_
+
+---
+
+## Other Betas
+
+- Beta 4: Terrain editor and system. LOD managing, streamed geometry and GPU culling, water, rivers and lakes
+- Beta 5: AI system + visual scripting for decision trees and more, save system
+- Beta 6: Better particle system, volumetric particle effects, lightmap baking
+- Beta 7: Multiplayer networking, replication and server-client architecture
+- Beta 8: Add extension support, further improve editor and user experience, and polish the engine for release
+
+## Other Features
+
+- 2D rendering and 2D features
+- Destruction and fracture simulation
+- Realistic water support
+- Volumetric fog and clouds
+- Volumetric lighting and shadows
+- Localization and internationalization support
+- Visual scripting support
+- Procedural animation and rigging framework
+- Procedural geometry framework
+- Dynamic weather
+- Digital humans and facial animation
+- Multi-user collaborative editing
+- VR and AR support
+- Cinematic sequencer
+- Voxel geometry
+- Procedural audio graph
+- Strand-based hair and fur simulation
+- Massive-scale entity management and streaming
