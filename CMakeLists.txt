@@ -46,7 +46,7 @@ if (GIT_FOUND)
 endif ()
 
 add_compile_definitions(
-        ATLAS_VERSION="Beta 2 Lyra"
+        ATLAS_VERSION="Beta 3 Pictor"
         ATLAS_BUILD_REVISION="${ATLAS_BUILD_REVISION}"
 )
 if (WIN32)
@@ -401,7 +401,7 @@ if (NOT BEZEL_NATIVE)
             set(USE_${ATLAS_JOLT_CPU_FEATURE} OFF CACHE BOOL "" FORCE)
         endforeach()
     endif()
-    
+
     set(INTERPROCEDURAL_OPTIMIZATION OFF CACHE BOOL "Disable Jolt LTO" FORCE)
 
     FetchContent_MakeAvailable(JoltPhysics)
