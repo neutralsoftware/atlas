@@ -1268,6 +1268,7 @@ void EditorWindow::showProjectSettings() {
     if (projectManifest.open(QIODevice::ReadOnly | QIODevice::Text)) {
         projectLines =
             QString::fromUtf8(projectManifest.readAll()).split('\n');
+        projectManifest.close();
     }
     const QString configuredRenderer =
         tomlValue(projectLines, "renderer", "default");
@@ -1692,40 +1693,6 @@ void EditorWindow::showProjectSettings() {
     connect(buttons, &QDialogButtonBox::accepted, &dialog, &QDialog::accept);
     if (dialog.exec() != QDialog::Accepted)
         return;
-    settings.setValue("project/defaultScene", defaultScene->currentText());
-    settings.setValue("project/company", companyName->text());
-    settings.setValue("project/version", gameVersion->text());
-    settings.setValue("project/windowWidth", windowWidth->value());
-    settings.setValue("project/windowHeight", windowHeight->value());
-    settings.setValue("project/fullscreen", fullscreen->isChecked());
-    settings.setValue("project/renderer", renderer->currentText());
-    settings.setValue("project/frameLimit", frameLimit->value());
-    settings.setValue("project/ssr", ssr->isChecked());
-    settings.setValue("project/ssrQuality", ssrQuality->currentIndex());
-    settings.setValue("project/ssrDebug", ssrDebug->isChecked());
-    settings.setValue("project/useUpscaling", upscaling->isChecked());
-    settings.setValue("project/internalScale", internalScale->value());
-    settings.setValue("project/pathTracingSamples", samplesPerPixel->value());
-    settings.setValue("project/pathTracingBounces", maxBounces->value());
-    settings.setValue("project/pathTracingDenoising", denoising->isChecked());
-    settings.setValue("project/pathTracingAccumulation",
-                      accumulationFrames->value());
-    settings.setValue("project/pathTracingFeatureFlags",
-                      currentPhotonFeatureFlags());
-    settings.setValue("project/gravity", gravity->text());
-    settings.setValue("project/fixedStep", fixedStep->text());
-    settings.setValue("project/inputMap", inputMap->text());
-    settings.setValue("project/controller", controller->currentText());
-    settings.setValue("project/buildCommand", buildCommand->text());
-    settings.setValue("project/runCommand", runCommand->text());
-    settings.setValue("project/atlasHud", atlasHud->isChecked());
-    settings.remove("project/metalHud");
-    settings.setValue("project/autosaveMinutes", autosave->value());
-    settings.setValue("project/snapIncrement", snap->text());
-    settings.setValue("project/bundleIdentifier", identifier->text());
-    settings.setValue("project/icon", iconPath->text());
-    settings.setValue("project/exportBackend", backend->currentText());
-    settings.sync();
     bool manifestUpdated = false;
     QFile manifest(projectFile);
     if (manifest.open(QIODevice::ReadOnly | QIODevice::Text)) {
@@ -1804,13 +1771,59 @@ void EditorWindow::showProjectSettings() {
         if (!outputFile.open(QIODevice::WriteOnly) ||
             outputFile.write(contents) != contents.size() ||
             !outputFile.commit()) {
-            QMessageBox::warning(this, "Project Settings",
-                                 "The project manifest could not be updated.");
+            QMessageBox::warning(
+                this, "Project Settings",
+                QStringLiteral("The project manifest could not be updated.\n\n%1\n%2")
+                    .arg(QFileInfo(projectFile).absoluteFilePath(),
+                         outputFile.errorString()));
         } else {
             manifestUpdated = true;
         }
     }
-    if (manifestUpdated && viewportPanel != nullptr) {
+    else {
+        QMessageBox::warning(
+            this, "Project Settings",
+            QStringLiteral("The project manifest could not be read.\n\n%1\n%2")
+                .arg(QFileInfo(projectFile).absoluteFilePath(),
+                     manifest.errorString()));
+    }
+    if (!manifestUpdated)
+        return;
+    settings.setValue("project/defaultScene", defaultScene->currentText());
+    settings.setValue("project/company", companyName->text());
+    settings.setValue("project/version", gameVersion->text());
+    settings.setValue("project/windowWidth", windowWidth->value());
+    settings.setValue("project/windowHeight", windowHeight->value());
+    settings.setValue("project/fullscreen", fullscreen->isChecked());
+    settings.setValue("project/renderer", renderer->currentText());
+    settings.setValue("project/frameLimit", frameLimit->value());
+    settings.setValue("project/ssr", ssr->isChecked());
+    settings.setValue("project/ssrQuality", ssrQuality->currentIndex());
+    settings.setValue("project/ssrDebug", ssrDebug->isChecked());
+    settings.setValue("project/useUpscaling", upscaling->isChecked());
+    settings.setValue("project/internalScale", internalScale->value());
+    settings.setValue("project/pathTracingSamples", samplesPerPixel->value());
+    settings.setValue("project/pathTracingBounces", maxBounces->value());
+    settings.setValue("project/pathTracingDenoising", denoising->isChecked());
+    settings.setValue("project/pathTracingAccumulation",
+                      accumulationFrames->value());
+    settings.setValue("project/pathTracingFeatureFlags",
+                      currentPhotonFeatureFlags());
+    settings.setValue("project/gravity", gravity->text());
+    settings.setValue("project/fixedStep", fixedStep->text());
+    settings.setValue("project/inputMap", inputMap->text());
+    settings.setValue("project/controller", controller->currentText());
+    settings.setValue("project/buildCommand", buildCommand->text());
+    settings.setValue("project/runCommand", runCommand->text());
+    settings.setValue("project/atlasHud", atlasHud->isChecked());
+    settings.remove("project/metalHud");
+    settings.setValue("project/autosaveMinutes", autosave->value());
+    settings.setValue("project/snapIncrement", snap->text());
+    settings.setValue("project/bundleIdentifier", identifier->text());
+    settings.setValue("project/icon", iconPath->text());
+    settings.setValue("project/exportBackend", backend->currentText());
+    settings.sync();
+    if (viewportPanel != nullptr) {
         viewportPanel->applyPathTracingSettings(
             samplesPerPixel->value(), maxBounces->value(),
             denoising->isChecked(), accumulationFrames->value(),

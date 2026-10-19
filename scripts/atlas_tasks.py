@@ -55,6 +55,36 @@ def configure(backend="AUTO", release_dir=None):
     )
 
 
+def configure_target(backend="AUTO", bezel_native="OFF", ftet_wild=None):
+    if ftet_wild is None:
+        ftet_wild = "OFF" if WINDOWS else "ON"
+    requested = {
+        "BACKEND": backend.upper(),
+        "BEZEL_NATIVE": bezel_native.upper(),
+        "ENABLE_FTET_WILD": ftet_wild.upper(),
+    }
+    cache_path = BUILD / "CMakeCache.txt"
+    cached = {}
+    if cache_path.is_file():
+        for line in cache_path.read_text(encoding="utf-8").splitlines():
+            if line.startswith(("#", "//")) or "=" not in line:
+                continue
+            key, value = line.split("=", 1)
+            cached[key.split(":", 1)[0]] = value
+    if (BUILD / "build.ninja").is_file() and all(
+        cached.get(key, "").upper() == value for key, value in requested.items()
+    ):
+        return
+    execute(
+        "cmake", "-S", ROOT, "-B", BUILD, "-G", "Ninja",
+        "-DCMAKE_C_COMPILER=clang", "-DCMAKE_CXX_COMPILER=clang++",
+        "-DCMAKE_C_COMPILER_LAUNCHER=",
+        "-DCMAKE_CXX_COMPILER_LAUNCHER=",
+        "-DCMAKE_EXPORT_COMPILE_COMMANDS=ON",
+        *(f"-D{key}={value}" for key, value in requested.items()),
+    )
+
+
 def run_test(test=""):
     if not test:
         test = (ROOT / "tests/default.txt").read_text(
@@ -375,6 +405,7 @@ def main():
     args = sys.argv[2:]
 
     tasks = {
+        "configure-target": lambda: configure_target(*args),
         "run": lambda: run_test(args[0] if args else ""),
         "add-test": lambda: add_test(args[0]),
         "debug": launch_debug,

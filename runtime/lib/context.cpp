@@ -399,13 +399,35 @@ std::string propertyNameToken(const std::string &path) {
 
 std::string resolveRuntimePath(const std::string &baseDir,
                                const std::string &path) {
-    const std::filesystem::path candidate(path);
-    if (candidate.is_absolute()) {
-        return candidate.lexically_normal().string();
+    std::string normalized = path;
+    std::replace(normalized.begin(), normalized.end(), '\\', '/');
+    const std::filesystem::path candidate(normalized);
+    const bool foreignAbsolute = normalized.size() > 2 && normalized[1] == ':';
+    const bool rooted = candidate.has_root_directory() || foreignAbsolute;
+    const auto resolved = rooted ? candidate : std::filesystem::path(baseDir) / candidate;
+    std::error_code error;
+    if (!rooted || std::filesystem::exists(resolved, error)) {
+        return resolved.lexically_normal().string();
     }
-    return (std::filesystem::path(baseDir) / candidate)
-        .lexically_normal()
-        .string();
+    auto root = std::filesystem::path(baseDir);
+    while (!root.empty()) {
+        error.clear();
+        if (std::filesystem::is_regular_file(root / "project.atlas", error)) {
+            const auto marker = normalized.find("/assets/");
+            if (marker != std::string::npos) {
+                const auto relocated = root / normalized.substr(marker + 1);
+                error.clear();
+                if (std::filesystem::exists(relocated, error))
+                    return relocated.lexically_normal().string();
+            }
+            break;
+        }
+        const auto parent = root.parent_path();
+        if (parent == root)
+            break;
+        root = parent;
+    }
+    return resolved.lexically_normal().string();
 }
 
 std::string stripJsonComments(const std::string &text) {
@@ -5054,6 +5076,9 @@ makeContextWithWindowOptions(std::string projectFile, void *metalView,
         renderScale = std::clamp(
             (*rendererTable)["upscaling_ratio"].value_or(0.67f), 0.25f, 1.0f);
     }
+#ifndef METAL
+    useUpscaling = false;
+#endif
     if (auto *editorTable = configTable["editor"].as_table()) {
         editorControls = (*editorTable)["controls"].value_or(false);
     }
@@ -7128,6 +7153,33 @@ bool Context::saveCurrentScene() {
     }
     sceneData["property_syncs"] = editorPropertySyncs;
     sceneData["ui"] = editorUIData;
+
+    const auto makePortable = [&](auto &&self, json &node) -> void {
+        if (node.is_array()) {
+            for (auto &value : node)
+                self(self, value);
+        } else if (node.is_object()) {
+            for (auto &[key, value] : node.items()) {
+                if (value.is_string() && (key == "source" || key == "path" ||
+                                          key == "material")) {
+                    const auto raw = value.get<std::string>();
+                    const auto resolved = std::filesystem::path(
+                        resolveRuntimePath(sceneDir, raw));
+                    const auto relative = resolved.lexically_relative(projectDir);
+                    std::error_code error;
+                    if (!relative.empty() && *relative.begin() != ".." &&
+                        std::filesystem::is_regular_file(resolved, error)) {
+                        const auto sceneRelative = resolved.lexically_relative(sceneDir);
+                        if (!sceneRelative.empty())
+                            value = sceneRelative.generic_string();
+                    }
+                } else {
+                    self(self, value);
+                }
+            }
+        }
+    };
+    makePortable(makePortable, sceneData);
 
     std::ofstream output(currentSceneFile, std::ios::trunc);
     if (!output.is_open()) {

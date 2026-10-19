@@ -340,17 +340,32 @@ fn collect_typescript_entries(
 }
 
 fn find_local_esbuild(project_dir: &Path) -> Option<PathBuf> {
-    let unix_path = project_dir.join("node_modules/.bin/esbuild");
-    if unix_path.is_file() {
-        return Some(unix_path);
+    let platform = match (std::env::consts::OS, std::env::consts::ARCH) {
+        ("windows", "x86_64") => Some(("win32-x64", "esbuild.exe")),
+        ("windows", "aarch64") => Some(("win32-arm64", "esbuild.exe")),
+        ("windows", "x86") => Some(("win32-ia32", "esbuild.exe")),
+        ("macos", "aarch64") => Some(("darwin-arm64", "bin/esbuild")),
+        ("macos", "x86_64") => Some(("darwin-x64", "bin/esbuild")),
+        ("linux", "x86_64") => Some(("linux-x64", "bin/esbuild")),
+        ("linux", "aarch64") => Some(("linux-arm64", "bin/esbuild")),
+        _ => None,
+    };
+    if let Some((package, executable)) = platform {
+        let native = project_dir
+            .join("node_modules/@esbuild")
+            .join(package)
+            .join(executable);
+        if native.is_file() {
+            return Some(native);
+        }
     }
-
-    let windows_path = project_dir.join("node_modules/.bin/esbuild.cmd");
-    if windows_path.is_file() {
-        return Some(windows_path);
-    }
-
-    None
+    let shim = if cfg!(windows) {
+        "esbuild.cmd"
+    } else {
+        "esbuild"
+    };
+    let path = project_dir.join("node_modules/.bin").join(shim);
+    path.is_file().then_some(path)
 }
 
 fn json_string(value: &str) -> Result<String, String> {
@@ -411,7 +426,7 @@ fn run_esbuild(project_dir: &Path, entry_points: &[PathBuf]) -> Result<(), Strin
         command
     } else {
         return Err(String::from(
-            "esbuild was not found. Run `atlas script init` or install esbuild first.",
+            "esbuild for this platform was not found. Run `npm install --include=optional` in the project folder. Do not copy node_modules between macOS and Windows.",
         ));
     };
 

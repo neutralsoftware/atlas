@@ -234,6 +234,18 @@ if (EXISTS "${ASSIMP_POLY2TRI_SHAPES}")
     endif ()
 endif ()
 
+set(TINYUSDZ_IO_HEADER
+    "${assimp_SOURCE_DIR}/contrib/tinyusdz/autoclone/tinyusdz_repo-src/src/io-util.hh"
+)
+if (EXISTS "${TINYUSDZ_IO_HEADER}")
+    file(READ "${TINYUSDZ_IO_HEADER}" TINYUSDZ_IO_CONTENT)
+    string(REPLACE "#if defined(WIN32)" "#if defined(_WIN32)"
+        TINYUSDZ_IO_PATCHED "${TINYUSDZ_IO_CONTENT}")
+    if (NOT TINYUSDZ_IO_PATCHED STREQUAL TINYUSDZ_IO_CONTENT)
+        file(WRITE "${TINYUSDZ_IO_HEADER}" "${TINYUSDZ_IO_PATCHED}")
+    endif ()
+endif ()
+
 set(TINYUSDZ_VALUE_TYPES
     "${assimp_SOURCE_DIR}/contrib/tinyusdz/autoclone/tinyusdz_repo-src/src/value-types.hh"
 )
@@ -319,25 +331,31 @@ FetchContent_MakeAvailable(openal_soft)
 file(GLOB OPENAL_EFFECT_SOURCES "${openal_soft_SOURCE_DIR}/alc/effects/*.cpp")
 foreach(OPENAL_EFFECT_SOURCE IN LISTS OPENAL_EFFECT_SOURCES)
     file(READ "${OPENAL_EFFECT_SOURCE}" OPENAL_EFFECT_CONTENT)
+    set(OPENAL_EFFECT_ORIGINAL "${OPENAL_EFFECT_CONTENT}")
     string(REPLACE
         "auto &upsampler = mUpsampler.emplace();"
         "using upsampler_t = decltype(mUpsampler)::value_type;\n        auto &upsampler = mUpsampler.emplace(upsampler_t{});"
         OPENAL_EFFECT_CONTENT
         "${OPENAL_EFFECT_CONTENT}"
     )
-    file(WRITE "${OPENAL_EFFECT_SOURCE}" "${OPENAL_EFFECT_CONTENT}")
+    if (NOT OPENAL_EFFECT_CONTENT STREQUAL OPENAL_EFFECT_ORIGINAL)
+        file(WRITE "${OPENAL_EFFECT_SOURCE}" "${OPENAL_EFFECT_CONTENT}")
+    endif ()
 endforeach()
 
 set(OPENAL_ALC_SOURCE "${openal_soft_SOURCE_DIR}/alc/alc.cpp")
 if(EXISTS "${OPENAL_ALC_SOURCE}")
     file(READ "${OPENAL_ALC_SOURCE}" OPENAL_ALC_CONTENT)
+    set(OPENAL_ALC_ORIGINAL "${OPENAL_ALC_CONTENT}")
     string(REPLACE
         "std::views::transform(&ContextBase::EffectSlotCluster::operator*)"
         "std::views::transform([](ContextBase::EffectSlotCluster &cluster) -> auto& { return *cluster; })"
         OPENAL_ALC_CONTENT
         "${OPENAL_ALC_CONTENT}"
     )
-    file(WRITE "${OPENAL_ALC_SOURCE}" "${OPENAL_ALC_CONTENT}")
+    if (NOT OPENAL_ALC_CONTENT STREQUAL OPENAL_ALC_ORIGINAL)
+        file(WRITE "${OPENAL_ALC_SOURCE}" "${OPENAL_ALC_CONTENT}")
+    endif ()
 endif()
 
 if(TARGET OpenAL AND CMAKE_CXX_COMPILER_ID MATCHES "Clang")
@@ -496,7 +514,7 @@ if (BACKEND_VULKAN)
 
         set(ATLAS_SPIRV_CROSS_STUB_DIR "${CMAKE_BINARY_DIR}/generated/spirv-cross-packages")
         foreach (spirv_cross_package spirv_cross_core spirv_cross_glsl spirv_cross_reflect)
-            file(WRITE "${ATLAS_SPIRV_CROSS_STUB_DIR}/${spirv_cross_package}Config.cmake"
+            file(CONFIGURE OUTPUT "${ATLAS_SPIRV_CROSS_STUB_DIR}/${spirv_cross_package}Config.cmake" CONTENT
                     "# Targets are provided by Atlas' FetchContent build of SPIRV-Cross.\n")
             set(${spirv_cross_package}_DIR "${ATLAS_SPIRV_CROSS_STUB_DIR}")
         endforeach ()
@@ -506,7 +524,7 @@ if (BACKEND_VULKAN)
                 "${spirv_cross_SOURCE_DIR}/*.h" "${spirv_cross_SOURCE_DIR}/*.hpp")
         foreach (spirv_cross_header ${ATLAS_SPIRV_CROSS_HEADERS})
             get_filename_component(spirv_cross_header_name "${spirv_cross_header}" NAME)
-            file(WRITE "${ATLAS_SPIRV_CROSS_INCLUDE_DIR}/spirv_cross/${spirv_cross_header_name}"
+            file(CONFIGURE OUTPUT "${ATLAS_SPIRV_CROSS_INCLUDE_DIR}/spirv_cross/${spirv_cross_header_name}" CONTENT
                     "#include \"${spirv_cross_header}\"
 ")
         endforeach ()

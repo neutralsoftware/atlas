@@ -656,6 +656,12 @@ void Model::loadModel(
         return;
     }
 
+    std::error_code fileError;
+    if (!std::filesystem::is_regular_file(resource.path, fileError)) {
+        throw std::runtime_error("Model file not found: " +
+                                 resource.path.string());
+    }
+
     atlas_log("Loading model: " + resource.name);
 
     if (progress) {

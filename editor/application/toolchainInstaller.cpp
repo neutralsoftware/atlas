@@ -215,8 +215,9 @@ bool ToolchainInstaller::ensureInstalled(QWidget* parent) {
         !QFileInfo::exists(toolchain.bundledRuntime))
         return true;
 
-    if (isInstalled(toolchain)) {
-        setPromptDismissed(false);
+    if (configMatches(toolchain) &&
+        QFileInfo(toolchain.installedCli).isFile() &&
+        QFileInfo(toolchain.installedRuntime).isFile()) {
         return true;
     }
     if (promptDismissed())

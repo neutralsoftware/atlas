@@ -18,8 +18,8 @@ static const uint CAUSTIC_BUCKET_WORDS = 34u;
 static const uint CAUSTIC_INVALID_BUCKET = 0xffffffffu;
 
 struct CameraUniforms {
-    float4x4 invViewProj;
-    float4x4 prevViewProj;
+    column_major float4x4 invViewProj;
+    column_major float4x4 prevViewProj;
     float3 camPos;
     float _pad0;
 };
@@ -601,7 +601,7 @@ SurfaceHit traceSurface(float3 origin, float3 direction) {
     hit.distance = query.CommittedRayT();
     hit.position = origin + direction * hit.distance;
     hit.normal =
-        safeNormal(mul(normalMatrix, localNormal), float3(0.0, 1.0, 0.0));
+        safeNormal(mul(localNormal, normalMatrix), float3(0.0, 1.0, 0.0));
     hit.frontFace = dot(hit.normal, direction) <= 0.0;
     if (!hit.frontFace) {
         hit.normal = -hit.normal;
@@ -830,6 +830,11 @@ float3 samplePath(float3 origin, float3 direction, inout uint state,
     bool insideMedium = false;
     uint mediumObjectId = 0xffffffffu;
     Material mediumMaterial = {};
+    bool insideDielectric = false;
+    uint dielectricObjectId = 0xffffffffu;
+    float3 dielectricSigmaA = 0.0;
+    uint spectralChannel = min(uint(randomValue(state) * 3.0), 2u);
+    bool spectralChannelSelected = false;
     uint bounceCount = max(sceneData.maxBounces, 1u);
     for (uint bounce = 0; bounce < bounceCount; ++bounce) {
         SurfaceHit hit = traceSurface(origin, direction);
@@ -839,6 +844,9 @@ float3 samplePath(float3 origin, float3 direction, inout uint state,
                 radiance += throughput * environmentColor(direction);
             }
             break;
+        }
+        if (insideDielectric) {
+            throughput *= exp(-dielectricSigmaA * max(hit.distance, 0.0));
         }
         if (insideMedium &&
             (sceneData.featureFlags & PHOTON_FEATURE_VOLUMES) != 0) {
@@ -894,7 +902,7 @@ float3 samplePath(float3 origin, float3 direction, inout uint state,
                 ? saturate(hit.material.transmittance)
                 : 0.0;
         if (transmission > 0.0 && randomValue(state) < transmission) {
-            uint channel = min(uint(randomValue(state) * 3.0), 2u);
+            uint channel = spectralChannel;
             float ior = dispersionIor(hit.material.ior, hit.material.abbeNumber,
                                       channel);
             bool entering = hit.frontFace;
@@ -905,18 +913,23 @@ float3 samplePath(float3 origin, float3 direction, inout uint state,
             } else {
                 direction = safeNormal(refracted, direction);
                 if ((sceneData.featureFlags & PHOTON_FEATURE_DISPERSION) != 0 &&
-                    hit.material.abbeNumber > 1.0) {
+                    hit.material.abbeNumber > 1.0 && !spectralChannelSelected) {
+                    spectralChannelSelected = true;
                     throughput *= channel == 0   ? float3(3.0, 0.0, 0.0)
                                   : channel == 1 ? float3(0.0, 3.0, 0.0)
                                                  : float3(0.0, 0.0, 3.0);
                 }
-                float3 attenuation =
-                    clamp(hit.material.attenuationColor, 0.001, 1.0);
-                throughput *=
-                    pow(attenuation,
-                        1.0 / max(hit.material.attenuationDistance, 1e-4));
+                if (entering && hit.material.attenuationDistance > 0.001) {
+                    insideDielectric = true;
+                    dielectricObjectId = hit.objectId;
+                    dielectricSigmaA = -log(clamp(hit.material.attenuationColor, 0.001, 1.0)) /
+                                       max(hit.material.attenuationDistance, 1e-4);
+                } else if (!entering && dielectricObjectId == hit.objectId) {
+                    insideDielectric = false;
+                    dielectricObjectId = 0xffffffffu;
+                    dielectricSigmaA = 0.0;
+                }
             }
-            throughput *= max(hit.material.albedo.xyz, 0.0);
             origin = hit.position + direction * 0.002;
             continue;
         }
@@ -997,9 +1010,6 @@ computeMain(uint3 dispatchThreadID
     float3 accumulated = (previous.xyz * previousWeight + color) /
                          max(previousWeight + 1.0, 1.0);
     float4 previousGuide = historyGuideTex.Load(int3(gid, 0));
-    float luminance = dot(accumulated, float3(0.2126, 0.7152, 0.0722));
-    float bloom =
-        max(luminance - sceneData.bloomThreshold, 0.0) / max(luminance, 1e-5);
     float objectId = primaryHit.valid ? float(primaryHit.objectId) : -1.0;
     float3 normal = primaryHit.valid ? primaryHit.normal : 0.0;
     float depth = primaryHit.valid ? primaryHit.distance : 0.0;
@@ -1015,6 +1025,9 @@ computeMain(uint3 dispatchThreadID
         historyLength = 1.0;
         accumulated = color;
     }
+    float luminance = dot(accumulated, float3(0.2126, 0.7152, 0.0722));
+    float bloom =
+        max(luminance - sceneData.bloomThreshold, 0.0) / max(luminance, 1e-5);
     float3 albedo = primaryHit.valid ? primaryHit.material.albedo.xyz : 0.0;
     float roughness = primaryHit.valid ? primaryHit.material.roughness : 1.0;
     float4 previousClip =
@@ -1029,6 +1042,9 @@ computeMain(uint3 dispatchThreadID
     bool previousUvValid = previousClip.w > 0.0 && all(previousUv >= 0.0) &&
                            all(previousUv <= 1.0);
     float4 moments = historyMomentsTex.Load(int3(gid, 0));
+    if (previousWeight == 0.0) {
+        moments = 0.0;
+    }
     float currentLuminance = dot(color, float3(0.2126, 0.7152, 0.0722));
     float mean = (moments.x * previousWeight + currentLuminance) /
                  max(previousWeight + 1.0, 1.0);

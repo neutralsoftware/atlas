@@ -1692,14 +1692,15 @@ bool photon::PathTracing::render(
         return fail("Caustic photon buffers are unavailable");
     }
     pathTracingPipeline->setUniform1i("sceneData.causticsEnabled",
-                                      causticsEnabled ? 1 : 0);
+                                      causticsEnabled && !causticMapDirty ? 1 : 0);
     pathTracingPipeline->setUniform1f("caustics.radius", causticRadius);
     pathTracingPipeline->bindBuffer("photons", causticPhotons, 15);
     pathTracingPipeline->bindBuffer("photonSlots", causticSlots, 16);
     const bool refineCaustics = causticsEnabled && !interactive &&
                                 refinementFrame > 0 &&
                                 refinementFrame % 16 == 0;
-    if (causticsEnabled && (causticMapDirty || refineCaustics)) {
+    if (causticsEnabled && !interactive &&
+        (causticMapDirty || refineCaustics)) {
         commandBuffer->bindPipeline(causticClearPipeline);
         causticClearPipeline->bindBuffer("photonSlots", causticSlots, 16);
         commandBuffer->dispatch(kCausticBucketCount, 1, 1);
@@ -1757,6 +1758,7 @@ bool photon::PathTracing::render(
         commandBuffer->dispatch(kCausticPhotonCount, 1, 1);
         commandBuffer->computeBarrier();
         causticMapDirty = false;
+        pathTracingPipeline->setUniform1i("sceneData.causticsEnabled", 1);
         commandBuffer->bindPipeline(pathTracingPipeline);
 #ifdef VULKAN
         commandBuffer->bindInstanceAccelerationStructure(sceneTLAS, 0);
@@ -1775,7 +1777,7 @@ bool photon::PathTracing::render(
         denoiseTextures[0] != nullptr && denoiseTextures[1] != nullptr) {
         const std::array<int, 3> denoiseSteps = {1, 2, 4};
         const size_t denoisePassCount =
-            interactive ? 1 : (refinementFrame < 16 ? 3 : 2);
+            interactive ? 2 : (refinementFrame < 16 ? 3 : 2);
         for (size_t pass = 0; pass < denoisePassCount; ++pass) {
             const auto &input =
                 pass == 0 ? output : denoiseTextures[(pass - 1) % 2]->texture;
