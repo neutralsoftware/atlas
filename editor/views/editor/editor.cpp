@@ -355,7 +355,7 @@ void EditorWindow::setupWindow() {
     auto *workspaceFrame = new QWidget(this);
     workspaceFrame->setObjectName("editorFrame");
     auto *workspaceLayout = new QVBoxLayout(workspaceFrame);
-    workspaceLayout->setContentsMargins(10, 0, 10, 0);
+    workspaceLayout->setContentsMargins(12, 4, 12, 8);
     workspaceLayout->setSpacing(0);
     workspaceLayout->addWidget(coreManager);
     setCentralWidget(workspaceFrame);
@@ -743,13 +743,13 @@ void EditorWindow::setupDocks() {
     auto *workspaceHeading = new QWidget(workspaceSurface);
     workspaceHeading->setObjectName("workspaceHeading");
     auto *headingLayout = new QHBoxLayout(workspaceHeading);
-    headingLayout->setContentsMargins(8, 5, 8, 5);
-    headingLayout->setSpacing(4);
+    headingLayout->setContentsMargins(12, 10, 12, 10);
+    headingLayout->setSpacing(8);
     auto *switcher = new QWidget(workspaceHeading);
     switcher->setObjectName("workspaceSwitcher");
     auto *switcherLayout = new QHBoxLayout(switcher);
-    switcherLayout->setContentsMargins(0, 0, 0, 0);
-    switcherLayout->setSpacing(3);
+    switcherLayout->setContentsMargins(4, 4, 4, 4);
+    switcherLayout->setSpacing(4);
     workspaceModeGroup = new QButtonGroup(switcher);
     workspaceModeGroup->setExclusive(true);
     const QStringList modes{"Scene", "Shading", "Effects", "Interface"};
@@ -978,7 +978,7 @@ void EditorWindow::setupWorkspaceBar() {
     chrome->setObjectName("workspaceChrome");
     chrome->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Fixed);
     auto *layout = new QGridLayout(chrome);
-    layout->setContentsMargins(12, 7, 12, 7);
+    layout->setContentsMargins(16, 12, 16, 8);
     layout->setHorizontalSpacing(16);
     layout->setColumnStretch(0, 1);
     layout->setColumnStretch(2, 1);
@@ -986,7 +986,7 @@ void EditorWindow::setupWorkspaceBar() {
     activity->setObjectName("workspaceActivity");
     auto *activityLayout = new QHBoxLayout(activity);
     activityLayout->setContentsMargins(0, 0, 0, 0);
-    activityLayout->setSpacing(4);
+    activityLayout->setSpacing(8);
     auto *mark = new QLabel(activity);
     mark->setObjectName("workspaceMark");
     mark->setPixmap(styling::brandMark(QSize(26, 26)));
@@ -1046,7 +1046,7 @@ void EditorWindow::setupWorkspaceBar() {
     utilities->setObjectName("workspaceUtilities");
     auto *utilityLayout = new QHBoxLayout(utilities);
     utilityLayout->setContentsMargins(0, 0, 0, 0);
-    utilityLayout->setSpacing(5);
+    utilityLayout->setSpacing(8);
     utilityLayout->addStretch();
     auto *save = new styling::ToolButton(utilities);
     save->setIcon(styling::icon(styling::Icon::FloppyDisk));

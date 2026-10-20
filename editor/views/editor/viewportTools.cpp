@@ -91,8 +91,8 @@ ViewportTools::ViewportTools(ViewportPanel *viewport,
     auto *toolbar = new QWidget(this);
     toolbar->setObjectName("viewportToolbar");
     auto *tools = new QHBoxLayout(toolbar);
-    tools->setContentsMargins(8, 4, 8, 4);
-    tools->setSpacing(3);
+    tools->setContentsMargins(8, 6, 8, 6);
+    tools->setSpacing(4);
 
     playButton = new styling::ToolButton(toolbar);
     playButton->setObjectName("viewportPlaybackButton");
@@ -239,7 +239,12 @@ ViewportTools::ViewportTools(ViewportPanel *viewport,
     tools->addWidget(fpsButton);
     tools->addWidget(fpsLabel);
 
-    layout->addWidget(toolbar);
+    auto *toolbarFrame = new QWidget(this);
+    auto *toolbarLayout = new QVBoxLayout(toolbarFrame);
+    toolbarLayout->setContentsMargins(8, 4, 8, 8);
+    toolbarLayout->setSpacing(0);
+    toolbarLayout->addWidget(toolbar);
+    layout->addWidget(toolbarFrame);
     viewportHost = new ViewportHost(viewport, cameraAspect, this);
     layout->addWidget(viewportHost, 1);
     shortcutHint =
