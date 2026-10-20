@@ -89,6 +89,7 @@ class EditorWindow : public QMainWindow {
     ContentBrowserPanel *contentBrowser = nullptr;
     ViewportTools *viewportTools = nullptr;
     QStackedWidget *workspaceStack = nullptr;
+    QWidget *workspaceNavigation = nullptr;
     QButtonGroup *workspaceModeGroup = nullptr;
     QMenu *viewMenu = nullptr;
     QMenu *windowMenu = nullptr;

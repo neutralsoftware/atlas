@@ -50,6 +50,26 @@ The QSS source is embedded by `scripts/pack_qt_themes.py` during the existing bu
 
 The first pass changes the visual foundation across existing screens. It begins the redesign; it does not claim every workflow has been redesigned.
 
+## Structural redesign audit
+
+A new palette alone does not qualify as a new design. A redesigned screen must change its composition, information hierarchy, and control grouping while keeping its working actions accessible.
+
+The second pass replaces the horizontal workspace switcher with a persistent left rail. Scene, Shading, Effects, and Interface each have an icon and label. Panel visibility controls sit at the foot of that rail. Project identity moves to the upper left, command discovery becomes a visible launcher in the center, and execution remains at the upper right. The active workspace has its own context heading.
+
+Collection now separates object creation from object search. Asset browsing separates location navigation from filtering and creation. Inspector selection becomes an identity card, followed by inset, collapsible component cards. These changes alter the screen composition rather than relying on color differences.
+
+| Area | Implemented | Still required for a complete redesign |
+| --- | --- | --- |
+| Editor shell | Vertical workspace navigation, command launcher, project identity, contextual heading | Visual sizing and dock restoration checks |
+| Collection | Dedicated creation header and full-width search | Empty-state and large-scene review |
+| Inspector | Selection identity card and inset component groups | Dense-property, camera, and multi-selection review |
+| Assets | Separate location and action rows | New empty states, preview composition, and grid/list review |
+| Viewport | Inset tool surface and shared control materials | Tool grouping and narrow-width visual review |
+| Shading, Effects, Interface | Shared visual materials and new navigation | Dedicated workspace composition redesigns |
+| Project browser, dialogs, search | Shared visual materials | Dedicated layout and onboarding redesigns |
+
+Completion requires all rows to pass the visual and interaction checks below. The new shell is implemented in source; the entire application is not yet certified as a finished new design. Do not substitute a mockup, an old executable, or a stylesheet inspection for testing the changed application.
+
 ## Acceptance checks
 
 Before calling any pass visually verified, launch the newly built editor and inspect project selection, scene editing, all workspaces, dialogs, and detached docks. Check 100%, 150%, and 200% scaling, the minimum supported window size, long project names, keyboard traversal, selected rows without focus, disabled controls, and pressed menu buttons.

@@ -467,7 +467,6 @@ QStatusBar::item {
     font-size: 13px;
 }
 
-#workspaceSwitcher,
 #workspaceSurface,
 #workspaceHeading,
 #editorWorkspaceStack {
@@ -482,11 +481,33 @@ QStatusBar::item {
     border-top-right-radius: 14px;
 }
 
-#workspaceSwitcher {
-    background: #141C29;
-    border: 1px solid #3D4C63;
-    border-radius: 12px;
-    padding: 0;
+#workspaceNavigation {
+    background: qlineargradient(x1:0, y1:0, x2:1, y2:0, stop:0 #293549, stop:1 #1B2535);
+    border: 1px solid #46556D;
+    border-left-color: #65758F;
+    border-radius: 16px;
+}
+
+#workspaceContextTitle,
+#panelHeadingTitle {
+    color: #E6EDF7;
+    font-size: 14px;
+    font-weight: 600;
+}
+
+#workspaceContextIcon,
+#workspaceContextTitle,
+#panelHeading,
+#contentActions,
+#inspectorIdentity {
+    background: transparent;
+}
+
+#inspectorEyebrow {
+    background: transparent;
+    color: #A5B2C7;
+    font-size: 10px;
+    font-weight: 600;
 }
 
 #workspaceMark {
@@ -559,14 +580,16 @@ QStatusBar::item {
 }
 
 #inspectorHeader {
-    background: transparent;
-    border: none;
+    background: qlineargradient(x1:0, y1:0, x2:1, y2:1, stop:0 #344661, stop:1 #222E40);
+    border: 1px solid #526783;
+    border-radius: 14px;
     padding: 0;
 }
 
 #inspectorObjectIcon {
-    background: transparent;
-    border: none;
+    background: qlineargradient(x1:0, y1:0, x2:0, y2:1, stop:0 #4C6382, stop:1 #2B3B53);
+    border: 1px solid #7187A3;
+    border-radius: 12px;
 }
 
 #inspectorNameField {

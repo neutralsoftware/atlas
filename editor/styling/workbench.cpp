@@ -37,6 +37,7 @@ void paintButton(QAbstractButton *button, bool showText, bool vertical,
     const qreal radius = std::min(qreal(10), bounds.height() / 2);
     const bool surfaced = primary || selected || hover || pressed ||
                           button->objectName() == "workspaceProject" ||
+                          button->objectName() == "workspaceCommandLauncher" ||
                           button->objectName() == "viewportPlaybackButton" ||
                           (!isTool && !header);
     if (surfaced) {

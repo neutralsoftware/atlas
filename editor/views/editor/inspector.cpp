@@ -1459,7 +1459,7 @@ QFrame *componentCard(const QString &title, const QJsonObject &properties,
     card->setObjectName("inspectorComponent");
     card->setProperty("inspectorScope", scope);
     auto *layout = new QVBoxLayout(card);
-    layout->setContentsMargins(0, 10, 0, 4);
+    layout->setContentsMargins(10, 8, 10, 10);
     layout->setSpacing(2);
     auto *headerRow = new QWidget(card);
     headerRow->setObjectName("inspectorComponentHeaderRow");
@@ -1486,7 +1486,7 @@ QFrame *componentCard(const QString &title, const QJsonObject &properties,
     auto *body = new QWidget(card);
     body->setObjectName("inspectorComponentBody");
     auto *bodyLayout = new QVBoxLayout(body);
-    bodyLayout->setContentsMargins(0, 2, 0, 0);
+    bodyLayout->setContentsMargins(4, 6, 4, 2);
     bodyLayout->setSpacing(5);
     addPropertyRows(bodyLayout, properties, path, changed, syncProvider, body);
     layout->addWidget(body);
@@ -1507,7 +1507,7 @@ QFrame *controllerActionsCard(const QJsonArray &actions, bool automaticMoving,
     card->setObjectName("inspectorComponent");
     card->setProperty("inspectorScope", "camera:actions");
     auto *layout = new QVBoxLayout(card);
-    layout->setContentsMargins(0, 10, 0, 4);
+    layout->setContentsMargins(10, 8, 10, 10);
     layout->setSpacing(2);
     auto *header = new styling::ToolButton(card);
     header->setObjectName("inspectorComponentHeader");
@@ -1520,7 +1520,7 @@ QFrame *controllerActionsCard(const QJsonArray &actions, bool automaticMoving,
     auto *body = new QWidget(card);
     body->setObjectName("inspectorComponentBody");
     auto *bodyLayout = new QVBoxLayout(body);
-    bodyLayout->setContentsMargins(0, 2, 0, 0);
+    bodyLayout->setContentsMargins(4, 6, 4, 2);
     bodyLayout->setSpacing(5);
     auto *automatic = new QCheckBox("Enable Automatic Movement", body);
     automatic->setChecked(automaticMoving);
@@ -1664,8 +1664,8 @@ InspectorPanel::InspectorPanel(ViewportPanel *viewport,
     content = new QWidget(scrollArea);
     content->setObjectName("inspectorContent");
     contentLayout = new QVBoxLayout(content);
-    contentLayout->setContentsMargins(14, 4, 14, 16);
-    contentLayout->setSpacing(16);
+    contentLayout->setContentsMargins(12, 8, 12, 16);
+    contentLayout->setSpacing(12);
     scrollArea->setWidget(content);
     layout->addWidget(scrollArea);
     if (viewport != nullptr) {
@@ -1930,16 +1930,21 @@ void InspectorPanel::showObject(const QJsonObject &object) {
     auto *header = new QFrame(content);
     header->setObjectName("inspectorHeader");
     auto *headerLayout = new QHBoxLayout(header);
-    headerLayout->setContentsMargins(0, 12, 0, 14);
-    headerLayout->setSpacing(10);
+    headerLayout->setContentsMargins(14, 16, 14, 16);
+    headerLayout->setSpacing(12);
     iconLabel = new QLabel(header);
     iconLabel->setObjectName("inspectorObjectIcon");
     iconLabel->setPixmap(inspectorIcon(this, type).pixmap(28, 28));
-    iconLabel->setFixedSize(32, 32);
+    iconLabel->setFixedSize(44, 44);
+    iconLabel->setAlignment(Qt::AlignCenter);
     auto *identity = new QWidget(header);
+    identity->setObjectName("inspectorIdentity");
     auto *identityLayout = new QVBoxLayout(identity);
     identityLayout->setContentsMargins(0, 0, 0, 0);
-    identityLayout->setSpacing(2);
+    identityLayout->setSpacing(4);
+    auto *eyebrow = new QLabel("SELECTED OBJECT", identity);
+    eyebrow->setObjectName("inspectorEyebrow");
+    identityLayout->addWidget(eyebrow);
     nameField =
         new QLineEdit(object.value("name").toString("Object"), identity);
     nameField->setObjectName("inspectorNameField");

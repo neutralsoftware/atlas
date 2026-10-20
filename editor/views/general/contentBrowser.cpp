@@ -217,13 +217,13 @@ ContentBrowserPanel::ContentBrowserPanel(const QString &projectFile,
     }
 
     auto *layout = new QVBoxLayout(this);
-    layout->setContentsMargins(6, 6, 6, 6);
-    layout->setSpacing(4);
+    layout->setContentsMargins(12, 8, 12, 12);
+    layout->setSpacing(8);
 
     auto *toolbar = new QWidget(this);
     toolbar->setObjectName("panelToolbar");
     auto *toolbarLayout = new QHBoxLayout(toolbar);
-    toolbarLayout->setContentsMargins(0, 0, 0, 0);
+    toolbarLayout->setContentsMargins(6, 4, 6, 4);
     toolbarLayout->setSpacing(4);
 
     backButton = new styling::ToolButton(toolbar);
@@ -245,11 +245,15 @@ ContentBrowserPanel::ContentBrowserPanel(const QString &projectFile,
     pathField->setObjectName("contentPathField");
     pathField->setReadOnly(true);
 
-    searchField = new QLineEdit(toolbar);
+    auto *actions = new QWidget(this);
+    actions->setObjectName("contentActions");
+    auto *actionsLayout = new QHBoxLayout(actions);
+    actionsLayout->setContentsMargins(0, 0, 0, 0);
+    actionsLayout->setSpacing(8);
+    searchField = new QLineEdit(actions);
     searchField->setObjectName("contentSearchField");
     searchField->setPlaceholderText("Filter assets…");
     searchField->setClearButtonEnabled(true);
-    searchField->setMaximumWidth(180);
 
     createButton = new styling::ToolButton(toolbar);
     createButton->setObjectName("panelAddButton");
@@ -275,11 +279,12 @@ ContentBrowserPanel::ContentBrowserPanel(const QString &projectFile,
     toolbarLayout->addWidget(forwardButton);
     toolbarLayout->addWidget(upButton);
     toolbarLayout->addWidget(pathField, 1);
-    toolbarLayout->addWidget(searchField);
-    toolbarLayout->addWidget(createButton);
     toolbarLayout->addWidget(revealButton);
     toolbarLayout->addWidget(moreButton);
     layout->addWidget(toolbar);
+    actionsLayout->addWidget(searchField, 1);
+    actionsLayout->addWidget(createButton);
+    layout->addWidget(actions);
 
     model = new QFileSystemModel(this);
     model->setIconProvider(&atlasFileIconProvider);
