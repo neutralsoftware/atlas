@@ -1,79 +1,62 @@
-# Atlas editor: Liquid Graphite
+# Atlas editor design
 
-Atlas should feel like a carefully made creative instrument: quiet enough for long sessions, tactile enough to invite exploration. The new direction combines the clarity of a modern IDE, the spatial organization of Blender, and the luminous edges of glass and machined metal.
+The current direction is a minimal developer workspace inspired by Vercel's Geist design system. It replaces the rejected glass-and-metal treatment. Visual quality comes from alignment, typography, spacing, clear states, and consistent icons.
 
-## Visual language
+## Surfaces and controls
 
-The canvas is deep blue graphite. Panels sit above it as rounded, opaque smoked-glass surfaces. Controls have a restrained vertical sheen, a fine silver rim, and a dark lower edge. Pale ice-blue selection makes the active tool unmistakable. Primary actions use a pearl finish with dark ink. Color belongs to content, selection, and meaningful status.
+Use neutral charcoal backgrounds, one-pixel solid dividers, and six-pixel control corners. Ordinary panels are flat and adjacent. Avoid gradients, metallic rims, inset shines, tinted cards, decorative shadows, oversized corners, and floating tool islands.
 
 | Role | Value | Use |
 | --- | --- | --- |
-| Canvas | `#10141D` | Window, gaps, surrounding chrome |
-| Surface | `#1B2230` | Docks, inspector, content browser |
-| Raised surface | `#252F40` | Inputs and floating control groups |
-| Edge | `#46556D` | Metal rims and surface boundaries |
-| Text | `#E6EDF7` | Primary copy |
-| Secondary text | `#A5B2C7` | Labels, paths, shortcuts |
-| Selection | `#354E70` | Active rows and tools |
-| Focus | `#9ACBFF` | Keyboard focus |
-| Pearl | `#DFEDFF` | Primary action face |
+| Canvas | `#0A0A0A` | Main window and ordinary panels |
+| Secondary surface | `#141414` | Inputs and restrained secondary regions |
+| Hover | `#202020` | Pointer feedback |
+| Selection | `#292929` | Active controls and selected rows |
+| Border | `#2E2E2E` | Fields and dividers |
+| Strong border | `#525252` | Hover and selected boundaries |
+| Text | `#EDEDED` | Primary copy and primary action fill |
+| Secondary text | `#A1A1A1` | Labels and supporting copy |
+| Disabled text | `#707070` | Unavailable controls |
+| Focus | `#52A8FF` | Keyboard focus outline |
 
-Use 12–16 px panel corners, 10 px button corners, and 8 px field corners. Use a 4 px spacing rhythm, with 8–12 px between groups and 12–16 px around surfaces. Keep ordinary controls compact enough for an editor: approximately 34 px tall. Small icon controls retain their existing sizing where dock layouts require it.
+Reserve color for focus, meaningful status, content previews, and the transform axes. Primary actions use light text-color fill with dark ink. Ordinary actions are outlined or transparent. Hover, pressed, checked, disabled, and focus states must remain distinct. Selection must survive pointer exit and loss of keyboard focus.
 
-Typography stays readable and understated: 13 px controls, 11–12 px supporting labels, larger titles only at major entry points. Prefer Manrope, then platform UI fonts. Do not replace meaningful labels with unexplained icons.
+## Typography and icons
 
-## Interaction and stability
+Geist is bundled locally and applied to the whole editor, with platform font fallbacks. Use 13 px for controls, smaller secondary labels, and larger text only for meaningful titles. Keep project names and paths elidable, with full text available in tooltips.
 
-Every control needs distinct resting, hover, pressed, checked, disabled, and keyboard-focus states. Hover brightens the material; pressing darkens it without shifting the layout. Checked state remains visible when the pointer leaves. Focus is a separate blue ring. Disabled primary actions must not look enabled.
+Lucide replaces Phosphor. Every existing `styling::Icon` identifier maps to a bundled SVG so callers retain their action semantics. Keep the original 24-unit outlines and consistent strokes. Cache rendered icon sets by symbol and color. Preserve disabled variants and content color swatches. Source versions and licenses are recorded in `editor/assets/THIRD_PARTY.md`.
 
-Depth comes from painted gradients, inset highlights, and deliberate spacing. Use Qt's device-independent painting and existing widgets. Glass is an optical treatment on an opaque backing, so text contrast does not depend on whatever is behind the window. Avoid whole-window opacity, platform-specific backdrop APIs, and graphics effects around the embedded native viewport. Keep native menus, docking, resizing, input routing, and persisted layouts working.
+## Composition
 
-Never animate layout geometry or obscure scene content with decorative overlays. Future motion should be short, interruptible, and optional. A viewport should receive the available space; decorative elements must not introduce new minimum-size constraints.
+The top bar contains project identity, command discovery, and execution actions. A single horizontal navigation row selects Scene, Shading, Effects, or Interface and exposes search and panel visibility. The active workspace has a simple underline. This replaces the tall workspace rail and promotional subtitles.
 
-## Implementation map
+Keep docked content spacious through compact chrome. Toolbars sit directly above their content with a divider. Collection and Assets retain separate search rows. Inspector identity is plain text and an icon; collapsible property groups use separators rather than nested decorative cards. Keep the content canvas visually dominant.
 
-- `editor/styling/dark.qss`: application surfaces, ordinary Qt controls, docks, project browser, inspector, dialogs, search, and splash.
-- `editor/styling/theme.cpp`: fallback palette for native and unstyled widgets.
-- `editor/styling/workbench.cpp`: shared painted buttons, item selections, and keyboard focus.
-- `editor/views/editor/editor.cpp`: shell spacing and workspace navigation.
-- `editor/views/editor/viewportTools.cpp`: inset viewport tool surface.
+## Implementation and behavior boundaries
 
-The QSS source is embedded by `scripts/pack_qt_themes.py` during the existing build workflow. Do not maintain a separate handwritten copy of the generated theme header.
+- `editor/styling/dark.qss` defines shared controls and all existing panel, browser, dialog, search, and splash surfaces.
+- `editor/styling/theme.cpp` supplies the neutral fallback palette.
+- `editor/styling/workbench.cpp` paints flat buttons and selection states.
+- `editor/styling/icons.cpp` maps the existing icon API to Lucide.
+- `editor/main.cpp` loads the bundled Geist font.
+- `editor/views/editor/editor.cpp` arranges the shell; existing actions, signals, dock identifiers, and saved-layout versions remain in use.
 
-## Redesign sequence
+Keep runtime, scene editing, property updates, saves, playback, docking, and keyboard shortcuts outside presentation changes. Native viewport embedding must remain opaque and unobstructed. Do not add background blur or whole-window opacity. Do not migrate saved layouts merely because the visual theme changed.
 
-1. Establish the shared materials and states across the app; reshape shell spacing and workspace controls.
-2. Rework hierarchy, inspector, and asset browsing around clearer grouping and progressive disclosure.
-3. Redesign material, environment, and Graphite workspaces using the same components.
-4. Refine project onboarding, empty states, command search, and dialogs.
-5. Validate the complete application at multiple window sizes, display scales, and input methods.
+The generated `include/editor/core/themes.h` must match the QSS source through `scripts/pack_qt_themes.py`.
 
-The first pass changes the visual foundation across existing screens. It begins the redesign; it does not claim every workflow has been redesigned.
+## Validation and completion
 
-## Structural redesign audit
+Static checks cover icon-enum mapping, SVG validity, local resource references, font/license presence, generated theme parity, action-connection preservation, whitespace, and the absence of decorative gradients in the shared theme and button painter.
 
-A new palette alone does not qualify as a new design. A redesigned screen must change its composition, information hierarchy, and control grouping while keeping its working actions accessible.
+A build and runtime visual review have not been performed under the current no-build instruction. Do not claim perfect behavior from static checks. Before visual acceptance, inspect every workspace, project browser, menus, dialogs, empty states, and detached docks at 100%, 150%, and 200% scaling and the minimum supported window size. Exercise selection, undo/redo, property editing, scene save/switch, search, playback, and dock restoration. Verify the embedded viewport separately on Windows.
 
-The second pass replaces the horizontal workspace switcher with a persistent left rail. Scene, Shading, Effects, and Interface each have an icon and label. Panel visibility controls sit at the foot of that rail. Project identity moves to the upper left, command discovery becomes a visible launcher in the center, and execution remains at the upper right. The active workspace has its own context heading.
+## References
 
-Collection now separates object creation from object search. Asset browsing separates location navigation from filtering and creation. Inspector selection becomes an identity card, followed by inset, collapsible component cards. These changes alter the screen composition rather than relying on color differences.
+- [Geist introduction](https://vercel.com/geist/introduction)
+- [Geist colors](https://vercel.com/geist/colors): neutral defaults, limited background differentiation, distinct control states, and solid border hierarchy.
+- [Geist buttons](https://vercel.com/geist/button): clear action affordances and accessible icon-only controls.
+- [Lucide](https://github.com/lucide-icons/lucide)
 
-| Area | Implemented | Still required for a complete redesign |
-| --- | --- | --- |
-| Editor shell | Vertical workspace navigation, command launcher, project identity, contextual heading | Visual sizing and dock restoration checks |
-| Collection | Dedicated creation header and full-width search | Empty-state and large-scene review |
-| Inspector | Selection identity card and inset component groups | Dense-property, camera, and multi-selection review |
-| Assets | Separate location and action rows | New empty states, preview composition, and grid/list review |
-| Viewport | Inset tool surface and shared control materials | Tool grouping and narrow-width visual review |
-| Shading, Effects, Interface | Shared visual materials and new navigation | Dedicated workspace composition redesigns |
-| Project browser, dialogs, search | Shared visual materials | Dedicated layout and onboarding redesigns |
-
-Completion requires all rows to pass the visual and interaction checks below. The new shell is implemented in source; the entire application is not yet certified as a finished new design. Do not substitute a mockup, an old executable, or a stylesheet inspection for testing the changed application.
-
-## Acceptance checks
-
-Before calling any pass visually verified, launch the newly built editor and inspect project selection, scene editing, all workspaces, dialogs, and detached docks. Check 100%, 150%, and 200% scaling, the minimum supported window size, long project names, keyboard traversal, selected rows without focus, disabled controls, and pressed menu buttons.
-
-Exercise docking and layout restoration, scene switching, selection and property editing, runtime playback, and return from playback. On Windows, separately verify embedded viewport rendering and empty-scene behavior. Styling checks alone cannot prove GPU or native-window correctness.
-
-No build or runtime validation was performed for the initial pass, in accordance with the current repository instructions. Static review is only a preliminary check; visual acceptance remains open.
+These references guide the Qt implementation; Atlas does not embed Vercel's web components.

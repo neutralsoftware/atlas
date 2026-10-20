@@ -7,7 +7,6 @@
 #include <QLayout>
 #include <QAbstractSpinBox>
 #include <QListView>
-#include <QLinearGradient>
 #include <QPainter>
 #include <QPainterPath>
 #include <QStyleOptionViewItem>
@@ -33,58 +32,38 @@ void paintButton(QAbstractButton *button, bool showText, bool vertical,
                           button->property("matched").toBool();
     const bool primary = prominent(button);
     const bool pressed = enabled && button->isDown();
-    const QRectF bounds = QRectF(button->rect()).adjusted(1.5, 1.5, -1.5, -2.5);
-    const qreal radius = std::min(qreal(10), bounds.height() / 2);
-    const bool surfaced = primary || selected || hover || pressed ||
-                          button->objectName() == "workspaceProject" ||
-                          button->objectName() == "workspaceCommandLauncher" ||
-                          button->objectName() == "viewportPlaybackButton" ||
-                          (!isTool && !header);
-    if (surfaced) {
-        QColor top = primary ? QColor("#F3F8FF")
-                     : selected ? QColor("#47678E")
-                     : hover ? QColor("#3C4A60") : QColor("#303C50");
-        QColor bottom = primary ? QColor("#C5D9F2")
-                        : selected ? QColor("#2C4260")
-                        : hover ? QColor("#263347") : QColor("#202A3B");
-        if (!enabled) {
-            top = QColor("#293242");
-            bottom = QColor("#222B39");
-        } else if (pressed) {
-            top = primary ? QColor("#B4CBE7") : QColor("#1B2A3E");
-            bottom = primary ? QColor("#DFEDFF") : QColor("#314662");
-        } else if (primary && hover) {
-            top = QColor("#FFFFFF");
-            bottom = QColor("#DFEDFF");
-        }
-        painter.setPen(Qt::NoPen);
-        painter.setBrush(QColor(0, 0, 0, enabled ? 65 : 25));
-        painter.drawRoundedRect(bounds.translated(0, 1.5), radius, radius);
-        QLinearGradient face(bounds.topLeft(), bounds.bottomLeft());
-        face.setColorAt(0, top);
-        face.setColorAt(0.48, top.darker(104));
-        face.setColorAt(1, bottom);
-        QLinearGradient rim(bounds.topLeft(), bounds.bottomLeft());
-        rim.setColorAt(0, primary && enabled ? QColor("#FFFFFF") : QColor("#65758F"));
-        rim.setColorAt(0.45, QColor("#46556D"));
-        rim.setColorAt(1, QColor("#172131"));
-        painter.setBrush(face);
-        painter.setPen(QPen(QBrush(rim), 1));
-        painter.drawRoundedRect(bounds, radius, radius);
-        painter.setBrush(Qt::NoBrush);
-        painter.setPen(QPen(QColor(255, 255, 255, enabled && !pressed ? 24 : 8), 1));
-        painter.drawRoundedRect(bounds.adjusted(1, 1, -1, -1), radius - 1, radius - 1);
+    const QRectF bounds = QRectF(button->rect()).adjusted(1.5, 1.5, -1.5, -1.5);
+    const qreal radius = 6;
+    const bool navigation = button->objectName() == "workspaceModeButton";
+    const bool outlined = !isTool && !header;
+    const bool search = button->objectName() == "workspaceCommandLauncher";
+    QColor face(Qt::transparent);
+    if (primary)
+        face = !enabled ? QColor("#262626") : pressed ? QColor("#CCCCCC")
+               : hover ? QColor("#FFFFFF") : QColor("#EDEDED");
+    else if (pressed || selected)
+        face = QColor("#292929");
+    else if (hover)
+        face = QColor("#202020");
+    else if (outlined || search)
+        face = QColor("#141414");
+    painter.setBrush(face);
+    painter.setPen(outlined || search ? QPen(QColor("#333333"), 1) : QPen(Qt::NoPen));
+    painter.drawRoundedRect(bounds, radius, radius);
+    if (navigation && selected) {
+        painter.setPen(QPen(QColor("#EDEDED"), 2));
+        painter.drawLine(QPointF(bounds.left() + 8, bounds.bottom()),
+                         QPointF(bounds.right() - 8, bounds.bottom()));
     }
     if (button->hasFocus() && enabled) {
         painter.setBrush(Qt::NoBrush);
-        painter.setPen(QPen(QColor("#9ACBFF"), 1.5));
-        painter.drawRoundedRect(bounds.adjusted(-0.5, -0.5, 0.5, 0.5),
-                                radius + 1, radius + 1);
+        painter.setPen(QPen(QColor("#52A8FF"), 1.5));
+        painter.drawRoundedRect(bounds, radius, radius);
     }
-    const QColor foreground = !enabled ? QColor("#68788F")
-                               : primary ? QColor("#1B2230")
-                               : selected || hover || header ? QColor("#E6F1FF")
-                               : QColor("#C1CEE0");
+    const QColor foreground = !enabled ? QColor("#707070")
+                               : primary ? QColor("#0A0A0A")
+                               : selected || hover || header ? QColor("#EDEDED")
+                               : QColor("#A1A1A1");
     QRect content = button->rect().adjusted(10, 0, -10, 0);
     const bool preserveIconColor = button->property("preserveIconColor").toBool() ||
                                    button->objectName() == "materialColorButton" ||
@@ -218,14 +197,14 @@ void styling::ItemDelegate::paint(QPainter *painter,
     const auto *list = qobject_cast<const QListView *>(item.widget);
     const bool grid = list != nullptr && list->viewMode() == QListView::IconMode;
     const QRect bounds = item.rect.adjusted(3, 2, -3, -2);
-    painter->setPen(selected ? QPen(QColor("#587BA6"), 1) : QPen(Qt::NoPen));
-    painter->setBrush(selected ? QColor("#354E70")
-                              : hovered ? QColor("#242E3E") : QColor(Qt::transparent));
-    painter->drawRoundedRect(bounds, 8, 8);
+    painter->setPen(selected ? QPen(QColor("#333333"), 1) : QPen(Qt::NoPen));
+    painter->setBrush(selected ? QColor("#262626")
+                              : hovered ? QColor("#171717") : QColor(Qt::transparent));
+    painter->drawRoundedRect(bounds, 4, 4);
     if (enabled && (item.state & QStyle::State_HasFocus)) {
         painter->setBrush(Qt::NoBrush);
-        painter->setPen(QPen(QColor("#9ACBFF"), 1));
-        painter->drawRoundedRect(bounds.adjusted(1, 1, -1, -1), 7, 7);
+        painter->setPen(QPen(QColor("#52A8FF"), 1));
+        painter->drawRoundedRect(bounds.adjusted(1, 1, -1, -1), 4, 4);
     }
     QRect textRect = bounds.adjusted(10, 0, -10, 0);
     if (!item.icon.isNull()) {
@@ -241,18 +220,18 @@ void styling::ItemDelegate::paint(QPainter *painter,
     }
     if (item.features & QStyleOptionViewItem::HasCheckIndicator) {
         const QRect check(textRect.left(), bounds.center().y() - 7, 14, 14);
-        painter->setPen(QPen(QColor("#748198"), 1));
-        painter->setBrush(item.checkState == Qt::Checked ? QColor("#D6E3F5") : QColor("#242E3E"));
+        painter->setPen(QPen(QColor("#333333"), 1));
+        painter->setBrush(item.checkState == Qt::Checked ? QColor("#EDEDED") : QColor("#262626"));
         painter->drawRoundedRect(check, 3, 3);
         if (item.checkState == Qt::Checked)
-            styling::icon(styling::Icon::Check, "#191F2C").paint(painter, check);
+            styling::icon(styling::Icon::Check, "#141414").paint(painter, check);
         textRect.adjust(22, 0, 0, 0);
     }
     QFont font = item.font;
     font.setPixelSize(13);
     painter->setFont(font);
-    painter->setPen(!enabled ? QColor("#748198")
-                            : selected ? QColor("#EAF3FF") : QColor("#C6D3E5"));
+    painter->setPen(!enabled ? QColor("#707070")
+                            : QColor("#EDEDED"));
     const QString secondary = index.data(styling::SecondaryTextRole).toString();
     if (!secondary.isEmpty() && !grid) {
         QRect secondaryRect = textRect;
@@ -261,14 +240,14 @@ void styling::ItemDelegate::paint(QPainter *painter,
         QFont secondaryFont = font;
         secondaryFont.setPixelSize(11);
         painter->setFont(secondaryFont);
-        painter->setPen(QColor("#A5B2C7"));
+        painter->setPen(QColor("#A1A1A1"));
         painter->drawText(secondaryRect, Qt::AlignLeft | Qt::AlignVCenter,
                          painter->fontMetrics().elidedText(secondary, Qt::ElideMiddle,
                                                           secondaryRect.width()));
         textRect.setTop(bounds.top() + 3);
         textRect.setBottom(bounds.top() + 25);
         painter->setFont(font);
-        painter->setPen(selected ? QColor("#EAF3FF") : QColor("#C6D3E5"));
+        painter->setPen(QColor("#EDEDED"));
     }
     QString text = item.text;
     const int shortcutAt = text.indexOf('\t');
@@ -276,10 +255,10 @@ void styling::ItemDelegate::paint(QPainter *painter,
         const QString shortcut = text.mid(shortcutAt + 1);
         text = text.left(shortcutAt);
         const int shortcutWidth = painter->fontMetrics().horizontalAdvance(shortcut);
-        painter->setPen(QColor("#97A4BA"));
+        painter->setPen(QColor("#A1A1A1"));
         painter->drawText(textRect, Qt::AlignRight | Qt::AlignVCenter, shortcut);
         textRect.adjust(0, 0, -shortcutWidth - 24, 0);
-        painter->setPen(selected ? QColor("#EAF3FF") : QColor("#C6D3E5"));
+        painter->setPen(QColor("#EDEDED"));
     }
     painter->drawText(textRect, grid ? Qt::AlignHCenter | Qt::AlignTop : Qt::AlignLeft | Qt::AlignVCenter,
                      painter->fontMetrics().elidedText(text, Qt::ElideMiddle, textRect.width()));
@@ -305,7 +284,7 @@ void styling::TreeView::drawBranches(QPainter *painter, const QRect &rect,
         return;
     painter->save();
     painter->setRenderHint(QPainter::Antialiasing);
-    painter->setPen(QPen(QColor("#A5B2C7"), 1.3, Qt::SolidLine, Qt::RoundCap, Qt::RoundJoin));
+    painter->setPen(QPen(QColor("#A1A1A1"), 1.3, Qt::SolidLine, Qt::RoundCap, Qt::RoundJoin));
     const QPointF center(rect.right() - indentation() / 2.0, rect.center().y());
     QPainterPath path;
     path.moveTo(center + (isExpanded(index) ? QPointF(-3, -1.5) : QPointF(-1.5, -3)));

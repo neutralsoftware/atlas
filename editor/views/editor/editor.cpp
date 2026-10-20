@@ -354,14 +354,14 @@ void EditorWindow::setupWindow() {
     coreManager = new ads::CDockManager(this);
     auto *workspaceFrame = new QWidget(this);
     workspaceFrame->setObjectName("editorFrame");
-    auto *workspaceLayout = new QHBoxLayout(workspaceFrame);
-    workspaceLayout->setContentsMargins(12, 4, 12, 8);
-    workspaceLayout->setSpacing(12);
+    auto *workspaceLayout = new QVBoxLayout(workspaceFrame);
+    workspaceLayout->setContentsMargins(8, 0, 8, 4);
+    workspaceLayout->setSpacing(0);
     workspaceNavigation = new QWidget(workspaceFrame);
     workspaceNavigation->setObjectName("workspaceNavigation");
-    auto *navigationLayout = new QVBoxLayout(workspaceNavigation);
-    navigationLayout->setContentsMargins(6, 10, 6, 10);
-    navigationLayout->setSpacing(8);
+    auto *navigationLayout = new QHBoxLayout(workspaceNavigation);
+    navigationLayout->setContentsMargins(4, 4, 4, 4);
+    navigationLayout->setSpacing(4);
     workspaceLayout->addWidget(workspaceNavigation);
     workspaceLayout->addWidget(coreManager, 1);
     setCentralWidget(workspaceFrame);
@@ -746,12 +746,7 @@ void EditorWindow::setupDocks() {
     auto *surfaceLayout = new QVBoxLayout(workspaceSurface);
     surfaceLayout->setContentsMargins(0, 0, 0, 0);
     surfaceLayout->setSpacing(0);
-    auto *workspaceHeading = new QWidget(workspaceSurface);
-    workspaceHeading->setObjectName("workspaceHeading");
-    auto *headingLayout = new QHBoxLayout(workspaceHeading);
-    headingLayout->setContentsMargins(12, 10, 12, 10);
-    headingLayout->setSpacing(8);
-    auto *navigationLayout = qobject_cast<QVBoxLayout *>(workspaceNavigation->layout());
+    auto *navigationLayout = qobject_cast<QHBoxLayout *>(workspaceNavigation->layout());
     workspaceModeGroup = new QButtonGroup(workspaceNavigation);
     workspaceModeGroup->setExclusive(true);
     const QStringList modes{"Scene", "Shading", "Effects", "Interface"};
@@ -759,16 +754,13 @@ void EditorWindow::setupDocks() {
                                         styling::Icon::Material,
                                         styling::Icon::Sparkle,
                                         styling::Icon::Layout};
-    const QStringList descriptions{"Compose your world", "Shape light and materials",
-                                   "Set the atmosphere", "Design the experience"};
     for (int index = 0; index < modes.size(); ++index) {
         auto *button = new styling::ToolButton(workspaceNavigation);
         button->setObjectName("workspaceModeButton");
-        button->setToolButtonStyle(Qt::ToolButtonTextUnderIcon);
+        button->setToolButtonStyle(Qt::ToolButtonTextBesideIcon);
         button->setIcon(styling::icon(modeIcons.at(index)));
         button->setText(modes.at(index));
-        button->setToolTip(modes.at(index) + " · " + descriptions.at(index));
-        button->setProperty("workspacePath", descriptions.at(index));
+        button->setToolTip(modes.at(index));
         button->setCheckable(true);
         button->setChecked(index == 0);
         workspaceModeGroup->addButton(button, index);
@@ -777,23 +769,11 @@ void EditorWindow::setupDocks() {
                 [this, index] { activateWorkspace(index); });
     }
     navigationLayout->addStretch();
-    auto *contextIcon = new QLabel(workspaceHeading);
-    contextIcon->setObjectName("workspaceContextIcon");
-    contextIcon->setPixmap(styling::icon(modeIcons.first()).pixmap(15, 15));
-    headingLayout->addWidget(contextIcon);
-    auto *contextTitle = new QLabel(modes.first(), workspaceHeading);
-    contextTitle->setObjectName("workspaceContextTitle");
-    headingLayout->addWidget(contextTitle);
-    auto *contextPath = new styling::ElidedLabel(descriptions.first(), workspaceHeading);
-    contextPath->setObjectName("workspaceContextPath");
-    headingLayout->addWidget(contextPath, 1);
-    headingLayout->addStretch();
-    auto *workspaceSearch = new styling::ToolButton(workspaceHeading);
+    auto *workspaceSearch = new styling::ToolButton(workspaceNavigation);
     workspaceSearch->setIcon(styling::icon(styling::Icon::MagnifyingGlass));
     workspaceSearch->setToolTip("Search scenes, objects and assets");
     connect(workspaceSearch, &QToolButton::clicked, this, &EditorWindow::showGlobalSearch);
-    headingLayout->addWidget(workspaceSearch);
-    surfaceLayout->addWidget(workspaceHeading);
+    navigationLayout->addWidget(workspaceSearch);
     surfaceLayout->addWidget(workspaceStack, 1);
     auto *workspaceDock = dockManager->addPanel(
         {.id = "workspace",
@@ -999,7 +979,7 @@ void EditorWindow::setupWorkspaceBar() {
     chrome->setObjectName("workspaceChrome");
     chrome->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Fixed);
     auto *layout = new QGridLayout(chrome);
-    layout->setContentsMargins(16, 12, 16, 8);
+    layout->setContentsMargins(12, 8, 12, 8);
     layout->setHorizontalSpacing(16);
     layout->setColumnStretch(1, 1);
     auto *activity = new QWidget(chrome);
@@ -1012,7 +992,7 @@ void EditorWindow::setupWorkspaceBar() {
     mark->setPixmap(styling::brandMark(QSize(26, 26)));
     activityLayout->addWidget(mark);
     activityLayout->addSpacing(10);
-    auto *navigationLayout = qobject_cast<QVBoxLayout *>(workspaceNavigation->layout());
+    auto *navigationLayout = qobject_cast<QHBoxLayout *>(workspaceNavigation->layout());
     auto addPanelToggle = [this, navigationLayout](const QString &id,
                                                            const QString &text,
                                                            styling::Icon icon) {
@@ -1181,14 +1161,6 @@ void EditorWindow::activateWorkspace(int index) {
     if (workspaceModeGroup != nullptr) {
         if (auto *button = workspaceModeGroup->button(index)) {
             button->setChecked(true);
-            if (auto *icon = findChild<QLabel *>("workspaceContextIcon"))
-                icon->setPixmap(button->icon().pixmap(15, 15));
-            if (auto *title = findChild<QLabel *>("workspaceContextTitle"))
-                title->setText(button->text());
-            if (auto *path = findChild<QLabel *>("workspaceContextPath")) {
-                path->setText(button->property("workspacePath").toString());
-                path->setToolTip(path->text());
-            }
         }
     }
     scheduleLayoutSave();
@@ -2742,7 +2714,7 @@ void EditorWindow::configureDockSplitters() {
         }
     }
     for (QSplitter *splitter : coreManager->findChildren<QSplitter *>()) {
-        splitter->setHandleWidth(10);
+        splitter->setHandleWidth(5);
         splitter->setOpaqueResize(true);
         splitter->setChildrenCollapsible(false);
         if (!splitter->property("atlasLayoutTracking").toBool()) {
