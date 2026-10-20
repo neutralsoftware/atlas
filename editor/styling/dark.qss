@@ -146,24 +146,27 @@ QComboBox::drop-down {
     border: none;
 }
 
-QComboBox::down-arrow,
-QAbstractSpinBox::down-arrow {
+QComboBox::down-arrow {
     image: url(:/editor/assets/chevron-down.svg);
     width: 12px;
     height: 12px;
 }
 
-QAbstractSpinBox::up-arrow {
-    image: url(:/editor/assets/chevron-up.svg);
-    width: 12px;
-    height: 12px;
+QAbstractSpinBox::up-arrow,
+QAbstractSpinBox::down-arrow {
+    image: none;
+    width: 0;
+    height: 0;
 }
 
 QAbstractSpinBox::up-button,
 QAbstractSpinBox::down-button {
     background: transparent;
     border: none;
-    width: 18px;
+    width: 0;
+    height: 0;
+    margin: 0;
+    padding: 0;
 }
 
 QComboBox QAbstractItemView {
@@ -611,9 +614,10 @@ QStatusBar::item {
 }
 
 #inspectorComponent {
-    background: #101010;
-    border: 1px solid #292929;
-    border-radius: 6px;
+    background: transparent;
+    border: none;
+    border-top: 1px solid #292929;
+    border-radius: 0;
 }
 
 #inspectorComponentHeader {
@@ -1114,8 +1118,8 @@ QAbstractSpinBox QLineEdit {
 
 #inspectorAxisField {
     background: #141414;
-    border: 1px solid transparent;
-    border-radius: 6px;
+    border: 1px solid #292929;
+    border-radius: 4px;
 }
 
 #inspectorAxisField:hover {
@@ -1126,7 +1130,7 @@ QAbstractSpinBox QLineEdit {
 #inspectorAxisField QDoubleSpinBox {
     background: transparent;
     border: none;
-    padding: 5px 2px;
+    padding: 0 2px;
     min-height: 24px;
 }
 

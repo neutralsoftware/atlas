@@ -799,7 +799,7 @@ void EditorWindow::setupDocks() {
          .title = "Inspector",
          .widget = inspectorPanel,
          .area = EditorDockArea::Right,
-         .icon = styling::icon(styling::Icon::SlidersHorizontal, "#A1957D")});
+         .icon = styling::icon(styling::Icon::PanelRight, "#A1A1A1")});
 
     contentBrowser = new ContentBrowserPanel(projectFile);
     auto *contentDock = dockManager->addPanel(
@@ -1017,7 +1017,7 @@ void EditorWindow::setupWorkspaceBar() {
     };
     addPanelToggle("hierarchy", "Scene collection", styling::Icon::Sidebar);
     addPanelToggle("fileExplorer", "Assets", styling::Icon::Folder);
-    addPanelToggle("inspector", "Inspector", styling::Icon::SlidersHorizontal);
+    addPanelToggle("inspector", "Inspector", styling::Icon::PanelRight);
     auto *commands = new styling::ToolButton(chrome);
     commands->setObjectName("workspaceCommandLauncher");
     commands->setText("Find a command…");

@@ -46,6 +46,10 @@ QString iconName(styling::Icon icon) {
         return QStringLiteral("cloud");
     case styling::Icon::Code:
         return QStringLiteral("code");
+    case styling::Icon::Component:
+        return QStringLiteral("component");
+    case styling::Icon::PanelRight:
+        return QStringLiteral("panel-right");
     case styling::Icon::Crosshair:
         return QStringLiteral("crosshair");
     case styling::Icon::Cube:

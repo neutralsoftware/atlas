@@ -131,7 +131,7 @@ protected:
                     button->setAccessibleName(button->toolTip());
             }
             if (auto *spin = qobject_cast<QAbstractSpinBox *>(object))
-                spin->setButtonSymbols(QAbstractSpinBox::NoButtons);
+                spin->setButtonSymbols(QAbstractSpinBox::UpDownArrows);
             auto *view = qobject_cast<QAbstractItemView *>(object);
             if (view != nullptr && !view->property("workbenchStyled").toBool() &&
                 !view->inherits("QTableView")) {

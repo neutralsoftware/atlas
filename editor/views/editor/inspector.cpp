@@ -177,37 +177,39 @@ bool isColorProperty(const QString &name, const QJsonArray &array) {
 
 QIcon inspectorIcon(QWidget *, const QString &type) {
     const QString normalized = type.toLower();
+    if (normalized.contains("model") || normalized.contains("mesh"))
+        return styling::icon(styling::Icon::Component);
     if (normalized == "folder")
-        return styling::icon(styling::Icon::Folder, "#7E929C");
+        return styling::icon(styling::Icon::Folder, "#A1A1A1");
     if (normalized.contains("camera"))
-        return styling::icon(styling::Icon::Camera, "#9E897D");
+        return styling::icon(styling::Icon::Camera, "#A1A1A1");
     if (normalized.contains("environment") || normalized.contains("atmosphere"))
-        return styling::icon(styling::Icon::Globe, "#7E929C");
+        return styling::icon(styling::Icon::Globe, "#A1A1A1");
     if (normalized.contains("light") || normalized == "sun")
-        return styling::icon(styling::Icon::Lightbulb, "#A1957D");
+        return styling::icon(styling::Icon::Lightbulb, "#A1A1A1");
     if (normalized.contains("terrain"))
-        return styling::icon(styling::Icon::Mountains, "#849589");
+        return styling::icon(styling::Icon::Mountains, "#A1A1A1");
     if (normalized.contains("particle"))
-        return styling::icon(styling::Icon::Sparkle, "#8498A8");
+        return styling::icon(styling::Icon::Sparkle, "#A1A1A1");
     if (normalized.contains("audio") || normalized == "wav" ||
         normalized == "mp3" || normalized == "ogg" || normalized == "flac")
-        return styling::icon(styling::Icon::MusicNote, "#849589");
+        return styling::icon(styling::Icon::MusicNote, "#A1A1A1");
     if (normalized.contains("material"))
-        return styling::icon(styling::Icon::Material, "#9E897D");
+        return styling::icon(styling::Icon::Material, "#A1A1A1");
     if (normalized == "png" || normalized == "jpg" || normalized == "jpeg" ||
         normalized == "bmp" || normalized == "gif" || normalized == "webp" ||
         normalized == "tif" || normalized == "tiff" || normalized == "tga" ||
         normalized == "hdr" || normalized == "exr")
-        return styling::icon(styling::Icon::Image, "#A1957D");
+        return styling::icon(styling::Icon::Image, "#A1A1A1");
     if (normalized.contains("script") || normalized == "ts" ||
         normalized == "js")
-        return styling::icon(styling::Icon::FileCode, "#7E929C");
+        return styling::icon(styling::Icon::FileCode, "#A1A1A1");
     if (normalized.contains("rigidbody") || normalized.contains("softbody") ||
         normalized.contains("joint"))
-        return styling::icon(styling::Icon::Wrench, "#A1957D");
+        return styling::icon(styling::Icon::Wrench, "#A1A1A1");
     if (normalized == "sphere")
-        return styling::icon(styling::Icon::Sphere, "#8498A8");
-    return styling::icon(styling::Icon::Cube, "#8498A8");
+        return styling::icon(styling::Icon::Sphere, "#A1A1A1");
+    return styling::icon(styling::Icon::Cube, "#A1A1A1");
 }
 
 QString componentTitle(const QString &type) {
@@ -751,7 +753,7 @@ QDoubleSpinBox *numberField(double value, QWidget *parent) {
     field->setDecimals(4);
     field->setMinimumHeight(34);
     field->setSingleStep(0.1);
-    field->setButtonSymbols(QAbstractSpinBox::NoButtons);
+    field->setButtonSymbols(QAbstractSpinBox::UpDownArrows);
     field->setValue(value);
     field->setKeyboardTracking(true);
     return field;
@@ -933,7 +935,7 @@ QWidget *vectorField(const QJsonArray &value, const PropertyChanged &changed,
     layout->setContentsMargins(0, 0, 0, 0);
     layout->setSpacing(2);
     auto *valueEditor = new QWidget(field);
-    auto *valueLayout = new QVBoxLayout(valueEditor);
+    auto *valueLayout = new QHBoxLayout(valueEditor);
     valueLayout->setContentsMargins(0, 0, 0, 0);
     valueLayout->setSpacing(6);
     layout->addWidget(valueEditor, 1);
@@ -947,20 +949,22 @@ QWidget *vectorField(const QJsonArray &value, const PropertyChanged &changed,
         auto *axisField = new QFrame(valueEditor);
         axisField->setObjectName("inspectorAxisField");
         auto *axisLayout = new QHBoxLayout(axisField);
-        axisLayout->setContentsMargins(10, 0, 6, 0);
-        axisLayout->setSpacing(10);
+        axisLayout->setContentsMargins(6, 0, 4, 0);
+        axisLayout->setSpacing(4);
         auto *axis = new QLabel(axes.at(index), axisField);
         axis->setObjectName("inspectorAxis" + axes.at(index));
-        axis->setFixedWidth(12);
+        axis->setFixedWidth(10);
         auto *box = numberField(values.at(index).toDouble(), axisField);
-        box->setButtonSymbols(QAbstractSpinBox::NoButtons);
-        box->setMinimumWidth(58);
+        box->setButtonSymbols(QAbstractSpinBox::UpDownArrows);
+        box->setMinimumWidth(40);
+        box->setSizePolicy(QSizePolicy::Ignored, QSizePolicy::Fixed);
+        box->setAlignment(Qt::AlignRight);
         box->setAccessibleName(QStringLiteral("%1 %2").arg(path, axes.at(index)));
         tagEditor(box, path, "vector", index);
         boxes.append(box);
         axisLayout->addWidget(axis);
         axisLayout->addWidget(box, 1);
-        valueLayout->addWidget(axisField);
+        valueLayout->addWidget(axisField, 1);
     }
     auto commit = [boxes, changed, path] {
         QJsonArray result;

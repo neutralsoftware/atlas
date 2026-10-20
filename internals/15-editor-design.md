@@ -33,7 +33,9 @@ The top bar contains project identity, command discovery, and execution actions.
 
 Keep docked content spacious through compact chrome. Toolbars sit directly above their content with a divider. Collection and Assets retain separate search rows. Inspector identity is plain text and an icon. Its collapsible sections have a restrained outline and inset form contents. Keep the content canvas visually dominant.
 
-Inspector properties use a full-width, wrapping native Qt label above each editor. Vector axes occupy separate rows so the three numeric controls and sync action do not compete for the same horizontal space. Native section headers replace the custom button text painter. Input text and selection colors are explicit within the inspector. On selection rebuild, hide outgoing widgets before deferred deletion and let the scroll content recompute its size constraints. These changes address clipping and visibility risks; they are not a substitute for reproducing the reported text problem in the running editor.
+Inspector properties use a full-width, wrapping native Qt label above each editor. Vector axes share one compact row with shrinkable numeric controls and a sync action. Native section headers replace the custom button text painter. Input text and selection colors are explicit within the inspector. On selection rebuild, hide outgoing widgets before deferred deletion and let the scroll content recompute its size constraints.
+
+The reported one-pixel numeric text was reproduced in an isolated Qt 6.12.0 widget probe using the application stylesheet: a 468-pixel spinbox received a one-pixel internal line editor when `NoButtons` was combined with stylesheet styling. Keep `UpDownArrows` as the native layout mode and hide both arrow subcontrols with zero width and height in QSS. Do not restore `NoButtons` in the installer or scrubbable controls. The revised probe checked 360, 560, and 800 pixel panel widths at 100%, 150%, and 200% scaling; internal text widths were 63, 129, and 209 pixels, and both arrow hit areas were empty. This verifies the isolated Qt geometry, not a compiled Atlas runtime.
 
 ## Implementation and behavior boundaries
 
