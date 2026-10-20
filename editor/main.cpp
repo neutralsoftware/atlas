@@ -215,6 +215,11 @@ int main(int argc, char **argv) {
 
     QFont applicationFont =
         QFontDatabase::systemFont(QFontDatabase::GeneralFont);
+    if (manropeFont >= 0) {
+        const QStringList families = QFontDatabase::applicationFontFamilies(manropeFont);
+        if (!families.isEmpty())
+            applicationFont.setFamily(families.first());
+    }
     applicationFont.setPointSizeF(10.5);
     app.setFont(applicationFont);
     styling::loadIconFont();

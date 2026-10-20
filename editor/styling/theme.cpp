@@ -16,12 +16,12 @@
 void styling::applyColorPalette(QApplication& app) {
     QPalette p;
 
-    const QColor bg = QColor("#121211");
-    const QColor panel = QColor("#20201F");
-    const QColor panel2 = QColor("#191918");
-    const QColor text = QColor("#D5D5CE");
-    const QColor mutedText = QColor("#92928B");
-    const QColor accent = QColor("#30302E");
+    const QColor bg = QColor("#10141D");
+    const QColor panel = QColor("#202938");
+    const QColor panel2 = QColor("#1B2230");
+    const QColor text = QColor("#E6EDF7");
+    const QColor mutedText = QColor("#A5B2C7");
+    const QColor accent = QColor("#354E70");
 
     p.setColor(QPalette::Window, bg);
     p.setColor(QPalette::WindowText, text);
@@ -30,24 +30,24 @@ void styling::applyColorPalette(QApplication& app) {
     p.setColor(QPalette::ToolTipBase, panel2);
     p.setColor(QPalette::ToolTipText, text);
     p.setColor(QPalette::Text, text);
-    p.setColor(QPalette::Button, QColor("#252524"));
+    p.setColor(QPalette::Button, QColor("#252F40"));
     p.setColor(QPalette::ButtonText, text);
     p.setColor(QPalette::BrightText, QColor("#FFFFFF"));
-    p.setColor(QPalette::Light, QColor("#50504A"));
-    p.setColor(QPalette::Midlight, QColor("#42423C"));
-    p.setColor(QPalette::Mid, QColor("#33332F"));
-    p.setColor(QPalette::Dark, QColor("#121211"));
-    p.setColor(QPalette::Shadow, QColor("#0D0E0F"));
+    p.setColor(QPalette::Light, QColor("#4F6077"));
+    p.setColor(QPalette::Midlight, QColor("#425166"));
+    p.setColor(QPalette::Mid, QColor("#334054"));
+    p.setColor(QPalette::Dark, QColor("#10141D"));
+    p.setColor(QPalette::Shadow, QColor("#0E121A"));
     p.setColor(QPalette::Highlight, accent);
     p.setColor(QPalette::HighlightedText, QColor("#FFFFFF"));
     p.setColor(QPalette::PlaceholderText, mutedText);
 
-    p.setColor(QPalette::Disabled, QPalette::WindowText, QColor("#64645E"));
-    p.setColor(QPalette::Disabled, QPalette::Text, QColor("#64645E"));
-    p.setColor(QPalette::Disabled, QPalette::ButtonText, QColor("#64645E"));
-    p.setColor(QPalette::Disabled, QPalette::Button, QColor("#20201F"));
-    p.setColor(QPalette::Disabled, QPalette::Base, QColor("#191918"));
-    p.setColor(QPalette::Disabled, QPalette::Highlight, QColor("#30302E"));
+    p.setColor(QPalette::Disabled, QPalette::WindowText, QColor("#748198"));
+    p.setColor(QPalette::Disabled, QPalette::Text, QColor("#748198"));
+    p.setColor(QPalette::Disabled, QPalette::ButtonText, QColor("#748198"));
+    p.setColor(QPalette::Disabled, QPalette::Button, QColor("#202938"));
+    p.setColor(QPalette::Disabled, QPalette::Base, QColor("#1B2230"));
+    p.setColor(QPalette::Disabled, QPalette::Highlight, QColor("#354E70"));
 
     app.setPalette(p);
 }
