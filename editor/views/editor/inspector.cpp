@@ -933,7 +933,7 @@ QWidget *vectorField(const QJsonArray &value, const PropertyChanged &changed,
     layout->setContentsMargins(0, 0, 0, 0);
     layout->setSpacing(2);
     auto *valueEditor = new QWidget(field);
-    auto *valueLayout = new QHBoxLayout(valueEditor);
+    auto *valueLayout = new QVBoxLayout(valueEditor);
     valueLayout->setContentsMargins(0, 0, 0, 0);
     valueLayout->setSpacing(6);
     layout->addWidget(valueEditor, 1);
@@ -947,19 +947,20 @@ QWidget *vectorField(const QJsonArray &value, const PropertyChanged &changed,
         auto *axisField = new QFrame(valueEditor);
         axisField->setObjectName("inspectorAxisField");
         auto *axisLayout = new QHBoxLayout(axisField);
-        axisLayout->setContentsMargins(7, 0, 4, 0);
-        axisLayout->setSpacing(4);
+        axisLayout->setContentsMargins(10, 0, 6, 0);
+        axisLayout->setSpacing(10);
         auto *axis = new QLabel(axes.at(index), axisField);
         axis->setObjectName("inspectorAxis" + axes.at(index));
         axis->setFixedWidth(12);
         auto *box = numberField(values.at(index).toDouble(), axisField);
         box->setButtonSymbols(QAbstractSpinBox::NoButtons);
         box->setMinimumWidth(58);
+        box->setAccessibleName(QStringLiteral("%1 %2").arg(path, axes.at(index)));
         tagEditor(box, path, "vector", index);
         boxes.append(box);
         axisLayout->addWidget(axis);
         axisLayout->addWidget(box, 1);
-        valueLayout->addWidget(axisField, 1);
+        valueLayout->addWidget(axisField);
     }
     auto commit = [boxes, changed, path] {
         QJsonArray result;
@@ -1225,20 +1226,18 @@ QWidget *primitiveField(const QString &name, const QString &path,
 QFrame *propertyRow(const QString &label, QWidget *editor, QWidget *parent) {
     auto *row = new QFrame(parent);
     row->setObjectName("inspectorPropertyRow");
-    const bool wide = editor->objectName() == "inspectorVectorField" ||
-                      editor->objectName() == "inspectorColorField";
-    QBoxLayout *layout = wide ? static_cast<QBoxLayout *>(new QVBoxLayout(row))
-                              : static_cast<QBoxLayout *>(new QHBoxLayout(row));
-    layout->setContentsMargins(0, 5, 0, 5);
-    layout->setSpacing(wide ? 7 : 12);
-    auto *name = new styling::ElidedLabel(label, row);
+    auto *layout = new QVBoxLayout(row);
+    layout->setContentsMargins(0, 6, 0, 6);
+    layout->setSpacing(6);
+    auto *name = new QLabel(label, row);
     name->setObjectName("inspectorPropertyLabel");
-    if (!wide) {
-        name->setMinimumWidth(90);
-        name->setMaximumWidth(112);
-    }
+    name->setWordWrap(true);
+    name->setTextFormat(Qt::PlainText);
+    name->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Minimum);
+    name->setBuddy(editor);
+    editor->setAccessibleName(label);
     layout->addWidget(name);
-    layout->addWidget(editor, wide ? 0 : 1);
+    layout->addWidget(editor);
     return row;
 }
 
@@ -1459,20 +1458,22 @@ QFrame *componentCard(const QString &title, const QJsonObject &properties,
     card->setObjectName("inspectorComponent");
     card->setProperty("inspectorScope", scope);
     auto *layout = new QVBoxLayout(card);
-    layout->setContentsMargins(0, 8, 0, 8);
+    layout->setContentsMargins(8, 4, 8, 10);
     layout->setSpacing(2);
     auto *headerRow = new QWidget(card);
     headerRow->setObjectName("inspectorComponentHeaderRow");
     auto *headerLayout = new QHBoxLayout(headerRow);
     headerLayout->setContentsMargins(0, 0, 3, 0);
     headerLayout->setSpacing(2);
-    auto *header = new styling::ToolButton(headerRow);
+    auto *header = new QToolButton(headerRow);
     header->setObjectName("inspectorComponentHeader");
     header->setText(title);
     header->setCheckable(true);
     header->setChecked(true);
     header->setIcon(styling::icon(styling::Icon::CaretDown, "#8490A4"));
     header->setToolButtonStyle(Qt::ToolButtonTextBesideIcon);
+    header->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Fixed);
+    header->setFocusPolicy(Qt::StrongFocus);
     headerLayout->addWidget(header, 1);
     if (remove) {
         auto *removeButton = new styling::ToolButton(headerRow);
@@ -1486,7 +1487,7 @@ QFrame *componentCard(const QString &title, const QJsonObject &properties,
     auto *body = new QWidget(card);
     body->setObjectName("inspectorComponentBody");
     auto *bodyLayout = new QVBoxLayout(body);
-    bodyLayout->setContentsMargins(2, 4, 2, 0);
+    bodyLayout->setContentsMargins(4, 2, 4, 0);
     bodyLayout->setSpacing(5);
     addPropertyRows(bodyLayout, properties, path, changed, syncProvider, body);
     layout->addWidget(body);
@@ -1507,20 +1508,22 @@ QFrame *controllerActionsCard(const QJsonArray &actions, bool automaticMoving,
     card->setObjectName("inspectorComponent");
     card->setProperty("inspectorScope", "camera:actions");
     auto *layout = new QVBoxLayout(card);
-    layout->setContentsMargins(0, 8, 0, 8);
+    layout->setContentsMargins(8, 4, 8, 10);
     layout->setSpacing(2);
-    auto *header = new styling::ToolButton(card);
+    auto *header = new QToolButton(card);
     header->setObjectName("inspectorComponentHeader");
     header->setText("Controller Actions");
     header->setCheckable(true);
     header->setChecked(true);
     header->setIcon(styling::icon(styling::Icon::CaretDown, "#8490A4"));
     header->setToolButtonStyle(Qt::ToolButtonTextBesideIcon);
+    header->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Fixed);
+    header->setFocusPolicy(Qt::StrongFocus);
     layout->addWidget(header);
     auto *body = new QWidget(card);
     body->setObjectName("inspectorComponentBody");
     auto *bodyLayout = new QVBoxLayout(body);
-    bodyLayout->setContentsMargins(2, 4, 2, 0);
+    bodyLayout->setContentsMargins(4, 2, 4, 0);
     bodyLayout->setSpacing(5);
     auto *automatic = new QCheckBox("Enable Automatic Movement", body);
     automatic->setChecked(automaticMoving);
@@ -1666,6 +1669,7 @@ InspectorPanel::InspectorPanel(ViewportPanel *viewport,
     contentLayout = new QVBoxLayout(content);
     contentLayout->setContentsMargins(12, 8, 12, 16);
     contentLayout->setSpacing(12);
+    contentLayout->setSizeConstraint(QLayout::SetMinAndMaxSize);
     scrollArea->setWidget(content);
     layout->addWidget(scrollArea);
     if (viewport != nullptr) {
@@ -1947,8 +1951,8 @@ void InspectorPanel::showObject(const QJsonObject &object) {
     nameField->setObjectName("inspectorNameField");
     typeLabel = new QLabel(humanize(type), identity);
     typeLabel->setObjectName("inspectorTypeLabel");
-    identityLayout->addWidget(nameField);
     identityLayout->addWidget(typeLabel);
+    identityLayout->addWidget(nameField);
     headerLayout->addWidget(iconLabel);
     headerLayout->addWidget(identity, 1);
     contentLayout->addWidget(header);
@@ -2589,8 +2593,10 @@ void InspectorPanel::showFile() {
 void InspectorPanel::rebuildBody() {
     rebuilding = true;
     while (QLayoutItem *item = contentLayout->takeAt(0)) {
-        if (item->widget() != nullptr)
+        if (item->widget() != nullptr) {
+            item->widget()->hide();
             item->widget()->deleteLater();
+        }
         delete item;
     }
     iconLabel = nullptr;

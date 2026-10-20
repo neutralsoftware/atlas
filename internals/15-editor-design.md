@@ -31,7 +31,9 @@ Lucide replaces Phosphor. Every existing `styling::Icon` identifier maps to a bu
 
 The top bar contains project identity, command discovery, and execution actions. A single horizontal navigation row selects Scene, Shading, Effects, or Interface and exposes search and panel visibility. The active workspace has a simple underline. This replaces the tall workspace rail and promotional subtitles.
 
-Keep docked content spacious through compact chrome. Toolbars sit directly above their content with a divider. Collection and Assets retain separate search rows. Inspector identity is plain text and an icon; collapsible property groups use separators rather than nested decorative cards. Keep the content canvas visually dominant.
+Keep docked content spacious through compact chrome. Toolbars sit directly above their content with a divider. Collection and Assets retain separate search rows. Inspector identity is plain text and an icon. Its collapsible sections have a restrained outline and inset form contents. Keep the content canvas visually dominant.
+
+Inspector properties use a full-width, wrapping native Qt label above each editor. Vector axes occupy separate rows so the three numeric controls and sync action do not compete for the same horizontal space. Native section headers replace the custom button text painter. Input text and selection colors are explicit within the inspector. On selection rebuild, hide outgoing widgets before deferred deletion and let the scroll content recompute its size constraints. These changes address clipping and visibility risks; they are not a substitute for reproducing the reported text problem in the running editor.
 
 ## Implementation and behavior boundaries
 
