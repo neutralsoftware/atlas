@@ -1,209 +1,189 @@
 #include "editor/styling/icons.h"
 
-#include <QFont>
-#include <QFontDatabase>
 #include <QPainter>
+#include <QHash>
 #include <QPainterPath>
 #include <QPixmap>
-#include <QStringList>
+#include <QString>
 
 namespace {
 
-QString iconFamily;
-bool iconFontAttempted = false;
-
-ushort codepoint(styling::Icon icon) {
+QString iconName(styling::Icon icon) {
     switch (icon) {
     case styling::Icon::Aperture:
-        return 0xE00A;
+        return QStringLiteral("aperture");
     case styling::Icon::ArrowClockwise:
-        return 0xE036;
+        return QStringLiteral("rotate-cw");
     case styling::Icon::ArrowCounterClockwise:
-        return 0xE038;
+        return QStringLiteral("rotate-ccw");
     case styling::Icon::ArrowLeft:
-        return 0xE058;
+        return QStringLiteral("arrow-left");
     case styling::Icon::ArrowRight:
-    case styling::Icon::Assign:
-        return 0xE06C;
+        return QStringLiteral("arrow-right");
     case styling::Icon::ArrowUp:
-        return 0xE08E;
+        return QStringLiteral("arrow-up");
     case styling::Icon::ArrowsOutCardinal:
-        return 0xE0A4;
+        return QStringLiteral("move");
+    case styling::Icon::Assign:
+        return QStringLiteral("arrow-right");
     case styling::Icon::BoundingBox:
-        return 0xE6CE;
+        return QStringLiteral("scan");
     case styling::Icon::Camera:
-        return 0xE10E;
+        return QStringLiteral("camera");
     case styling::Icon::CaretDown:
-        return 0xE136;
+        return QStringLiteral("chevron-down");
     case styling::Icon::CaretLeft:
-        return 0xE138;
+        return QStringLiteral("chevron-left");
     case styling::Icon::CaretRight:
-        return 0xE13A;
+        return QStringLiteral("chevron-right");
     case styling::Icon::CaretUp:
-        return 0xE13C;
+        return QStringLiteral("chevron-up");
     case styling::Icon::Check:
-        return 0xE182;
+        return QStringLiteral("check");
     case styling::Icon::Close:
-        return 0xE4F6;
+        return QStringLiteral("x");
     case styling::Icon::Cloud:
-        return 0xE1AA;
+        return QStringLiteral("cloud");
     case styling::Icon::Code:
-        return 0xE1BC;
+        return QStringLiteral("code");
     case styling::Icon::Crosshair:
-        return 0xE1D6;
+        return QStringLiteral("crosshair");
     case styling::Icon::Cube:
-        return 0xE1DA;
+        return QStringLiteral("box");
     case styling::Icon::CubeFocus:
-        return 0xED0A;
+        return QStringLiteral("scan-line");
     case styling::Icon::CubeTransparent:
-        return 0xEC7C;
+        return QStringLiteral("boxes");
     case styling::Icon::CursorClick:
-        return 0xE7C8;
+        return QStringLiteral("mouse-pointer-click");
     case styling::Icon::Database:
-        return 0xE1DE;
+        return QStringLiteral("database");
     case styling::Icon::DotsVertical:
-        return 0xE208;
+        return QStringLiteral("ellipsis-vertical");
     case styling::Icon::DotsNine:
-        return 0xE1FC;
+        return QStringLiteral("grip");
     case styling::Icon::Export:
-        return 0xEAF0;
+        return QStringLiteral("upload");
     case styling::Icon::Eye:
-        return 0xE220;
+        return QStringLiteral("eye");
     case styling::Icon::EyeSlash:
-        return 0xE224;
+        return QStringLiteral("eye-off");
     case styling::Icon::File:
-        return 0xE230;
+        return QStringLiteral("file");
     case styling::Icon::FileCode:
-        return 0xE914;
+        return QStringLiteral("file-code");
     case styling::Icon::FilmStrip:
-        return 0xE792;
+        return QStringLiteral("film");
     case styling::Icon::FloppyDisk:
-        return 0xE248;
+        return QStringLiteral("save");
     case styling::Icon::Folder:
-        return 0xE24A;
+        return QStringLiteral("folder");
     case styling::Icon::FolderOpen:
-        return 0xE256;
+        return QStringLiteral("folder-open");
     case styling::Icon::GameController:
-        return 0xE26E;
+        return QStringLiteral("gamepad-2");
     case styling::Icon::Gear:
-        return 0xE270;
+        return QStringLiteral("settings");
     case styling::Icon::Globe:
-        return 0xE288;
+        return QStringLiteral("globe");
     case styling::Icon::Hand:
-        return 0xE298;
+        return QStringLiteral("hand");
     case styling::Icon::HardDrives:
-        return 0xE2A0;
+        return QStringLiteral("hard-drive");
     case styling::Icon::Image:
-        return 0xE2CA;
+        return QStringLiteral("image");
     case styling::Icon::Info:
-        return 0xE2CE;
+        return QStringLiteral("info");
     case styling::Icon::Layout:
-        return 0xE6D6;
+        return QStringLiteral("panels-top-left");
     case styling::Icon::Lightbulb:
-        return 0xE2DC;
+        return QStringLiteral("lightbulb");
     case styling::Icon::MagnifyingGlass:
-        return 0xE30C;
+        return QStringLiteral("search");
     case styling::Icon::Material:
-        return 0xE6F0;
+        return QStringLiteral("swatch-book");
     case styling::Icon::Monitor:
-        return 0xE32E;
+        return QStringLiteral("monitor");
     case styling::Icon::MonitorPlay:
-        return 0xE58C;
+        return QStringLiteral("monitor-play");
     case styling::Icon::Mountains:
-        return 0xE7AE;
+        return QStringLiteral("mountain");
     case styling::Icon::MusicNote:
-        return 0xE33C;
+        return QStringLiteral("music");
     case styling::Icon::Package:
-        return 0xE390;
+        return QStringLiteral("package");
     case styling::Icon::PaintBrush:
-        return 0xE6F0;
+        return QStringLiteral("paintbrush");
     case styling::Icon::Palette:
-        return 0xE6C8;
+        return QStringLiteral("palette");
     case styling::Icon::Pause:
-        return 0xE39E;
+        return QStringLiteral("pause");
     case styling::Icon::Play:
-        return 0xE3D0;
+        return QStringLiteral("play");
     case styling::Icon::Plus:
-        return 0xE3D4;
+        return QStringLiteral("plus");
     case styling::Icon::RocketLaunch:
-        return 0xE3FE;
+        return QStringLiteral("rocket");
     case styling::Icon::Rows:
-        return 0xE5A2;
+        return QStringLiteral("rows-3");
     case styling::Icon::Sidebar:
-        return 0xEAB6;
+        return QStringLiteral("panel-left");
     case styling::Icon::SkipForward:
-        return 0xE5A6;
+        return QStringLiteral("skip-forward");
     case styling::Icon::SlidersHorizontal:
-        return 0xE434;
+        return QStringLiteral("sliders-horizontal");
     case styling::Icon::Sparkle:
-        return 0xE6A2;
+        return QStringLiteral("sparkles");
     case styling::Icon::SpeakerHigh:
-        return 0xE44A;
+        return QStringLiteral("volume-2");
     case styling::Icon::Sphere:
-        return 0xEE66;
+        return QStringLiteral("circle");
     case styling::Icon::SquaresFour:
-        return 0xE464;
+        return QStringLiteral("grid-2x2");
     case styling::Icon::Stack:
-        return 0xE466;
+        return QStringLiteral("layers");
     case styling::Icon::Stop:
-        return 0xE46C;
+        return QStringLiteral("square");
     case styling::Icon::Sun:
-        return 0xE472;
+        return QStringLiteral("sun");
     case styling::Icon::TerminalWindow:
-        return 0xEAE8;
+        return QStringLiteral("square-terminal");
     case styling::Icon::Trash:
-        return 0xE4A6;
+        return QStringLiteral("trash-2");
     case styling::Icon::TreeStructure:
-        return 0xE67C;
+        return QStringLiteral("network");
     case styling::Icon::Warning:
-        return 0xE4E0;
+        return QStringLiteral("triangle-alert");
     case styling::Icon::Waveform:
-        return 0xE802;
+        return QStringLiteral("audio-lines");
     case styling::Icon::Wrench:
-        return 0xE5D4;
+        return QStringLiteral("wrench");
     }
-    return 0xE230;
+    return QStringLiteral("file");
 }
 
 QPixmap renderIcon(styling::Icon icon, const QColor &color, int size) {
-    QPixmap pixmap(size * 2, size * 2);
+    const QIcon source(QStringLiteral(":/editor/assets/lucide/%1.svg").arg(iconName(icon)));
+    QPixmap pixmap = source.pixmap(size * 2, size * 2);
+    if (pixmap.isNull())
+        return pixmap;
     pixmap.setDevicePixelRatio(2.0);
-    pixmap.fill(Qt::transparent);
     QPainter painter(&pixmap);
-    painter.setRenderHint(QPainter::Antialiasing);
-    painter.setRenderHint(QPainter::TextAntialiasing);
-    painter.setPen(color);
-    QFont font(iconFamily);
-    font.setPixelSize(qRound(size * 0.82));
-    font.setStyleStrategy(QFont::PreferAntialias);
-    painter.setFont(font);
-    painter.drawText(QRect(0, 0, size, size), Qt::AlignCenter,
-                     QString(QChar(codepoint(icon))));
+    painter.setCompositionMode(QPainter::CompositionMode_SourceIn);
+    painter.fillRect(QRectF(0, 0, pixmap.width() / 2.0, pixmap.height() / 2.0), color);
     return pixmap;
 }
 
 }
 
-bool styling::loadIconFont() {
-    if (iconFontAttempted)
-        return !iconFamily.isEmpty();
-    iconFontAttempted = true;
-    const int id = QFontDatabase::addApplicationFont(
-        ":/editor/assets/Phosphor.ttf");
-    const QStringList families = QFontDatabase::applicationFontFamilies(id);
-    if (!families.isEmpty())
-        iconFamily = families.first();
-    return !iconFamily.isEmpty();
-}
-
 QIcon styling::icon(Icon icon, const QColor &color) {
-    if (icon == Icon::Close)
-        return QIcon(":/editor/assets/close.svg");
-    loadIconFont();
-    if (iconFamily.isEmpty())
-        return {};
+    static QHash<quint64, QIcon> cache;
+    const quint64 key = (quint64(color.rgba()) << 32) | quint64(icon);
+    const auto cached = cache.constFind(key);
+    if (cached != cache.cend())
+        return cached.value();
     QIcon result;
-    const QColor disabled("#74746D");
+    const QColor disabled("#707070");
     const QColor active = color.lighter(118);
     for (const int size : {16, 20, 24, 32, 48}) {
         result.addPixmap(renderIcon(icon, color, size), QIcon::Normal,
@@ -213,6 +193,7 @@ QIcon styling::icon(Icon icon, const QColor &color) {
         result.addPixmap(renderIcon(icon, disabled, size), QIcon::Disabled,
                          QIcon::Off);
     }
+    cache.insert(key, result);
     return result;
 }
 

@@ -221,6 +221,8 @@ else ()
     endif ()
 endif ()
 
+file(GLOB ATLAS_EDITOR_ICONS CONFIGURE_DEPENDS "${CMAKE_SOURCE_DIR}/editor/assets/lucide/*.svg")
+
 qt_add_resources(AtlasEditor "atlas_editor_assets"
         PREFIX "/editor"
         BASE "${CMAKE_SOURCE_DIR}/editor"
@@ -233,9 +235,11 @@ qt_add_resources(AtlasEditor "atlas_editor_assets"
         "${CMAKE_SOURCE_DIR}/editor/assets/chevron-down.svg"
         "${CMAKE_SOURCE_DIR}/editor/assets/chevron-up.svg"
         "${CMAKE_SOURCE_DIR}/editor/assets/atlas-app.png"
+        "${CMAKE_SOURCE_DIR}/editor/assets/Geist-Variable.ttf"
         "${CMAKE_SOURCE_DIR}/editor/assets/Manrope-VariableFont_wght.ttf"
-        "${CMAKE_SOURCE_DIR}/editor/assets/Phosphor.ttf"
-        "${CMAKE_SOURCE_DIR}/editor/assets/PHOSPHOR_LICENSE.txt"
+        "${CMAKE_SOURCE_DIR}/editor/assets/GEIST_LICENSE.txt"
+        "${CMAKE_SOURCE_DIR}/editor/assets/LUCIDE_LICENSE.txt"
+        ${ATLAS_EDITOR_ICONS}
 )
 
 target_include_directories(AtlasEditor

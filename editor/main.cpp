@@ -207,22 +207,21 @@ int main(int argc, char **argv) {
     installWindowsDiagnostics();
 #endif
 
-    const int manropeFont = QFontDatabase::addApplicationFont(
-        ":/editor/assets/Manrope-VariableFont_wght.ttf");
-    if (manropeFont < 0) {
-        qWarning() << "Failed to load Manrope";
+    const int geistFont = QFontDatabase::addApplicationFont(
+        ":/editor/assets/Geist-Variable.ttf");
+    if (geistFont < 0) {
+        qWarning() << "Failed to load Geist";
     }
 
     QFont applicationFont =
         QFontDatabase::systemFont(QFontDatabase::GeneralFont);
-    if (manropeFont >= 0) {
-        const QStringList families = QFontDatabase::applicationFontFamilies(manropeFont);
+    if (geistFont >= 0) {
+        const QStringList families = QFontDatabase::applicationFontFamilies(geistFont);
         if (!families.isEmpty())
             applicationFont.setFamily(families.first());
     }
     applicationFont.setPointSizeF(10.5);
     app.setFont(applicationFont);
-    styling::loadIconFont();
 
 #ifndef Q_OS_MACOS
 #ifdef Q_OS_WIN
