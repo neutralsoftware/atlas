@@ -1,7 +1,8 @@
 
 # Finding all Editor Files
 file(GLOB_RECURSE EDITOR_FILES CONFIGURE_DEPENDS
-        "${CMAKE_SOURCE_DIR}/editor/*"
+        "${CMAKE_SOURCE_DIR}/editor/*.cpp"
+        "${CMAKE_SOURCE_DIR}/editor/*.h"
         "${CMAKE_SOURCE_DIR}/include/editor/*.h"
 )
 
@@ -173,6 +174,9 @@ if (APPLE)
 endif ()
 
 qt_add_executable(AtlasEditor ${EDITOR_FILES})
+set_property(SOURCE main.cpp APPEND PROPERTY
+        COMPILE_DEFINITIONS ATLAS_BUILD_REVISION="${ATLAS_BUILD_REVISION}"
+)
 add_dependencies(AtlasEditor generate_shaders generate_atlas_themes atlas_editor_cli)
 
 if (APPLE)

@@ -785,6 +785,9 @@ endif ()
 
 # ─── runtime_lib ─────────────────────────────────────────────────────────────
 add_library(runtime_lib SHARED ${RUNTIME_LIB_SOURCES})
+set_property(SOURCE runtime/lib/c_api.cpp APPEND PROPERTY
+        COMPILE_DEFINITIONS ATLAS_BUILD_REVISION="${ATLAS_BUILD_REVISION}"
+)
 target_link_libraries(runtime_lib
         PUBLIC atlas
         PRIVATE quickjs fmt::fmt
