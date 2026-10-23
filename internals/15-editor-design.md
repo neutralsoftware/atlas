@@ -64,3 +64,9 @@ A build and runtime visual review have not been performed under the current no-b
 - [Lucide](https://github.com/lucide-icons/lucide)
 
 These references guide the Qt implementation; Atlas does not embed Vercel's web components.
+
+## Windows application audit
+
+The local `build/bin/AtlasEditor.exe` inspected on 2026-10-23 contains the exact current QSS, Geist, and the Lucide component and panel-right resources. Phosphor is absent, and the deployed SVG icon engine and Qt SVG library are present. No running Atlas process was available to establish which executable the user launched. These findings establish embedded resource presence, not visual acceptance.
+
+The asset browser now uses compact list rows with neutral Lucide icons. Disable implicit item editing so double-click only opens folders or assets. Enter opens the current item; F2 and the Rename menu retain explicit renaming. Ignore activation without a valid selection. An isolated Qt 6.12 event probe verified double-click emits one open with no inline editor, Enter opens, and F2 invokes rename. Startup diagnostics report the executable path, design identity, selected font family, and icon availability. The application was not built under the no-build instruction.

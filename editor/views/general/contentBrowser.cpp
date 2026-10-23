@@ -151,32 +151,32 @@ class AtlasFileIconProvider : public QFileIconProvider {
 public:
     QIcon icon(const QFileInfo &info) const override {
         if (info.isDir())
-            return styling::icon(styling::Icon::Folder, "#7E929C");
+            return styling::icon(styling::Icon::Folder, "#A1A1A1");
         const QString suffix = info.suffix().toLower();
         if (suffix == "ascene")
-            return styling::icon(styling::Icon::CubeFocus, "#8498A8");
+            return styling::icon(styling::Icon::CubeFocus, "#A1A1A1");
         if (suffix == "amat" || suffix == "material")
-            return styling::icon(styling::Icon::Material, "#9E897D");
+            return styling::icon(styling::Icon::Material, "#A1A1A1");
         if (suffix == "aui")
-            return styling::icon(styling::Icon::Palette, "#849589");
+            return styling::icon(styling::Icon::Palette, "#A1A1A1");
         if (suffix == "ts" || suffix == "js" || suffix == "cpp" ||
             suffix == "h" || suffix == "json")
-            return styling::icon(styling::Icon::FileCode, "#7E929C");
+            return styling::icon(styling::Icon::FileCode, "#A1A1A1");
         if (suffix == "png" || suffix == "jpg" || suffix == "jpeg" ||
             suffix == "bmp" || suffix == "gif" || suffix == "webp" ||
             suffix == "tif" || suffix == "tiff" || suffix == "tga" ||
             suffix == "hdr" || suffix == "exr")
-            return styling::icon(styling::Icon::Image, "#A1957D");
+            return styling::icon(styling::Icon::Image, "#A1A1A1");
         if (suffix == "wav" || suffix == "mp3" || suffix == "ogg" ||
             suffix == "flac")
-            return styling::icon(styling::Icon::MusicNote, "#849589");
-        return styling::icon(styling::Icon::File, "#8490A4");
+            return styling::icon(styling::Icon::MusicNote, "#A1A1A1");
+        return styling::icon(styling::Icon::File, "#A1A1A1");
     }
 
     QIcon icon(IconType type) const override {
         if (type == Folder || type == Drive)
-            return styling::icon(styling::Icon::Folder, "#7E929C");
-        return styling::icon(styling::Icon::File, "#8490A4");
+            return styling::icon(styling::Icon::Folder, "#A1A1A1");
+        return styling::icon(styling::Icon::File, "#A1A1A1");
     }
 };
 
@@ -229,16 +229,16 @@ ContentBrowserPanel::ContentBrowserPanel(const QString &projectFile,
     backButton = new styling::ToolButton(toolbar);
     backButton->setObjectName("browserNavigationButton");
     backButton->setIcon(
-        styling::icon(styling::Icon::ArrowLeft, "#AAB4C4"));
+        styling::icon(styling::Icon::ArrowLeft, "#A1A1A1"));
     backButton->setToolTip("Back");
     forwardButton = new styling::ToolButton(toolbar);
     forwardButton->setObjectName("browserNavigationButton");
     forwardButton->setIcon(
-        styling::icon(styling::Icon::ArrowRight, "#AAB4C4"));
+        styling::icon(styling::Icon::ArrowRight, "#A1A1A1"));
     forwardButton->setToolTip("Forward");
     upButton = new styling::ToolButton(toolbar);
     upButton->setObjectName("browserNavigationButton");
-    upButton->setIcon(styling::icon(styling::Icon::ArrowUp, "#AAB4C4"));
+    upButton->setIcon(styling::icon(styling::Icon::ArrowUp, "#A1A1A1"));
     upButton->setToolTip("Parent Folder");
 
     pathField = new QLineEdit(toolbar);
@@ -257,7 +257,7 @@ ContentBrowserPanel::ContentBrowserPanel(const QString &projectFile,
 
     createButton = new styling::ToolButton(toolbar);
     createButton->setObjectName("panelAddButton");
-    createButton->setIcon(styling::icon(styling::Icon::Plus, "#8498A8"));
+    createButton->setIcon(styling::icon(styling::Icon::Plus, "#A1A1A1"));
     createButton->setText("Create");
     createButton->setToolButtonStyle(Qt::ToolButtonTextBesideIcon);
     createButton->setPopupMode(QToolButton::InstantPopup);
@@ -265,13 +265,13 @@ ContentBrowserPanel::ContentBrowserPanel(const QString &projectFile,
     revealButton = new styling::ToolButton(toolbar);
     revealButton->setObjectName("browserRevealButton");
     revealButton->setIcon(
-        styling::icon(styling::Icon::FolderOpen, "#7E929C"));
+        styling::icon(styling::Icon::FolderOpen, "#A1A1A1"));
     revealButton->setToolTip("Reveal in Finder");
 
     moreButton = new styling::ToolButton(toolbar);
     moreButton->setObjectName("panelMoreButton");
     moreButton->setIcon(
-        styling::icon(styling::Icon::DotsVertical, "#8490A4"));
+        styling::icon(styling::Icon::DotsVertical, "#A1A1A1"));
     moreButton->setPopupMode(QToolButton::InstantPopup);
     moreButton->setToolTip("Content actions");
 
@@ -303,14 +303,14 @@ ContentBrowserPanel::ContentBrowserPanel(const QString &projectFile,
     gridView = new QListView(this);
     gridView->setObjectName("contentGrid");
     gridView->setModel(filterModel);
-    gridView->setViewMode(QListView::IconMode);
-    gridView->setFlow(QListView::LeftToRight);
-    gridView->setWrapping(true);
+    gridView->setViewMode(QListView::ListMode);
+    gridView->setEditTriggers(QAbstractItemView::NoEditTriggers);
+    gridView->setFlow(QListView::TopToBottom);
+    gridView->setWrapping(false);
     gridView->setResizeMode(QListView::Adjust);
     gridView->setMovement(QListView::Static);
-    gridView->setGridSize(QSize(128, 106));
-    gridView->setIconSize(QSize(42, 42));
-    gridView->setWordWrap(true);
+    gridView->setIconSize(QSize(18, 18));
+    gridView->setWordWrap(false);
     gridView->setTextElideMode(Qt::ElideMiddle);
     gridView->setSelectionMode(QAbstractItemView::ExtendedSelection);
     gridView->setDragEnabled(true);
@@ -318,44 +318,44 @@ ContentBrowserPanel::ContentBrowserPanel(const QString &projectFile,
     gridView->setDefaultDropAction(Qt::CopyAction);
     gridView->setContextMenuPolicy(Qt::CustomContextMenu);
     gridView->setUniformItemSizes(true);
-    gridView->setSpacing(4);
+    gridView->setSpacing(0);
     layout->addWidget(gridView, 1);
 
     auto *createMenu = new QMenu(createButton);
-    createMenu->addAction(styling::icon(styling::Icon::Folder, "#7E929C"), "Folder",
+    createMenu->addAction(styling::icon(styling::Icon::Folder, "#A1A1A1"), "Folder",
                           this, &ContentBrowserPanel::createFolder);
     createMenu->addSeparator();
-    createMenu->addAction(styling::icon(styling::Icon::CubeFocus, "#8498A8"), "Scene",
+    createMenu->addAction(styling::icon(styling::Icon::CubeFocus, "#A1A1A1"), "Scene",
                           this, &ContentBrowserPanel::createScene);
-    createMenu->addAction(styling::icon(styling::Icon::Material, "#9E897D"),
+    createMenu->addAction(styling::icon(styling::Icon::Material, "#A1A1A1"),
                           "Material", this,
                           &ContentBrowserPanel::createMaterial);
-    createMenu->addAction(styling::icon(styling::Icon::Palette, "#849589"),
+    createMenu->addAction(styling::icon(styling::Icon::Palette, "#A1A1A1"),
                           "Graphite UI", this,
                           &ContentBrowserPanel::createUI);
-    createMenu->addAction(styling::icon(styling::Icon::FileCode, "#7E929C"),
+    createMenu->addAction(styling::icon(styling::Icon::FileCode, "#A1A1A1"),
                           "TypeScript Script", this,
                           &ContentBrowserPanel::createScript);
     createButton->setMenu(createMenu);
 
     auto *moreMenu = new QMenu(moreButton);
     moreMenu->addAction(
-        styling::icon(styling::Icon::FolderOpen, "#7E929C"), "Open", this, [this] {
+        styling::icon(styling::Icon::FolderOpen, "#A1A1A1"), "Open", this, [this] {
         if (gridView->currentIndex().isValid()) {
             openIndex(gridView->currentIndex());
         }
     });
-    moreMenu->addAction(styling::icon(styling::Icon::File, "#8498A8"),
+    moreMenu->addAction(styling::icon(styling::Icon::File, "#A1A1A1"),
                         "Rename", this,
                         &ContentBrowserPanel::renameSelection);
-    moreMenu->addAction(styling::icon(styling::Icon::Trash, "#A17F7F"),
+    moreMenu->addAction(styling::icon(styling::Icon::Trash, "#A1A1A1"),
                         "Delete", this,
                         &ContentBrowserPanel::deleteSelection);
     moreMenu->addSeparator();
-    moreMenu->addAction(styling::icon(styling::Icon::FolderOpen, "#7E929C"),
+    moreMenu->addAction(styling::icon(styling::Icon::FolderOpen, "#A1A1A1"),
                         "Reveal in Finder", this,
                         &ContentBrowserPanel::revealSelection);
-    moreMenu->addAction(styling::icon(styling::Icon::FileCode, "#8490A4"),
+    moreMenu->addAction(styling::icon(styling::Icon::FileCode, "#A1A1A1"),
                         "Copy Path", this,
                         &ContentBrowserPanel::copySelectionPath);
     moreButton->setMenu(moreMenu);
@@ -409,9 +409,14 @@ ContentBrowserPanel::ContentBrowserPanel(const QString &projectFile,
             &ContentBrowserPanel::renameSelection);
     addAction(renameAction);
 
-    renameAction->setShortcuts({QKeySequence(Qt::Key_Return),
-                                QKeySequence(Qt::Key_Enter),
-                                QKeySequence(Qt::Key_F2)});
+    auto *openAction = new QAction(gridView);
+    openAction->setShortcuts({QKeySequence(Qt::Key_Return),
+                              QKeySequence(Qt::Key_Enter)});
+    openAction->setShortcutContext(Qt::WidgetShortcut);
+    connect(openAction, &QAction::triggered, this, [this] {
+        openIndex(gridView->currentIndex());
+    });
+    gridView->addAction(openAction);
 
     auto *createFolderAction = new QAction(this);
     createFolderAction->setShortcut(
@@ -485,6 +490,8 @@ void ContentBrowserPanel::navigateTo(const QString &path, bool recordHistory) {
 }
 
 void ContentBrowserPanel::openIndex(const QModelIndex &index) {
+    if (!index.isValid())
+        return;
     const QFileInfo info = model->fileInfo(filterModel->mapToSource(index));
     if (info.isDir()) {
         navigateTo(info.absoluteFilePath());

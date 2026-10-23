@@ -244,6 +244,11 @@ int main(int argc, char **argv) {
     app.setStyle("Fusion");
     styling::applyTheme(app);
     styling::installWorkbench(app);
+    qInfo().noquote() << "Editor executable:" << QCoreApplication::applicationFilePath();
+    qInfo().noquote() << "Editor design: Minimal / Geist / Lucide; font:"
+                      << app.font().family()
+                      << "; SVG icons available:"
+                      << !styling::icon(styling::Icon::PanelRight).isNull();
     ToolchainInstaller::ensureInstalled();
 
     auto *startupSplash = new SplashScreen();
