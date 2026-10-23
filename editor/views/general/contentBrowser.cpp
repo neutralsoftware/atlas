@@ -470,11 +470,11 @@ void ContentBrowserPanel::navigateTo(const QString &path, bool recordHistory) {
         return;
     }
 
+    searchField->clear();
     currentPath = target;
     gridView->setRootIndex(
         filterModel->mapFromSource(model->index(currentPath)));
     gridView->clearSelection();
-    searchField->clear();
 
     if (recordHistory) {
         while (history.size() > historyIndex + 1) {
@@ -814,9 +814,9 @@ QString ContentBrowserPanel::uniquePath(const QString &baseName) const {
 }
 
 bool ContentBrowserPanel::isInsideProject(const QString &path) const {
-    const QString root = QDir::cleanPath(projectRoot);
-    const QString candidate = QDir::cleanPath(path);
-    return candidate == root || candidate.startsWith(root + QDir::separator());
+    const QString relative = QDir(projectRoot).relativeFilePath(path);
+    return !QDir::isAbsolutePath(relative) && relative != ".." &&
+           !relative.startsWith("../");
 }
 
 void ContentBrowserPanel::updateNavigationState() {

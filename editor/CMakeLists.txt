@@ -16,7 +16,7 @@ set(ATLAS_GENERATED_THEME_HEADER
 
 # Find packages
 
-find_package(Qt6 REQUIRED COMPONENTS Widgets)
+find_package(Qt6 REQUIRED COMPONENTS Widgets Svg)
 find_package(Python3 REQUIRED COMPONENTS Interpreter)
 find_program(ATLAS_CARGO_EXECUTABLE cargo REQUIRED)
 
@@ -285,6 +285,7 @@ target_link_libraries(AtlasEditor
         ${ATLAS_OPENAL_TARGET}
         ${ATLAS_GLM_TARGET}
         Qt6::Widgets
+        Qt6::Svg
         ads::qtadvanceddocking-qt6
 )
 

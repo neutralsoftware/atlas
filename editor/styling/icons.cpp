@@ -1,6 +1,8 @@
 #include "editor/styling/icons.h"
 
 #include <QPainter>
+#include <QSvgRenderer>
+#include <QDebug>
 #include <QHash>
 #include <QPainterPath>
 #include <QPixmap>
@@ -167,12 +169,17 @@ QString iconName(styling::Icon icon) {
 }
 
 QPixmap renderIcon(styling::Icon icon, const QColor &color, int size) {
-    const QIcon source(QStringLiteral(":/editor/assets/lucide/%1.svg").arg(iconName(icon)));
-    QPixmap pixmap = source.pixmap(size * 2, size * 2);
-    if (pixmap.isNull())
-        return pixmap;
+    const QString resource = QStringLiteral(":/editor/assets/lucide/%1.svg").arg(iconName(icon));
+    QSvgRenderer renderer(resource);
+    if (!renderer.isValid()) {
+        qWarning().noquote() << "Invalid Lucide icon:" << resource;
+        return {};
+    }
+    QPixmap pixmap(size * 2, size * 2);
+    pixmap.fill(Qt::transparent);
     pixmap.setDevicePixelRatio(2.0);
     QPainter painter(&pixmap);
+    renderer.render(&painter, QRectF(0, 0, size, size));
     painter.setCompositionMode(QPainter::CompositionMode_SourceIn);
     painter.fillRect(QRectF(0, 0, pixmap.width() / 2.0, pixmap.height() / 2.0), color);
     return pixmap;
