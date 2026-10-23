@@ -34,6 +34,7 @@
 #include <future>
 #include <iostream>
 #include <memory>
+#include <mutex>
 #include <optional>
 #include <stdexcept>
 #include <string>
@@ -59,7 +60,7 @@ class ModelImportProgressHandler : public Assimp::ProgressHandler {
         : callback(std::move(callback)) {}
 
     bool Update(float percentage = -1.0f) override {
-        if (callback)
+        if (callback && std::isfinite(percentage) && percentage >= 0.0f)
             callback(std::clamp(percentage, 0.0f, 1.0f) * 0.85f,
                      "Reading and optimizing model");
         return true;
@@ -664,9 +665,21 @@ void Model::loadModel(
 
     atlas_log("Loading model: " + resource.name);
 
+    struct ImportStatus {
+        std::mutex mutex;
+        float value = 0.0f;
+        std::string text = "Opening model";
+    };
+    auto status = std::make_shared<ImportStatus>();
+    const auto reportProgress = [status](float value, const std::string &text) {
+        std::lock_guard<std::mutex> lock(status->mutex);
+        status->value = std::max(status->value, value);
+        status->text = text;
+    };
     if (progress) {
         progress(0.0f, "Opening model");
-        importer.SetProgressHandler(new ModelImportProgressHandler(progress));
+        importer.SetProgressHandler(
+            new ModelImportProgressHandler(reportProgress));
     }
 
     unsigned int importFlags =
@@ -681,20 +694,42 @@ void Model::loadModel(
     }
 
     const auto sceneCachePath = modelSceneCachePath(resource, importFlags);
+    const auto readScene = [&]() -> const aiScene * {
+        const aiScene *scene = nullptr;
+        if (isModelSceneCacheValid(sceneCachePath)) {
+            reportProgress(0.0f, "Loading cached model");
+            scene = importer.ReadFile(sceneCachePath.string(), 0);
+        }
+        if (scene == nullptr || (scene->mFlags & AI_SCENE_FLAGS_INCOMPLETE) ||
+            scene->mRootNode == nullptr) {
+            auto *io = new ModelImportIO();
+            importer.SetIOHandler(io);
+            scene = importer.ReadFile(resource.path.string(), importFlags);
+            if (scene != nullptr && !(scene->mFlags & AI_SCENE_FLAGS_INCOMPLETE) &&
+                scene->mRootNode != nullptr) {
+                reportProgress(0.85f, "Caching imported model");
+                storeModelSceneCache(scene, sceneCachePath, *io);
+            }
+        }
+        return scene;
+    };
     const aiScene *scene = nullptr;
-    if (isModelSceneCacheValid(sceneCachePath)) {
-        if (progress)
-            progress(0.0f, "Loading cached model");
-        scene = importer.ReadFile(sceneCachePath.string(), 0);
-    }
-    if (scene == nullptr || (scene->mFlags & AI_SCENE_FLAGS_INCOMPLETE) ||
-        scene->mRootNode == nullptr) {
-        auto *io = new ModelImportIO();
-        importer.SetIOHandler(io);
-        scene = importer.ReadFile(resource.path.string(), importFlags);
-        if (scene != nullptr && !(scene->mFlags & AI_SCENE_FLAGS_INCOMPLETE) &&
-            scene->mRootNode != nullptr)
-            storeModelSceneCache(scene, sceneCachePath, *io);
+    if (progress) {
+        auto pendingScene = std::async(std::launch::async, readScene);
+        while (pendingScene.wait_for(std::chrono::milliseconds(33)) !=
+               std::future_status::ready) {
+            float value;
+            std::string text;
+            {
+                std::lock_guard<std::mutex> lock(status->mutex);
+                value = status->value;
+                text = status->text;
+            }
+            progress(value, text);
+        }
+        scene = pendingScene.get();
+    } else {
+        scene = readScene();
     }
 
     if (!scene || scene->mFlags & AI_SCENE_FLAGS_INCOMPLETE ||
@@ -978,8 +1013,21 @@ Model::processMesh(aiMesh *mesh, const aiScene *scene,
         glm::transpose(glm::inverse(linearTransform));
 
     vertices.reserve(mesh->mNumVertices);
+    const auto reportMeshProgress = [this](float fraction,
+                                           const std::string &status) {
+        if (importProgress && totalMeshCount > 0) {
+            const float completed =
+                (static_cast<float>(importedMeshCount) + fraction) /
+                static_cast<float>(totalMeshCount);
+            importProgress(0.96f + completed * 0.03f, status);
+        }
+    };
 
     for (unsigned int i = 0; i < mesh->mNumVertices; i++) {
+        if (i % 16384 == 0)
+            reportMeshProgress(0.7f * static_cast<float>(i) /
+                                   mesh->mNumVertices,
+                               "Converting model vertices");
         glm::vec4 pos =
             transform * glm::vec4(mesh->mVertices[i].x, mesh->mVertices[i].y,
                                   mesh->mVertices[i].z, 1.0f);
@@ -1071,15 +1119,22 @@ Model::processMesh(aiMesh *mesh, const aiScene *scene,
     size_t totalIndices = 0;
     for (unsigned int i = 0; i < mesh->mNumFaces; i++) {
         totalIndices += mesh->mFaces[i].mNumIndices;
+        if (i % 16384 == 0)
+            reportMeshProgress(0.7f, "Preparing model indices");
     }
     indices.reserve(totalIndices);
 
     for (unsigned int i = 0; i < mesh->mNumFaces; i++) {
+        if (i % 16384 == 0)
+            reportMeshProgress(0.7f + 0.15f * static_cast<float>(i) /
+                                         mesh->mNumFaces,
+                               "Converting model indices");
         const aiFace &face = mesh->mFaces[i];
         for (unsigned int j = 0; j < face.mNumIndices; j++)
             indices.push_back(face.mIndices[j]);
     }
 
+    reportMeshProgress(0.85f, "Preparing model materials");
     std::vector<Texture> textures;
     if (mesh->mMaterialIndex >= 0) {
         aiMaterial *material = scene->mMaterials[mesh->mMaterialIndex];

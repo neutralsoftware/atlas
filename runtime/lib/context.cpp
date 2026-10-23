@@ -6997,6 +6997,8 @@ int Context::pasteObjectDefinition(const std::string &definition) {
             auto object = std::dynamic_pointer_cast<GameObject>(pasted);
             if (object == nullptr)
                 return -1;
+            if (modelImportProgress)
+                modelImportProgress(0.99f, "Attaching model components");
             applyPropertySyncs(*this, false);
             auto attach = [this](const std::vector<PendingComponent> &pending) {
                 for (const PendingComponent &component : pending) {
@@ -7012,11 +7014,15 @@ int Context::pasteObjectDefinition(const std::string &definition) {
             attach(rigidbodyComponents);
             attach(standardComponents);
             attach(jointComponents);
+            if (modelImportProgress)
+                modelImportProgress(0.99f, "Preparing model for the viewport");
             if (std::dynamic_pointer_cast<UIObject>(pasted) != nullptr)
                 window->addUIObject(pasted.get());
             else
                 window->addObject(pasted.get());
             window->selectEditorObject(object.get(), false);
+            if (modelImportProgress)
+                modelImportProgress(0.99f, "Saving imported object");
             if (!saveCurrentScene())
                 return -1;
             return static_cast<int>(object->getId());

@@ -498,6 +498,10 @@ void ContentBrowserPanel::openIndex(const QModelIndex &index) {
         return;
     }
     const QString suffix = info.suffix().toLower();
+    if (suffix == "glb" || suffix == "gltf") {
+        emit modelActivated(info.absoluteFilePath());
+        return;
+    }
     if (suffix == "amat" || suffix == "material") {
         emit assetActivated(info.absoluteFilePath());
         return;

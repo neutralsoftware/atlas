@@ -952,6 +952,11 @@ void EditorWindow::setupDocks() {
                 materialEditorPanel->openMaterial(path);
                 activateWorkspace(1);
             });
+    connect(contentBrowser, &ContentBrowserPanel::modelActivated, this,
+            [this](const QString &path) {
+                activateWorkspace(0);
+                viewportPanel->importRuntimeModel(path);
+            });
     connect(contentBrowser, &ContentBrowserPanel::sceneActivated, this,
             [this](const QString &path) {
                 if (viewportPanel != nullptr &&
