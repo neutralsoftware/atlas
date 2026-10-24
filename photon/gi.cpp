@@ -1023,7 +1023,6 @@ void photon::GlobalIllumination::render(
     }
 #endif
 
-    static std::shared_ptr<opal::Texture> fallbackSkybox = nullptr;
     if (fallbackSkybox == nullptr) {
         fallbackSkybox = createDdgiFallbackSkyboxTexture();
     }

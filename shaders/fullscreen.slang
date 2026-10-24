@@ -157,8 +157,10 @@ FragmentOutput fragmentMain(FragmentInput input, float4 gl_FragCoord : SV_Positi
             }
         }
     }
-    float2 param_4 = input.TexCoord;
-    color = applyFXAA(Texture, param_4);
+    if (parameters.depthIsLinear != 1 && parameters.EffectCount == 0)
+    {
+        color = applyFXAA(Texture, input.TexCoord);
+    }
     float4 param_5 = color;
     float4 _2637 = applyColorEffects(param_5, gl_FragCoord);
     color = _2637;

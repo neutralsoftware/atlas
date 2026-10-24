@@ -110,7 +110,7 @@ class PathTracing {
     /** @brief Resizes path tracing output and history textures. */
     void resizeOutput(int width, int height);
     void configure(int samplesPerPixel, int bounceLimit, bool useDenoising,
-                   int historyFrames, uint32_t enabledFeatures);
+                   int historyFrames, uint32_t enabledFeatures, bool cinematic = false);
     void resetAccumulation();
     const std::string &getLastError() const { return lastError; }
     std::shared_ptr<Texture> getNormalDepthTexture() const {
@@ -129,6 +129,8 @@ class PathTracing {
     float normalMapStrength = 1.0f;
     bool denoisingEnabled = true;
     int accumulationFrames = 512;
+    bool cinematicMode = false;
+    int accumulatedSamples = 0;
     float fireflyClamp = 32.0f;
     uint32_t featureFlags = AllPathTracingFeatures;
 
@@ -144,6 +146,8 @@ class PathTracing {
     std::shared_ptr<opal::Buffer> instanceDataBuffer;
     std::shared_ptr<opal::Buffer> blasPrimitiveOffsets;
     std::shared_ptr<opal::Buffer> emissiveTriangles;
+    std::shared_ptr<opal::Texture> fallbackMaterialTexture;
+    std::shared_ptr<opal::Texture> fallbackSkyboxTexture;
     std::vector<std::shared_ptr<opal::Texture>> materialTextures;
     std::vector<std::shared_ptr<opal::Texture>> materialTextureBindings;
     std::shared_ptr<opal::PrimitiveAccelerationStructure> sceneBLAS;
@@ -152,6 +156,10 @@ class PathTracing {
     std::shared_ptr<opal::Pipeline> pathDenoisePipeline;
     std::shared_ptr<opal::Pipeline> causticClearPipeline;
     std::shared_ptr<opal::Pipeline> causticEmitPipeline;
+    std::shared_ptr<opal::Pipeline> lightBeamPipeline;
+    std::shared_ptr<opal::Buffer> photonBeams;
+    int beamLightCount = -1;
+    int beamBounceLimit = 0;
     std::shared_ptr<opal::Buffer> causticPhotons;
     std::shared_ptr<opal::Buffer> causticSlots;
     glm::vec4 causticBounds = glm::vec4(0.0f);
@@ -336,6 +344,7 @@ class GlobalIllumination {
     std::vector<DDGITriangle> triangles;
     /** @brief Material table uploaded for DDGI tracing. */
     std::vector<DDGIMaterial> materials;
+    std::shared_ptr<opal::Texture> fallbackSkybox;
     /** @brief Texture table referenced by DDGI materials. */
     std::vector<std::shared_ptr<opal::Texture>> materialTextures;
 

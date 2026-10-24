@@ -26,6 +26,7 @@ class Context;
 class QCloseEvent;
 class QEvent;
 class QDragEnterEvent;
+class QDragMoveEvent;
 class QDropEvent;
 class QHideEvent;
 class QKeyEvent;
@@ -106,7 +107,7 @@ class ViewportPanel : public QWidget {
     bool applyPathTracingSettings(int samplesPerPixel, int bounceLimit,
                                   bool denoising, int accumulationFrames,
                                   bool upscaling, float internalScale,
-                                  uint32_t featureFlags);
+                                  uint32_t featureFlags, bool cinematicMode = false);
     void setRuntimeControlMode(int mode);
     void toggleTransformSpace();
     void toggleTransformSnapping();
@@ -142,6 +143,7 @@ class ViewportPanel : public QWidget {
     void hideEvent(QHideEvent *event) override;
     void closeEvent(QCloseEvent *event) override;
     void dragEnterEvent(QDragEnterEvent *event) override;
+    void dragMoveEvent(QDragMoveEvent *event) override;
     void dropEvent(QDropEvent *event) override;
     void resizeEvent(QResizeEvent *event) override;
     void mousePressEvent(QMouseEvent *event) override;
@@ -152,6 +154,7 @@ class ViewportPanel : public QWidget {
     void keyReleaseEvent(QKeyEvent *event) override;
 
   private:
+    void acceptAssetDrag(QDropEvent *event);
     void scheduleRuntimeStart();
     void startRuntime();
     void stopRuntime();

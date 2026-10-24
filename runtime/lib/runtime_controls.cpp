@@ -98,12 +98,13 @@ bool Context::setEditorPathTracingPreview(bool enabled) {
 bool Context::configurePathTracing(int samplesPerPixel, int bounceLimit,
                                    bool denoising, int accumulationFrames,
                                    bool useUpscaling, float upscalingRatio,
-                                   uint32_t featureFlags) {
+                                   uint32_t featureFlags, bool cinematicMode) {
     if (window == nullptr) {
         return false;
     }
-    config.pathTracingSamples = std::clamp(samplesPerPixel, 1, 256);
-    config.pathTracingBounces = std::clamp(bounceLimit, 1, 16);
+    config.cinematicMode = cinematicMode;
+    config.pathTracingSamples = std::clamp(samplesPerPixel, 1, cinematicMode ? 1048576 : 256);
+    config.pathTracingBounces = std::clamp(bounceLimit, 1, cinematicMode ? 1024 : 16);
     config.pathTracingDenoising = denoising;
     config.pathTracingAccumulationFrames =
         std::clamp(accumulationFrames, 1, 2048);
@@ -111,11 +112,11 @@ bool Context::configurePathTracing(int samplesPerPixel, int bounceLimit,
     config.realtimePBRFeatureFlags =
         config.globalIllumination ? featureFlags
                                  : photon::NormalRealtimePBRFeatures;
-    config.useUpscaling = useUpscaling;
+    config.useUpscaling = useUpscaling && !cinematicMode;
     config.upscalingRatio = std::clamp(upscalingRatio, 0.25f, 1.0f);
     window->setRealtimePBRFeatures(config.realtimePBRFeatureFlags);
 #ifdef METAL
-    window->useMetalUpscaling(useUpscaling ? config.upscalingRatio : 1.0f);
+    window->useMetalUpscaling(config.useUpscaling ? config.upscalingRatio : 1.0f);
 #endif
 #if defined(METAL) || defined(VULKAN)
     if (window->device == nullptr || !window->device->supportsRayTracing()) {
@@ -124,7 +125,7 @@ bool Context::configurePathTracing(int samplesPerPixel, int bounceLimit,
     window->configurePathTracing(
         config.pathTracingSamples, config.pathTracingBounces,
         config.pathTracingDenoising, config.pathTracingAccumulationFrames,
-        config.pathTracingFeatureFlags);
+        config.pathTracingFeatureFlags, config.cinematicMode);
     return true;
 #else
     return false;

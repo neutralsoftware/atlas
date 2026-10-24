@@ -624,7 +624,7 @@ FragmentOutput fragmentMain(FragmentInput input) {
         lightingOcclusion;
     float3 ambientBase =
         ((ambientLight.color.xyz * ambientLight.intensity) * albedo) *
-        occlusion * (1.0 - transmission);
+        occlusion * (1.0 - metallic) * (1.0 - transmission);
     bool ddgiEnabled = ps.atlasParams.w > 0.0f && indirectEnabled;
     float3 ambient = ddgiEnabled ? ambientBase * 0.05f : ambientBase;
 

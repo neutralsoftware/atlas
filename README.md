@@ -262,9 +262,13 @@ Atlas Engine is available under the [MIT License](LICENSE.md).
     <td width="50%">
       <img src="images/cornell-box.png" alt="Cornell Box with Glass Dragon" width="100%">
     </td>
+    <td width="50%">
+      <img src="images/prism.png" alt="Prism scattering colors" width="100%">
+    </td>
   </tr>
   <tr>
     <td align="center"><b>Cornell Box with Glass Dragon</b></td>
+    <td align="center"><b>Spectral rendering in a Prism</b></td>
   </tr>
 </table>
 

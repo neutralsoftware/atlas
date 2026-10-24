@@ -716,10 +716,12 @@ struct ShaderProgram {
      * @brief Static cache of compiled shader programs to avoid recompilation.
      *
      */
-    static std::map<std::pair<AtlasVertexShader, AtlasFragmentShader>,
-                    ShaderProgram>
-        shaderCache;
-    static std::map<AtlasComputeShader, ShaderProgram> computeShaderCache;
+    static std::map<std::pair<opal::Device *,
+                              std::pair<AtlasVertexShader, AtlasFragmentShader>>,
+                    ShaderProgram> shaderCache;
+    static std::map<std::pair<opal::Device *, AtlasComputeShader>, ShaderProgram>
+        computeShaderCache;
+    static void releaseDeviceCaches(opal::Device *device);
 
     /**
      * @brief Compiles the shader program by linking the vertex and fragment

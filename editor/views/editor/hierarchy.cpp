@@ -1,3 +1,4 @@
+#include <editor/core/modelAsset.h>
 #include "editor/styling/workbench.h"
 
 /*
@@ -482,6 +483,17 @@ bool HierarchyPanel::eventFilter(QObject *watched, QEvent *event) {
         (event->type() == QEvent::DragEnter ||
          event->type() == QEvent::DragMove || event->type() == QEvent::Drop)) {
         auto *drop = static_cast<QDropEvent *>(event);
+        if (viewport != nullptr && drop->mimeData()->hasUrls()) {
+            const QString path = drop->mimeData()->urls().constFirst().toLocalFile();
+            if (editor::isModelAssetPath(path)) {
+                if (event->type() != QEvent::Drop || viewport->importRuntimeModel(path)) {
+                    drop->acceptProposedAction();
+                } else {
+                    drop->ignore();
+                }
+                return true;
+            }
+        }
         const QModelIndex index = treeView->indexAt(drop->position().toPoint());
         const int objectId = index.data(ObjectIdRole).toInt();
         if (drop->mimeData()->hasUrls() && objectId >= 0) {

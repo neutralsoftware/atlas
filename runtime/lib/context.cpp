@@ -39,7 +39,6 @@
 #include <limits>
 #include <memory>
 #include <numbers>
-#include <random>
 #include <sstream>
 #include <stdexcept>
 #include <json.hpp>
@@ -1603,12 +1602,32 @@ void registerGameObject(Context &context, GameObject &object,
                         size_t generatedIndex) {
     std::string name;
     tryReadStringAny(objectData, {"name"}, name);
-    if (name.empty()) {
-        name = objectType + "_" + std::to_string(generatedIndex);
+    const std::string sourceName = name;
+    const bool ambient = normalizeToken(objectType) == "ambientlight";
+    const size_t separator = name.find_last_of('_');
+    const bool generatedAmbientName = ambient && separator != std::string::npos &&
+        normalizeToken(name.substr(0, separator)) == "ambientlight" &&
+        separator + 1 < name.size() &&
+        std::all_of(name.begin() + separator + 1, name.end(),
+                    [](char value) { return value >= '0' && value <= '9'; });
+    if (name.empty() || generatedAmbientName) {
+        if (ambient) {
+            name = "Ambient Light";
+            int suffix = 2;
+            while (std::any_of(context.objectNames.begin(), context.objectNames.end(),
+                               [&](const auto &entry) { return entry.second == name; })) {
+                name = "Ambient Light " + std::to_string(suffix++);
+            }
+        } else {
+            name = objectType + "_" + std::to_string(generatedIndex);
+        }
     }
 
     object.name = name;
     registerObjectReference(context, name, &object);
+    if (!sourceName.empty() && sourceName != name) {
+        registerObjectReference(context, sourceName, &object);
+    }
     context.objectNames[object.getId()] = name;
     context.objectSceneReferences[object.getId()] = name;
     context.objectSceneTypes[object.getId()] = objectType;
@@ -1703,9 +1722,9 @@ Magnitude3d validLightDirection(const Position3d &value) {
 
 Magnitude3d editorForwardDirection(GameObject &object) {
     glm::vec3 direction =
-        object.getRotation().toGlmQuat() * glm::vec3(0.0f, -1.0f, 0.0f);
+        object.getRotation().toGlmQuat() * glm::vec3(0.0f, 0.0f, -1.0f);
     if (glm::length(direction) < 0.000001f) {
-        direction = glm::vec3(0.0f, -1.0f, 0.0f);
+        direction = glm::vec3(0.0f, 0.0f, -1.0f);
     }
     return Magnitude3d::fromGlm(glm::normalize(direction));
 }
@@ -1770,7 +1789,7 @@ void updateEditorAreaLightProxy(AreaLight &light) {
 void syncEditorLightObject(Context &context, GameObject &object) {
     const int id = static_cast<int>(object.getId());
     const auto sourceIt = context.editorLightSourceData.find(id);
-    const json *source = sourceIt != context.editorLightSourceData.end()
+    json *source = sourceIt != context.editorLightSourceData.end()
                              ? &sourceIt->second
                              : nullptr;
     if (auto it = context.editorPointLights.find(id);
@@ -1797,10 +1816,7 @@ void syncEditorLightObject(Context &context, GameObject &object) {
         it->second->position = object.getPosition();
         it->second->direction = editorForwardDirection(object);
         if (source != nullptr) {
-            Position3d direction;
-            if (tryReadVec3Any(*source, {"direction"}, direction)) {
-                it->second->direction = validLightDirection(direction);
-            }
+            (*source)["direction"] = vec3ToJson(it->second->direction);
             tryReadColorAny(*source, {"color"}, it->second->color);
             tryReadColorAny(*source, {"shineColor"}, it->second->shineColor);
             tryReadFloatAny(*source, {"intensity"}, it->second->intensity);
@@ -1822,7 +1838,6 @@ void syncEditorLightObject(Context &context, GameObject &object) {
                 it->second->castShadows(*context.window, resolution);
             }
         }
-        it->second->updateDebugObjectRotation();
     }
     if (auto it = context.editorAreaLights.find(id);
         it != context.editorAreaLights.end() && it->second != nullptr) {
@@ -1875,10 +1890,7 @@ void syncEditorLightObject(Context &context, GameObject &object) {
         it != context.editorDirectionalLights.end() && it->second != nullptr) {
         it->second->direction = editorForwardDirection(object);
         if (source != nullptr) {
-            Position3d direction;
-            if (tryReadVec3Any(*source, {"direction"}, direction)) {
-                it->second->direction = validLightDirection(direction);
-            }
+            (*source)["direction"] = vec3ToJson(it->second->direction);
             tryReadColorAny(*source, {"color"}, it->second->color);
             tryReadColorAny(*source, {"shineColor"}, it->second->shineColor);
             tryReadFloatAny(*source, {"intensity"}, it->second->intensity);
@@ -1898,7 +1910,7 @@ void syncEditorLightObject(Context &context, GameObject &object) {
         !context.editorAreaLights.contains(id) &&
         !context.editorDirectionalLights.contains(id)) {
         Color color = context.scene->getAmbientColor();
-        float intensity = context.scene->getAmbientIntensity() / 4.0f;
+        float intensity = context.scene->getAmbientIntensity();
         tryReadColorAny(*source, {"color"}, color);
         tryReadFloatAny(*source, {"intensity"}, intensity);
         context.scene->setAmbientColor(color);
@@ -2123,7 +2135,7 @@ json serializeEditorLightObject(Context &context, GameObject &object) {
         node["color"] = colorToJson(Color::white());
     }
     if (!node.contains("intensity")) {
-        node["intensity"] = 0.5f;
+        node["intensity"] = 0.18f;
     }
     return node;
 }
@@ -5054,7 +5066,7 @@ makeContextWithWindowOptions(std::string projectFile, void *metalView,
     int resHeight = 720;
     bool mouseCaptured = false;
     bool multisampling = false;
-    float ssaoScale = 0.4f;
+    float ssaoScale = 1.0f;
     float renderScale = 0.67f;
     bool useUpscaling = false;
     bool editorControls = false;
@@ -5069,7 +5081,7 @@ makeContextWithWindowOptions(std::string projectFile, void *metalView,
         }
         mouseCaptured = (*windowTable)["mouse_capture"].value_or(false);
         multisampling = (*windowTable)["multisampling"].value_or(false);
-        ssaoScale = (*windowTable)["ssaoScale"].value_or(0.4f);
+        ssaoScale = (*windowTable)["ssaoScale"].value_or(1.0f);
     }
     if (auto *rendererTable = configTable["renderer"].as_table()) {
         useUpscaling = (*rendererTable)["use_upscaling"].value_or(false);
@@ -5079,6 +5091,13 @@ makeContextWithWindowOptions(std::string projectFile, void *metalView,
 #ifndef METAL
     useUpscaling = false;
 #endif
+    if (configTable["renderer"]["cinematic_mode"].value_or(false)) {
+        useUpscaling = false;
+    }
+    if (embedded) {
+        useUpscaling = false;
+        ssaoScale = 1.0f;
+    }
     if (auto *editorTable = configTable["editor"].as_table()) {
         editorControls = (*editorTable)["controls"].value_or(false);
     }
@@ -5923,6 +5942,15 @@ bool Context::setObjectProperty(int id, const std::string &component,
         if (!setJsonProperty(source, propertyPath, value)) {
             return false;
         }
+        if ((editorSpotlights.contains(id) || editorDirectionalLights.contains(id)) &&
+            (propertyPath == "direction" || propertyPath == "/direction" ||
+             propertyPath.starts_with("/direction/"))) {
+            Position3d direction;
+            if (tryReadVec3Any(source, {"direction"}, direction)) {
+                object->lookAt(object->getPosition() + validLightDirection(direction),
+                               Position3d::up());
+            }
+        }
         syncEditorLightObject(*this, *object);
         applyPropertySyncs(*this, true);
         return true;
@@ -6319,10 +6347,8 @@ bool Context::setMaterialPreviewEnvironment(int mode) {
         keyIntensity = 4.5f;
         rimIntensity = 2.0f;
     } else {
-        static std::mt19937 generator(std::random_device{}());
-        std::uniform_real_distribution<float> tint(0.82f, 1.0f);
-        const float warm = tint(generator);
-        const float cool = tint(generator);
+        constexpr float warm = 0.95f;
+        constexpr float cool = 0.95f;
         const std::array<Color, 6> colors = {
             Color{warm, warm * 0.96f, warm * 0.88f, 1.0f},
             Color{0.025f, 0.03f, 0.04f, 1.0f},
@@ -6343,7 +6369,7 @@ bool Context::setMaterialPreviewEnvironment(int mode) {
         key = {1.0f, 0.97f, 0.9f, 1.0f};
         rim = {0.52f, 0.65f, 0.88f, 1.0f};
         background = {0.035f, 0.04f, 0.05f, 1.0f};
-        ambientIntensity = 0.6f;
+        ambientIntensity = 0.18f;
         directionalIntensity = 0.95f;
         keyIntensity = 5.0f;
         rimIntensity = 2.5f;
@@ -6893,16 +6919,17 @@ int Context::createObject(const std::string &type, const std::string &name) {
         return id;
     } else if (solidType == "ambientlight" || solidType == "ambient") {
         scene->setAmbientColor(Color::white());
-        scene->setAmbientIntensity(2.0f);
+        scene->setAmbientIntensity(0.72f);
+        const std::string displayName = uniqueEditorObjectName(
+            *this, name.empty() ? "Ambient Light" : name);
         auto proxy =
             createEditorLightProxy("ambientLight", Color::white(), position);
-        int id = registerEditorLightObject(*this, proxy, json::object(),
-                                           "ambientLight");
+        int id = registerEditorLightObject(
+            *this, proxy, {{"name", displayName}, {"intensity", 0.18f}},
+            "ambientLight");
         if (id < 0) {
             return -1;
         }
-        const std::string displayName = uniqueEditorObjectName(
-            *this, name.empty() ? "Ambient Light" : name);
         proxy->name = displayName;
         objectNames[id] = displayName;
         objectSceneReferences[id] = std::to_string(id);
@@ -7274,6 +7301,7 @@ void Context::loadProject() {
     std::vector<std::string> assetDirectories;
     bool useUpscaling = false;
     float upscalingRatio = 0.67f;
+    bool cinematicMode = false;
     int pathTracingSamples = 4;
     int pathTracingBounces = 8;
     bool pathTracingDenoising = true;
@@ -7288,10 +7316,11 @@ void Context::loadProject() {
         globalIllumination = (*renderer)["global_illumination"].value_or(false);
         useUpscaling = (*renderer)["use_upscaling"].value_or(false);
         upscalingRatio = (*renderer)["upscaling_ratio"].value_or(0.67f);
+        cinematicMode = (*renderer)["cinematic_mode"].value_or(false);
         pathTracingSamples =
-            std::clamp((*renderer)["samples_per_pixel"].value_or(4), 1, 256);
+            std::clamp((*renderer)["samples_per_pixel"].value_or(cinematicMode ? 4096 : 4), 1, cinematicMode ? 1048576 : 256);
         pathTracingBounces =
-            std::clamp((*renderer)["max_bounces"].value_or(8), 1, 16);
+            std::clamp((*renderer)["max_bounces"].value_or(cinematicMode ? 32 : 8), 1, cinematicMode ? 1024 : 16);
         pathTracingDenoising = (*renderer)["denoising"].value_or(true);
         pathTracingAccumulationFrames = std::clamp(
             (*renderer)["accumulation_frames"].value_or(512), 1, 2048);
@@ -7359,8 +7388,9 @@ void Context::loadProject() {
     config.globalIllumination = globalIllumination;
     config.mainScene = mainScene;
     config.assetDirectories = assetDirectories;
-    config.useUpscaling = useUpscaling;
+    config.useUpscaling = useUpscaling && !cinematicMode;
     config.upscalingRatio = std::clamp(upscalingRatio, 0.25f, 1.0f);
+    config.cinematicMode = cinematicMode;
     config.pathTracingSamples = pathTracingSamples;
     config.pathTracingBounces = pathTracingBounces;
     config.pathTracingDenoising = pathTracingDenoising;
@@ -7641,7 +7671,7 @@ void Context::loadScene(Window &window, const json &sceneData) {
             if (normalizedType == "ambient" ||
                 normalizedType == "ambientlight") {
                 Color ambientColor = Color::white();
-                float intensity = 0.5f;
+                float intensity = 0.18f;
                 tryReadColor(lightData, "color", ambientColor);
                 JSON_READ_FLOAT(lightData, "intensity", intensity);
                 scene->setAmbientColor(ambientColor);

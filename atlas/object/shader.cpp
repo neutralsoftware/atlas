@@ -20,7 +20,8 @@
 #include <utility>
 #include <vector>
 
-std::map<std::pair<AtlasVertexShader, AtlasFragmentShader>, ShaderProgram>
+std::map<std::pair<opal::Device *,
+                   std::pair<AtlasVertexShader, AtlasFragmentShader>>, ShaderProgram>
     ShaderProgram::shaderCache = {};
 
 std::map<AtlasVertexShader, VertexShader> VertexShader::vertexShaderCache = {};
@@ -31,7 +32,8 @@ std::map<AtlasFragmentShader, FragmentShader>
 std::map<AtlasComputeShader, ComputeShader> ComputeShader::computeShaderCache =
     {};
 
-std::map<AtlasComputeShader, ShaderProgram> ShaderProgram::computeShaderCache =
+std::map<std::pair<opal::Device *, AtlasComputeShader>, ShaderProgram>
+    ShaderProgram::computeShaderCache =
     {};
 
 VertexShader VertexShader::fromDefaultShader(AtlasVertexShader shader) {
@@ -616,7 +618,8 @@ void ShaderProgram::compile() {
         }
 
         if (computeShader.fromDefaultShaderType.has_value()) {
-            auto key = computeShader.fromDefaultShaderType.value();
+            auto key = std::make_pair(opal::Device::globalInstance,
+                                      computeShader.fromDefaultShaderType.value());
             if (ShaderProgram::computeShaderCache.contains(key)) {
                 const auto &cached = ShaderProgram::computeShaderCache[key];
                 if (cached.shader != nullptr &&
@@ -651,7 +654,8 @@ void ShaderProgram::compile() {
 
         if (computeShader.fromDefaultShaderType.has_value()) {
             ShaderProgram::computeShaderCache
-                [computeShader.fromDefaultShaderType.value()] = *this;
+                [std::make_pair(opal::Device::globalInstance,
+                                computeShader.fromDefaultShaderType.value())] = *this;
         }
         return;
     }
@@ -686,8 +690,10 @@ void ShaderProgram::compile() {
 
     if (fragmentShader.fromDefaultShaderType.has_value() &&
         vertexShader.fromDefaultShaderType.has_value()) {
-        auto key = std::make_pair(vertexShader.fromDefaultShaderType.value(),
-                                  fragmentShader.fromDefaultShaderType.value());
+        auto key = std::make_pair(
+            opal::Device::globalInstance,
+            std::make_pair(vertexShader.fromDefaultShaderType.value(),
+                           fragmentShader.fromDefaultShaderType.value()));
         if (ShaderProgram::shaderCache.contains(key)) {
             const auto &cached = ShaderProgram::shaderCache[key];
             if (cached.shader != nullptr && cached.shader->getProgramStatus()) {
@@ -729,31 +735,35 @@ void ShaderProgram::compile() {
 
     if (fragmentShader.fromDefaultShaderType.has_value() &&
         vertexShader.fromDefaultShaderType.has_value()) {
-        auto key = std::make_pair(vertexShader.fromDefaultShaderType.value(),
-                                  fragmentShader.fromDefaultShaderType.value());
+        auto key = std::make_pair(
+            opal::Device::globalInstance,
+            std::make_pair(vertexShader.fromDefaultShaderType.value(),
+                           fragmentShader.fromDefaultShaderType.value()));
         ShaderProgram::shaderCache[key] = *this;
     }
 }
 
+void ShaderProgram::releaseDeviceCaches(opal::Device *device) {
+    std::erase_if(shaderCache, [device](const auto &entry) {
+        return entry.first.first == device;
+    });
+    std::erase_if(computeShaderCache, [device](const auto &entry) {
+        return entry.first.first == device;
+    });
+}
+
 ShaderProgram ShaderProgram::defaultProgram() {
-    static ShaderProgram program;
-    static bool initialized = false;
-
-    if (!initialized || program.shader == nullptr ||
-        !program.shader->getProgramStatus()) {
-        program = ShaderProgram();
-        program.vertexShader = VertexShader::fromDefaultShader(
-            AtlasVertexShader::DEFAULT_VERT_SHADER);
-        program.fragmentShader = FragmentShader::fromDefaultShader(
-            AtlasFragmentShader::DEFAULT_FRAG_SHADER);
-        program.desiredAttributes = program.vertexShader.desiredAttributes;
-        program.vertexShader.compile();
-        program.fragmentShader.compile();
-        program.compile();
-        initialized = true;
+    const auto key = std::make_pair(
+        opal::Device::globalInstance,
+        std::make_pair(AtlasVertexShader::DEFAULT_VERT_SHADER,
+                       AtlasFragmentShader::DEFAULT_FRAG_SHADER));
+    const auto cached = shaderCache.find(key);
+    if (cached != shaderCache.end() && cached->second.shader != nullptr &&
+        cached->second.shader->getProgramStatus()) {
+        return cached->second;
     }
-
-    return program;
+    return fromDefaultShaders(AtlasVertexShader::DEFAULT_VERT_SHADER,
+                              AtlasFragmentShader::DEFAULT_FRAG_SHADER);
 }
 
 void ShaderProgram::setUniform4f(const std::string &name, float v0, float v1,

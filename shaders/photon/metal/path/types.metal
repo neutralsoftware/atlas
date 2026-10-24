@@ -214,6 +214,9 @@ struct SceneData {
     float4 cloudSettings;
     float4 cloudLighting;
     uint cloudsEnabled;
+    uint cinematicMode;
+    uint accumulatedSamples;
+    uint beamSegmentLimit;
 };
 
 static_assert(sizeof(SceneData) == 208);

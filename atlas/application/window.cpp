@@ -1329,6 +1329,11 @@ struct Window::AtlasHudState {
         line << "OPENGL";
 #endif
         line << (window.usePathTracing ? "  |  Photon" : "  |  Raster");
+        if (window.usePathTracing && window.pathTracer != nullptr &&
+            window.pathTracer->cinematicMode) {
+            line << " Cinematic  |  " << window.pathTracer->accumulatedSamples
+                 << "/" << window.pathTracer->raysPerPixel << " spp";
+        }
         labels[5].content = line.str();
 
         line.str("");
@@ -4758,6 +4763,7 @@ std::vector<Monitor> Window::enumerateMonitors() {
 }
 
 Window::~Window() {
+    ShaderProgram::releaseDeviceCaches(device.get());
     if (audioEngine != nullptr) {
         audioEngine->shutdown();
         audioEngine.reset();
@@ -6373,12 +6379,12 @@ void Window::enablePathTracing() {
 
 void Window::configurePathTracing(int samplesPerPixel, int bounceLimit,
                                   bool denoising, int accumulationFrames,
-                                  uint32_t featureFlags) {
+                                  uint32_t featureFlags, bool cinematicMode) {
     if (pathTracer == nullptr) {
         return;
     }
     pathTracer->configure(samplesPerPixel, bounceLimit, denoising,
-                          accumulationFrames, featureFlags);
+                          accumulationFrames, featureFlags, cinematicMode);
 }
 
 void Window::resetPathTracingAccumulation() {
