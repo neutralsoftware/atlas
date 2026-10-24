@@ -8,6 +8,8 @@
  */
 
 #include <editor/views/viewport.h>
+#include <editor/core/modelAsset.h>
+#include <QDragMoveEvent>
 #include <editor/application/toolchainInstaller.h>
 
 #include <atlas/input.h>
@@ -934,17 +936,14 @@ void ViewportPanel::closeEvent(QCloseEvent *event) {
     QWidget::closeEvent(event);
 }
 
-void ViewportPanel::dragEnterEvent(QDragEnterEvent *event) {
+void ViewportPanel::acceptAssetDrag(QDropEvent *event) {
     if (event->mimeData()->hasUrls()) {
         const QString suffix =
             QFileInfo(event->mimeData()->urls().constFirst().toLocalFile())
                 .suffix()
                 .toLower();
-        const bool model = suffix == "obj" || suffix == "fbx" ||
-                           suffix == "gltf" || suffix == "glb" ||
-                           suffix == "dae" || suffix == "blend" ||
-                           suffix == "usd" || suffix == "usda" ||
-                           suffix == "usdc" || suffix == "usdz";
+        const bool model = editor::isModelAssetPath(
+            event->mimeData()->urls().constFirst().toLocalFile());
         if (model || (selectedRuntimeObjectId() >= 0 &&
                       (suffix == "amat" || suffix == "material" ||
                        suffix == "ts" || suffix == "js" || suffix == "wav" ||
@@ -957,17 +956,20 @@ void ViewportPanel::dragEnterEvent(QDragEnterEvent *event) {
     event->ignore();
 }
 
+void ViewportPanel::dragEnterEvent(QDragEnterEvent *event) {
+    acceptAssetDrag(event);
+}
+
+void ViewportPanel::dragMoveEvent(QDragMoveEvent *event) {
+    acceptAssetDrag(event);
+}
+
 void ViewportPanel::dropEvent(QDropEvent *event) {
     const QString path =
         event->mimeData()->hasUrls()
             ? event->mimeData()->urls().constFirst().toLocalFile()
             : QString();
-    const QString suffix = QFileInfo(path).suffix().toLower();
-    if ((suffix == "obj" || suffix == "fbx" || suffix == "gltf" ||
-         suffix == "glb" || suffix == "dae" || suffix == "blend" ||
-         suffix == "usd" || suffix == "usda" || suffix == "usdc" ||
-         suffix == "usdz") &&
-        importRuntimeModel(path)) {
+    if (editor::isModelAssetPath(path) && importRuntimeModel(path)) {
         event->acceptProposedAction();
         return;
     }
@@ -1378,6 +1380,10 @@ void ViewportPanel::startRuntime() {
         runtimeContext = runtime::makeContextForNativeWindow(
             runtimeProjectFile, nativeView, nativeWindowType);
 #endif
+#ifdef Q_OS_WIN
+        setAcceptDrops(false);
+        setAcceptDrops(true);
+#endif
         QPointer<ViewportPanel> runtimeOwner(this);
         runtimeContext->errorReporter =
             [runtimeOwner](const std::string &error) {
@@ -1498,6 +1504,13 @@ void ViewportPanel::stopRuntime() {
     } catch (...) {
         qWarning() << "Failed to stop Atlas viewport runtime";
     }
+    context.reset();
+#ifdef Q_OS_WIN
+    if (!shuttingDown) {
+        setAcceptDrops(false);
+        setAcceptDrops(true);
+    }
+#endif
     runtimeWidth = 0;
     runtimeHeight = 0;
     runtimeScale = 0.0f;
@@ -2113,10 +2126,25 @@ bool ViewportPanel::attachRuntimeAsset(int id, const QString &path) {
 }
 
 bool ViewportPanel::importRuntimeModel(const QString &path) {
-    if (runtimeContext == nullptr || playbackState != 0 || path.isEmpty() ||
-        runtimeImportInProgress || runtimeStarting || runtimeFrameInProgress ||
-        shuttingDown)
+    if (path.isEmpty() || shuttingDown)
         return false;
+    if (runtimeContext == nullptr || runtimeStarting) {
+        emit runtimeErrorOccurred(tr("The viewport is not ready to import models yet."));
+        return false;
+    }
+    if (playbackState != 0) {
+        emit runtimeErrorOccurred(tr("Stop playback before importing a model."));
+        return false;
+    }
+    if (runtimeImportInProgress) {
+        emit runtimeErrorOccurred(tr("A model import is already in progress."));
+        return false;
+    }
+    if (runtimeFrameInProgress) {
+        QTimer::singleShot(RuntimeFrameIntervalMs, this,
+                           [this, path] { importRuntimeModel(path); });
+        return true;
+    }
     runtimeImportInProgress = true;
     frameTimer->stop();
     const auto importGuard = qScopeGuard([this] { finishRuntimeImport(); });

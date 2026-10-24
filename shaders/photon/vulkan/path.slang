@@ -345,15 +345,23 @@ float3 thinFilmReflectance(float cosine, float3 baseReflectance, float factor,
     return lerp(baseReflectance, filmReflectance, saturate(factor));
 }
 
+float3 volumeExtinction(Material material) {
+    float3 absorption = -log(clamp(material.volumeAbsorptionColor, 1e-4, 1.0)) *
+                        max(material.volumeAbsorptionStrength, 0.0);
+    float3 scattering = max(material.volumeScatteringColor, 0.0) *
+                        max(material.volumeScatteringStrength, 0.0);
+    return (absorption + scattering) * max(material.volumeDensity, 0.0);
+}
+
 float3 volumeTransmittance(Material material, float distance) {
-    float3 absorption =
-        max(material.volumeAbsorptionColor * material.volumeAbsorptionStrength,
-            0.0);
-    float3 scattering =
-        max(material.volumeScatteringColor * material.volumeScatteringStrength,
-            0.0);
-    return exp(-(absorption + scattering) * max(material.volumeDensity, 0.0) *
-               max(distance, 0.0));
+    return exp(-volumeExtinction(material) * max(distance, 0.0));
+}
+
+float spotlightCone(float cosine, float innerCos, float outerCos) {
+    float inner = max(innerCos, outerCos);
+    float outer = min(innerCos, outerCos);
+    return inner - outer > 1e-6 ? smoothstep(outer, inner, cosine)
+                                : step(outer, cosine);
 }
 
 float dispersionIor(float baseIor, float abbeNumber, uint channel) {
@@ -550,20 +558,134 @@ float3 gatherCaustics(SurfaceHit hit) {
 }
 
 bool traceOcclusion(float3 origin, float3 direction, float maximumDistance) {
+    if (maximumDistance <= 0.001) {
+        return false;
+    }
     RayDesc ray;
     ray.Origin = origin;
     ray.Direction = direction;
     ray.TMin = 0.001;
     ray.TMax = maximumDistance;
-    RayQuery<RAY_FLAG_ACCEPT_FIRST_HIT_AND_END_SEARCH | RAY_FLAG_FORCE_OPAQUE>
-        query;
+    RayQuery<RAY_FLAG_ACCEPT_FIRST_HIT_AND_END_SEARCH | RAY_FLAG_FORCE_NON_OPAQUE> query;
     query.TraceRayInline(sceneAS,
                          RAY_FLAG_ACCEPT_FIRST_HIT_AND_END_SEARCH |
-                             RAY_FLAG_FORCE_OPAQUE,
+                             RAY_FLAG_FORCE_NON_OPAQUE,
                          0xFF, ray);
     while (query.Proceed()) {
+        if (query.CandidateType() == CANDIDATE_NON_OPAQUE_TRIANGLE) {
+            uint primitive = blasPrimitiveOffsets[query.CandidateGeometryIndex()] +
+                             query.CandidatePrimitiveIndex();
+            if (materials[primitiveObjects[primitive]].isVolume == 0) {
+                query.CommitNonOpaqueTriangleHit();
+            }
+        }
     }
     return query.CommittedStatus() == COMMITTED_TRIANGLE_HIT;
+}
+
+bool traceVolumeBoundary(float3 origin, float3 direction, uint objectId,
+                         out float distance, out bool frontFace) {
+    distance = 0.0;
+    frontFace = true;
+    RayDesc ray;
+    ray.Origin = origin;
+    ray.Direction = direction;
+    ray.TMin = 0.001;
+    ray.TMax = 1e30;
+    RayQuery<RAY_FLAG_FORCE_NON_OPAQUE> query;
+    query.TraceRayInline(sceneAS, RAY_FLAG_FORCE_NON_OPAQUE, 0xFF, ray);
+    while (query.Proceed()) {
+        if (query.CandidateType() == CANDIDATE_NON_OPAQUE_TRIANGLE) {
+            uint primitive = blasPrimitiveOffsets[query.CandidateGeometryIndex()] +
+                             query.CandidatePrimitiveIndex();
+            if (primitiveObjects[primitive] == objectId) {
+                query.CommitNonOpaqueTriangleHit();
+            }
+        }
+    }
+    if (query.CommittedStatus() != COMMITTED_TRIANGLE_HIT) {
+        return false;
+    }
+    uint primitive = blasPrimitiveOffsets[query.CommittedGeometryIndex()] +
+                     query.CommittedPrimitiveIndex();
+    float2 bary = query.CommittedTriangleBarycentrics();
+    uint base = primitive * 3;
+    float3 normal = vertices[indices[base]].normal * (1.0 - bary.x - bary.y) +
+                    vertices[indices[base + 1]].normal * bary.x +
+                    vertices[indices[base + 2]].normal * bary.y;
+    InstanceData transform = instanceData[objectId];
+    float3x3 normalMatrix = float3x3(transform.normalCol0.xyz,
+                                     transform.normalCol1.xyz,
+                                     transform.normalCol2.xyz);
+    distance = query.CommittedRayT();
+    frontFace = dot(mul(normal, normalMatrix), direction) < 0.0;
+    return true;
+}
+
+bool findContainingMedium(float3 origin, out uint objectId,
+                          out Material material) {
+    objectId = 0xffffffffu;
+    material = {};
+    if ((sceneData.featureFlags & PHOTON_FEATURE_VOLUMES) == 0) {
+        return false;
+    }
+    uint count, stride;
+    materials.GetDimensions(count, stride);
+    float nearest = 1e30;
+    float3 probe = normalize(float3(0.743, 0.421, 0.519));
+    for (uint index = 0; index < count; ++index) {
+        if (materials[index].isVolume == 0) {
+            continue;
+        }
+        float distance;
+        bool frontFace;
+        if (traceVolumeBoundary(origin, probe, index, distance, frontFace) &&
+            !frontFace && distance < nearest) {
+            nearest = distance;
+            objectId = index;
+            material = materials[index];
+        }
+    }
+    return objectId != 0xffffffffu;
+}
+
+float3 volumeShadowTransmittance(float3 origin, float3 direction,
+                                 float maximumDistance) {
+    if ((sceneData.featureFlags & PHOTON_FEATURE_VOLUMES) == 0) {
+        return 1.0;
+    }
+    uint count, stride;
+    materials.GetDimensions(count, stride);
+    float3 transmittance = 1.0;
+    for (uint index = 0; index < count; ++index) {
+        if (materials[index].isVolume == 0) {
+            continue;
+        }
+        float traveled = 0.0;
+        float3 segmentOrigin = origin;
+        for (uint boundary = 0; boundary < 32 && traveled < maximumDistance; ++boundary) {
+            float distance;
+            bool frontFace;
+            if (!traceVolumeBoundary(segmentOrigin, direction, index, distance, frontFace)) {
+                break;
+            }
+            if (!frontFace) {
+                transmittance *= volumeTransmittance(
+                    materials[index], min(distance, maximumDistance - traveled));
+            }
+            traveled += distance + 0.002;
+            segmentOrigin = origin + direction * traveled;
+        }
+    }
+    return transmittance;
+}
+
+float3 lightVisibility(float3 origin, float3 direction, float maximumDistance) {
+    if ((sceneData.featureFlags & PHOTON_FEATURE_SHADOWS) != 0 &&
+        traceOcclusion(origin, direction, maximumDistance)) {
+        return 0.0;
+    }
+    return volumeShadowTransmittance(origin, direction, maximumDistance);
 }
 
 SurfaceHit traceSurface(float3 origin, float3 direction) {
@@ -669,6 +791,23 @@ SurfaceHit traceSurface(float3 origin, float3 direction) {
     return hit;
 }
 
+SurfaceHit traceNonVolumeSurface(float3 origin, float3 direction) {
+    float traveled = 0.0;
+    for (uint boundary = 0; boundary < 64; ++boundary) {
+        SurfaceHit hit = traceSurface(origin + direction * traveled, direction);
+        if (!hit.valid) {
+            return hit;
+        }
+        if (hit.material.isVolume == 0) {
+            hit.distance += traveled;
+            return hit;
+        }
+        traveled += hit.distance + 0.002;
+    }
+    SurfaceHit hit = {};
+    return hit;
+}
+
 float3 environmentColor(float3 direction) {
     if (sceneData.environmentEnabled != 0) {
         float3 sampled = skybox.SampleLevel(direction, 0.0).xyz;
@@ -723,12 +862,8 @@ float3 directLighting(SurfaceHit hit, float3 view) {
     if (sceneData.numDirectionalLights > 0) {
         float3 lightDirection =
             safeNormal(-dirLight.direction, float3(0.0, 1.0, 0.0));
-        float visibility = 1.0;
-        if ((sceneData.featureFlags & PHOTON_FEATURE_SHADOWS) != 0 &&
-            traceOcclusion(hit.position + hit.normal * 0.002, lightDirection,
-                           1.0e20)) {
-            visibility = 0.0;
-        }
+        float3 visibility = lightVisibility(
+            hit.position + hit.normal * 0.002, lightDirection, 1.0e20);
         result += evaluateBRDF(hit, view, lightDirection, dirLight.color,
                                dirLight.intensity) *
                   visibility;
@@ -742,12 +877,8 @@ float3 directLighting(SurfaceHit hit, float3 view) {
             continue;
         }
         float3 lightDirection = delta / distance;
-        float visibility = 1.0;
-        if ((sceneData.featureFlags & PHOTON_FEATURE_SHADOWS) != 0 &&
-            traceOcclusion(hit.position + hit.normal * 0.002, lightDirection,
-                           distance - 0.004)) {
-            visibility = 0.0;
-        }
+        float3 visibility = lightVisibility(
+            hit.position + hit.normal * 0.002, lightDirection, distance - 0.004);
         float range = max(pointLights[index].range, 1e-4);
         float rangeFade = 1.0 - smoothstep(range * 0.75, range, distance);
         float intensity =
@@ -765,20 +896,16 @@ float3 directLighting(SurfaceHit hit, float3 view) {
             continue;
         }
         float3 lightDirection = delta / distance;
-        float cone = smoothstep(
-            spotLights[index].outerCos, spotLights[index].innerCos,
+        float cone = spotlightCone(
             dot(-lightDirection, safeNormal(spotLights[index].direction,
-                                            float3(0.0, -1.0, 0.0))));
+                                            float3(0.0, -1.0, 0.0))),
+            spotLights[index].innerCos, spotLights[index].outerCos);
         float range = max(spotLights[index].range, 1e-4);
         float rangeFade = 1.0 - smoothstep(range * 0.75, range, distance);
         float intensity =
             spotLights[index].intensity * cone * rangeFade / distanceSquared;
-        float visibility = 1.0;
-        if ((sceneData.featureFlags & PHOTON_FEATURE_SHADOWS) != 0 &&
-            traceOcclusion(hit.position + hit.normal * 0.002, lightDirection,
-                           distance - 0.004)) {
-            visibility = 0.0;
-        }
+        float3 visibility = lightVisibility(
+            hit.position + hit.normal * 0.002, lightDirection, distance - 0.004);
         result += evaluateBRDF(hit, view, lightDirection,
                                spotLights[index].color, intensity) *
                   visibility;
@@ -809,15 +936,190 @@ float3 directLighting(SurfaceHit hit, float3 view) {
         float area = max(4.0 * light.halfWidth * light.halfHeight, 1e-4);
         float intensity =
             light.intensity * lightCosine * area / distanceSquared;
-        float visibility = 1.0;
-        if ((sceneData.featureFlags & PHOTON_FEATURE_SHADOWS) != 0 &&
-            traceOcclusion(hit.position + hit.normal * 0.002, lightDirection,
-                           distance - 0.004)) {
-            visibility = 0.0;
-        }
+        float3 visibility = lightVisibility(
+            hit.position + hit.normal * 0.002, lightDirection, distance - 0.004);
         result +=
             evaluateBRDF(hit, view, lightDirection, light.color, intensity) *
             visibility;
+    }
+    return result;
+}
+
+float volumePhase(float cosine, float anisotropy) {
+    float g = clamp(anisotropy, -0.99, 0.99);
+    float denominator = max(1.0 + g * g - 2.0 * g * cosine, 1e-6);
+    return (1.0 - g * g) /
+           (12.56637061436 * denominator * sqrt(denominator));
+}
+
+bool clipSpotlightSegment(float3 origin, float3 direction, SpotLight light,
+                           inout float begin, inout float end) {
+    float3 offset = origin - light.position;
+    if (light.range > 0.0) {
+        float projection = dot(offset, direction);
+        float discriminant = projection * projection - dot(offset, offset) +
+                             light.range * light.range;
+        if (discriminant < 0.0) {
+            return false;
+        }
+        float root = sqrt(discriminant);
+        begin = max(begin, -projection - root);
+        end = min(end, -projection + root);
+    }
+    float3 axis = safeNormal(light.direction, float3(0.0, -1.0, 0.0));
+    float axialOrigin = dot(offset, axis);
+    float axialDirection = dot(direction, axis);
+    if (abs(axialDirection) < 1e-7) {
+        if (axialOrigin <= 0.0) {
+            return false;
+        }
+    } else if (axialDirection > 0.0) {
+        begin = max(begin, -axialOrigin / axialDirection);
+    } else {
+        end = min(end, -axialOrigin / axialDirection);
+    }
+    float cosine = clamp(min(light.innerCos, light.outerCos), 1e-4, 1.0);
+    float tangentSquared = max(1.0 - cosine * cosine, 0.0) /
+                           (cosine * cosine);
+    float3 perpendicularOrigin = offset - axis * axialOrigin;
+    float3 perpendicularDirection = direction - axis * axialDirection;
+    float a = axialDirection * axialDirection * tangentSquared -
+              dot(perpendicularDirection, perpendicularDirection);
+    float b = 2.0 * (axialOrigin * axialDirection * tangentSquared -
+                     dot(perpendicularOrigin, perpendicularDirection));
+    float c = axialOrigin * axialOrigin * tangentSquared -
+              dot(perpendicularOrigin, perpendicularOrigin);
+    if (abs(a) < 1e-8) {
+        if (abs(b) < 1e-8) {
+            return c >= 0.0 && end > begin;
+        }
+        if (b > 0.0) {
+            begin = max(begin, -c / b);
+        } else {
+            end = min(end, -c / b);
+        }
+    } else {
+        float discriminant = b * b - 4.0 * a * c;
+        if (discriminant < 0.0) {
+            return a > 0.0 && end > begin;
+        }
+        float root = sqrt(max(discriminant, 0.0));
+        float r0 = (-b - root) / (2.0 * a);
+        float r1 = (-b + root) / (2.0 * a);
+        float lower = min(r0, r1);
+        float upper = max(r0, r1);
+        if (a < 0.0) {
+            begin = max(begin, lower);
+            end = min(end, upper);
+        } else if (begin < lower) {
+            end = min(end, lower);
+        } else {
+            begin = max(begin, upper);
+        }
+    }
+    return end > begin;
+}
+
+float3 volumeLightSample(Material material, float3 origin, float3 direction,
+                          float distance, float3 lightDirection,
+                          float lightDistance, float3 incident) {
+    float3 position = origin + direction * distance;
+    float3 scattering = max(material.volumeScatteringColor, 0.0) *
+                        max(material.volumeScatteringStrength, 0.0) *
+                        max(material.volumeDensity, 0.0);
+    return volumeTransmittance(material, distance) * scattering * incident *
+           volumePhase(dot(direction, lightDirection), material.volumeAnisotropy) *
+           lightVisibility(position, lightDirection, lightDistance);
+}
+
+float3 volumeRadiance(Material material, float3 origin, float3 direction,
+                       float distance) {
+    float3 extinction = volumeExtinction(material);
+    float3 integral = select(extinction > 1e-6,
+        (1.0 - exp(-extinction * distance)) / max(extinction, 1e-6),
+        float3(distance));
+    float3 result = max(material.volumeEmissionColor, 0.0) *
+                    max(material.volumeEmissionStrength, 0.0) *
+                    max(material.volumeDensity, 0.0) * integral;
+    if ((sceneData.featureFlags & PHOTON_FEATURE_DIRECT_LIGHTING) == 0 ||
+        material.volumeScatteringStrength <= 0.0 || material.volumeDensity <= 0.0) {
+        return result;
+    }
+    const uint steps = 8;
+    float stepLength = distance / float(steps);
+    if (sceneData.numDirectionalLights > 0) {
+        float3 lightDirection = safeNormal(-dirLight.direction, float3(0.0, 1.0, 0.0));
+        for (uint sample = 0; sample < steps; ++sample) {
+            float t = (float(sample) + 0.5) * stepLength;
+            result += volumeLightSample(material, origin, direction, t,
+                lightDirection, 1e20, dirLight.color * max(dirLight.intensity, 0.0)) *
+                stepLength;
+        }
+    }
+    for (uint index = 0; index < sceneData.numPointLights; ++index) {
+        PointLight light = pointLights[index];
+        for (uint sample = 0; sample < steps; ++sample) {
+            float t = (float(sample) + 0.5) * stepLength;
+            float3 delta = light.position - (origin + direction * t);
+            float squared = max(dot(delta, delta), 1e-4);
+            float lightDistance = sqrt(squared);
+            float range = max(light.range, 1e-4);
+            float fade = 1.0 - smoothstep(range * 0.75, range, lightDistance);
+            if (fade <= 0.0) {
+                continue;
+            }
+            result += volumeLightSample(material, origin, direction, t,
+                delta / lightDistance, max(lightDistance - 0.002, 0.001),
+                light.color * max(light.intensity, 0.0) * fade / squared) * stepLength;
+        }
+    }
+    for (uint index = 0; index < sceneData.numSpotLights; ++index) {
+        SpotLight light = spotLights[index];
+        float begin = 0.0;
+        float end = distance;
+        if (!clipSpotlightSegment(origin, direction, light, begin, end)) {
+            continue;
+        }
+        float segmentStep = (end - begin) / float(steps);
+        for (uint sample = 0; sample < steps; ++sample) {
+            float t = begin + (float(sample) + 0.5) * segmentStep;
+            float3 delta = light.position - (origin + direction * t);
+            float squared = max(dot(delta, delta), 1e-4);
+            float lightDistance = sqrt(squared);
+            float3 lightDirection = delta / lightDistance;
+            float cone = spotlightCone(dot(-lightDirection,
+                safeNormal(light.direction, float3(0.0, -1.0, 0.0))),
+                light.innerCos, light.outerCos);
+            float range = max(light.range, 1e-4);
+            float fade = 1.0 - smoothstep(range * 0.75, range, lightDistance);
+            if (cone * fade <= 0.0) {
+                continue;
+            }
+            result += volumeLightSample(material, origin, direction, t,
+                lightDirection, max(lightDistance - 0.002, 0.001),
+                light.color * max(light.intensity, 0.0) * cone * fade / squared) *
+                segmentStep;
+        }
+    }
+    for (uint index = 0; index < sceneData.numAreaLights; ++index) {
+        AreaLight light = areaLights[index];
+        float3 lightNormal = safeNormal(cross(light.right, light.up), float3(0.0, 1.0, 0.0));
+        float area = max(4.0 * light.halfWidth * light.halfHeight, 1e-4);
+        for (uint sample = 0; sample < steps; ++sample) {
+            float t = (float(sample) + 0.5) * stepLength;
+            float3 delta = light.position - (origin + direction * t);
+            float squared = max(dot(delta, delta), 1e-4);
+            float lightDistance = sqrt(squared);
+            float3 lightDirection = delta / lightDistance;
+            float cosine = light.twoSided > 0.5 ? abs(dot(lightNormal, -lightDirection))
+                                                : max(dot(lightNormal, -lightDirection), 0.0);
+            if (cosine < light.emissionCos) {
+                continue;
+            }
+            result += volumeLightSample(material, origin, direction, t,
+                lightDirection, max(lightDistance - 0.002, 0.001),
+                light.color * max(light.intensity, 0.0) * cosine * area / squared) * stepLength;
+        }
     }
     return result;
 }
@@ -835,8 +1137,10 @@ float3 samplePath(float3 origin, float3 direction, inout uint state,
     float3 dielectricSigmaA = 0.0;
     uint spectralChannel = min(uint(randomValue(state) * 3.0), 2u);
     bool spectralChannelSelected = false;
+    insideMedium = findContainingMedium(origin, mediumObjectId, mediumMaterial);
+    float primaryTravel = 0.0;
     uint bounceCount = max(sceneData.maxBounces, 1u);
-    for (uint bounce = 0; bounce < bounceCount; ++bounce) {
+    for (uint step = 0, bounce = 0; step < bounceCount + 64 && bounce < bounceCount; ++step) {
         SurfaceHit hit = traceSurface(origin, direction);
         if (!hit.valid) {
             if ((sceneData.featureFlags &
@@ -852,35 +1156,29 @@ float3 samplePath(float3 origin, float3 direction, inout uint state,
             (sceneData.featureFlags & PHOTON_FEATURE_VOLUMES) != 0) {
             float3 transmittance =
                 volumeTransmittance(mediumMaterial, hit.distance);
-            float3 emission = max(mediumMaterial.volumeEmissionColor, 0.0) *
-                              max(mediumMaterial.volumeEmissionStrength, 0.0) *
-                              (1.0 - transmittance);
-            radiance += throughput * emission;
+            radiance += throughput * volumeRadiance(
+                mediumMaterial, origin, direction, hit.distance);
             throughput *= transmittance;
         }
         if (hit.material.isVolume != 0) {
-            if ((sceneData.featureFlags & PHOTON_FEATURE_VOLUMES) == 0) {
-                origin = hit.position + direction * 0.002;
-                continue;
-            }
-            if (insideMedium && mediumObjectId == hit.objectId) {
-                insideMedium = false;
-                mediumObjectId = 0xffffffffu;
-            } else {
-                insideMedium = true;
-                mediumObjectId = hit.objectId;
-                mediumMaterial = hit.material;
+            if (bounce == 0) {
+                primaryTravel += hit.distance + 0.002;
             }
             origin = hit.position + direction * 0.002;
+            insideMedium = findContainingMedium(origin, mediumObjectId, mediumMaterial);
             continue;
         }
         if ((sceneData.featureFlags & PHOTON_FEATURE_ALPHA_TRANSPARENCY) != 0 &&
             randomValue(state) > saturate(hit.material.albedo.w)) {
+            if (bounce == 0) {
+                primaryTravel += hit.distance + 0.002;
+            }
             origin = hit.position + direction * 0.002;
             continue;
         }
         if (bounce == 0) {
             primaryHit = hit;
+            primaryHit.distance += primaryTravel;
         }
         float3 albedo = max(hit.material.albedo.xyz, 0.0);
         if ((sceneData.featureFlags & PHOTON_FEATURE_EMISSIVE_LIGHTING) != 0) {
@@ -931,6 +1229,7 @@ float3 samplePath(float3 origin, float3 direction, inout uint state,
                 }
             }
             origin = hit.position + direction * 0.002;
+            ++bounce;
             continue;
         }
         float3 diffuseDirection = cosineDirection(hit.normal, state);
@@ -959,6 +1258,7 @@ float3 samplePath(float3 origin, float3 direction, inout uint state,
             }
             throughput /= max(survival, 0.05);
         }
+        ++bounce;
     }
     return radiance;
 }
@@ -1148,13 +1448,14 @@ emitCaustics(uint3 dispatchThreadID
         direction = cosineDirection(normal, state);
         power = source.color * max(source.intensity, 0.0);
     }
-    SurfaceHit specularHit = traceSurface(origin, direction);
+    SurfaceHit specularHit = traceNonVolumeSurface(origin, direction);
     if (!specularHit.valid || specularHit.material.roughness >= 0.25 ||
         (specularHit.material.transmittance <= 0.001 &&
          specularHit.material.metallic <= 0.001)) {
         photons[index] = photon;
         return;
     }
+    power *= volumeShadowTransmittance(origin, direction, specularHit.distance);
     float3 nextDirection;
     if (specularHit.material.transmittance > 0.001 &&
         (sceneData.featureFlags & PHOTON_FEATURE_TRANSMISSION) != 0) {
@@ -1170,8 +1471,11 @@ emitCaustics(uint3 dispatchThreadID
         nextDirection = reflect(direction, specularHit.normal);
     }
     nextDirection = safeNormal(nextDirection, direction);
-    SurfaceHit receiver = traceSurface(
-        specularHit.position + nextDirection * 0.002, nextDirection);
+    float3 receiverOrigin = specularHit.position + nextDirection * 0.002;
+    SurfaceHit receiver = traceNonVolumeSurface(receiverOrigin, nextDirection);
+    if (receiver.valid) {
+        power *= volumeShadowTransmittance(receiverOrigin, nextDirection, receiver.distance);
+    }
     if (receiver.valid && receiver.material.transmittance < 0.001 &&
         receiver.material.metallic < 0.001) {
         uint channel = min(index % 3u, 2u);

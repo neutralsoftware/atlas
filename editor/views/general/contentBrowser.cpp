@@ -10,6 +10,7 @@
  */
 
 #include "editor/views/fileExplorer.h"
+#include "editor/core/modelAsset.h"
 #include "editor/application/toolchainInstaller.h"
 #include "editor/styling/icons.h"
 
@@ -154,6 +155,8 @@ public:
             return styling::icon(styling::Icon::Folder, "#A1A1A1");
         const QString suffix = info.suffix().toLower();
         if (suffix == "ascene")
+            return styling::icon(styling::Icon::CubeFocus, "#A1A1A1");
+        if (editor::isModelAssetPath(info.absoluteFilePath()))
             return styling::icon(styling::Icon::CubeFocus, "#A1A1A1");
         if (suffix == "amat" || suffix == "material")
             return styling::icon(styling::Icon::Material, "#A1A1A1");
@@ -498,7 +501,7 @@ void ContentBrowserPanel::openIndex(const QModelIndex &index) {
         return;
     }
     const QString suffix = info.suffix().toLower();
-    if (suffix == "glb" || suffix == "gltf") {
+    if (editor::isModelAssetPath(info.absoluteFilePath())) {
         emit modelActivated(info.absoluteFilePath());
         return;
     }
