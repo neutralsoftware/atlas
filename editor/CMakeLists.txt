@@ -1,7 +1,8 @@
 
 # Finding all Editor Files
 file(GLOB_RECURSE EDITOR_FILES CONFIGURE_DEPENDS
-        "${CMAKE_SOURCE_DIR}/editor/*"
+        "${CMAKE_SOURCE_DIR}/editor/*.cpp"
+        "${CMAKE_SOURCE_DIR}/editor/*.h"
         "${CMAKE_SOURCE_DIR}/include/editor/*.h"
 )
 
@@ -16,7 +17,7 @@ set(ATLAS_GENERATED_THEME_HEADER
 
 # Find packages
 
-find_package(Qt6 REQUIRED COMPONENTS Widgets)
+find_package(Qt6 REQUIRED COMPONENTS Widgets Svg)
 find_package(Python3 REQUIRED COMPONENTS Interpreter)
 find_program(ATLAS_CARGO_EXECUTABLE cargo REQUIRED)
 
@@ -173,6 +174,9 @@ if (APPLE)
 endif ()
 
 qt_add_executable(AtlasEditor ${EDITOR_FILES})
+set_property(SOURCE main.cpp APPEND PROPERTY
+        COMPILE_DEFINITIONS ATLAS_BUILD_REVISION="${ATLAS_BUILD_REVISION}"
+)
 add_dependencies(AtlasEditor generate_shaders generate_atlas_themes atlas_editor_cli)
 
 if (APPLE)
@@ -221,6 +225,8 @@ else ()
     endif ()
 endif ()
 
+file(GLOB ATLAS_EDITOR_ICONS CONFIGURE_DEPENDS "${CMAKE_SOURCE_DIR}/editor/assets/lucide/*.svg")
+
 qt_add_resources(AtlasEditor "atlas_editor_assets"
         PREFIX "/editor"
         BASE "${CMAKE_SOURCE_DIR}/editor"
@@ -233,9 +239,11 @@ qt_add_resources(AtlasEditor "atlas_editor_assets"
         "${CMAKE_SOURCE_DIR}/editor/assets/chevron-down.svg"
         "${CMAKE_SOURCE_DIR}/editor/assets/chevron-up.svg"
         "${CMAKE_SOURCE_DIR}/editor/assets/atlas-app.png"
+        "${CMAKE_SOURCE_DIR}/editor/assets/Geist-Variable.ttf"
         "${CMAKE_SOURCE_DIR}/editor/assets/Manrope-VariableFont_wght.ttf"
-        "${CMAKE_SOURCE_DIR}/editor/assets/Phosphor.ttf"
-        "${CMAKE_SOURCE_DIR}/editor/assets/PHOSPHOR_LICENSE.txt"
+        "${CMAKE_SOURCE_DIR}/editor/assets/GEIST_LICENSE.txt"
+        "${CMAKE_SOURCE_DIR}/editor/assets/LUCIDE_LICENSE.txt"
+        ${ATLAS_EDITOR_ICONS}
 )
 
 target_include_directories(AtlasEditor
@@ -281,6 +289,7 @@ target_link_libraries(AtlasEditor
         ${ATLAS_OPENAL_TARGET}
         ${ATLAS_GLM_TARGET}
         Qt6::Widgets
+        Qt6::Svg
         ads::qtadvanceddocking-qt6
 )
 

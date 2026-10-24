@@ -177,37 +177,39 @@ bool isColorProperty(const QString &name, const QJsonArray &array) {
 
 QIcon inspectorIcon(QWidget *, const QString &type) {
     const QString normalized = type.toLower();
+    if (normalized.contains("model") || normalized.contains("mesh"))
+        return styling::icon(styling::Icon::Component);
     if (normalized == "folder")
-        return styling::icon(styling::Icon::Folder, "#7E929C");
+        return styling::icon(styling::Icon::Folder, "#A1A1A1");
     if (normalized.contains("camera"))
-        return styling::icon(styling::Icon::Camera, "#9E897D");
+        return styling::icon(styling::Icon::Camera, "#A1A1A1");
     if (normalized.contains("environment") || normalized.contains("atmosphere"))
-        return styling::icon(styling::Icon::Globe, "#7E929C");
+        return styling::icon(styling::Icon::Globe, "#A1A1A1");
     if (normalized.contains("light") || normalized == "sun")
-        return styling::icon(styling::Icon::Lightbulb, "#A1957D");
+        return styling::icon(styling::Icon::Lightbulb, "#A1A1A1");
     if (normalized.contains("terrain"))
-        return styling::icon(styling::Icon::Mountains, "#849589");
+        return styling::icon(styling::Icon::Mountains, "#A1A1A1");
     if (normalized.contains("particle"))
-        return styling::icon(styling::Icon::Sparkle, "#8498A8");
+        return styling::icon(styling::Icon::Sparkle, "#A1A1A1");
     if (normalized.contains("audio") || normalized == "wav" ||
         normalized == "mp3" || normalized == "ogg" || normalized == "flac")
-        return styling::icon(styling::Icon::MusicNote, "#849589");
+        return styling::icon(styling::Icon::MusicNote, "#A1A1A1");
     if (normalized.contains("material"))
-        return styling::icon(styling::Icon::Material, "#9E897D");
+        return styling::icon(styling::Icon::Material, "#A1A1A1");
     if (normalized == "png" || normalized == "jpg" || normalized == "jpeg" ||
         normalized == "bmp" || normalized == "gif" || normalized == "webp" ||
         normalized == "tif" || normalized == "tiff" || normalized == "tga" ||
         normalized == "hdr" || normalized == "exr")
-        return styling::icon(styling::Icon::Image, "#A1957D");
+        return styling::icon(styling::Icon::Image, "#A1A1A1");
     if (normalized.contains("script") || normalized == "ts" ||
         normalized == "js")
-        return styling::icon(styling::Icon::FileCode, "#7E929C");
+        return styling::icon(styling::Icon::FileCode, "#A1A1A1");
     if (normalized.contains("rigidbody") || normalized.contains("softbody") ||
         normalized.contains("joint"))
-        return styling::icon(styling::Icon::Wrench, "#A1957D");
+        return styling::icon(styling::Icon::Wrench, "#A1A1A1");
     if (normalized == "sphere")
-        return styling::icon(styling::Icon::Sphere, "#8498A8");
-    return styling::icon(styling::Icon::Cube, "#8498A8");
+        return styling::icon(styling::Icon::Sphere, "#A1A1A1");
+    return styling::icon(styling::Icon::Cube, "#A1A1A1");
 }
 
 QString componentTitle(const QString &type) {
@@ -751,7 +753,7 @@ QDoubleSpinBox *numberField(double value, QWidget *parent) {
     field->setDecimals(4);
     field->setMinimumHeight(34);
     field->setSingleStep(0.1);
-    field->setButtonSymbols(QAbstractSpinBox::NoButtons);
+    field->setButtonSymbols(QAbstractSpinBox::UpDownArrows);
     field->setValue(value);
     field->setKeyboardTracking(true);
     return field;
@@ -947,14 +949,17 @@ QWidget *vectorField(const QJsonArray &value, const PropertyChanged &changed,
         auto *axisField = new QFrame(valueEditor);
         axisField->setObjectName("inspectorAxisField");
         auto *axisLayout = new QHBoxLayout(axisField);
-        axisLayout->setContentsMargins(7, 0, 4, 0);
+        axisLayout->setContentsMargins(6, 0, 4, 0);
         axisLayout->setSpacing(4);
         auto *axis = new QLabel(axes.at(index), axisField);
         axis->setObjectName("inspectorAxis" + axes.at(index));
-        axis->setFixedWidth(12);
+        axis->setFixedWidth(10);
         auto *box = numberField(values.at(index).toDouble(), axisField);
-        box->setButtonSymbols(QAbstractSpinBox::NoButtons);
-        box->setMinimumWidth(58);
+        box->setButtonSymbols(QAbstractSpinBox::UpDownArrows);
+        box->setMinimumWidth(40);
+        box->setSizePolicy(QSizePolicy::Ignored, QSizePolicy::Fixed);
+        box->setAlignment(Qt::AlignRight);
+        box->setAccessibleName(QStringLiteral("%1 %2").arg(path, axes.at(index)));
         tagEditor(box, path, "vector", index);
         boxes.append(box);
         axisLayout->addWidget(axis);
@@ -1225,20 +1230,18 @@ QWidget *primitiveField(const QString &name, const QString &path,
 QFrame *propertyRow(const QString &label, QWidget *editor, QWidget *parent) {
     auto *row = new QFrame(parent);
     row->setObjectName("inspectorPropertyRow");
-    const bool wide = editor->objectName() == "inspectorVectorField" ||
-                      editor->objectName() == "inspectorColorField";
-    QBoxLayout *layout = wide ? static_cast<QBoxLayout *>(new QVBoxLayout(row))
-                              : static_cast<QBoxLayout *>(new QHBoxLayout(row));
-    layout->setContentsMargins(0, 5, 0, 5);
-    layout->setSpacing(wide ? 7 : 12);
-    auto *name = new styling::ElidedLabel(label, row);
+    auto *layout = new QVBoxLayout(row);
+    layout->setContentsMargins(0, 6, 0, 6);
+    layout->setSpacing(6);
+    auto *name = new QLabel(label, row);
     name->setObjectName("inspectorPropertyLabel");
-    if (!wide) {
-        name->setMinimumWidth(90);
-        name->setMaximumWidth(112);
-    }
+    name->setWordWrap(true);
+    name->setTextFormat(Qt::PlainText);
+    name->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Minimum);
+    name->setBuddy(editor);
+    editor->setAccessibleName(label);
     layout->addWidget(name);
-    layout->addWidget(editor, wide ? 0 : 1);
+    layout->addWidget(editor);
     return row;
 }
 
@@ -1459,20 +1462,22 @@ QFrame *componentCard(const QString &title, const QJsonObject &properties,
     card->setObjectName("inspectorComponent");
     card->setProperty("inspectorScope", scope);
     auto *layout = new QVBoxLayout(card);
-    layout->setContentsMargins(0, 10, 0, 4);
+    layout->setContentsMargins(8, 4, 8, 10);
     layout->setSpacing(2);
     auto *headerRow = new QWidget(card);
     headerRow->setObjectName("inspectorComponentHeaderRow");
     auto *headerLayout = new QHBoxLayout(headerRow);
     headerLayout->setContentsMargins(0, 0, 3, 0);
     headerLayout->setSpacing(2);
-    auto *header = new styling::ToolButton(headerRow);
+    auto *header = new QToolButton(headerRow);
     header->setObjectName("inspectorComponentHeader");
     header->setText(title);
     header->setCheckable(true);
     header->setChecked(true);
     header->setIcon(styling::icon(styling::Icon::CaretDown, "#8490A4"));
     header->setToolButtonStyle(Qt::ToolButtonTextBesideIcon);
+    header->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Fixed);
+    header->setFocusPolicy(Qt::StrongFocus);
     headerLayout->addWidget(header, 1);
     if (remove) {
         auto *removeButton = new styling::ToolButton(headerRow);
@@ -1486,7 +1491,7 @@ QFrame *componentCard(const QString &title, const QJsonObject &properties,
     auto *body = new QWidget(card);
     body->setObjectName("inspectorComponentBody");
     auto *bodyLayout = new QVBoxLayout(body);
-    bodyLayout->setContentsMargins(0, 2, 0, 0);
+    bodyLayout->setContentsMargins(4, 2, 4, 0);
     bodyLayout->setSpacing(5);
     addPropertyRows(bodyLayout, properties, path, changed, syncProvider, body);
     layout->addWidget(body);
@@ -1507,20 +1512,22 @@ QFrame *controllerActionsCard(const QJsonArray &actions, bool automaticMoving,
     card->setObjectName("inspectorComponent");
     card->setProperty("inspectorScope", "camera:actions");
     auto *layout = new QVBoxLayout(card);
-    layout->setContentsMargins(0, 10, 0, 4);
+    layout->setContentsMargins(8, 4, 8, 10);
     layout->setSpacing(2);
-    auto *header = new styling::ToolButton(card);
+    auto *header = new QToolButton(card);
     header->setObjectName("inspectorComponentHeader");
     header->setText("Controller Actions");
     header->setCheckable(true);
     header->setChecked(true);
     header->setIcon(styling::icon(styling::Icon::CaretDown, "#8490A4"));
     header->setToolButtonStyle(Qt::ToolButtonTextBesideIcon);
+    header->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Fixed);
+    header->setFocusPolicy(Qt::StrongFocus);
     layout->addWidget(header);
     auto *body = new QWidget(card);
     body->setObjectName("inspectorComponentBody");
     auto *bodyLayout = new QVBoxLayout(body);
-    bodyLayout->setContentsMargins(0, 2, 0, 0);
+    bodyLayout->setContentsMargins(4, 2, 4, 0);
     bodyLayout->setSpacing(5);
     auto *automatic = new QCheckBox("Enable Automatic Movement", body);
     automatic->setChecked(automaticMoving);
@@ -1664,8 +1671,9 @@ InspectorPanel::InspectorPanel(ViewportPanel *viewport,
     content = new QWidget(scrollArea);
     content->setObjectName("inspectorContent");
     contentLayout = new QVBoxLayout(content);
-    contentLayout->setContentsMargins(14, 4, 14, 16);
-    contentLayout->setSpacing(16);
+    contentLayout->setContentsMargins(12, 8, 12, 16);
+    contentLayout->setSpacing(12);
+    contentLayout->setSizeConstraint(QLayout::SetMinAndMaxSize);
     scrollArea->setWidget(content);
     layout->addWidget(scrollArea);
     if (viewport != nullptr) {
@@ -1930,23 +1938,25 @@ void InspectorPanel::showObject(const QJsonObject &object) {
     auto *header = new QFrame(content);
     header->setObjectName("inspectorHeader");
     auto *headerLayout = new QHBoxLayout(header);
-    headerLayout->setContentsMargins(0, 12, 0, 14);
-    headerLayout->setSpacing(10);
+    headerLayout->setContentsMargins(0, 8, 0, 12);
+    headerLayout->setSpacing(12);
     iconLabel = new QLabel(header);
     iconLabel->setObjectName("inspectorObjectIcon");
     iconLabel->setPixmap(inspectorIcon(this, type).pixmap(28, 28));
     iconLabel->setFixedSize(32, 32);
+    iconLabel->setAlignment(Qt::AlignCenter);
     auto *identity = new QWidget(header);
+    identity->setObjectName("inspectorIdentity");
     auto *identityLayout = new QVBoxLayout(identity);
     identityLayout->setContentsMargins(0, 0, 0, 0);
-    identityLayout->setSpacing(2);
+    identityLayout->setSpacing(4);
     nameField =
         new QLineEdit(object.value("name").toString("Object"), identity);
     nameField->setObjectName("inspectorNameField");
     typeLabel = new QLabel(humanize(type), identity);
     typeLabel->setObjectName("inspectorTypeLabel");
-    identityLayout->addWidget(nameField);
     identityLayout->addWidget(typeLabel);
+    identityLayout->addWidget(nameField);
     headerLayout->addWidget(iconLabel);
     headerLayout->addWidget(identity, 1);
     contentLayout->addWidget(header);
@@ -2587,8 +2597,10 @@ void InspectorPanel::showFile() {
 void InspectorPanel::rebuildBody() {
     rebuilding = true;
     while (QLayoutItem *item = contentLayout->takeAt(0)) {
-        if (item->widget() != nullptr)
+        if (item->widget() != nullptr) {
+            item->widget()->hide();
             item->widget()->deleteLater();
+        }
         delete item;
     }
     iconLabel = nullptr;

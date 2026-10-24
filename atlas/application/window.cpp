@@ -2266,7 +2266,7 @@ bool Window::stepFrame() {
             }
 
             for (auto &obj : this->lateForwardRenderables) {
-                if (obj && obj->editorOnly && !this->areEditorControlsEnabled())
+                if (obj == nullptr || obj->editorOnly)
                     continue;
                 obj->setViewMatrix(targetView);
                 obj->setProjectionMatrix(targetProjection);
@@ -2307,7 +2307,7 @@ bool Window::stepFrame() {
         }
         updateFluidCaptures(commandBuffer);
         for (auto &obj : this->lateForwardRenderables) {
-            if (obj && obj->editorOnly && !this->areEditorControlsEnabled())
+            if (obj == nullptr || obj->editorOnly)
                 continue;
             obj->setViewMatrix(targetView);
             obj->setProjectionMatrix(targetProjection);
@@ -2380,7 +2380,7 @@ bool Window::stepFrame() {
         updateFluidCaptures(commandBuffer);
 
         for (auto &obj : this->lateForwardRenderables) {
-            if (obj && obj->editorOnly && !this->areEditorControlsEnabled())
+            if (obj == nullptr || obj->editorOnly)
                 continue;
             obj->setViewMatrix(screenView);
             obj->setProjectionMatrix(screenProjection);
@@ -2399,6 +2399,28 @@ bool Window::stepFrame() {
         obj->setViewMatrix(screenView);
         obj->setProjectionMatrix(screenProjection);
         obj->render(getDeltaTime(), commandBuffer, shouldRefreshPipeline(obj));
+    }
+
+    if (editorControlsEnabled) {
+        const bool previousDepth = useDepth;
+        const bool previousWriteDepth = writeDepth;
+        const auto previousRasterizerMode = rasterizerMode;
+        const auto previousPrimitiveStyle = primitiveStyle;
+        updatePipelineStateField(this->useDepth, false);
+        updatePipelineStateField(this->writeDepth, false);
+        updatePipelineStateField(this->rasterizerMode, opal::RasterizerMode::Fill);
+        updatePipelineStateField(this->primitiveStyle, opal::PrimitiveStyle::Triangles);
+        for (auto *obj : this->lateForwardRenderables) {
+            if (obj == nullptr || !obj->editorOnly)
+                continue;
+            obj->setViewMatrix(screenView);
+            obj->setProjectionMatrix(screenProjection);
+            obj->render(getDeltaTime(), commandBuffer, true);
+        }
+        updatePipelineStateField(this->useDepth, previousDepth);
+        updatePipelineStateField(this->writeDepth, previousWriteDepth);
+        updatePipelineStateField(this->rasterizerMode, previousRasterizerMode);
+        updatePipelineStateField(this->primitiveStyle, previousPrimitiveStyle);
     }
 
     if (!editorControlsRenderedInScenePass) {

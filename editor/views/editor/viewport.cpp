@@ -19,6 +19,7 @@
 #include <QCoreApplication>
 #include <QCursor>
 #include <QDebug>
+#include <QDialog>
 #include <QDragEnterEvent>
 #include <QDropEvent>
 #include <QEventLoop>
@@ -32,6 +33,7 @@
 #include <QJsonObject>
 #include <QJsonValue>
 #include <QKeyEvent>
+#include <QLabel>
 #include <QMouseEvent>
 #include <QNativeGestureEvent>
 #include <QPointingDevice>
@@ -44,7 +46,7 @@
 #include <SDL3/SDL_video.h>
 #endif
 #include <QPaintEngine>
-#include <QProgressDialog>
+#include <QProgressBar>
 #include <QPointer>
 #include <QResizeEvent>
 #include <QScopeGuard>
@@ -56,6 +58,7 @@
 #include <QTimer>
 #include <QUndoCommand>
 #include <QUndoStack>
+#include <QVBoxLayout>
 #include <QWheelEvent>
 #include <Qt>
 
@@ -73,6 +76,65 @@
 #include <utility>
 
 namespace {
+class ModelImportDialog final : public QDialog {
+  public:
+    ModelImportDialog(const QString &title, const QString &filename,
+                      QWidget *parent)
+        : QDialog(parent), filename(filename) {
+        setWindowTitle(title);
+        setWindowModality(Qt::WindowModal);
+        setWindowFlag(Qt::WindowCloseButtonHint, false);
+        setMinimumWidth(420);
+        auto *layout = new QVBoxLayout(this);
+        label = new QLabel(this);
+        label->setTextFormat(Qt::PlainText);
+        label->setWordWrap(true);
+        bar = new QProgressBar(this);
+        bar->setRange(0, 100);
+        bar->setValue(0);
+        layout->addWidget(label);
+        layout->addWidget(bar);
+        elapsed.start();
+        updateTimer.start();
+        label->setText(tr("Preparing model…\n%1").arg(filename));
+        show();
+        QCoreApplication::processEvents(QEventLoop::ExcludeUserInputEvents);
+    }
+
+    void updateProgress(float value, const std::string &status) {
+        if (updating)
+            return;
+        QScopedValueRollback<bool> guard(updating, true);
+        const int percentage = std::isfinite(value)
+                                   ? std::clamp(static_cast<int>(value * 100.0f),
+                                                0, 99)
+                                   : bar->value();
+        bar->setValue(std::max(bar->value(), percentage));
+        if (updateTimer.elapsed() < 33)
+            return;
+        updateTimer.restart();
+        label->setText(QString::fromStdString(status) + '\n' + filename +
+                       tr("\nElapsed: %1 s").arg(elapsed.elapsed() / 1000));
+        QCoreApplication::processEvents(QEventLoop::ExcludeUserInputEvents);
+    }
+
+    void finish() {
+        bar->setValue(100);
+        accept();
+    }
+
+  protected:
+    void reject() override {}
+
+  private:
+    QString filename;
+    QLabel *label = nullptr;
+    QProgressBar *bar = nullptr;
+    QElapsedTimer elapsed;
+    QElapsedTimer updateTimer;
+    bool updating = false;
+};
+
 constexpr int RuntimeEditorCameraKeyForward = 0;
 constexpr int RuntimeEditorCameraKeyBackward = 1;
 constexpr int RuntimeEditorCameraKeyLeft = 2;
@@ -725,13 +787,14 @@ ViewportPanel::ViewportPanel(const QString &projectFile, QWidget *parent)
     resizeTimer->setSingleShot(true);
     resizeTimer->setInterval(0);
     connect(frameTimer, &QTimer::timeout, this, [this] {
-        if (runtimeStarting || runtimeFrameInProgress || shuttingDown)
+        if (runtimeStarting || runtimeFrameInProgress || runtimeImportInProgress ||
+            shuttingDown)
             return;
         if (stepRuntime() && isVisible())
             frameTimer->start(RuntimeFrameIntervalMs);
     });
     connect(resizeTimer, &QTimer::timeout, this, [this] {
-        if (runtimeStarting || runtimeFrameInProgress) {
+        if (runtimeStarting || runtimeFrameInProgress || runtimeImportInProgress) {
             runtimeResizePending = true;
             return;
         }
@@ -845,7 +908,8 @@ void ViewportPanel::setRuntimeStartupEnabled(bool enabled) {
 
 void ViewportPanel::showEvent(QShowEvent *event) {
     QWidget::showEvent(event);
-    if (runtimeStarting || runtimeFrameInProgress || shuttingDown)
+    if (runtimeStarting || runtimeFrameInProgress || runtimeImportInProgress ||
+        shuttingDown)
         return;
     if (playbackState == 1)
         captureRuntimeInput();
@@ -1412,6 +1476,8 @@ void ViewportPanel::stopRuntime() {
     if (frameTimer != nullptr) {
         frameTimer->stop();
     }
+    if (runtimeImportInProgress)
+        return;
     if (runtimeContext == nullptr) {
         return;
     }
@@ -1440,7 +1506,8 @@ void ViewportPanel::stopRuntime() {
 }
 
 bool ViewportPanel::stepRuntime(bool allowDuringStartup) {
-    if (runtimeContext == nullptr || runtimeFrameInProgress || shuttingDown ||
+    if (runtimeContext == nullptr || runtimeFrameInProgress ||
+        runtimeImportInProgress || shuttingDown ||
         (runtimeStarting && !allowDuringStartup)) {
         return false;
     }
@@ -1537,6 +1604,10 @@ bool ViewportPanel::pollCapturedRuntimeInput() {
 }
 
 void ViewportPanel::resizeRuntime() {
+    if (runtimeImportInProgress) {
+        runtimeResizePending = true;
+        return;
+    }
     if (runtimeContext == nullptr) {
         return;
     }
@@ -1890,24 +1961,21 @@ bool ViewportPanel::cutSelectedRuntimeObject() {
 
 bool ViewportPanel::pasteRuntimeObject() {
     if (runtimeContext == nullptr || playbackState != 0 ||
-        objectClipboard.isEmpty()) {
+        runtimeImportInProgress || runtimeStarting || runtimeFrameInProgress ||
+        shuttingDown || objectClipboard.isEmpty()) {
         return false;
     }
-    QProgressDialog progress("Pasting object…", QString(), 0, 100, this);
-    progress.setCancelButton(nullptr);
-    progress.setMinimumDuration(300);
-    progress.setWindowModality(Qt::WindowModal);
+    runtimeImportInProgress = true;
+    frameTimer->stop();
+    const auto importGuard = qScopeGuard([this] { finishRuntimeImport(); });
+    if (runtimeContext->window != nullptr)
+        runtimeContext->window->waitForRendering();
+    ModelImportDialog progress(tr("Pasting Object"), QString(), this);
     const int id = runtimeContext->pasteObjectDefinition(
         objectClipboard.toStdString(),
         [&progress](float value, const std::string &status) {
-            const int percentage = std::clamp(
-                static_cast<int>(std::round(value * 100.0f)), 0, 100);
-            progress.setValue(percentage);
-            progress.setLabelText(QString::fromStdString(status) +
-                                  QStringLiteral("… %1%").arg(percentage));
-            QCoreApplication::processEvents(QEventLoop::ExcludeUserInputEvents);
+            progress.updateProgress(value, status);
         });
-    progress.setValue(100);
     if (id < 0)
         return false;
     if (undoStack != nullptr)
@@ -1915,6 +1983,7 @@ bool ViewportPanel::pasteRuntimeObject() {
     refreshSceneSnapshot();
     setSceneDirty(true);
     emit runtimeObjectActivated(id);
+    progress.finish();
     return true;
 }
 
@@ -2044,8 +2113,15 @@ bool ViewportPanel::attachRuntimeAsset(int id, const QString &path) {
 }
 
 bool ViewportPanel::importRuntimeModel(const QString &path) {
-    if (runtimeContext == nullptr || playbackState != 0 || path.isEmpty())
+    if (runtimeContext == nullptr || playbackState != 0 || path.isEmpty() ||
+        runtimeImportInProgress || runtimeStarting || runtimeFrameInProgress ||
+        shuttingDown)
         return false;
+    runtimeImportInProgress = true;
+    frameTimer->stop();
+    const auto importGuard = qScopeGuard([this] { finishRuntimeImport(); });
+    if (runtimeContext->window != nullptr)
+        runtimeContext->window->waitForRendering();
     const QJsonObject definition{{"type", "model"},
                                  {"name", QFileInfo(path).completeBaseName()},
                                  {"source", QFileInfo(path).absoluteFilePath()},
@@ -2053,36 +2129,42 @@ bool ViewportPanel::importRuntimeModel(const QString &path) {
                                  {"rotation", QJsonArray{0.0, 0.0, 0.0}},
                                  {"scale", QJsonArray{1.0, 1.0, 1.0}},
                                  {"components", QJsonArray{}}};
-    QProgressDialog progress(this);
-    progress.setWindowTitle(tr("Importing Model"));
-    progress.setLabelText(tr("Preparing %1…").arg(QFileInfo(path).fileName()));
-    progress.setCancelButton(nullptr);
-    progress.setRange(0, 100);
-    progress.setValue(0);
-    progress.setMinimumDuration(0);
-    progress.setWindowModality(Qt::WindowModal);
-    progress.show();
-    QCoreApplication::processEvents(QEventLoop::ExcludeUserInputEvents);
-
-    const QString fileName = QFileInfo(path).fileName();
+    ModelImportDialog progress(tr("Importing Model"),
+                               QFileInfo(path).fileName(), this);
     const int id = runtimeContext->pasteObjectDefinition(
         QJsonDocument(definition).toJson(QJsonDocument::Compact).toStdString(),
-        [&progress, &fileName](float value, const std::string &status) {
-            const int percentage = std::clamp(
-                static_cast<int>(std::round(value * 100.0f)), 0, 100);
-            progress.setValue(percentage);
-            progress.setLabelText(
-                QString::fromStdString(status) +
-                QObject::tr("\n%1 — %2%").arg(fileName).arg(percentage));
-            QCoreApplication::processEvents(QEventLoop::ExcludeUserInputEvents);
+        [&progress](float value, const std::string &status) {
+            progress.updateProgress(value, status);
         });
-    progress.setValue(100);
-    if (id < 0)
+    if (id < 0) {
+        progress.hide();
+        emit runtimeErrorOccurred(tr("Could not import model: %1").arg(path));
         return false;
+    }
     refreshSceneSnapshot();
     setSceneDirty(true);
     emit runtimeObjectActivated(id);
+    progress.finish();
     return true;
+}
+
+void ViewportPanel::finishRuntimeImport() {
+    runtimeImportInProgress = false;
+    if (shuttingDown) {
+        stopRuntime();
+        return;
+    }
+    if (runtimeReloadPending) {
+        runtimeReloadPending = false;
+        reloadRuntime();
+        return;
+    }
+    if (runtimeResizePending) {
+        runtimeResizePending = false;
+        resizeTimer->start();
+    }
+    if (runtimeContext != nullptr && isVisible())
+        frameTimer->start(RuntimeFrameIntervalMs);
 }
 
 void ViewportPanel::undo() {
@@ -2231,6 +2313,10 @@ void ViewportPanel::releaseRuntimeInput() {
 }
 
 void ViewportPanel::reloadRuntime() {
+    if (runtimeImportInProgress) {
+        runtimeReloadPending = true;
+        return;
+    }
     if (shuttingDown) {
         return;
     }

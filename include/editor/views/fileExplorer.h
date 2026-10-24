@@ -45,6 +45,7 @@ class ContentBrowserPanel : public QWidget {
   signals:
     void selectionChanged(const QString &path);
     void assetActivated(const QString &path);
+    void modelActivated(const QString &path);
     void sceneActivated(const QString &path);
     void uiActivated(const QString &path);
 

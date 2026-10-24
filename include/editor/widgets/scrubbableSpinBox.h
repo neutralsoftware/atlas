@@ -54,7 +54,7 @@ template <typename SpinBox> class ScrubbableSpinBoxBase : public SpinBox {
         this->lineEdit()->installEventFilter(this);
         this->lineEdit()->setCursor(Qt::SizeHorCursor);
         this->setAccelerated(true);
-        this->setButtonSymbols(QAbstractSpinBox::NoButtons);
+        this->setButtonSymbols(QAbstractSpinBox::UpDownArrows);
     }
 
   protected:

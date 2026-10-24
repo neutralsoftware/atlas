@@ -20,6 +20,7 @@ The line references describe this checkout on 2026-07-19. They are deliberately 
 12. [Specialized systems](12-specialized-systems.md) — Graphite, Photon, Hydra, Aurora, and tracing.
 13. [Source and function index](13-source-and-function-index.md) — a practical “where does this live?” lookup table.
 14. [Adding a class](14-adding-a-class.md) — the complete TypeScript, JavaScript, runtime, scene, and Inspector procedure.
+15. [Editor design](15-editor-design.md) — minimal developer-workspace styling, typography, icons, behavior boundaries, and validation.
 
 ## The three most important distinctions
 

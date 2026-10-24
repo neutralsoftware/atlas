@@ -203,6 +203,7 @@ set(ASSIMP_INSTALL OFF CACHE BOOL "" FORCE)
 set(ASSIMP_INJECT_DEBUG_POSTFIX OFF CACHE BOOL "" FORCE)
 set(ASSIMP_WARNINGS_AS_ERRORS OFF CACHE BOOL "" FORCE)
 set(ASSIMP_BUILD_USD_IMPORTER ON CACHE BOOL "" FORCE)
+set(ASSIMP_BUILD_GLTF_IMPORTER ON CACHE BOOL "" FORCE)
 set(ASSIMP_BUILD_ZLIB ON CACHE BOOL "" FORCE)
 FetchContent_Declare(
         assimp
@@ -785,6 +786,9 @@ endif ()
 
 # ─── runtime_lib ─────────────────────────────────────────────────────────────
 add_library(runtime_lib SHARED ${RUNTIME_LIB_SOURCES})
+set_property(SOURCE runtime/lib/c_api.cpp APPEND PROPERTY
+        COMPILE_DEFINITIONS ATLAS_BUILD_REVISION="${ATLAS_BUILD_REVISION}"
+)
 target_link_libraries(runtime_lib
         PUBLIC atlas
         PRIVATE quickjs fmt::fmt

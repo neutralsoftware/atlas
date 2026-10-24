@@ -24,6 +24,7 @@
 #include <QJsonDocument>
 #include <QJsonObject>
 #include <QKeySequence>
+#include <QLabel>
 #include <QLineEdit>
 #include <QList>
 #include <QListWidget>
@@ -132,11 +133,11 @@ HierarchyPanel::HierarchyPanel(ViewportPanel *viewport, QWidget *parent)
     : QWidget(parent), viewport(viewport) {
     setObjectName("hierarchyPanel");
     auto *layout = new QVBoxLayout(this);
-    layout->setContentsMargins(10, 0, 10, 10);
-    layout->setSpacing(4);
+    layout->setContentsMargins(12, 8, 12, 12);
+    layout->setSpacing(10);
 
     auto *toolbar = new QWidget(this);
-    toolbar->setObjectName("panelToolbar");
+    toolbar->setObjectName("panelHeading");
     auto *toolbarLayout = new QHBoxLayout(toolbar);
     toolbarLayout->setContentsMargins(0, 0, 0, 0);
     toolbarLayout->setSpacing(4);
@@ -144,8 +145,8 @@ HierarchyPanel::HierarchyPanel(ViewportPanel *viewport, QWidget *parent)
     addButton = new styling::ToolButton(toolbar);
     addButton->setObjectName("panelAddButton");
     addButton->setIcon(styling::icon(styling::Icon::Plus, "#8498A8"));
-    addButton->setText("Add");
-    addButton->setToolButtonStyle(Qt::ToolButtonIconOnly);
+    addButton->setText("Add object");
+    addButton->setToolButtonStyle(Qt::ToolButtonTextBesideIcon);
     addButton->setPopupMode(QToolButton::InstantPopup);
     addButton->setToolTip("Add Object");
 
@@ -156,15 +157,18 @@ HierarchyPanel::HierarchyPanel(ViewportPanel *viewport, QWidget *parent)
     moreButton->setToolTip("Hierarchy actions");
 
 
-    searchField = new QLineEdit(toolbar);
-    searchField->setPlaceholderText("Search hierarchy");
+    searchField = new QLineEdit(this);
+    searchField->setPlaceholderText("Find an object…");
     searchField->setClearButtonEnabled(true);
     searchField->setMinimumWidth(80);
     searchField->setObjectName("hierarchySearch");
-    toolbarLayout->addWidget(searchField, 1);
+    auto *collectionTitle = new QLabel("Collection", toolbar);
+    collectionTitle->setObjectName("panelHeadingTitle");
+    toolbarLayout->addWidget(collectionTitle, 1);
     toolbarLayout->addWidget(addButton);
     toolbarLayout->addWidget(moreButton);
     layout->addWidget(toolbar);
+    layout->addWidget(searchField);
 
     treeView = new styling::TreeView(this);
     treeView->setObjectName("hierarchyTree");

@@ -327,7 +327,7 @@ void Window::deferredRendering(
                                        this->firstRenderables.size());
 
     auto collectDeferredRenderable = [&](Renderable *obj) {
-        if (obj == nullptr) {
+        if (obj == nullptr || obj->editorOnly) {
             return;
         }
         if (auto *model = dynamic_cast<Model *>(obj)) {
@@ -335,7 +335,7 @@ void Window::deferredRendering(
                 static_cast<const Model *>(model)->getObjects();
             for (const auto &mesh : meshes) {
                 CoreObject *meshRenderable = mesh.get();
-                if (meshRenderable == nullptr) {
+                if (meshRenderable == nullptr || meshRenderable->editorOnly) {
                     continue;
                 }
                 bool hasAnyTexture = !meshRenderable->textures.empty();

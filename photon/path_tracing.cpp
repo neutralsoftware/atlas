@@ -188,11 +188,11 @@ int findTextureSlotForType(
 void collectPathTracingObject(Renderable *renderable,
                               std::unordered_set<CoreObject *> &seen,
                               std::vector<CoreObject *> &objects) {
-    if (renderable == nullptr) {
+    if (renderable == nullptr || renderable->editorOnly) {
         return;
     }
     if (auto *object = dynamic_cast<CoreObject *>(renderable)) {
-        if (!object->isVisible) {
+        if (!object->isVisible || !object->canUseDeferredRendering()) {
             return;
         }
         if (seen.insert(object).second) {
@@ -210,7 +210,8 @@ void collectPathTracingObject(Renderable *renderable,
         const auto &meshes = static_cast<const Model *>(model)->getObjects();
         for (const auto &mesh : meshes) {
             CoreObject *object = mesh.get();
-            if (object == nullptr) {
+            if (object == nullptr || object->editorOnly || !object->isVisible ||
+                !model->canUseDeferredRendering()) {
                 continue;
             }
             bool hasAnyTexture = !object->textures.empty();

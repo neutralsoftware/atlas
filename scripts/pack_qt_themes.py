@@ -48,7 +48,9 @@ def main() -> int:
         lines.append(";")
         lines.append("")
 
-    output.write_text("\n".join(lines), encoding="utf-8")
+    content = "\n".join(lines)
+    if not output.exists() or output.read_text(encoding="utf-8") != content:
+        output.write_text(content, encoding="utf-8")
     return 0
 
 

@@ -28,6 +28,7 @@ enum class Icon {
     Cloud,
     Code,
     Crosshair,
+    Component,
     Cube,
     CubeFocus,
     CubeTransparent,
@@ -68,6 +69,7 @@ enum class Icon {
     RocketLaunch,
     Rows,
     Sidebar,
+    PanelRight,
     SkipForward,
     SlidersHorizontal,
     Sparkle,
@@ -85,9 +87,8 @@ enum class Icon {
     Wrench
 };
 
-bool loadIconFont();
 QPixmap brandMark(const QSize &size);
-QIcon icon(Icon icon, const QColor &color = QColor("#B4B3AB"));
+QIcon icon(Icon icon, const QColor &color = QColor("#A1A1A1"));
 QIcon colorSwatch(const QColor &color, const QSize &size = QSize(18, 18));
 
 }

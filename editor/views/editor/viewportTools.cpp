@@ -91,8 +91,8 @@ ViewportTools::ViewportTools(ViewportPanel *viewport,
     auto *toolbar = new QWidget(this);
     toolbar->setObjectName("viewportToolbar");
     auto *tools = new QHBoxLayout(toolbar);
-    tools->setContentsMargins(8, 4, 8, 4);
-    tools->setSpacing(3);
+    tools->setContentsMargins(4, 4, 4, 4);
+    tools->setSpacing(4);
 
     playButton = new styling::ToolButton(toolbar);
     playButton->setObjectName("viewportPlaybackButton");
