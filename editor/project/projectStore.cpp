@@ -75,6 +75,7 @@ QString projectConfig(const QString &name,
     stream << "ssr_debug = false\n";
     stream << "use_upscaling = true\n";
     stream << "upscaling_ratio = 0.67\n";
+    stream << "cinematic_mode = false\n";
     stream << "samples_per_pixel = 4\n";
     stream << "max_bounces = 8\n";
     stream << "denoising = true\n";

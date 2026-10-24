@@ -301,6 +301,7 @@ void photon::PathTracing::init() {
         createCausticPipeline("clearCaustics", PATH_CAUSTIC_CLEAR);
     causticEmitPipeline =
         createCausticPipeline("emitCaustics", PATH_CAUSTIC_EMIT);
+    lightBeamPipeline = createCausticPipeline("traceLightBeams", PATH_LIGHT_BEAMS);
 #else
     causticClearPipeline = createCausticPipeline("clearCaustics");
     causticEmitPipeline = createCausticPipeline("emitCaustics");
@@ -327,7 +328,7 @@ void photon::PathTracing::init() {
 
     for (auto &texture : pathTracingHistoryTextures) {
         texture = std::make_shared<Texture>(Texture::create(
-            outputWidth, outputHeight, opal::TextureFormat::Rgba16F,
+            outputWidth, outputHeight, opal::TextureFormat::Rgba32F,
             opal::TextureDataFormat::Rgba, TextureType::Color));
     }
     for (auto &texture : pathTracingHistoryGuides) {
@@ -337,7 +338,7 @@ void photon::PathTracing::init() {
     }
     for (auto &texture : pathTracingHistoryMoments) {
         texture = std::make_shared<Texture>(Texture::create(
-            outputWidth, outputHeight, opal::TextureFormat::Rgba16F,
+            outputWidth, outputHeight, opal::TextureFormat::Rgba32F,
             opal::TextureDataFormat::Rgba, TextureType::Color));
     }
     for (auto &texture : directReservoirSamples) {
@@ -379,7 +380,7 @@ void photon::PathTracing::resizeOutput(int width, int height) {
     outputHeight = newHeight;
     for (auto &texture : pathTracingHistoryTextures) {
         texture = std::make_shared<Texture>(Texture::create(
-            outputWidth, outputHeight, opal::TextureFormat::Rgba16F,
+            outputWidth, outputHeight, opal::TextureFormat::Rgba32F,
             opal::TextureDataFormat::Rgba, TextureType::Color));
     }
     for (auto &texture : pathTracingHistoryGuides) {
@@ -389,7 +390,7 @@ void photon::PathTracing::resizeOutput(int width, int height) {
     }
     for (auto &texture : pathTracingHistoryMoments) {
         texture = std::make_shared<Texture>(Texture::create(
-            outputWidth, outputHeight, opal::TextureFormat::Rgba16F,
+            outputWidth, outputHeight, opal::TextureFormat::Rgba32F,
             opal::TextureDataFormat::Rgba, TextureType::Color));
     }
     for (auto &texture : directReservoirSamples) {
@@ -420,19 +421,20 @@ void photon::PathTracing::resizeOutput(int width, int height) {
 
 void photon::PathTracing::configure(int samplesPerPixel, int bounceLimit,
                                     bool useDenoising, int historyFrames,
-                                    uint32_t enabledFeatures) {
-    const int newSamples = std::clamp(samplesPerPixel, 1, 256);
-    const int newBounces = std::clamp(bounceLimit, 1, 16);
+                                    uint32_t enabledFeatures, bool cinematic) {
+    const int newSamples = std::clamp(samplesPerPixel, 1, cinematic ? 1048576 : 256);
+    const int newBounces = std::clamp(bounceLimit, 1, cinematic ? 1024 : 16);
     const int newHistoryFrames = std::clamp(historyFrames, 1, 2048);
-    if (raysPerPixel == newSamples && maxBounces == newBounces &&
+    if (cinematicMode == cinematic && raysPerPixel == newSamples && maxBounces == newBounces &&
         denoisingEnabled == useDenoising &&
         accumulationFrames == newHistoryFrames &&
         featureFlags == enabledFeatures) {
         return;
     }
-    if ((featureFlags & Caustics) != (enabledFeatures & Caustics)) {
+    if (featureFlags != enabledFeatures || maxBounces != newBounces) {
         causticMapDirty = true;
     }
+    cinematicMode = cinematic;
     raysPerPixel = newSamples;
     maxBounces = newBounces;
     denoisingEnabled = useDenoising;
@@ -442,6 +444,7 @@ void photon::PathTracing::configure(int samplesPerPixel, int bounceLimit,
 }
 
 void photon::PathTracing::resetAccumulation() {
+    accumulatedSamples = 0;
     frameIndex = 0;
     historyReadIndex = 0;
     interactiveFramesRemaining = 2;
@@ -1333,7 +1336,7 @@ bool photon::PathTracing::render(
     } else if (interactiveFramesRemaining > 0) {
         interactiveFramesRemaining--;
     }
-    bool nextInteractive = cameraChanged || interactiveFramesRemaining > 0;
+    bool nextInteractive = !cinematicMode && (cameraChanged || interactiveFramesRemaining > 0);
     if (interactive != nextInteractive) {
         interactive = nextInteractive;
         frameIndex = 0;
@@ -1628,12 +1631,23 @@ bool photon::PathTracing::render(
     cachedCloudLighting = cloudLighting;
     cachedCloudsEnabled = cloudsEnabled;
 
+    if (frameIndex == 0) {
+        accumulatedSamples = 0;
+    }
+    if (cinematicMode && accumulatedSamples >= raysPerPixel) {
+        return true;
+    }
     const int refinementFrame = std::max(frameIndex, 0);
     const int pixelStride = 1;
-    const int effectiveSamples = interactive ? 1 : this->raysPerPixel;
+    const int effectiveSamples = cinematicMode
+        ? std::min(8, raysPerPixel - accumulatedSamples)
+        : (interactive ? 1 : raysPerPixel);
     const int effectiveBounces =
         interactive ? std::min(this->maxBounces, causticGeometryPresent ? 6 : 2)
                     : this->maxBounces;
+    pathTracingPipeline->setUniform1i("sceneData.cinematicMode", cinematicMode ? 1 : 0);
+    pathTracingPipeline->setUniform1i("sceneData.accumulatedSamples", accumulatedSamples);
+    pathTracingPipeline->setUniform1i("sceneData.beamSegmentLimit", maxBounces);
     pathTracingPipeline->setUniform1i("sceneData.frameIndex", frameIndex);
     pathTracingPipeline->setUniform1i("sceneData.raysPerPixel",
                                       effectiveSamples);
@@ -1641,7 +1655,7 @@ bool photon::PathTracing::render(
     pathTracingPipeline->setUniform1i("sceneData.pixelStride", pixelStride);
     pathTracingPipeline->setUniform1i("sceneData.accumulationFrameLimit",
                                       accumulationFrames);
-    pathTracingPipeline->setUniform1f("sceneData.fireflyClamp", fireflyClamp);
+    pathTracingPipeline->setUniform1f("sceneData.fireflyClamp", cinematicMode ? 1e20f : fireflyClamp);
     pathTracingPipeline->setUniform1f(
         "sceneData.bloomThreshold",
         std::max(scene->getEnvironment().lightBloom.threshold, 0.0f));
@@ -1723,6 +1737,7 @@ bool photon::PathTracing::render(
                 ? std::min<int>(materialTextures.size(),
                                 kPathTracerMaxMaterialTextures)
                 : 0);
+        pipeline->setUniform1i("sceneData.maxBounces", maxBounces);
         pipeline->setUniform1i("sceneData.featureFlags",
                                static_cast<int>(featureFlags));
         pipeline->setUniform3f(
@@ -1769,6 +1784,42 @@ bool photon::PathTracing::render(
 #endif
     }
 
+#ifdef VULKAN
+    if (beamLightCount != spotLightCount || beamBounceLimit != maxBounces || photonBeams == nullptr) {
+        photonBeams = opal::Buffer::create(opal::BufferUsage::ShaderReadWrite,
+            static_cast<size_t>(std::max(spotLightCount, 1)) * 6 * maxBounces * 64);
+        beamLightCount = spotLightCount;
+        beamBounceLimit = maxBounces;
+    }
+    pathTracingPipeline->bindBuffer("photonBeams", photonBeams, 18);
+    if (spotLightCount > 0 && (featureFlags & Caustics) != 0 &&
+        (featureFlags & Volumes) != 0 && lightBeamPipeline != nullptr) {
+        auto &pipeline = lightBeamPipeline;
+        pipeline->setUniform1i("sceneData.numSpotLights", spotLightCount);
+        pipeline->setUniform1i("sceneData.beamSegmentLimit", maxBounces);
+        pipeline->setUniform1i("sceneData.maxBounces", maxBounces);
+        pipeline->setUniform1i("sceneData.featureFlags", static_cast<int>(featureFlags));
+        pipeline->setUniform1i("sceneData.materialTextureCount",
+            (featureFlags & MaterialTextures) != 0
+                ? std::min<int>(materialTextures.size(), kPathTracerMaxMaterialTextures) : 0);
+        pipeline->bindBuffer("materials", materialBuffer, 2);
+        pipeline->bindBuffer("primitiveObjects", meshInfo, 3);
+        pipeline->bindBuffer("vertices", globalVertices, 4);
+        pipeline->bindBuffer("indices", globalIndices, 5);
+        pipeline->bindBuffer("instanceData", instanceDataBuffer, 6);
+        pipeline->bindBuffer("spotLights", this->spotLights, 10);
+        pipeline->bindBuffer("blasPrimitiveOffsets", blasPrimitiveOffsets, 13);
+        pipeline->bindBuffer("photonBeams", photonBeams, 18);
+        pipeline->bindTextureArray(materialTextureBindings, 12);
+        commandBuffer->bindPipeline(pipeline);
+        commandBuffer->bindInstanceAccelerationStructure(sceneTLAS, 0);
+        commandBuffer->dispatch(spotLightCount * 6, 1, 1);
+        commandBuffer->computeBarrier();
+        commandBuffer->bindPipeline(pathTracingPipeline);
+        commandBuffer->bindInstanceAccelerationStructure(sceneTLAS, 0);
+    }
+#endif
+
     commandBuffer->dispatch((outputWidth + pixelStride - 1) / pixelStride,
                             (outputHeight + pixelStride - 1) / pixelStride, 1);
 
@@ -1814,6 +1865,8 @@ bool photon::PathTracing::render(
     }
 
     previousViewProj = viewProj;
+    if (cinematicMode)
+        accumulatedSamples += effectiveSamples;
     frameIndex++;
     lastError.clear();
     return true;

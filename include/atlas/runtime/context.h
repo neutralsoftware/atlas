@@ -47,6 +47,7 @@ class ProjectConfig {
     std::string inputActions;
     bool useUpscaling = false;
     float upscalingRatio = 0.67f;
+    bool cinematicMode = false;
     int pathTracingSamples = 4;
     int pathTracingBounces = 8;
     bool pathTracingDenoising = true;
@@ -143,7 +144,7 @@ class Context {
     bool configurePathTracing(int samplesPerPixel, int bounceLimit,
                               bool denoising, int accumulationFrames,
                               bool useUpscaling, float upscalingRatio,
-                              uint32_t featureFlags);
+                              uint32_t featureFlags, bool cinematicMode = false);
     std::string getPathTracingError() const;
     float frameRate() const;
     bool editorPointerEvent(int action, float x, float y, int button,

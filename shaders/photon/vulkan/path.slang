@@ -166,6 +166,9 @@ struct SceneData {
     float4 cloudSettings;
     float4 cloudLighting;
     uint cloudsEnabled;
+    uint cinematicMode;
+    uint accumulatedSamples;
+    uint beamSegmentLimit;
 };
 
 struct CausticPhoton {
@@ -1032,6 +1035,8 @@ float3 volumeLightSample(Material material, float3 origin, float3 direction,
            lightVisibility(position, lightDirection, lightDistance);
 }
 
+#include "beams.slang"
+
 float3 volumeRadiance(Material material, float3 origin, float3 direction,
                        float distance) {
     float3 extinction = volumeExtinction(material);
@@ -1045,6 +1050,7 @@ float3 volumeRadiance(Material material, float3 origin, float3 direction,
         material.volumeScatteringStrength <= 0.0 || material.volumeDensity <= 0.0) {
         return result;
     }
+    result += scatteredPhotonBeams(material, origin, direction, distance);
     const uint steps = 8;
     float stepLength = distance / float(steps);
     if (sceneData.numDirectionalLights > 0) {
@@ -1152,7 +1158,7 @@ float3 samplePath(float3 origin, float3 direction, inout uint state,
         if (insideDielectric) {
             throughput *= exp(-dielectricSigmaA * max(hit.distance, 0.0));
         }
-        if (insideMedium &&
+        if (insideMedium && !insideDielectric &&
             (sceneData.featureFlags & PHOTON_FEATURE_VOLUMES) != 0) {
             float3 transmittance =
                 volumeTransmittance(mediumMaterial, hit.distance);
@@ -1217,11 +1223,13 @@ float3 samplePath(float3 origin, float3 direction, inout uint state,
                                   : channel == 1 ? float3(0.0, 3.0, 0.0)
                                                  : float3(0.0, 0.0, 3.0);
                 }
-                if (entering && hit.material.attenuationDistance > 0.001) {
+                if (entering) {
                     insideDielectric = true;
                     dielectricObjectId = hit.objectId;
-                    dielectricSigmaA = -log(clamp(hit.material.attenuationColor, 0.001, 1.0)) /
-                                       max(hit.material.attenuationDistance, 1e-4);
+                    dielectricSigmaA = hit.material.attenuationDistance > 0.001
+                        ? -log(clamp(hit.material.attenuationColor, 0.001, 1.0)) /
+                            max(hit.material.attenuationDistance, 1e-4)
+                        : float3(0.0);
                 } else if (!entering && dielectricObjectId == hit.objectId) {
                     insideDielectric = false;
                     dielectricObjectId = 0xffffffffu;
@@ -1279,7 +1287,8 @@ computeMain(uint3 dispatchThreadID
     float2 primaryUv = (float2(gid) + 0.5) / float2(width, height);
     float3 primaryDirection = float3(0.0, 0.0, 1.0);
     uint samples = max(sceneData.raysPerPixel, 1u);
-    for (uint sampleIndex = 0; sampleIndex < samples; ++sampleIndex) {
+    uint iterations = samples + (sceneData.cinematicMode != 0 ? 1u : 0u);
+    for (uint sampleIndex = 0; sampleIndex < iterations; ++sampleIndex) {
         float2 jitter =
             sampleIndex == 0
                 ? 0.0
@@ -1291,7 +1300,10 @@ computeMain(uint3 dispatchThreadID
         float3 direction =
             safeNormal(world.xyz / world.w - cam.camPos, float3(0.0, 0.0, 1.0));
         SurfaceHit sampleHit;
-        color += samplePath(cam.camPos, direction, state, sampleHit);
+        float3 radiance = samplePath(cam.camPos, direction, state, sampleHit);
+        if (sceneData.cinematicMode == 0 || sampleIndex > 0) {
+            color += radiance;
+        }
         if (sampleIndex == 0) {
             primaryHit = sampleHit;
             primaryUv = uv;
@@ -1307,8 +1319,12 @@ computeMain(uint3 dispatchThreadID
             : 0.0;
     float historyLength = min(previousWeight + 1.0,
                               float(max(sceneData.accumulationFrameLimit, 1u)));
-    float3 accumulated = (previous.xyz * previousWeight + color) /
-                         max(previousWeight + 1.0, 1.0);
+    float sampleWeight = sceneData.cinematicMode != 0 ? float(samples) : 1.0;
+    if (sceneData.cinematicMode != 0) {
+        previousWeight = sceneData.frameIndex > 0 ? float(sceneData.accumulatedSamples) : 0.0;
+    }
+    float3 accumulated = (previous.xyz * previousWeight + color * sampleWeight) /
+                         max(previousWeight + sampleWeight, 1.0);
     float4 previousGuide = historyGuideTex.Load(int3(gid, 0));
     float objectId = primaryHit.valid ? float(primaryHit.objectId) : -1.0;
     float3 normal = primaryHit.valid ? primaryHit.normal : 0.0;
@@ -1346,11 +1362,11 @@ computeMain(uint3 dispatchThreadID
         moments = 0.0;
     }
     float currentLuminance = dot(color, float3(0.2126, 0.7152, 0.0722));
-    float mean = (moments.x * previousWeight + currentLuminance) /
-                 max(previousWeight + 1.0, 1.0);
+    float mean = (moments.x * previousWeight + currentLuminance * sampleWeight) /
+                 max(previousWeight + sampleWeight, 1.0);
     float meanSquared =
-        (moments.y * previousWeight + currentLuminance * currentLuminance) /
-        max(previousWeight + 1.0, 1.0);
+        (moments.y * previousWeight + currentLuminance * currentLuminance * sampleWeight) /
+        max(previousWeight + sampleWeight, 1.0);
     uint stride = max(sceneData.pixelStride, 1u);
     for (uint y = 0; y < stride; ++y) {
         for (uint x = 0; x < stride; ++x) {
@@ -1434,9 +1450,17 @@ emitCaustics(uint3 dispatchThreadID
             pointLights[light].color * max(pointLights[light].intensity, 0.0);
     } else if ((light -= sceneData.numPointLights) < sceneData.numSpotLights) {
         origin = spotLights[light].position;
-        direction =
-            safeNormal(spotLights[light].direction, float3(0.0, -1.0, 0.0));
-        power = spotLights[light].color * max(spotLights[light].intensity, 0.0);
+        float3 axis = safeNormal(spotLights[light].direction, float3(0.0, -1.0, 0.0));
+        float outerCos = min(spotLights[light].innerCos, spotLights[light].outerCos);
+        float cosine = lerp(outerCos, 1.0, randomValue(state));
+        float sine = sqrt(max(1.0 - cosine * cosine, 0.0));
+        float phi = 6.28318530718 * randomValue(state);
+        float3 tangent = safeNormal(cross(axis, abs(axis.y) < 0.9
+            ? float3(0.0, 1.0, 0.0) : float3(1.0, 0.0, 0.0)), float3(1.0, 0.0, 0.0));
+        direction = safeNormal(axis * cosine + sine *
+            (tangent * cos(phi) + cross(axis, tangent) * sin(phi)), axis);
+        power = spotLights[light].color * max(spotLights[light].intensity, 0.0) *
+            (6.28318530718 * max(1.0 - outerCos, 0.0)) * float(lightCount);
     } else {
         light -= sceneData.numSpotLights;
         AreaLight source = areaLights[light];
@@ -1448,49 +1472,53 @@ emitCaustics(uint3 dispatchThreadID
         direction = cosineDirection(normal, state);
         power = source.color * max(source.intensity, 0.0);
     }
-    SurfaceHit specularHit = traceNonVolumeSurface(origin, direction);
-    if (!specularHit.valid || specularHit.material.roughness >= 0.25 ||
-        (specularHit.material.transmittance <= 0.001 &&
-         specularHit.material.metallic <= 0.001)) {
-        photons[index] = photon;
-        return;
-    }
-    power *= volumeShadowTransmittance(origin, direction, specularHit.distance);
-    float3 nextDirection;
-    if (specularHit.material.transmittance > 0.001 &&
-        (sceneData.featureFlags & PHOTON_FEATURE_TRANSMISSION) != 0) {
-        uint channel = min(index % 3u, 2u);
-        float ior = dispersionIor(specularHit.material.ior,
-                                  specularHit.material.abbeNumber, channel);
-        nextDirection = refract(direction, specularHit.normal,
-                                specularHit.frontFace ? 1.0 / ior : ior);
-        if (dot(nextDirection, nextDirection) <= 1e-8) {
-            nextDirection = reflect(direction, specularHit.normal);
+    uint channel = min(index % 3u, 2u);
+    bool specularPath = false;
+    bool insideGlass = false;
+    float3 absorption = 0.0;
+    for (uint bounce = 0; bounce < min(sceneData.maxBounces, 64u); ++bounce) {
+        SurfaceHit hit = traceNonVolumeSurface(origin, direction);
+        if (!hit.valid) {
+            break;
         }
-    } else {
-        nextDirection = reflect(direction, specularHit.normal);
-    }
-    nextDirection = safeNormal(nextDirection, direction);
-    float3 receiverOrigin = specularHit.position + nextDirection * 0.002;
-    SurfaceHit receiver = traceNonVolumeSurface(receiverOrigin, nextDirection);
-    if (receiver.valid) {
-        power *= volumeShadowTransmittance(receiverOrigin, nextDirection, receiver.distance);
-    }
-    if (receiver.valid && receiver.material.transmittance < 0.001 &&
-        receiver.material.metallic < 0.001) {
-        uint channel = min(index % 3u, 2u);
-        float channelPower = channel == 0u   ? power.x
-                             : channel == 1u ? power.y
-                                             : power.z;
-        photon.positionWavelength = float4(receiver.position, float(channel));
-        photon.normalPower =
-            float4(receiver.normal, channelPower / float(1u << 19));
-        photon.incomingObject =
-            float4(-nextDirection, float(receiver.objectId));
-        photons[index] = photon;
-        insertCausticPhoton(int3(floor(receiver.position / caustics.radius)),
-                            index, state);
-        return;
+        power *= insideGlass ? exp(-absorption * hit.distance)
+                             : volumeShadowTransmittance(origin, direction, hit.distance);
+        float transmission = (sceneData.featureFlags & PHOTON_FEATURE_TRANSMISSION) != 0
+            ? saturate(hit.material.transmittance) : 0.0;
+        if (transmission < 0.001 && hit.material.metallic < 0.001) {
+            if (specularPath) {
+                float channelPower = channel == 0u ? power.x : channel == 1u ? power.y : power.z;
+                photon.positionWavelength = float4(hit.position, float(channel));
+                photon.normalPower = float4(hit.normal, channelPower / float(1u << 19));
+                photon.incomingObject = float4(-direction, float(hit.objectId));
+                photons[index] = photon;
+                insertCausticPhoton(int3(floor(hit.position / caustics.radius)), index, state);
+                return;
+            }
+            break;
+        }
+        if (hit.material.roughness >= 0.25) {
+            break;
+        }
+        specularPath = true;
+        float ior = dispersionIor(hit.material.ior, hit.material.abbeNumber, channel);
+        float3 refracted = refract(direction, hit.normal, hit.frontFace ? 1.0 / ior : ior);
+        float f0 = pow((ior - 1.0) / (ior + 1.0), 2.0);
+        float fresnel = f0 + (1.0 - f0) * pow5(1.0 - saturate(dot(-direction, hit.normal)));
+        if (transmission < 0.001) {
+            direction = reflect(direction, hit.normal);
+            power *= hit.material.albedo.xyz;
+        } else if (dot(refracted, refracted) <= 1e-8 || randomValue(state) < fresnel) {
+            direction = reflect(direction, hit.normal);
+        } else {
+            direction = safeNormal(refracted, direction);
+            power *= transmission;
+            insideGlass = hit.frontFace;
+            absorption = hit.material.attenuationDistance > 0.001
+                ? -log(clamp(hit.material.attenuationColor, 0.001, 1.0)) /
+                    hit.material.attenuationDistance : float3(0.0);
+        }
+        origin = hit.position + direction * 0.002;
     }
     photons[index] = photon;
 }

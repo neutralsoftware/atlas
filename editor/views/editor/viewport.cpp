@@ -2403,14 +2403,14 @@ void ViewportPanel::setPathTracingPreview(bool enabled) {
 bool ViewportPanel::applyPathTracingSettings(
     int samplesPerPixel, int bounceLimit, bool denoising,
     int accumulationFrames, bool upscaling, float internalScale,
-    uint32_t featureFlags) {
+    uint32_t featureFlags, bool cinematicMode) {
     if (runtimeContext == nullptr) {
         return false;
     }
     frameTimer->stop();
     const bool applied = runtimeContext->configurePathTracing(
         samplesPerPixel, bounceLimit, denoising, accumulationFrames, upscaling,
-        internalScale, featureFlags);
+        internalScale, featureFlags, cinematicMode);
     const bool frameReady = applied && stepRuntime();
     if (frameReady && isVisible()) {
         frameTimer->start(RuntimeFrameIntervalMs);

@@ -41,7 +41,7 @@ float3 sampleRadiance(
     SpectralPath spectralPath = createSpectralPath(rng);
     float3 causticXYZ = float3(0.0f);
     float4 transmissionEtaScale = float4(1.0f);
-    uint bounceLimit = min(sceneData.maxBounces, 16u);
+    uint bounceLimit = min(sceneData.maxBounces, sceneData.cinematicMode != 0 ? 1024u : 16u);
     ray surfaceRay = primaryRay;
     float previousBsdfPdf = 0.0;
     float previousEnvironmentPdf = 0.0;

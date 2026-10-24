@@ -25,7 +25,8 @@ void RuntimeScene::initialize(Window &window) {
                 runtimeContext->config.pathTracingBounces,
                 runtimeContext->config.pathTracingDenoising,
                 runtimeContext->config.pathTracingAccumulationFrames,
-                runtimeContext->config.pathTracingFeatureFlags);
+                runtimeContext->config.pathTracingFeatureFlags,
+                runtimeContext->config.cinematicMode);
         } else {
             window.useDeferredRendering();
             window.setRealtimePBRFeatures(
@@ -64,7 +65,8 @@ void RuntimeScene::initialize(Window &window) {
             runtimeContext->config.pathTracingBounces,
             runtimeContext->config.pathTracingDenoising,
             runtimeContext->config.pathTracingAccumulationFrames,
-            runtimeContext->config.pathTracingFeatureFlags);
+            runtimeContext->config.pathTracingFeatureFlags,
+                runtimeContext->config.cinematicMode);
     }
 
     if (runtimeContext->config.useUpscaling &&

@@ -1465,11 +1465,16 @@ void EditorWindow::showProjectSettings() {
         }
     }
     upscalingQuality->setCurrentIndex(matchingScale);
+    const bool configuredCinematic =
+        tomlValue(projectLines, "renderer", "cinematic_mode") == "true";
+    auto *cinematicMode = new QCheckBox("Cinematic Mode", &dialog);
+    cinematicMode->setChecked(configuredCinematic);
+    cinematicMode->setToolTip("Accumulate a sample target for stills at native resolution, with full bounce depth.");
     auto *samplesPerPixel = new QSpinBox(&dialog);
-    samplesPerPixel->setRange(1, 256);
+    samplesPerPixel->setRange(1, configuredCinematic ? 1048576 : 256);
     samplesPerPixel->setValue(samplesValid ? configuredSamples : 4);
     auto *maxBounces = new QSpinBox(&dialog);
-    maxBounces->setRange(1, 16);
+    maxBounces->setRange(1, configuredCinematic ? 1024 : 16);
     maxBounces->setValue(bouncesValid ? configuredBounces : 8);
     auto *denoising = new QCheckBox("Variance-guided denoising", &dialog);
     denoising->setChecked(denoisingValue.isEmpty() || denoisingValue == "true");
@@ -1595,6 +1600,7 @@ void EditorWindow::showProjectSettings() {
     rendering->addRow("Upscaling quality", upscalingQuality);
     rendering->addRow("Internal render scale", internalScale);
     rendering->addRow("Effective resolution", internalResolution);
+    rendering->addRow(cinematicMode);
     rendering->addRow("Samples per pixel", samplesPerPixel);
     rendering->addRow("Maximum light bounces", maxBounces);
     rendering->addRow(QString(), denoising);
@@ -1607,10 +1613,19 @@ void EditorWindow::showProjectSettings() {
         ssr->setEnabled(!pathTracing);
         ssrQuality->setEnabled(!pathTracing && ssr->isChecked());
         ssrDebug->setEnabled(!pathTracing && ssr->isChecked());
+        cinematicMode->setEnabled(pathTracing);
+        samplesPerPixel->setRange(1, cinematicMode->isChecked() ? 1048576 : 256);
+        maxBounces->setRange(1, cinematicMode->isChecked() ? 1024 : 16);
+        samplesPerPixel->setToolTip(cinematicMode->isChecked()
+            ? "Total samples per pixel. Accumulates in batches and stops at the target; camera or scene changes restart it."
+            : "Samples per pixel per frame.");
+        upscaling->setEnabled(!cinematicMode->isChecked());
+        if (cinematicMode->isChecked())
+            upscaling->setChecked(false);
         samplesPerPixel->setEnabled(pathTracing);
         maxBounces->setEnabled(pathTracing);
         denoising->setEnabled(pathTracing);
-        accumulationFrames->setEnabled(pathTracing);
+        accumulationFrames->setEnabled(pathTracing && !cinematicMode->isChecked());
         for (auto *control : photonFeatureControls)
             control->setEnabled(pathTracing);
         directLighting->setEnabled(true);
@@ -1624,6 +1639,13 @@ void EditorWindow::showProjectSettings() {
     connect(renderer, &QComboBox::currentTextChanged, &dialog,
             updatePathTracingControls);
     connect(ssr, &QCheckBox::toggled, &dialog, updatePathTracingControls);
+    connect(cinematicMode, &QCheckBox::toggled, &dialog, [=](bool enabled) {
+        updatePathTracingControls();
+        if (enabled) {
+            samplesPerPixel->setValue(std::max(samplesPerPixel->value(), 4096));
+            maxBounces->setValue(std::max(maxBounces->value(), 32));
+        }
+    });
     updatePathTracingControls();
     auto *physics = addPage("Physics", styling::Icon::Wrench, "#A1957D");
     auto *gravity = new QLineEdit(
@@ -1734,6 +1756,8 @@ void EditorWindow::showProjectSettings() {
                      upscaling->isChecked() ? "true" : "false");
         setTomlValue(&lines, "renderer", "upscaling_ratio",
                      QString::number(internalScale->value() / 100.0, 'f', 2));
+        setTomlValue(&lines, "renderer", "cinematic_mode",
+                     cinematicMode->isChecked() ? "true" : "false");
         setTomlValue(&lines, "renderer", "samples_per_pixel",
                      QString::number(samplesPerPixel->value()));
         setTomlValue(&lines, "renderer", "max_bounces",
@@ -1806,6 +1830,7 @@ void EditorWindow::showProjectSettings() {
     settings.setValue("project/ssrDebug", ssrDebug->isChecked());
     settings.setValue("project/useUpscaling", upscaling->isChecked());
     settings.setValue("project/internalScale", internalScale->value());
+    settings.setValue("project/cinematicMode", cinematicMode->isChecked());
     settings.setValue("project/pathTracingSamples", samplesPerPixel->value());
     settings.setValue("project/pathTracingBounces", maxBounces->value());
     settings.setValue("project/pathTracingDenoising", denoising->isChecked());
@@ -1832,7 +1857,7 @@ void EditorWindow::showProjectSettings() {
             samplesPerPixel->value(), maxBounces->value(),
             denoising->isChecked(), accumulationFrames->value(),
             upscaling->isChecked(), internalScale->value() / 100.0f,
-            currentPhotonFeatureFlags());
+            currentPhotonFeatureFlags(), cinematicMode->isChecked());
     }
 }
 

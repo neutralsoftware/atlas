@@ -5091,6 +5091,9 @@ makeContextWithWindowOptions(std::string projectFile, void *metalView,
 #ifndef METAL
     useUpscaling = false;
 #endif
+    if (configTable["renderer"]["cinematic_mode"].value_or(false)) {
+        useUpscaling = false;
+    }
     if (embedded) {
         useUpscaling = false;
         ssaoScale = 1.0f;
@@ -7298,6 +7301,7 @@ void Context::loadProject() {
     std::vector<std::string> assetDirectories;
     bool useUpscaling = false;
     float upscalingRatio = 0.67f;
+    bool cinematicMode = false;
     int pathTracingSamples = 4;
     int pathTracingBounces = 8;
     bool pathTracingDenoising = true;
@@ -7312,10 +7316,11 @@ void Context::loadProject() {
         globalIllumination = (*renderer)["global_illumination"].value_or(false);
         useUpscaling = (*renderer)["use_upscaling"].value_or(false);
         upscalingRatio = (*renderer)["upscaling_ratio"].value_or(0.67f);
+        cinematicMode = (*renderer)["cinematic_mode"].value_or(false);
         pathTracingSamples =
-            std::clamp((*renderer)["samples_per_pixel"].value_or(4), 1, 256);
+            std::clamp((*renderer)["samples_per_pixel"].value_or(cinematicMode ? 4096 : 4), 1, cinematicMode ? 1048576 : 256);
         pathTracingBounces =
-            std::clamp((*renderer)["max_bounces"].value_or(8), 1, 16);
+            std::clamp((*renderer)["max_bounces"].value_or(cinematicMode ? 32 : 8), 1, cinematicMode ? 1024 : 16);
         pathTracingDenoising = (*renderer)["denoising"].value_or(true);
         pathTracingAccumulationFrames = std::clamp(
             (*renderer)["accumulation_frames"].value_or(512), 1, 2048);
@@ -7383,8 +7388,9 @@ void Context::loadProject() {
     config.globalIllumination = globalIllumination;
     config.mainScene = mainScene;
     config.assetDirectories = assetDirectories;
-    config.useUpscaling = useUpscaling;
+    config.useUpscaling = useUpscaling && !cinematicMode;
     config.upscalingRatio = std::clamp(upscalingRatio, 0.25f, 1.0f);
+    config.cinematicMode = cinematicMode;
     config.pathTracingSamples = pathTracingSamples;
     config.pathTracingBounces = pathTracingBounces;
     config.pathTracingDenoising = pathTracingDenoising;

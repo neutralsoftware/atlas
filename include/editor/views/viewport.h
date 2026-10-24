@@ -107,7 +107,7 @@ class ViewportPanel : public QWidget {
     bool applyPathTracingSettings(int samplesPerPixel, int bounceLimit,
                                   bool denoising, int accumulationFrames,
                                   bool upscaling, float internalScale,
-                                  uint32_t featureFlags);
+                                  uint32_t featureFlags, bool cinematicMode = false);
     void setRuntimeControlMode(int mode);
     void toggleTransformSpace();
     void toggleTransformSnapping();
