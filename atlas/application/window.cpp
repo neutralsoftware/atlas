@@ -4758,6 +4758,7 @@ std::vector<Monitor> Window::enumerateMonitors() {
 }
 
 Window::~Window() {
+    ShaderProgram::releaseDeviceCaches(device.get());
     if (audioEngine != nullptr) {
         audioEngine->shutdown();
         audioEngine.reset();

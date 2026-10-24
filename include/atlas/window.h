@@ -79,7 +79,7 @@ struct WindowConfiguration {
      * render at a lower resolution and upscale to the window, improving
      * performance.
      */
-    float renderScale = 0.75f;
+    float renderScale = 1.0f;
     /**
      * @brief Whether the mouse cursor should be captured and hidden.
      *
@@ -1022,7 +1022,7 @@ class Window {
     int pingpongWidth = 0;
     int pingpongHeight = 0;
 
-    float renderScale = 0.75f;
+    float renderScale = 1.0f;
     float ssaoRenderScale = 0.5f;
     bool metalUpscalingEnabled = false;
     float metalUpscalingRatio = 1.0f;

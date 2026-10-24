@@ -33,7 +33,8 @@ void RuntimeScene::initialize(Window &window) {
                     ? runtimeContext->config.realtimePBRFeatureFlags
                     : photon::NormalRealtimePBRFeatures);
         }
-        if (runtimeContext->config.useUpscaling) {
+        if (runtimeContext->config.useUpscaling &&
+            !window.isRenderingToExternalView()) {
 #ifdef METAL
             window.useMetalUpscaling(runtimeContext->config.upscalingRatio);
 #endif
@@ -66,7 +67,8 @@ void RuntimeScene::initialize(Window &window) {
             runtimeContext->config.pathTracingFeatureFlags);
     }
 
-    if (runtimeContext->config.useUpscaling) {
+    if (runtimeContext->config.useUpscaling &&
+        !window.isRenderingToExternalView()) {
 #ifdef METAL
         window.useMetalUpscaling(runtimeContext->config.upscalingRatio);
 #endif

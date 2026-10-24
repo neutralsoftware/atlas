@@ -144,6 +144,10 @@ float4 applyFXAA(Sampler2D tex, float2  texCoord)
     float lumaM = dot(rgbM, luma);
     float lumaMin = min(lumaM, min(min(lumaNW, lumaNE), min(lumaSW, lumaSE)));
     float lumaMax = max(lumaM, max(max(lumaNW, lumaNE), max(lumaSW, lumaSE)));
+    if (lumaMax - lumaMin < max(0.0312, lumaMax * 0.125))
+    {
+        return sampleColor(texCoord);
+    }
     float2 dir;
     dir.x = -((lumaNW + lumaNE) - (lumaSW + lumaSE));
     dir.y = (lumaNW + lumaSW) - (lumaNE + lumaSE);

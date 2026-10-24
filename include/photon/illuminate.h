@@ -144,6 +144,8 @@ class PathTracing {
     std::shared_ptr<opal::Buffer> instanceDataBuffer;
     std::shared_ptr<opal::Buffer> blasPrimitiveOffsets;
     std::shared_ptr<opal::Buffer> emissiveTriangles;
+    std::shared_ptr<opal::Texture> fallbackMaterialTexture;
+    std::shared_ptr<opal::Texture> fallbackSkyboxTexture;
     std::vector<std::shared_ptr<opal::Texture>> materialTextures;
     std::vector<std::shared_ptr<opal::Texture>> materialTextureBindings;
     std::shared_ptr<opal::PrimitiveAccelerationStructure> sceneBLAS;
@@ -336,6 +338,7 @@ class GlobalIllumination {
     std::vector<DDGITriangle> triangles;
     /** @brief Material table uploaded for DDGI tracing. */
     std::vector<DDGIMaterial> materials;
+    std::shared_ptr<opal::Texture> fallbackSkybox;
     /** @brief Texture table referenced by DDGI materials. */
     std::vector<std::shared_ptr<opal::Texture>> materialTextures;
 

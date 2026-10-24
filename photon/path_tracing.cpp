@@ -1038,8 +1038,9 @@ bool photon::PathTracing::buildAccelerationStructure(
             accelerationBuildFailed = true;
             return false;
         }
-        static std::shared_ptr<opal::Texture> fallbackMaterialTexture =
-            createFallbackMaterialTexture();
+        if (fallbackMaterialTexture == nullptr) {
+            fallbackMaterialTexture = createFallbackMaterialTexture();
+        }
         materialTextureBindings = materialTextures;
         materialTextureBindings.resize(kPathTracerMaxMaterialTextures,
                                        fallbackMaterialTexture);
@@ -1564,7 +1565,6 @@ bool photon::PathTracing::render(
         "directReservoirStatsOutTex",
         directReservoirStats[historyWriteIndex]->texture, 64);
 
-    static std::shared_ptr<opal::Texture> fallbackSkyboxTexture = nullptr;
     if (fallbackSkyboxTexture == nullptr) {
         fallbackSkyboxTexture = createFallbackSkyboxTexture();
     }
@@ -1629,8 +1629,7 @@ bool photon::PathTracing::render(
     cachedCloudsEnabled = cloudsEnabled;
 
     const int refinementFrame = std::max(frameIndex, 0);
-    const int pixelStride =
-        interactive && !Window::mainWindow->isRenderingToExternalView() ? 2 : 1;
+    const int pixelStride = 1;
     const int effectiveSamples = interactive ? 1 : this->raysPerPixel;
     const int effectiveBounces =
         interactive ? std::min(this->maxBounces, causticGeometryPresent ? 6 : 2)
@@ -1675,8 +1674,9 @@ bool photon::PathTracing::render(
             : 0);
 
     if (materialTextureBindings.size() != kPathTracerMaxMaterialTextures) {
-        static std::shared_ptr<opal::Texture> fallbackMaterialTexture =
-            createFallbackMaterialTexture();
+        if (fallbackMaterialTexture == nullptr) {
+            fallbackMaterialTexture = createFallbackMaterialTexture();
+        }
         materialTextureBindings = materialTextures;
         materialTextureBindings.resize(kPathTracerMaxMaterialTextures,
                                        fallbackMaterialTexture);
