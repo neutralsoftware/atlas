@@ -3,6 +3,9 @@ name: Package platform artifacts
 on:
     push:
         branches: [main, prerelease]
+    pull_request:
+        branches: [main]
+    workflow_dispatch:
 
 permissions:
     contents: read
