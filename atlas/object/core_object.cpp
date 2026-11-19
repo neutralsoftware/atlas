@@ -178,7 +178,9 @@ std::vector<LayoutDescriptor> CoreVertex::getLayoutDescriptors() {
 }
 
 CoreObject::CoreObject() : vao(nullptr), vbo(nullptr), ebo(nullptr) {
-    shaderProgram = ShaderProgram::defaultProgram();
+    if (opal::Device::globalInstance != nullptr) {
+        shaderProgram = ShaderProgram::defaultProgram();
+    }
 }
 
 void CoreObject::attachProgram(const ShaderProgram &program) {
@@ -394,6 +396,9 @@ void CoreObject::updateModelMatrix() {
 }
 
 void CoreObject::initialize() {
+    if (shaderProgram.shader == nullptr && shaderProgram.programId == 0) {
+        shaderProgram = ShaderProgram::defaultProgram();
+    }
     for (auto &component : components) {
         component->init();
     }

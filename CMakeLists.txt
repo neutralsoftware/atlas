@@ -117,6 +117,13 @@ endif ()
 message(STATUS "Selected backend: ${BACKEND}")
 
 # ─── Options ─────────────────────────────────────────────────────────────────
+option(ATLAS_BUILD_EDITOR "Build the Qt editor" ON)
+option(ATLAS_BUILD_RUNTIME "Build the scripting runtime and project runner" ON)
+option(ATLAS_BUILD_TESTS "Build standalone native C++ tests" ON)
+if (ATLAS_BUILD_EDITOR AND NOT ATLAS_BUILD_RUNTIME)
+    message(FATAL_ERROR "ATLAS_BUILD_EDITOR requires ATLAS_BUILD_RUNTIME")
+endif ()
+
 option(BEZEL_NATIVE "Enable Bezel Native" OFF)
 option(ENABLE_FTET_WILD "Enable fTetWild softbody tetrahedralization" ON)
 if (WIN32)
@@ -336,6 +343,12 @@ foreach(OPENAL_EFFECT_SOURCE IN LISTS OPENAL_EFFECT_SOURCES)
     string(REPLACE
         "auto &upsampler = mUpsampler.emplace();"
         "using upsampler_t = decltype(mUpsampler)::value_type;\n        auto &upsampler = mUpsampler.emplace(upsampler_t{});"
+        OPENAL_EFFECT_CONTENT
+        "${OPENAL_EFFECT_CONTENT}"
+    )
+    string(REPLACE
+        "std::ranges::for_each(mAmbiSplitter | std::views::join, &BandSplitter::clear);"
+        "std::ranges::for_each(mAmbiSplitter | std::views::join, [](BandSplitter &splitter) { splitter.clear(); });"
         OPENAL_EFFECT_CONTENT
         "${OPENAL_EFFECT_CONTENT}"
     )
@@ -570,22 +583,24 @@ set(QUICKJS_SOURCES
 )
 
 # ─── quickjs ─────────────────────────────────────────────────────────────────
-add_library(quickjs STATIC ${QUICKJS_SOURCES})
-target_include_directories(quickjs PUBLIC ${CMAKE_SOURCE_DIR}/extern/quickjs)
+if (ATLAS_BUILD_RUNTIME)
+    add_library(quickjs STATIC ${QUICKJS_SOURCES})
+    target_include_directories(quickjs PUBLIC ${CMAKE_SOURCE_DIR}/extern/quickjs)
 
-if (MSVC)
-    target_compile_options(quickjs PRIVATE /W0 /experimental:c11atomics)
-    target_compile_definitions(quickjs PRIVATE
-            _CRT_SECURE_NO_WARNINGS
-            WIN32_LEAN_AND_MEAN
-            NOMINMAX
-            _WIN32_WINNT=0x0601
-    )
-elseif (UNIX)
-    target_compile_definitions(quickjs PRIVATE _GNU_SOURCE)
-    target_compile_options(quickjs PRIVATE -w -Wno-error)
-else ()
-    target_compile_options(quickjs PRIVATE -w -Wno-error)
+    if (MSVC)
+        target_compile_options(quickjs PRIVATE /W0 /experimental:c11atomics)
+        target_compile_definitions(quickjs PRIVATE
+                _CRT_SECURE_NO_WARNINGS
+                WIN32_LEAN_AND_MEAN
+                NOMINMAX
+                _WIN32_WINNT=0x0601
+        )
+    elseif (UNIX)
+        target_compile_definitions(quickjs PRIVATE _GNU_SOURCE)
+        target_compile_options(quickjs PRIVATE -w -Wno-error)
+    else ()
+        target_compile_options(quickjs PRIVATE -w -Wno-error)
+    endif ()
 endif ()
 
 # Pick the right OpenAL target name from openal-soft.
@@ -754,7 +769,19 @@ if (NOT BEZEL_NATIVE)
     target_link_libraries(atlas PUBLIC Jolt::Jolt)
 endif ()
 
-target_include_directories(atlas PRIVATE ${ATLAS_DEP_INCLUDE_DIRS})
+add_library(Atlas::Atlas ALIAS atlas)
+target_include_directories(atlas BEFORE PUBLIC "${SHADER_GENERATED_INCLUDE_DIR}")
+target_include_directories(atlas PUBLIC
+        ${CMAKE_CURRENT_SOURCE_DIR}/include
+        ${CMAKE_CURRENT_SOURCE_DIR}/extern
+        ${ATLAS_DEP_INCLUDE_DIRS}
+)
+if (BEZEL_NATIVE)
+    target_compile_definitions(atlas PUBLIC BEZEL_NATIVE)
+else ()
+    target_compile_definitions(atlas PUBLIC
+            JPH_PROFILE_ENABLED=1 JPH_DEBUG_RENDERER=1 JPH_OBJECT_STREAM=1)
+endif ()
 
 if (BACKEND_VULKAN)
     target_link_libraries(atlas PRIVATE Vulkan::Vulkan)
@@ -785,45 +812,53 @@ elseif (UNIX)
 endif ()
 
 # ─── runtime_lib ─────────────────────────────────────────────────────────────
-add_library(runtime_lib SHARED ${RUNTIME_LIB_SOURCES})
-set_property(SOURCE runtime/lib/c_api.cpp APPEND PROPERTY
-        COMPILE_DEFINITIONS ATLAS_BUILD_REVISION="${ATLAS_BUILD_REVISION}"
-)
-target_link_libraries(runtime_lib
-        PUBLIC atlas
-        PRIVATE quickjs fmt::fmt
-)
-target_compile_definitions(runtime_lib PRIVATE
-        RUNTIME_LIB
-        JPH_PROFILE_ENABLED=1
-        JPH_DEBUG_RENDERER=1
-        JPH_OBJECT_STREAM=1
-)
-add_dependencies(runtime_lib generate_shaders generate_runtime_scripts)
-target_include_directories(runtime_lib PUBLIC ${CMAKE_SOURCE_DIR}/extern/quickjs)
-target_include_directories(runtime_lib PRIVATE ${ATLAS_DEP_INCLUDE_DIRS})
-set_target_properties(runtime_lib PROPERTIES
-        OUTPUT_NAME runtime
-        PREFIX ""
-        WINDOWS_EXPORT_ALL_SYMBOLS ON
-)
+if (ATLAS_BUILD_RUNTIME)
+    add_library(runtime_lib SHARED ${RUNTIME_LIB_SOURCES})
+    set_property(SOURCE runtime/lib/c_api.cpp APPEND PROPERTY
+            COMPILE_DEFINITIONS ATLAS_BUILD_REVISION="${ATLAS_BUILD_REVISION}"
+    )
+    target_link_libraries(runtime_lib
+            PUBLIC atlas
+            PRIVATE quickjs fmt::fmt
+    )
+    target_compile_definitions(runtime_lib PRIVATE
+            RUNTIME_LIB
+            JPH_PROFILE_ENABLED=1
+            JPH_DEBUG_RENDERER=1
+            JPH_OBJECT_STREAM=1
+    )
+    add_dependencies(runtime_lib generate_shaders generate_runtime_scripts)
+    target_include_directories(runtime_lib PUBLIC ${CMAKE_SOURCE_DIR}/extern/quickjs)
+    target_include_directories(runtime_lib PRIVATE ${ATLAS_DEP_INCLUDE_DIRS})
+    set_target_properties(runtime_lib PROPERTIES
+            OUTPUT_NAME runtime
+            PREFIX ""
+            WINDOWS_EXPORT_ALL_SYMBOLS ON
+    )
 
-# ─── runtime executable ──────────────────────────────────────────────────────
-add_executable(atlasrun ${RUNTIME_SOURCES})
-target_link_libraries(atlasrun PRIVATE runtime_lib)
-target_compile_definitions(atlasrun PRIVATE
-        RUNTIME_BIN
-        JPH_PROFILE_ENABLED=1
-        JPH_DEBUG_RENDERER=1
-        JPH_OBJECT_STREAM=1
-)
-target_include_directories(atlasrun PRIVATE ${CMAKE_SOURCE_DIR}/runtime/include)
-target_include_directories(atlasrun PRIVATE ${ATLAS_DEP_INCLUDE_DIRS})
-add_dependencies(atlasrun generate_shaders)
+    # ─── runtime executable ──────────────────────────────────────────────────────
+    add_executable(atlasrun ${RUNTIME_SOURCES})
+    target_link_libraries(atlasrun PRIVATE runtime_lib)
+    target_compile_definitions(atlasrun PRIVATE
+            RUNTIME_BIN
+            JPH_PROFILE_ENABLED=1
+            JPH_DEBUG_RENDERER=1
+            JPH_OBJECT_STREAM=1
+    )
+    target_include_directories(atlasrun PRIVATE ${CMAKE_SOURCE_DIR}/runtime/include)
+    target_include_directories(atlasrun PRIVATE ${ATLAS_DEP_INCLUDE_DIRS})
+    add_dependencies(atlasrun generate_shaders)
+endif ()
 
-add_subdirectory(editor)
+if (ATLAS_BUILD_TESTS)
+    add_subdirectory(tests)
+endif ()
 
-if (WIN32)
+if (ATLAS_BUILD_EDITOR)
+    add_subdirectory(editor)
+endif ()
+
+if (WIN32 AND ATLAS_BUILD_EDITOR)
     set(ATLAS_WINDOWS_RUNTIME_DLLS
             "$<TARGET_RUNTIME_DLLS:AtlasEditor>"
             "$<TARGET_RUNTIME_DLLS:atlasrun>"

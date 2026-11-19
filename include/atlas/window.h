@@ -441,7 +441,6 @@ class Window {
      * @return (bool) True while rendering should continue.
      */
     bool stepFrame();
-    void logViewportStartupStage(const char *stage) const;
     void activateRenderingContext();
     void resize(int width, int height, float scale = 1.0f);
     void setEditorControlsEnabled(bool enabled);
@@ -515,11 +514,11 @@ class Window {
 
     void enableGlobalIllumination();
     void enablePathTracing();
-    void configurePathTracing(int samplesPerPixel, int bounceLimit,
-                              bool denoising, int accumulationFrames,
-                              uint32_t featureFlags =
-                                  photon::AllPathTracingFeatures,
-                              bool cinematicMode = false);
+    void
+    configurePathTracing(int samplesPerPixel, int bounceLimit, bool denoising,
+                         int accumulationFrames,
+                         uint32_t featureFlags = photon::AllPathTracingFeatures,
+                         bool cinematicMode = false);
     void resetPathTracingAccumulation();
     bool setEditorPathTracingPreview(bool enabled);
     const std::string &getPathTracingError() const;
@@ -747,7 +746,9 @@ class Window {
     bool isRenderingToExternalMetalView() const {
         return this->renderToExternalMetalView;
     }
-    bool isRenderingToExternalView() const { return this->renderToExternalView; }
+    bool isRenderingToExternalView() const {
+        return this->renderToExternalView;
+    }
     /**
      * @brief Returns the SSAO-specific render scale.
      */
@@ -982,8 +983,9 @@ class Window {
     std::shared_ptr<opal::RenderPass> runLoopRenderPass = nullptr;
     struct AtlasHudState;
     std::unique_ptr<AtlasHudState> atlasHud;
-    void renderAtlasHud(const std::shared_ptr<opal::CommandBuffer> &commandBuffer,
-                        float cpuTimeMs, float renderTimeMs, int drawCalls);
+    void
+    renderAtlasHud(const std::shared_ptr<opal::CommandBuffer> &commandBuffer,
+                   float cpuTimeMs, float renderTimeMs, int drawCalls);
 
     std::shared_ptr<opal::DrawingState> quadState = nullptr;
     std::shared_ptr<opal::Buffer> quadBuffer = nullptr;

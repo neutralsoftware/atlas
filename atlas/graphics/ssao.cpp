@@ -87,8 +87,6 @@ void Window::setupSSAO() {
 
 void Window::renderSSAO(std::shared_ptr<opal::CommandBuffer> commandBuffer) {
     if (this->ssaoCompatibilityFallback) {
-        logViewportStartupStage(
-            "Using lighting-pass contact occlusion without SSAO render passes");
         return;
     }
     if (this->ssaoBuffer == nullptr || this->ssaoBlurBuffer == nullptr) {
@@ -103,7 +101,7 @@ void Window::renderSSAO(std::shared_ptr<opal::CommandBuffer> commandBuffer) {
         ownsCommandBuffer = true;
     }
     ssaoCommandBuffer->clearColor(1.0f, 1.0f, 1.0f, 1.0f);
-    logViewportStartupStage("Preparing SSAO vertex buffers");
+
     if (ssaoState == nullptr) {
         CoreVertex quadVertices[] = {
 #if defined(METAL) || defined(VULKAN)
@@ -141,8 +139,8 @@ void Window::renderSSAO(std::shared_ptr<opal::CommandBuffer> commandBuffer) {
         opal::VertexAttribute uvAttr{
             .name = "ssaoUV",
             .type = opal::VertexAttributeType::Float,
-            .offset =
-                static_cast<unsigned int>(offsetof(CoreVertex, textureCoordinate)),
+            .offset = static_cast<unsigned int>(
+                offsetof(CoreVertex, textureCoordinate)),
             .location = 2,
             .normalized = false,
             .size = 2,
@@ -160,7 +158,7 @@ void Window::renderSSAO(std::shared_ptr<opal::CommandBuffer> commandBuffer) {
         ssaoPipeline = opal::Pipeline::create();
     }
     ssaoPipeline = this->ssaoProgram.requestPipeline(ssaoPipeline);
-    logViewportStartupStage("SSAO uniform buffers initialized");
+
     ssaoPipeline->setCullMode(opal::CullMode::None);
     ssaoPipeline->enableDepthTest(false);
     ssaoPipeline->enableDepthWrite(false);
@@ -194,9 +192,9 @@ void Window::renderSSAO(std::shared_ptr<opal::CommandBuffer> commandBuffer) {
     ssaoPipeline->setUniform2f("noiseScale", screenSize.x / noiseSize.x,
                                screenSize.y / noiseSize.y);
     ssaoCommandBuffer->bindDrawingState(ssaoState);
-    logViewportStartupStage("Compiling and recording SSAO draw");
+
     ssaoCommandBuffer->draw(6, 1, 0, 0);
-    logViewportStartupStage("SSAO draw recorded");
+
     ssaoCommandBuffer->unbindDrawingState();
     ssaoCommandBuffer->endPass();
 
@@ -206,7 +204,7 @@ void Window::renderSSAO(std::shared_ptr<opal::CommandBuffer> commandBuffer) {
         ssaoBlurPipeline = opal::Pipeline::create();
     }
     ssaoBlurPipeline = this->ssaoBlurProgram.requestPipeline(ssaoBlurPipeline);
-    logViewportStartupStage("SSAO blur uniform buffers initialized");
+
     ssaoBlurPipeline->setCullMode(opal::CullMode::None);
     ssaoBlurPipeline->enableDepthTest(false);
     ssaoBlurPipeline->enableDepthWrite(false);
@@ -221,13 +219,12 @@ void Window::renderSSAO(std::shared_ptr<opal::CommandBuffer> commandBuffer) {
 
     ssaoBlurPipeline->bindTexture2D("inSSAO", this->ssaoBuffer->texture.id, 0);
     ssaoCommandBuffer->bindDrawingState(ssaoState);
-    logViewportStartupStage("Compiling and recording SSAO blur draw");
+
     ssaoCommandBuffer->draw(6, 1, 0, 0);
-    logViewportStartupStage("SSAO blur draw recorded");
+
     ssaoCommandBuffer->unbindDrawingState();
     ssaoCommandBuffer->endPass();
     if (ownsCommandBuffer) {
         ssaoCommandBuffer->commit();
     }
-
 }

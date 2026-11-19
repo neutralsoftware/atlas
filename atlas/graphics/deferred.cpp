@@ -251,10 +251,12 @@ void Window::deferredRendering(
     }
     const auto drawableSize = getSize();
     static constexpr float ssrScales[] = {0.67f, 0.85f, 1.0f};
-    const float ssrScale = getRenderScale() *
-                          ssrScales[std::clamp(this->ssrQuality, 0, 2)];
-    const int ssrWidth = std::max(1, static_cast<int>(drawableSize.width * ssrScale));
-    const int ssrHeight = std::max(1, static_cast<int>(drawableSize.height * ssrScale));
+    const float ssrScale =
+        getRenderScale() * ssrScales[std::clamp(this->ssrQuality, 0, 2)];
+    const int ssrWidth =
+        std::max(1, static_cast<int>(drawableSize.width * ssrScale));
+    const int ssrHeight =
+        std::max(1, static_cast<int>(drawableSize.height * ssrScale));
     if (this->ssrFramebuffer != nullptr &&
         (this->ssrFramebuffer->getWidth() != ssrWidth ||
          this->ssrFramebuffer->getHeight() != ssrHeight ||
@@ -266,8 +268,10 @@ void Window::deferredRendering(
         this->ssrHistoryFramebuffer = std::make_shared<RenderTarget>(
             RenderTarget(*this, RenderTargetType::SSR, this->ssrQuality));
     }
-    const int ssaoWidth = std::max(1, static_cast<int>(drawableSize.width * getSSAORenderScale()));
-    const int ssaoHeight = std::max(1, static_cast<int>(drawableSize.height * getSSAORenderScale()));
+    const int ssaoWidth = std::max(
+        1, static_cast<int>(drawableSize.width * getSSAORenderScale()));
+    const int ssaoHeight = std::max(
+        1, static_cast<int>(drawableSize.height * getSSAORenderScale()));
     if (!this->ssaoCompatibilityFallback &&
         (this->ssaoBuffer == nullptr || this->ssaoBlurBuffer == nullptr ||
          this->ssaoBuffer->getWidth() != ssaoWidth ||
@@ -302,7 +306,7 @@ void Window::deferredRendering(
     }
 
     auto gBufferRenderPass = opal::RenderPass::create();
-    logViewportStartupStage("Starting deferred G-buffer pass");
+
     gBufferRenderPass->setFramebuffer(this->gBuffer->getFramebuffer());
 #ifdef VULKAN
     this->gBuffer->getFramebuffer()->setDrawBuffers(6);
@@ -452,7 +456,7 @@ void Window::deferredRendering(
 
     commandBuffer->endPass();
     this->gBuffer->unbind();
-    logViewportStartupStage("Deferred G-buffer pass completed");
+
 #ifndef VULKAN
     if (this->useSSR) {
         commandBuffer->generateMipmaps(this->gBuffer->depthTexture.texture);
@@ -487,9 +491,7 @@ void Window::deferredRendering(
         }
     }
 
-    logViewportStartupStage("Rendering SSAO");
     this->renderSSAO(commandBuffer);
-    logViewportStartupStage("Starting deferred lighting pass");
 
     auto targetRenderPass = opal::RenderPass::create();
     targetRenderPass->setFramebuffer(outputFramebuffer);
@@ -538,8 +540,8 @@ void Window::deferredRendering(
         opal::VertexAttribute uvAttr{
             .name = "deferredUV",
             .type = opal::VertexAttributeType::Float,
-            .offset =
-                static_cast<unsigned int>(offsetof(CoreVertex, textureCoordinate)),
+            .offset = static_cast<unsigned int>(
+                offsetof(CoreVertex, textureCoordinate)),
             .location = 2,
             .normalized = false,
             .size = 2,
@@ -774,7 +776,6 @@ void Window::deferredRendering(
         gpuShadow.lightType = 0;
         gpuShadowParams.push_back(gpuShadow);
 
-
         boundParameters++;
         shadow2DSamplerIndex++;
         boundTextures++;
@@ -812,7 +813,6 @@ void Window::deferredRendering(
         gpuShadow.lightType = 1;
         gpuShadowParams.push_back(gpuShadow);
 
-
         boundParameters++;
         shadow2DSamplerIndex++;
         boundTextures++;
@@ -849,7 +849,6 @@ void Window::deferredRendering(
         gpuShadow.lightType = 2;
         gpuShadowParams.push_back(gpuShadow);
 
-
         boundParameters++;
         shadow2DSamplerIndex++;
         boundTextures++;
@@ -883,7 +882,6 @@ void Window::deferredRendering(
                                        static_cast<float>(light->position.z));
         gpuShadow.lightType = 3;
         gpuShadowParams.push_back(gpuShadow);
-
 
         boundParameters++;
         boundCubemaps++;

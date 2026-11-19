@@ -18,15 +18,17 @@ target target_name backend="AUTO" bezel_native="OFF" ftet_wild=FTET_WILD:
     {{PYTHON}} scripts/atlas_tasks.py configure-target "{{backend}}" "{{bezel_native}}" "{{ftet_wild}}"
     cmake --build build --target {{target_name}} --parallel
 
-run test="" backend="AUTO" bezel_native="OFF":
-    {{PYTHON}} scripts/atlas_tasks.py run "{{test}}"
+run test="" backend="AUTO" bezel_native="OFF" ftet_wild=FTET_WILD:
+    {{PYTHON}} scripts/atlas_tasks.py run "{{test}}" "{{backend}}" "{{bezel_native}}" "{{ftet_wild}}"
+
+run-project test="":
+    {{PYTHON}} scripts/atlas_tasks.py run-project "{{test}}"
 
 addTest name:
     {{PYTHON}} scripts/atlas_tasks.py add-test "{{name}}"
 
-debug backend="AUTO" bezel_native="OFF" ftet_wild=FTET_WILD:
-    just target atlas_test {{backend}} {{bezel_native}} {{ftet_wild}}
-    {{PYTHON}} scripts/atlas_tasks.py debug
+debug test="" backend="AUTO" bezel_native="OFF" ftet_wild=FTET_WILD:
+    {{PYTHON}} scripts/atlas_tasks.py debug "{{test}}" "{{backend}}" "{{bezel_native}}" "{{ftet_wild}}"
 
 clangd backend="AUTO" bezel_native="OFF" ftet_wild=FTET_WILD:
     just config {{backend}} {{bezel_native}} {{ftet_wild}}
@@ -38,9 +40,8 @@ lint:
 clean:
     {{PYTHON}} scripts/atlas_tasks.py clean
 
-frametest:
-    just build
-    {{PYTHON}} scripts/atlas_tasks.py frametest
+frametest test="":
+    {{PYTHON}} scripts/atlas_tasks.py frametest "{{test}}"
 
 cli:
     cargo build

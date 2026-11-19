@@ -1,8 +1,8 @@
-
 #!/usr/bin/env python3
 """Cross-platform development commands for Atlas Engine."""
 
 import os
+import re
 import shutil
 import subprocess
 import sys
@@ -12,12 +12,19 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
 BUILD = ROOT / "build"
+NATIVE_BUILD = BUILD / "native-tests"
 WINDOWS = sys.platform == "win32"
 MACOS = sys.platform == "darwin"
 
 TARGETS = [
-    "atlas", "bezel", "finewave", "aurora",
-    "hydra", "opal", "photon", "graphite",
+    "atlas",
+    "bezel",
+    "finewave",
+    "aurora",
+    "hydra",
+    "opal",
+    "photon",
+    "graphite",
 ]
 
 
@@ -42,20 +49,25 @@ def executable(name, directory=BUILD / "bin"):
 def configure(backend="AUTO", release_dir=None):
     directory = release_dir or BUILD
     execute(
-        "cmake", "-S", ROOT, "-B", directory,
-        "-G", "Ninja",
+        "cmake",
+        "-S",
+        ROOT,
+        "-B",
+        directory,
+        "-G",
+        "Ninja",
         "-DCMAKE_C_COMPILER_LAUNCHER=",
         "-DCMAKE_CXX_COMPILER_LAUNCHER=",
         f"-DBACKEND={backend}",
         "-DCMAKE_EXPORT_COMPILE_COMMANDS=ON",
-        *(
-            ["-DCMAKE_BUILD_TYPE=Release"]
-            if release_dir else []
-        ),
+        *(["-DCMAKE_BUILD_TYPE=Release"] if release_dir else []),
     )
 
 
-def configure_target(backend="AUTO", bezel_native="OFF", ftet_wild=None):
+def configure_target(
+    backend="AUTO", bezel_native="OFF", ftet_wild=None, directory=None, options=None
+):
+    directory = directory or BUILD
     if ftet_wild is None:
         ftet_wild = "OFF" if WINDOWS else "ON"
     requested = {
@@ -63,7 +75,8 @@ def configure_target(backend="AUTO", bezel_native="OFF", ftet_wild=None):
         "BEZEL_NATIVE": bezel_native.upper(),
         "ENABLE_FTET_WILD": ftet_wild.upper(),
     }
-    cache_path = BUILD / "CMakeCache.txt"
+    requested.update(options or {})
+    cache_path = directory / "CMakeCache.txt"
     cached = {}
     if cache_path.is_file():
         for line in cache_path.read_text(encoding="utf-8").splitlines():
@@ -71,13 +84,20 @@ def configure_target(backend="AUTO", bezel_native="OFF", ftet_wild=None):
                 continue
             key, value = line.split("=", 1)
             cached[key.split(":", 1)[0]] = value
-    if (BUILD / "build.ninja").is_file() and all(
+    if (directory / "build.ninja").is_file() and all(
         cached.get(key, "").upper() == value for key, value in requested.items()
     ):
         return
     execute(
-        "cmake", "-S", ROOT, "-B", BUILD, "-G", "Ninja",
-        "-DCMAKE_C_COMPILER=clang", "-DCMAKE_CXX_COMPILER=clang++",
+        "cmake",
+        "-S",
+        ROOT,
+        "-B",
+        directory,
+        "-G",
+        "Ninja",
+        "-DCMAKE_C_COMPILER=clang",
+        "-DCMAKE_CXX_COMPILER=clang++",
         "-DCMAKE_C_COMPILER_LAUNCHER=",
         "-DCMAKE_CXX_COMPILER_LAUNCHER=",
         "-DCMAKE_EXPORT_COMPILE_COMMANDS=ON",
@@ -85,15 +105,75 @@ def configure_target(backend="AUTO", bezel_native="OFF", ftet_wild=None):
     )
 
 
-def run_test(test=""):
+def test_directory(test=""):
     if not test:
-        test = (ROOT / "tests/default.txt").read_text(
-            encoding="utf-8"
-        ).strip()
+        test = (ROOT / "tests/default.txt").read_text(encoding="utf-8").strip()
+    if not re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9_-]*", test):
+        raise ValueError(f"Invalid test name: {test!r}")
+    return ROOT / "tests" / test
 
-    test_dir = ROOT / "tests" / test
-    if not test_dir.is_dir():
-        raise FileNotFoundError(test_dir)
+
+def build_native_test(test="", backend="AUTO", bezel_native="OFF", ftet_wild=None):
+    test_dir = test_directory(test)
+    if not (test_dir / "main.cpp").is_file():
+        available = ", ".join(
+            sorted(path.parent.name for path in (ROOT / "tests").glob("*/main.cpp"))
+        )
+        raise ValueError(
+            f"No native main.cpp in {test_dir}. Available tests: {available}. "
+            "Use 'just run-project <name>' for scene projects."
+        )
+    configure_target(
+        backend,
+        bezel_native,
+        ftet_wild,
+        directory=NATIVE_BUILD,
+        options={
+            "ATLAS_BUILD_EDITOR": "OFF",
+            "ATLAS_BUILD_RUNTIME": "OFF",
+            "ATLAS_BUILD_TESTS": "ON",
+        },
+    )
+    execute(
+        "cmake",
+        "--build",
+        NATIVE_BUILD,
+        "--target",
+        f"atlas_test_{test_dir.name}",
+        "--parallel",
+    )
+    return test_dir, executable(f"atlas_test_{test_dir.name}", NATIVE_BUILD / "bin")
+
+
+def native_environment(test_dir, debug=False):
+    env = os.environ.copy()
+    if MACOS:
+        env["MTL_HUD_ENABLED"] = "1" if debug else "0"
+    if WINDOWS:
+        directories = [NATIVE_BUILD / "bin", NATIVE_BUILD / "lib"]
+        for manifest in sorted(
+            NATIVE_BUILD.glob(f"atlas-test-{test_dir.name}-dlls-*.txt")
+        ):
+            directories.extend(
+                Path(line).parent
+                for line in manifest.read_text(encoding="utf-8").splitlines()
+                if line.strip()
+            )
+        env["PATH"] = os.pathsep.join(
+            [str(path) for path in dict.fromkeys(directories)] + [env.get("PATH", "")]
+        )
+    return env
+
+
+def run_test(test="", backend="AUTO", bezel_native="OFF", ftet_wild=None, debug=False):
+    test_dir, binary = build_native_test(test, backend, bezel_native, ftet_wild)
+    execute(binary, cwd=test_dir, env=native_environment(test_dir, debug))
+
+
+def run_project(test=""):
+    test_dir = test_directory(test)
+    if not (test_dir / "project.atlas").is_file():
+        raise FileNotFoundError(test_dir / "project.atlas")
 
     execute("atlas", "script", "compile", cwd=test_dir)
 
@@ -109,45 +189,13 @@ def run_test(test=""):
 
 
 def add_test(name):
-    test_dir = ROOT / "tests" / name
+    test_dir = test_directory(name)
     if test_dir.exists():
         raise FileExistsError(f"Test already exists: {test_dir}")
 
-    source = ROOT / "tests/simple"
-    scripts = test_dir / "assets/scripts"
-    scripts.mkdir(parents=True)
-
-    shutil.copy2(source / "project.atlas", test_dir)
-    shutil.copy2(source / "main.ascene", test_dir)
-    shutil.copy2(
-        source / "assets/scripts/simpleLog.ts",
-        scripts / "simpleLog.ts",
-    )
-
-    execute(
-        "cargo", "run", "--quiet",
-        "--manifest-path", ROOT / "cli/Cargo.toml",
-        "--", "script", "init",
-        cwd=test_dir,
-    )
-
-    destination = test_dir / "lib/atlas.d.ts"
-    destination.parent.mkdir(parents=True, exist_ok=True)
-    destination.unlink(missing_ok=True)
-
-    source_types = ROOT / "runtime/atlas.d.ts"
-    try:
-        destination.symlink_to(source_types)
-    except OSError:
-        # Windows may restrict symlink creation.
-        shutil.copy2(source_types, destination)
-
-
-def launch_debug():
-    env = os.environ.copy()
-    if MACOS:
-        env["MTL_HUD_ENABLED"] = "1"
-    execute(executable("atlas_test"), env=env)
+    test_dir.mkdir(parents=True)
+    shutil.copy2(ROOT / "tests/simple/main.cpp", test_dir / "main.cpp")
+    print(f"Created {test_dir / 'main.cpp'}. Run with: just run {name}")
 
 
 def clangd():
@@ -169,22 +217,20 @@ def clean():
         if directory.exists():
             shutil.rmtree(directory)
 
-    (ROOT / "include/atlas/core/default_shaders.h").unlink(
-        missing_ok=True
-    )
+    (ROOT / "include/atlas/core/default_shaders.h").unlink(missing_ok=True)
 
 
-def frametest():
+def frametest(test=""):
+    test_dir, binary = build_native_test(test)
     process = subprocess.Popen(
-        [str(executable("atlas_test"))],
-        cwd=ROOT,
+        [str(binary)],
+        cwd=test_dir,
+        env=native_environment(test_dir),
     )
     try:
         return_code = process.wait(timeout=2)
         if return_code:
-            raise RuntimeError(
-                f"Frame test exited with code {return_code}"
-            )
+            raise RuntimeError(f"Frame test exited with code {return_code}")
     except subprocess.TimeoutExpired:
         process.terminate()
         try:
@@ -195,9 +241,7 @@ def frametest():
 
 
 def copy_cli():
-    binary = ROOT / "target/release" / (
-        "atlas.exe" if WINDOWS else "atlas"
-    )
+    binary = ROOT / "target/release" / ("atlas.exe" if WINDOWS else "atlas")
 
     if not binary.exists():
         raise FileNotFoundError(binary)
@@ -221,12 +265,13 @@ def package(mode):
     env["ATLAS_ALLOW_UNNOTARIZED_RELEASE"] = "1"
 
     execute(
-        sys.executable, ROOT / "scripts/package_app.py",
-        f"--{mode}", "--macOS", env=env,
+        sys.executable,
+        ROOT / "scripts/package_app.py",
+        f"--{mode}",
+        "--macOS",
+        env=env,
     )
-    execute(
-        sys.executable, ROOT / "scripts/sign_macos_local.py"
-    )
+    execute(sys.executable, ROOT / "scripts/sign_macos_local.py")
 
 
 def release_build(backend):
@@ -243,9 +288,7 @@ def release_build(backend):
 
     configure(backend, release_dir=directory)
 
-    command = [
-        "cmake", "--build", str(directory), "--parallel"
-    ]
+    command = ["cmake", "--build", str(directory), "--parallel"]
     if backend != "METAL":
         command += ["--target", *TARGETS]
 
@@ -256,10 +299,7 @@ def release(backend):
     backend = backend.upper()
 
     if backend in ("AUTO", "ALL"):
-        backends = (
-            ["METAL", "OPENGL", "VULKAN"]
-            if MACOS else ["OPENGL", "VULKAN"]
-        )
+        backends = ["METAL", "OPENGL", "VULKAN"] if MACOS else ["OPENGL", "VULKAN"]
     elif backend in ("METAL", "OPENGL", "VULKAN"):
         backends = [backend]
     else:
@@ -270,19 +310,14 @@ def release(backend):
 
 
 def docs(backend):
-    execute(
-        "doxygen", "-w", "html",
-        "header.html", "delete.html", "delete.css"
-    )
+    execute("doxygen", "-w", "html", "header.html", "delete.html", "delete.css")
     for name in ["delete.html", "delete.css"]:
         (ROOT / name).unlink(missing_ok=True)
 
     configure(backend)
 
     source = ROOT / "header.html"
-    destination = (
-        BUILD / "_deps/doxygen-awesome-css-src/header.html"
-    )
+    destination = BUILD / "_deps/doxygen-awesome-css-src/header.html"
 
     if destination.parent.exists():
         shutil.copy2(source, destination)
@@ -319,22 +354,25 @@ def editor():
             if candidate.exists():
                 execute(candidate)
                 return
-        raise FileNotFoundError(
-            f"Could not locate Atlas Editor in {directory}"
-        )
+        raise FileNotFoundError(f"Could not locate Atlas Editor in {directory}")
 
 
 def tidy(full=False):
     roots = [
-        "include", "src", "atlas", "aurora", "bezel",
-        "editor", "finewave", "graphite", "hydra",
-        "opal", "photon",
+        "include",
+        "src",
+        "atlas",
+        "aurora",
+        "bezel",
+        "editor",
+        "finewave",
+        "graphite",
+        "hydra",
+        "opal",
+        "photon",
     ]
 
-    checks = (
-        "-*,clang-diagnostic-*,portability-*,"
-        "misc-include-cleaner"
-    )
+    checks = "-*,clang-diagnostic-*,portability-*," "misc-include-cleaner"
     if full:
         checks = (
             "-*,clang-diagnostic-*,bugprone-*,"
@@ -350,10 +388,7 @@ def tidy(full=False):
         for path in directory.rglob("*"):
             if path.suffix not in (".cpp", ".cc", ".cxx"):
                 continue
-            if any(
-                part in ("extern", "third-party", "build")
-                for part in path.parts
-            ):
+            if any(part in ("extern", "third-party", "build") for part in path.parts):
                 continue
             files.append(path)
 
@@ -365,8 +400,10 @@ def tidy(full=False):
             print(f"[{index}/{len(files)}] {file.relative_to(ROOT)}")
             result = subprocess.run(
                 [
-                    "clang-tidy", str(file),
-                    "-p", str(BUILD),
+                    "clang-tidy",
+                    str(file),
+                    "-p",
+                    str(BUILD),
                     f"-checks={checks}",
                 ],
                 cwd=ROOT,
@@ -384,7 +421,9 @@ def tidy(full=False):
 def lint():
     execute(
         "run-clang-tidy",
-        "-p", "build", "-quiet",
+        "-p",
+        "build",
+        "-quiet",
         "-warnings-as-errors=*",
     )
 
@@ -406,13 +445,14 @@ def main():
 
     tasks = {
         "configure-target": lambda: configure_target(*args),
-        "run": lambda: run_test(args[0] if args else ""),
+        "run": lambda: run_test(*args),
+        "run-project": lambda: run_project(*args),
         "add-test": lambda: add_test(args[0]),
-        "debug": launch_debug,
+        "debug": lambda: run_test(*args, debug=True),
         "clangd": clangd,
         "lint": lint,
         "clean": clean,
-        "frametest": frametest,
+        "frametest": lambda: frametest(*args),
         "copy-cli": copy_cli,
         "package": lambda: package(args[0]),
         "release-build": lambda: release_build(args[0].upper()),

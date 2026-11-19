@@ -168,6 +168,48 @@ just config OPENGL
 
 Build products are written to `build/bin` and libraries to `build/lib`.
 
+## Native C++ Tests
+
+Each native test lives in `tests/<name>/main.cpp` and links directly to
+`Atlas::Atlas`. Call the C++ engine API directly, including `CoreObject::rotate`,
+or create a `Window` and `Scene` for rendering experiments. No script bindings,
+project manifest, editor, or inspector changes are needed.
+
+```bash
+just run
+just run simple
+just run transforms
+just addTest my-feature
+just run my-feature
+```
+
+`just run` reads the default name from `tests/default.txt`, currently `simple`,
+which opens a rotating cube. `transforms` checks object movement, rotation,
+scaling, and instance transforms without opening a window. A failed check
+returns a nonzero exit code.
+
+`just addTest <name>` creates a folder containing a copy of the native `simple`
+example. Edit its `main.cpp`; CMake discovers the new test automatically and also
+compiles any additional `.cpp` files within that folder. Relative asset paths
+resolve from the test folder, and shared assets can be read from `../resources`.
+
+`just run <name> [backend] [bezel_native] [ftet_wild]` configures and builds only
+the selected executable and its engine dependencies under `build/native-tests`.
+The editor and scripting runtime are disabled in this separate configuration;
+the usual engine, graphics, and shader toolchain dependencies still apply.
+For example, `just run simple VULKAN` selects Vulkan. The equivalent CMake target
+is `atlas_test_simple`.
+
+Native consumers link against the `Atlas::Atlas` CMake target, which exposes the
+engine headers and transitive dependencies. A native-only configuration uses
+`-DATLAS_BUILD_EDITOR=OFF -DATLAS_BUILD_RUNTIME=OFF`. This is an in-tree CMake
+integration; an installed SDK is not provided yet.
+
+Existing scripted scene projects remain available with `just run-project <name>`
+using the CLI and `atlasrun` from the regular build. `just debug [name]` launches
+a native test with the Metal HUD enabled on macOS, and `just frametest [name]`
+performs a short native startup smoke run.
+
 ## Atlas CLI Workflow
 
 The `atlas` CLI manages the full lifecycle of an Atlas project:

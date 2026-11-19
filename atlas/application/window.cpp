@@ -88,14 +88,13 @@ ProcessUsage queryProcessUsage() {
         kernelValue.HighPart = kernel.dwHighDateTime;
         userValue.LowPart = user.dwLowDateTime;
         userValue.HighPart = user.dwHighDateTime;
-        result.cpuSeconds = static_cast<double>(kernelValue.QuadPart +
-                                                userValue.QuadPart) /
-                            10000000.0;
+        result.cpuSeconds =
+            static_cast<double>(kernelValue.QuadPart + userValue.QuadPart) /
+            10000000.0;
     }
     if (GetProcessMemoryInfo(GetCurrentProcess(), &memory, sizeof(memory))) {
         result.peakMemoryMb =
-            static_cast<float>(memory.PeakWorkingSetSize) /
-            (1024.0f * 1024.0f);
+            static_cast<float>(memory.PeakWorkingSetSize) / (1024.0f * 1024.0f);
     }
     return result;
 #else
@@ -1430,8 +1429,8 @@ Window::Window(const WindowConfiguration &config)
 #endif
     this->externalNativeWindow = config.nativeTargetWindow;
     this->externalNativeWindowType = config.nativeTargetWindowType;
-    this->renderToExternalView =
-        this->renderToExternalMetalView || this->externalNativeWindow != nullptr;
+    this->renderToExternalView = this->renderToExternalMetalView ||
+                                 this->externalNativeWindow != nullptr;
     this->showHostWindow = config.showHostWindow && !this->renderToExternalView;
 
 #ifdef VULKAN
@@ -1881,15 +1880,9 @@ void Window::pollEvents() {
     }
 }
 
-void Window::logViewportStartupStage(const char *stage) const {
-    if (firstFrame) {
-        std::cout << "[Viewport startup] " << stage << std::endl;
-    }
-}
-
 bool Window::stepFrame() {
     RenderingContextScope renderingContext(*this);
-    logViewportStartupStage("Initializing frame resources");
+
     this->initializeRunLoop();
     if (this->shouldClose) {
         return false;
@@ -1974,7 +1967,6 @@ bool Window::stepFrame() {
     }
     this->pendingRemovals.clear();
 
-    logViewportStartupStage("Initializing scene objects");
     const auto objectsToInitialize = this->pendingObjects;
     for (auto *obj : objectsToInitialize) {
         const auto pending = std::find(this->pendingObjects.begin(),
@@ -1987,8 +1979,8 @@ bool Window::stepFrame() {
         obj->initialize();
         if (obj->renderLateForward &&
             std::find(this->pendingRemovals.begin(),
-                      this->pendingRemovals.end(), obj) ==
-                this->pendingRemovals.end()) {
+                      this->pendingRemovals.end(),
+                      obj) == this->pendingRemovals.end()) {
             this->addLateForwardObject(obj);
         }
     }
@@ -2005,21 +1997,20 @@ bool Window::stepFrame() {
     DebugTimer mainTimer("Main Loop");
 
     if (runSimulation) {
-        logViewportStartupStage("Running beforePhysics callbacks");
+
         const auto physicsObjects = this->renderables;
         for (auto *obj : physicsObjects) {
             if (obj == nullptr ||
                 std::find(this->renderables.begin(), this->renderables.end(),
                           obj) == this->renderables.end() ||
                 std::find(this->pendingRemovals.begin(),
-                          this->pendingRemovals.end(), obj) !=
-                    this->pendingRemovals.end()) {
+                          this->pendingRemovals.end(),
+                          obj) != this->pendingRemovals.end()) {
                 continue;
             }
             obj->beforePhysics();
         }
 
-        logViewportStartupStage("Advancing physics");
         this->physicsWorld->update(this->deltaTime);
     }
 
@@ -2067,22 +2058,21 @@ bool Window::stepFrame() {
         for (auto *obj : firstObjectsToUpdate) {
             if (obj == nullptr ||
                 std::find(this->firstRenderables.begin(),
-                          this->firstRenderables.end(), obj) ==
-                    this->firstRenderables.end()) {
+                          this->firstRenderables.end(),
+                          obj) == this->firstRenderables.end()) {
                 continue;
             }
             obj->update(*this);
         }
 
-        logViewportStartupStage("Updating scene objects");
         const auto objectsToUpdate = this->renderables;
         for (auto *obj : objectsToUpdate) {
             if (obj == nullptr ||
                 std::find(this->renderables.begin(), this->renderables.end(),
                           obj) == this->renderables.end() ||
                 std::find(this->pendingRemovals.begin(),
-                          this->pendingRemovals.end(), obj) !=
-                    this->pendingRemovals.end()) {
+                          this->pendingRemovals.end(),
+                          obj) != this->pendingRemovals.end()) {
                 continue;
             }
             if (obj->renderLateForward) {
@@ -2095,8 +2085,8 @@ bool Window::stepFrame() {
         for (auto *obj : lateObjectsToUpdate) {
             if (obj == nullptr ||
                 std::find(this->lateForwardRenderables.begin(),
-                          this->lateForwardRenderables.end(), obj) ==
-                    this->lateForwardRenderables.end()) {
+                          this->lateForwardRenderables.end(),
+                          obj) == this->lateForwardRenderables.end()) {
                 continue;
             }
             obj->update(*this);
@@ -2110,7 +2100,7 @@ bool Window::stepFrame() {
     DebugTimer gpuTimer("Gpu Data");
 
     if (!this->usePathTracing) {
-        logViewportStartupStage("Rendering shadow maps");
+
         renderLightsToShadowMaps(commandBuffer);
     }
 
@@ -2333,9 +2323,9 @@ bool Window::stepFrame() {
     }
 
     if (!this->renderDefaultFramebuffer) {
-        logViewportStartupStage("Submitting viewport frame");
+
         commandBuffer->commit();
-        logViewportStartupStage("Viewport frame submitted");
+
         commandBuffer->getAndResetDrawCallCount();
         ResourceTracker::getInstance().createdResources = 0;
         ResourceTracker::getInstance().loadedResources = 0;
@@ -2413,8 +2403,10 @@ bool Window::stepFrame() {
         const auto previousPrimitiveStyle = primitiveStyle;
         updatePipelineStateField(this->useDepth, false);
         updatePipelineStateField(this->writeDepth, false);
-        updatePipelineStateField(this->rasterizerMode, opal::RasterizerMode::Fill);
-        updatePipelineStateField(this->primitiveStyle, opal::PrimitiveStyle::Triangles);
+        updatePipelineStateField(this->rasterizerMode,
+                                 opal::RasterizerMode::Fill);
+        updatePipelineStateField(this->primitiveStyle,
+                                 opal::PrimitiveStyle::Triangles);
         for (auto *obj : this->lateForwardRenderables) {
             if (obj == nullptr || !obj->editorOnly)
                 continue;
@@ -2451,9 +2443,9 @@ bool Window::stepFrame() {
     this->lastViewMatrix = screenView;
 
     commandBuffer->endPass();
-    logViewportStartupStage("Submitting viewport frame");
+
     commandBuffer->commit();
-    logViewportStartupStage("Viewport frame submitted");
+
 #ifdef OPENGL
     SDL_GL_SwapWindow(window);
 #endif
@@ -4309,6 +4301,9 @@ void Window::endRunLoop() {
 }
 
 void Window::run() {
+    if (!usePathTracing && !usesDeferred) {
+        useDeferredRendering();
+    }
     while (this->stepFrame()) {
     }
     this->endRunLoop();
