@@ -332,11 +332,64 @@ void computeMain(uint3 dispatchThreadID: SV_DispatchThreadID) {
                                  (1.0 - saturate(material.optical.y)) / 3.14159265359;
                 radiance = material.emissiveColor * material.emissiveIntensity +
                            diffuse * (evaluateLights(position, normal,
-                               hashValue(rayIndex + rt.frameIndex * 1664525u)) + previous);
+                               hashValue(rayIndex)) + previous);
             }
             distance = query.CommittedRayT();
         }
     }
     probeRadianceOut[probeIndex * raysPerProbe + localRay] =
         float4(max(radiance, 0.0), distance);
+}
+
+[[vk::binding(63, 2)]] Texture2D<float4> shadowPositions;
+[[vk::binding(64, 2)]] Texture2D<float4> shadowNormals;
+[[vk::binding(65, 2)]] RWTexture2D<float4> shadowOutput;
+
+[shader("compute")]
+[numthreads(8, 8, 1)]
+void shadowMain(uint3 gid : SV_DispatchThreadID) {
+    uint width, height;
+    shadowPositions.GetDimensions(width, height);
+    if (gid.x >= width || gid.y >= height) return;
+    float3 position = shadowPositions.Load(int3(gid.xy, 0)).xyz;
+    float3 normal = shadowNormals.Load(int3(gid.xy, 0)).xyz;
+    float visibility[12];
+    for (uint i = 0; i < 12; ++i) visibility[i] = 1.0;
+    if (dot(normal, normal) > 0.25) {
+        normal = normalize(normal);
+        for (uint i = 0; i < min(sc.directionalLightCount, 2u); ++i)
+            visibility[i] = lightVisibility(position, normal, normalize(-directionalLights[i].direction), rt.maxRayDistance);
+        for (uint i = 0; i < min(sc.pointLightCount, 4u); ++i) {
+            float3 delta = pointLights[i].position - position;
+            visibility[2+i] = lightVisibility(position, normal, normalize(delta), length(delta));
+        }
+        for (uint i = 0; i < min(sc.spotLightCount, 2u); ++i) {
+            float3 delta = spotLights[i].position - position;
+            visibility[6+i] = lightVisibility(position, normal, normalize(delta), length(delta));
+        }
+        for (uint i = 0; i < min(sc.areaLightCount, 2u); ++i) {
+            AreaLight light = areaLights[i];
+            float sum = 0.0;
+            float weight = 0.0;
+            for (uint y = 0; y < 8; ++y) {
+                for (uint x = 0; x < 8; ++x) {
+                    float2 uv = (float2(x,y) + 0.5) / 8.0 - 0.5;
+                    float3 delta = light.position + normalize(light.right) * uv.x * light.size.x +
+                                   normalize(light.up) * uv.y * light.size.y - position;
+                    float distanceSquared = max(dot(delta,delta), 1e-6);
+                    float3 direction = delta * rsqrt(distanceSquared);
+                    float cosine = dot(normalize(cross(light.right,light.up)), -direction);
+                    cosine = light.castsBothSides != 0 ? abs(cosine) : max(cosine,0.0);
+                    float w = cosine >= cos(light.angle * 0.01745329252)
+                        ? max(dot(normal,direction),0.0) * cosine / distanceSquared : 0.0;
+                    sum += w * lightVisibility(position, normal, direction, sqrt(distanceSquared));
+                    weight += w;
+                }
+            }
+            visibility[8+i] = weight > 1e-8 ? sum / weight : 1.0;
+        }
+    }
+    for (uint tile = 0; tile < 3; ++tile)
+        shadowOutput[uint2(gid.x, gid.y + tile * height)] = float4(
+            visibility[tile*4],visibility[tile*4+1],visibility[tile*4+2],visibility[tile*4+3]);
 }

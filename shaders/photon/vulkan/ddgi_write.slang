@@ -122,7 +122,8 @@ void computeMain(uint3 dispatchThreadID : SV_DispatchThreadID) {
     float history = rt.frameIndex < stride || previous.w <= 0.0
                         ? 0.0 : min(clamp(rt.hysteresis, 0.0, 0.995),
                                     float(rt.frameIndex / stride) / float(rt.frameIndex / stride + 1u));
-    float validity = float(backfaces) / float(raysPerProbe) > 0.25 ? 0.0 : 1.0;
+    float validity = 1.0 - smoothstep(0.1, 0.3, float(backfaces) / float(raysPerProbe));
+    validity = lerp(validity, saturate(previous.w), history);
     float3 previousIrradiance = prevTexture.Load(int3(pixel, 0)).xyz;
     float2 previousMoments = prevDistance.Load(int3(pixel, 0)).xy;
     if (!all(isfinite(previousIrradiance)))

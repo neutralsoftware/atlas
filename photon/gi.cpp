@@ -335,6 +335,17 @@ void photon::GlobalIllumination::init() {
     giRaytracingPipeline->setShaderProgram(giRaytracingShader->shader);
     giRaytracingPipeline->setComputeThreadgroupSize(64, 1, 1);
     giRaytracingPipeline->build();
+#ifdef VULKAN
+    auto shadows = ComputeShader::fromDefaultShader(AtlasComputeShader::DDGI_SHADOWS);
+    shadows.compile();
+    shadowShader = std::make_shared<ShaderProgram>();
+    shadowShader->computeShader = shadows;
+    shadowShader->compile();
+    shadowPipeline = opal::Pipeline::create();
+    shadowPipeline->setShaderProgram(shadowShader->shader);
+    shadowPipeline->setComputeThreadgroupSize(8, 8, 1);
+    shadowPipeline->build();
+#endif
 
     ComputeShader ddgiWrite =
         ComputeShader::fromDefaultShader(AtlasComputeShader::DDGI_WRITE);
@@ -762,6 +773,7 @@ void photon::GlobalIllumination::updateProbeLayout() {
 
 void photon::GlobalIllumination::render(
     const std::shared_ptr<opal::CommandBuffer> &commandBuffer) {
+    shadowVisibilityReady = false;
     if (probeSpace != nullptr && probeRadianceCapacity !=
             probeSpace->totalProbes() * std::max(1, raysPerProbe)) {
         updateProbeLayout();
@@ -1157,6 +1169,39 @@ void photon::GlobalIllumination::render(
                             static_cast<unsigned int>(dispatchHeight), 1);
     commandBuffer->computeBarrier();
 
+#ifdef VULKAN
+    shadowVisibilityReady = false;
+    auto gbuffer = Window::mainWindow->getGBuffer();
+    if (shadowPipeline && gbuffer && sceneTLAS && sceneTLAS->isBuilt) {
+        int width = gbuffer->getWidth();
+        int height = gbuffer->getHeight();
+        if (!shadowVisibility || shadowVisibility->creationData.width != width ||
+            shadowVisibility->creationData.height != height * 3) {
+            shadowVisibility = std::make_shared<Texture>(Texture::create(
+                width, height * 3, opal::TextureFormat::Rgba16F,
+                opal::TextureDataFormat::Rgba, TextureType::Color));
+        }
+        shadowPipeline->bindTexture("shadowPositions", gbuffer->gPosition.texture, 63);
+        shadowPipeline->bindTexture("shadowNormals", gbuffer->gNormal.texture, 64);
+        shadowPipeline->bindTexture("shadowOutput", shadowVisibility->texture, 65);
+        shadowPipeline->bindBufferData("sc", &sceneCounts, sizeof(sceneCounts));
+        shadowPipeline->bindBufferData("directionalLights", directionalLights.empty() ? &fallbackDirectional : directionalLights.data(),
+            std::max(size_t(1), directionalLights.size()) * sizeof(GPUDirectionalLight));
+        shadowPipeline->bindBufferData("pointLights", pointLights.empty() ? &fallbackPoint : pointLights.data(),
+            std::max(size_t(1), pointLights.size()) * sizeof(GPUPointLight));
+        shadowPipeline->bindBufferData("spotLights", spotLights.empty() ? &fallbackSpot : spotLights.data(),
+            std::max(size_t(1), spotLights.size()) * sizeof(GPUSpotLight));
+        shadowPipeline->bindBufferData("areaLights", areaLights.empty() ? &fallbackArea : areaLights.data(),
+            std::max(size_t(1), areaLights.size()) * sizeof(GPUAreaLight));
+        shadowPipeline->setUniform1f("rt.normalBias", std::min(normalBias, 0.002f));
+        shadowPipeline->setUniform1f("rt.maxRayDistance", Window::mainWindow->getCamera()->farClip);
+        commandBuffer->bindPipeline(shadowPipeline);
+        commandBuffer->bindInstanceAccelerationStructure(sceneTLAS, 10);
+        commandBuffer->dispatch(width, height, 1);
+        commandBuffer->computeBarrier();
+        shadowVisibilityReady = true;
+    }
+#endif
     frameIndex = std::min(frameIndex + 1, 1 << 30);
 }
 

@@ -254,6 +254,10 @@ class GlobalIllumination {
     std::shared_ptr<opal::PrimitiveAccelerationStructure> sceneBLAS;
     std::shared_ptr<opal::InstanceAccelerationStructure> sceneTLAS;
     bool accelerationStructureDirty = false;
+    std::shared_ptr<ShaderProgram> shadowShader;
+    std::shared_ptr<opal::Pipeline> shadowPipeline;
+    std::shared_ptr<Texture> shadowVisibility;
+    bool shadowVisibilityReady = false;
 
     /** @brief Active probe-space definition used for DDGI dispatch. */
     std::shared_ptr<ProbeSpace> probeSpace;

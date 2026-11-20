@@ -59,6 +59,7 @@ struct UBO {
     float3 cameraPosition;
     uint useIBL;
     int useContactOcclusion;
+    int useRayTracedShadows;
 };
 
 struct Environment {
@@ -223,8 +224,23 @@ struct FragmentInput {
 [[vk::binding(20, 2)]] Sampler2D gEmission;
 [[vk::binding(16, 6)]] Texture2D<float4> irradianceMap;
 [[vk::binding(17, 6)]] Texture2D<float4> ddgiDistanceMap;
-float shadowVisibilityForLight(int lightType, int lightIndex, float3 position, float3 normal) {
+[[vk::binding(21, 2)]] Texture2D<float4> rayShadowMap;
+float shadowVisibilityForLight(int lightType, int lightIndex, float3 position, float3 normal, float2 rayShadowUV) {
     if ((parameters.featureFlags & FEATURE_SHADOWS) == 0u) return 1.0;
+    if (uniforms.useRayTracedShadows != 0) {
+        int slot = lightType == 0 && lightIndex < 2 ? lightIndex :
+                   lightType == 3 && lightIndex < 4 ? 2 + lightIndex :
+                   lightType == 1 && lightIndex < 2 ? 6 + lightIndex :
+                   lightType == 2 && lightIndex < 2 ? 8 + lightIndex : -1;
+        if (slot >= 0) {
+            uint width, height;
+            rayShadowMap.GetDimensions(width, height);
+            uint tileHeight = height / 3;
+            float2 pixelUv = rayShadowUV;
+            uint2 pixel = min(uint2(pixelUv * float2(width, tileHeight)), uint2(width-1, tileHeight-1));
+            return rayShadowMap.Load(int3(pixel.x, pixel.y + (slot / 4) * tileHeight, 0))[slot % 4];
+        }
+    }
     float shadow = 0.0;
     for (int index = 0; index < parameters.shadowParamCount; ++index) {
         ShadowParameters data = ShadowParams[index];
@@ -392,15 +408,15 @@ FragmentOutput fragmentMain(FragmentInput input) {
         for (int i = 0; i < parameters.directionalLightCount; ++i)
             directionalResult += calcDirectionalLight(DirectionalLights[i], N, V, F0,
                 albedo, metallic, roughness, transmission) *
-                shadowVisibilityForLight(0, i, FragPos, shadowNormal);
+                shadowVisibilityForLight(0, i, FragPos, shadowNormal, input.TexCoord);
         for (int i = 0; i < parameters.pointLightCount; ++i)
             pointResult += calcPointLight(PointLights[i], FragPos, N, V, F0,
                 albedo, metallic, roughness, transmission) *
-                shadowVisibilityForLight(3, i, FragPos, shadowNormal);
+                shadowVisibilityForLight(3, i, FragPos, shadowNormal, input.TexCoord);
         for (int i = 0; i < parameters.spotlightCount; ++i)
             spotResult += calcSpotLight(SpotLights[i], FragPos, N, V, F0,
                 albedo, metallic, roughness, transmission) *
-                shadowVisibilityForLight(1, i, FragPos, shadowNormal);
+                shadowVisibilityForLight(1, i, FragPos, shadowNormal, input.TexCoord);
         for (int i = 0; i < parameters.areaLightCount; ++i) {
             AreaLight light = AreaLights[i];
             float3 right = normalize(light.right);
@@ -423,7 +439,7 @@ FragmentOutput fragmentMain(FragmentInput input) {
                                                  metallic, roughness, transmission);
                 }
             }
-            areaResult += contribution * shadowVisibilityForLight(2, i, FragPos, shadowNormal);
+            areaResult += contribution * shadowVisibilityForLight(2, i, FragPos, shadowNormal, input.TexCoord);
         }
     }
     float3 param_36 = FragPos;

@@ -67,3 +67,13 @@ A seventh, HDR emission attachment carries material emissive color times intensi
 | Diffraction | No physical diffraction solver in either renderer | Dispersion is a separate effect |
 
 This table describes current coverage, not full effect parity. Full transport parity requires additional material storage and ray-traced secondary transport. Shader and syntax checks cannot establish visual equivalence; GPU comparison remains outstanding.
+
+## DDGI ray-traced shadows and temporal stability
+
+Vulkan DDGI now dispatches a per-pixel visibility pass after the geometry buffer and probe update. It traces opaque shadow rays against the DDGI scene acceleration structure, supporting the first two directional, four point, two spot, and two area lights (matching the DDGI light-table limits). Area lights use 64 fixed emitter samples with cosine/distance weighting. Visibility is stored in three RGBA atlas tiles and consumed per light by deferred lighting. Additional lights, non-DDGI rendering, and Metal retain filtered shadow maps. The global Shadows feature still disables shadow application.
+
+This is ray-traced direct visibility alongside diffuse probe GI, not full path tracing. Alpha-tested/transmitting occluders use opaque visibility. Area-light BRDF integration still uses the existing 16 lighting samples; the 64-sample visibility ratio approximates their joint integral. Cost scales with pixels, light count, and shadow rays; the pass has no temporal denoiser or adaptive budget yet.
+
+Vulkan probe directions and area-light sample seeds are now fixed across updates, preventing rotating visibility moments and changing direct-light samples from continually perturbing bounce feedback. Probe validity transitions smoothly over backface fractions and is blended with history. Fixed sampling trades temporal noise for deterministic integration error; increasing rays per probe improves that error. Geometry changes continue to rebuild the acceleration structure through the existing layout update path.
+
+Validation covers standalone SPIR-V compilation/validation of both DDGI entry points, writeback, and deferred lighting, plus C++ syntax checks. The new DDGI_SHADOWS packed shader symbol is generated from the Vulkan manifest during the next build. No project build or GPU visual/performance run was performed.

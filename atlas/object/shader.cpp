@@ -221,6 +221,16 @@ ComputeShader ComputeShader::fromDefaultShader(AtlasComputeShader shader) {
             "AtlasComputeShader::DDGI requires native Photon shaders for the selected backend");
 #endif
     }
+    case AtlasComputeShader::DDGI_SHADOWS: {
+#if defined(VULKAN) && ATLAS_HAS_PHOTON
+        computeShader = ComputeShader::fromSource(DDGI_SHADOWS);
+        computeShader.fromDefaultShaderType = shader;
+        ComputeShader::computeShaderCache[shader] = computeShader;
+        break;
+#else
+        throw std::runtime_error("DDGI ray-traced shadows require Vulkan");
+#endif
+    }
     case AtlasComputeShader::DDGI_WRITE: {
 #if ATLAS_HAS_PHOTON
         computeShader = ComputeShader::fromSource(DDGI_WRITE);
