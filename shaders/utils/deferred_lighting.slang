@@ -398,10 +398,9 @@ calcSpotLight(SpotLight light, float3 fragPos,
     float intensity =
         clamp((theta - light.outerCutOff) / epsilon, 0.0, 1.0);
     float range = max(light.range, 0.00100000005);
-    float attenuation = 1.0 / ((1.0 + (_distance / range)) +
-                               ((_distance * _distance) / (range * range)));
+    float attenuation = 1.0 / max(_distance * _distance, 1e-4);
     float fade =
-        1.0 - smoothstep(range * 0.899999976, range, _distance);
+        1.0 - smoothstep(range * 0.75, range, _distance);
     float3 radiance =
         (((light.diffuse * max(light.intensity, 0.0)) * attenuation) *
          intensity) *

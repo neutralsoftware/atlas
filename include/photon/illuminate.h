@@ -119,6 +119,7 @@ class PathTracing {
 
     /** @brief Rays traced per pixel each dispatch. */
     int raysPerPixel = 4;
+    int minimumMotionSamples = 8;
     /** @brief Maximum bounce count for indirect transport. */
     int maxBounces = 8;
     /** @brief Scalar multiplier for indirect lighting contribution. */
@@ -349,14 +350,14 @@ class GlobalIllumination {
     std::vector<std::shared_ptr<opal::Texture>> materialTextures;
 
     /** @brief Baseline spacing scalar used when fitting probe grids. */
-    float probeSpacing = 0.9f;
+    float probeSpacing = 0.3f;
 
     /** @brief Rays traced per probe update. */
-    int raysPerProbe = 48;
+    int raysPerProbe = 128;
     /** @brief Maximum ray distance for DDGI probe tracing. */
     float maxRayDistance = 20.f;
     /** @brief Surface normal bias used to reduce self-intersections. */
-    float normalBias = 0.05;
+    float normalBias = 0.01f;
     /** @brief Temporal blending factor for probe history accumulation. */
     float hysteresis = 0.85;
     /** @brief Whether DDGI tracing evaluates normal maps. */
@@ -364,7 +365,7 @@ class GlobalIllumination {
     /** @brief Strength applied to sampled normal maps when enabled. */
     float normalMapStrength = 1.0f;
     /** @brief Updates one probe group every N frames for staggered updates. */
-    int probeUpdateStride = 4;
+    int probeUpdateStride = 1;
     /** @brief Monotonic frame counter used by DDGI dispatch logic. */
     int frameIndex = 0;
     /** @brief Cached hash to detect when probe layout must be rebuilt. */

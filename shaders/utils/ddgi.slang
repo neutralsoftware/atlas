@@ -54,8 +54,8 @@ float2 ddgiAtlasUV(uint probeIndex, float3 dirWS, ProbeSpace ps, uint atlasW,
 }
 
 float4 sampleDDGITextureBilinear(Texture2D<float4> tex, float2 uv) {
-    uint w = textureSize(tex).x;
-    uint h = textureSize(tex).y;
+    uint w, h;
+    tex.GetDimensions(w, h);
     if (w == 0u || h == 0u) {
         return float4(0.0f);
     }
@@ -100,8 +100,8 @@ float3 sampleDDGIDirectionalRadiance(Texture2D<float4> ddgiTexture,
     if (counts.x == 0u || counts.y == 0u || counts.z == 0u)
         return float3(0.0);
 
-    uint atlasW = textureSize(ddgiTexture).x;
-    uint atlasH = textureSize(ddgiTexture).y;
+    uint atlasW, atlasH;
+    ddgiTexture.GetDimensions(atlasW, atlasH);
     if (atlasW == 0u || atlasH == 0u) {
         return float3(0.0);
     }

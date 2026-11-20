@@ -1287,7 +1287,7 @@ computeMain(uint3 dispatchThreadID
     float2 primaryUv = (float2(gid) + 0.5) / float2(width, height);
     float3 primaryDirection = float3(0.0, 0.0, 1.0);
     uint samples = max(sceneData.raysPerPixel, 1u);
-    uint iterations = samples + (sceneData.cinematicMode != 0 ? 1u : 0u);
+    uint iterations = samples + 1u;
     for (uint sampleIndex = 0; sampleIndex < iterations; ++sampleIndex) {
         float2 jitter =
             sampleIndex == 0
@@ -1301,7 +1301,7 @@ computeMain(uint3 dispatchThreadID
             safeNormal(world.xyz / world.w - cam.camPos, float3(0.0, 0.0, 1.0));
         SurfaceHit sampleHit;
         float3 radiance = samplePath(cam.camPos, direction, state, sampleHit);
-        if (sceneData.cinematicMode == 0 || sampleIndex > 0) {
+        if (sampleIndex > 0) {
             color += radiance;
         }
         if (sampleIndex == 0) {

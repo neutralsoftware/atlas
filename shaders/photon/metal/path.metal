@@ -74,7 +74,7 @@ kernel void main0(texture2d<float, access::write> outTex [[texture(0)]],
     DirectReservoir directReservoir = emptyDirectReservoir();
 
     uint spp = max(sceneData.raysPerPixel, 1u);
-    uint iterations = spp + (sceneData.cinematicMode != 0 ? 1u : 0u);
+    uint iterations = spp + 1u;
     for (uint s = 0; s < iterations; ++s) {
         uint cameraRng = seedBase(gid, w, sceneData.frameIndex,
                                   s + 0x9E3779B9u);
@@ -116,7 +116,7 @@ kernel void main0(texture2d<float, access::write> outTex [[texture(0)]],
         if (!all(isfinite(sample))) {
             sample = float3(0.0);
         }
-        if (sceneData.cinematicMode == 0 || s > 0) {
+        if (s > 0) {
             color += clampLuminance(sample, max(sceneData.fireflyClamp, 1.0));
         }
         if (s == 0) {

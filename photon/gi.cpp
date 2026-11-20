@@ -396,9 +396,10 @@ void photon::GlobalIllumination::updateProbeLayout() {
         collectDdgiObjectsFromQueue(Window::mainWindow->firstRenderables,
                                     seenDdgiObjects, ddgiObjects);
     }
-    const uint64_t layoutSignature = computeDdgiLayoutSignature(
-        ddgiObjects, std::max(0.001f, probeSpacing),
-        probeSpace->probeResolution, probeSpace->textureBorderSize);
+    const uint64_t layoutSignature = hashCombineU64(
+        computeDdgiLayoutSignature(ddgiObjects, std::max(0.001f, probeSpacing),
+                                   probeSpace->probeResolution, probeSpace->textureBorderSize),
+        static_cast<uint64_t>(std::max(1, raysPerProbe)));
     if (hasCachedLayoutSignature && cachedLayoutSignature == layoutSignature &&
         probeRadianceBuffer != nullptr && irradianceMap != nullptr &&
         irradianceMapPrev != nullptr && distanceMap != nullptr &&
@@ -750,6 +751,10 @@ void photon::GlobalIllumination::updateProbeLayout() {
 
 void photon::GlobalIllumination::render(
     const std::shared_ptr<opal::CommandBuffer> &commandBuffer) {
+    if (probeSpace != nullptr && probeRadianceCapacity !=
+            probeSpace->totalProbes() * std::max(1, raysPerProbe)) {
+        updateProbeLayout();
+    }
     if (commandBuffer == nullptr || giPipeline == nullptr ||
         giRaytracingPipeline == nullptr || probeSpace == nullptr ||
         probeRadianceBuffer == nullptr || irradianceMap == nullptr ||
@@ -1028,7 +1033,7 @@ void photon::GlobalIllumination::render(
     }
     std::shared_ptr<opal::Texture> skyboxTexture = fallbackSkybox;
     int useSkybox = 0;
-    glm::vec3 skyColor(0.12f, 0.14f, 0.18f);
+    glm::vec3 skyColor(0.0f);
     if (scene != nullptr) {
         auto skybox = scene->getSkybox();
         if (skybox != nullptr && skybox->cubemap.texture != nullptr) {
@@ -1046,6 +1051,10 @@ void photon::GlobalIllumination::render(
     giRaytracingPipeline->bindTexture("previousIrradiance",
                                       irradianceMapPrev->texture,
                                       kDdgiPreviousIrradianceTextureUnit);
+
+#ifdef VULKAN
+    giRaytracingPipeline->bindTexture("previousDistance", distanceMapPrev->texture, 62);
+#endif
 
     giRaytracingPipeline->setUniform3f(
         "ps.origin", probeSpace->originWorldSpace.x,
