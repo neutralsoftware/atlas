@@ -43,6 +43,7 @@ struct Material {
     float roughness;
     float ao;
     float emissiveIntensity;
+    float2 _padBeforeAlbedo;
 
     packed_float3 albedo;
     float _pad0;
@@ -57,6 +58,8 @@ struct Material {
     float4 volumeScattering;
     float4 volumeEmission;
 };
+
+static_assert(sizeof(Material) == 176);
 
 struct Triangle {
     float4 v0;
@@ -81,6 +84,8 @@ struct Triangle {
     int materialID;
     int padding[3];
 };
+
+static_assert(sizeof(Triangle) == 256);
 
 struct SceneCounts {
     uint triCount;
@@ -888,7 +893,16 @@ static inline float3 sphericalFibonacci(uint index, uint count,
     uint rotSeed = wangHash(frameIndex * 1471u + 5743u);
     float rotAngle = float(rotSeed & 0xFFFFu) / 65536.0f * TAU;
     phi += rotAngle;
-    return float3(sinTheta * cos(phi), cosTheta, sinTheta * sin(phi));
+    float3 direction = float3(sinTheta * cos(phi), cosTheta, sinTheta * sin(phi));
+    uint tiltSeed = wangHash(frameIndex * 3253u + 7919u);
+    float tiltCos = 2.0 * float(tiltSeed & 65535u) / 65535.0 - 1.0;
+    float tiltSin = sqrt(max(0.0, 1.0 - tiltCos * tiltCos));
+    float spin = float(wangHash(tiltSeed) & 65535u) / 65536.0 * 6.28318530718;
+    float3 tilted = float3(tiltCos * direction.x - tiltSin * direction.y,
+                           tiltSin * direction.x + tiltCos * direction.y,
+                           direction.z);
+    return float3(cos(spin) * tilted.x - sin(spin) * tilted.z,
+                  tilted.y, sin(spin) * tilted.x + cos(spin) * tilted.z);
 }
 
 kernel void main0(device float4 *probeRadianceOut [[buffer(0)]],

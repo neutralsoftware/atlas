@@ -59,6 +59,7 @@ struct UBO {
     float3 cameraPosition;
     uint useIBL;
     int useContactOcclusion;
+    int useRayTracedShadows;
 };
 
 struct Environment {
@@ -82,6 +83,7 @@ static const uint FEATURE_ENVIRONMENT_LIGHTING = 1u << 2;
 static const uint FEATURE_INDIRECT_LIGHTING = 1u << 4;
 static const uint FEATURE_TRANSMISSION = 1u << 5;
 static const uint FEATURE_DISPERSION = 1u << 6;
+static const uint FEATURE_EMISSION = 1u << 3;
 static const uint FEATURE_VOLUMES = 1u << 9;
 
 struct AreaLight {
@@ -219,8 +221,41 @@ struct FragmentInput {
 [[vk::binding(4, 2)]] Sampler2D ssao;
 [[vk::binding(18, 2)]] Texture2D<float4> gOptical;
 [[vk::binding(19, 2)]] Texture2D<float4> gMedium;
+[[vk::binding(20, 2)]] Sampler2D gEmission;
 [[vk::binding(16, 6)]] Texture2D<float4> irradianceMap;
 [[vk::binding(17, 6)]] Texture2D<float4> ddgiDistanceMap;
+[[vk::binding(21, 2)]] Texture2D<float4> rayShadowMap;
+float shadowVisibilityForLight(int lightType, int lightIndex, float3 position, float3 normal, float2 rayShadowUV) {
+    if ((parameters.featureFlags & FEATURE_SHADOWS) == 0u) return 1.0;
+    if (uniforms.useRayTracedShadows != 0) {
+        int slot = lightType == 0 && lightIndex < 2 ? lightIndex :
+                   lightType == 3 && lightIndex < 4 ? 2 + lightIndex :
+                   lightType == 1 && lightIndex < 2 ? 6 + lightIndex :
+                   lightType == 2 && lightIndex < 2 ? 8 + lightIndex : -1;
+        if (slot >= 0) {
+            uint width, height;
+            rayShadowMap.GetDimensions(width, height);
+            uint tileHeight = height / 3;
+            float2 pixelUv = rayShadowUV;
+            uint2 pixel = min(uint2(pixelUv * float2(width, tileHeight)), uint2(width-1, tileHeight-1));
+            return rayShadowMap.Load(int3(pixel.x, pixel.y + (slot / 4) * tileHeight, 0))[slot % 4];
+        }
+    }
+    float shadow = 0.0;
+    for (int index = 0; index < parameters.shadowParamCount; ++index) {
+        ShadowParameters data = ShadowParams[index];
+        if (data.lightType != lightType || data.lightIndex != lightIndex) continue;
+        float value = lightType == 3
+            ? calculatePointShadow(data, position, texture1, texture2, texture3,
+                                   texture4, texture5, cubeMap1, cubeMap2, cubeMap3, cubeMap4, cubeMap5)
+            : calculateShadow(data, position, normal, texture1, texture2, texture3,
+                              texture4, texture5, uniforms,
+                              lightType == 2 ? AreaLights[lightIndex].size : float2(0.0));
+        shadow = max(shadow, value);
+    }
+    return 1.0 - saturate(shadow);
+}
+
 float contactOcclusion(float2 uv, float3 position, float3 normal) {
     float2 texelSize = 1.0 / float2(textureSize(gPosition));
     float occlusion = 0.0;
@@ -292,7 +327,7 @@ FragmentOutput fragmentMain(FragmentInput input) {
                          geomNormalLen > 9.99999975e-06;
     float3 shadowNormal = N;
     float3 ddgiNormal = N;
-    if (hasGeomNormal) {
+    if (hasGeomNormal && !hasNormal) {
         geomNormal /= float3(geomNormalLen);
         if (dot(N, geomNormal) < 0.0) {
             geomNormal = -geomNormal;
@@ -363,251 +398,50 @@ FragmentOutput fragmentMain(FragmentInput input) {
         clamp(ao * (0.0500000007 +
                           (0.949999988 * ssaoContrast)),
                     0.0, 1.0);
-    float lightingOcclusion =
-        clamp(0.0500000007 +
-                        (0.949999988 * ssaoContrast),
-                    0.0500000007, 1.0);
-    float directionalShadow = 0.0;
-    float spotShadow = 0.0;
-    float areaShadow = 0.0;
-    int areaShadowCount = 0;
-    float pointShadow = 0.0;
-    int shadowCount = (parameters.featureFlags & FEATURE_SHADOWS) != 0u
-                          ? parameters.shadowParamCount
-                          : 0;
-    for (int i = 0; i < shadowCount; i++) {
-        if (ShadowParams[i].lightType == 3) {
-            int lightIndex = ShadowParams[i].lightIndex;
-            if (lightIndex < 0 || lightIndex >= parameters.pointLightCount ||
-                distance(float3(PointLights[lightIndex].position),
-                         FragPos) >= PointLights[lightIndex].radius) {
-                continue;
-            }
-            ShadowParameters _1386;
-            _1386.lightView = ShadowParams[i].lightView;
-            _1386.lightProjection = ShadowParams[i].lightProjection;
-            _1386.bias0 = ShadowParams[i].bias0;
-            _1386.textureIndex = ShadowParams[i].textureIndex;
-            _1386.farPlane = ShadowParams[i].farPlane;
-            _1386.lightIndex = ShadowParams[i].lightIndex;
-            _1386.lightPos = float3(ShadowParams[i].lightPos);
-            _1386.lightType = ShadowParams[i].lightType;
-            ShadowParameters param = _1386;
-            float3 param_1 = FragPos;
-            pointShadow =
-                max(pointShadow,
-                          calculatePointShadow(
-                              param, param_1, texture1, texture2, texture3, texture4, texture5, cubeMap1, cubeMap2, cubeMap3, cubeMap4, cubeMap5));
-        } else if (ShadowParams[i].lightType == 1) {
-            int lightIndex = ShadowParams[i].lightIndex;
-            if (lightIndex < 0 || lightIndex >= parameters.spotlightCount ||
-                distance(float3(SpotLights[lightIndex].position),
-                         FragPos) >= SpotLights[lightIndex].range) {
-                continue;
-            }
-            ShadowParameters _1397;
-            _1397.lightView = ShadowParams[i].lightView;
-            _1397.lightProjection = ShadowParams[i].lightProjection;
-            _1397.bias0 = ShadowParams[i].bias0;
-            _1397.textureIndex = ShadowParams[i].textureIndex;
-            _1397.farPlane = ShadowParams[i].farPlane;
-            _1397.lightIndex = ShadowParams[i].lightIndex;
-            _1397.lightPos = float3(ShadowParams[i].lightPos);
-            _1397.lightType = ShadowParams[i].lightType;
-            ShadowParameters param_2 = _1397;
-            float3 param_3 = FragPos;
-            float3 param_4 = shadowNormal;
-            spotShadow = max(
-                spotShadow,
-                calculateShadow(param_2, param_3, param_4, texture1, texture2,
-                                texture3, texture4, texture5, uniforms));
-        } else if (ShadowParams[i].lightType == 2) {
-            int lightIndex = ShadowParams[i].lightIndex;
-            if (lightIndex < 0 || lightIndex >= parameters.areaLightCount ||
-                distance(float3(AreaLights[lightIndex].position),
-                         FragPos) >= AreaLights[lightIndex].range) {
-                continue;
-            }
-            ShadowParameters _1397;
-            _1397.lightView = ShadowParams[i].lightView;
-            _1397.lightProjection = ShadowParams[i].lightProjection;
-            _1397.bias0 = ShadowParams[i].bias0;
-            _1397.textureIndex = ShadowParams[i].textureIndex;
-            _1397.farPlane = ShadowParams[i].farPlane;
-            _1397.lightIndex = ShadowParams[i].lightIndex;
-            _1397.lightPos = float3(ShadowParams[i].lightPos);
-            _1397.lightType = ShadowParams[i].lightType;
-            ShadowParameters param_2 = _1397;
-            float3 param_3 = FragPos;
-            float3 param_4 = shadowNormal;
-            areaShadow += calculateShadow(
-                param_2, param_3, param_4, texture1, texture2, texture3, texture4,
-                texture5, uniforms);
-            areaShadowCount++;
-        } else {
-            ShadowParameters _1397;
-            _1397.lightView = ShadowParams[i].lightView;
-            _1397.lightProjection = ShadowParams[i].lightProjection;
-            _1397.bias0 = ShadowParams[i].bias0;
-            _1397.textureIndex = ShadowParams[i].textureIndex;
-            _1397.farPlane = ShadowParams[i].farPlane;
-            _1397.lightIndex = ShadowParams[i].lightIndex;
-            _1397.lightPos = float3(ShadowParams[i].lightPos);
-            _1397.lightType = ShadowParams[i].lightType;
-            ShadowParameters param_2 = _1397;
-            float3 param_3 = FragPos;
-            float3 param_4 = shadowNormal;
-            directionalShadow = max(
-                directionalShadow,
-                calculateShadow(param_2, param_3, param_4, texture1, texture2,
-                                texture3, texture4, texture5, uniforms));
-        }
-    }
-    if (areaShadowCount > 0) {
-        areaShadow /= float(areaShadowCount);
-    }
-    directionalShadow =
-        clamp(directionalShadow * 0.850000024, 0.0, 1.0);
-    spotShadow = clamp(spotShadow * 0.850000024, 0.0, 1.0);
-    areaShadow = clamp(areaShadow * 0.449999988, 0.0, 1.0);
-    pointShadow =
-        clamp(pointShadow * 0.850000024, 0.0, 1.0);
     bool directLightingEnabled =
         (parameters.featureFlags & FEATURE_DIRECT_LIGHTING) != 0u;
-    int directionalLightCount =
-        directLightingEnabled ? parameters.directionalLightCount : 0;
-    int pointLightCount = directLightingEnabled ? parameters.pointLightCount : 0;
-    int spotlightCount = directLightingEnabled ? parameters.spotlightCount : 0;
-    int areaLightCount = directLightingEnabled ? parameters.areaLightCount : 0;
-    float3 directionalResult = float3(0.0);
-    for (int i_1 = 0; i_1 < directionalLightCount; i_1++) {
-        DirectionalLight _1428;
-        _1428.direction = float3(DirectionalLights[i_1].direction);
-        _1428._pad1 = DirectionalLights[i_1]._pad1;
-        _1428.diffuse = float3(DirectionalLights[i_1].diffuse);
-        _1428._pad2 = DirectionalLights[i_1]._pad2;
-        _1428.specular = float3(DirectionalLights[i_1].specular);
-        _1428.intensity = DirectionalLights[i_1].intensity;
-        DirectionalLight param_5 = _1428;
-        float3 param_6 = N;
-        float3 param_7 = V;
-        float3 param_8 = F0;
-        float3 param_9 = albedo;
-        float param_10 = metallic;
-        float param_11 = roughness;
-        directionalResult += calcDirectionalLight(
-            param_5, param_6, param_7, param_8, param_9, param_10, param_11,
-            transmission);
-    }
-    directionalResult *= (1.0 - directionalShadow);
-    float3 pointResult = float3(0.0);
-    for (int i_2 = 0; i_2 < pointLightCount; i_2++) {
-        PointLight _1471;
-        _1471.position = float3(PointLights[i_2].position);
-        _1471._pad1 = PointLights[i_2]._pad1;
-        _1471.diffuse = float3(PointLights[i_2].diffuse);
-        _1471._pad2 = PointLights[i_2]._pad2;
-        _1471.specular = float3(PointLights[i_2].specular);
-        _1471.intensity = PointLights[i_2].intensity;
-        _1471.constant0 = PointLights[i_2].constant0;
-        _1471.linear = PointLights[i_2].linear;
-        _1471.quadratic = PointLights[i_2].quadratic;
-        _1471.radius = PointLights[i_2].radius;
-        _1471._pad3 = PointLights[i_2]._pad3;
-        PointLight param_12 = _1471;
-        float3 param_13 = FragPos;
-        float3 param_14 = N;
-        float3 param_15 = V;
-        float3 param_16 = F0;
-        float3 param_17 = albedo;
-        float param_18 = metallic;
-        float param_19 = roughness;
-        pointResult += calcPointLight(param_12, param_13, param_14, param_15,
-                                      param_16, param_17, param_18, param_19,
-                                      transmission);
-    }
-    pointResult *= (1.0 - pointShadow);
-    float3 spotResult = float3(0.0);
-    for (int i_3 = 0; i_3 < spotlightCount; i_3++) {
-        SpotLight _1516;
-        _1516.position = float3(SpotLights[i_3].position);
-        _1516._pad1 = SpotLights[i_3]._pad1;
-        _1516.direction = float3(SpotLights[i_3].direction);
-        _1516.cutOff = SpotLights[i_3].cutOff;
-        _1516.outerCutOff = SpotLights[i_3].outerCutOff;
-        _1516.intensity = SpotLights[i_3].intensity;
-        _1516.range = SpotLights[i_3].range;
-        _1516._pad4 = SpotLights[i_3]._pad4;
-        _1516.diffuse = float3(SpotLights[i_3].diffuse);
-        _1516._pad5 = SpotLights[i_3]._pad5;
-        _1516.specular = float3(SpotLights[i_3].specular);
-        _1516._pad6 = SpotLights[i_3]._pad6;
-        SpotLight param_20 = _1516;
-        float3 param_21 = FragPos;
-        float3 param_22 = N;
-        float3 param_23 = V;
-        float3 param_24 = F0;
-        float3 param_25 = albedo;
-        float param_26 = metallic;
-        float param_27 = roughness;
-        spotResult += calcSpotLight(param_20, param_21, param_22, param_23,
-                                    param_24, param_25, param_26, param_27,
-                                    transmission);
-    }
-    spotResult *= (1.0 - spotShadow);
-    float3 areaResult = float3(0.0);
-    float _1639;
-    for (int i_4 = 0; i_4 < areaLightCount; i_4++) {
-        float3 P = float3(AreaLights[i_4].position);
-        float3 R = normalize(float3(AreaLights[i_4].right));
-        float3 U = normalize(float3(AreaLights[i_4].up));
-        float2 halfSize = AreaLights[i_4].size * 0.5;
-        float3 toPoint = FragPos - P;
-        float s = clamp(dot(toPoint, R), -halfSize.x, halfSize.x);
-        float t = clamp(dot(toPoint, U), -halfSize.y, halfSize.y);
-        float3 Q = (P + (R * s)) + (U * t);
-        float3 Lvec = Q - FragPos;
-        float dist = length(Lvec);
-        if (dist > 9.99999975e-05) {
-            float3 L = Lvec / float3(dist);
-            float3 Nl = normalize(cross(R, U));
-            float ndotl = dot(Nl, -L);
-            if (AreaLights[i_4].castsBothSides != 0) {
-                _1639 = abs(ndotl);
-            } else {
-                _1639 = max(ndotl, 0.0);
+    float3 directionalResult = 0.0;
+    float3 pointResult = 0.0;
+    float3 spotResult = 0.0;
+    float3 areaResult = 0.0;
+    if (directLightingEnabled) {
+        for (int i = 0; i < parameters.directionalLightCount; ++i)
+            directionalResult += calcDirectionalLight(DirectionalLights[i], N, V, F0,
+                albedo, metallic, roughness, transmission) *
+                shadowVisibilityForLight(0, i, FragPos, shadowNormal, input.TexCoord);
+        for (int i = 0; i < parameters.pointLightCount; ++i)
+            pointResult += calcPointLight(PointLights[i], FragPos, N, V, F0,
+                albedo, metallic, roughness, transmission) *
+                shadowVisibilityForLight(3, i, FragPos, shadowNormal, input.TexCoord);
+        for (int i = 0; i < parameters.spotlightCount; ++i)
+            spotResult += calcSpotLight(SpotLights[i], FragPos, N, V, F0,
+                albedo, metallic, roughness, transmission) *
+                shadowVisibilityForLight(1, i, FragPos, shadowNormal, input.TexCoord);
+        for (int i = 0; i < parameters.areaLightCount; ++i) {
+            AreaLight light = AreaLights[i];
+            float3 right = normalize(light.right);
+            float3 up = normalize(light.up);
+            float3 lightNormal = normalize(cross(right, up));
+            float3 contribution = 0.0;
+            for (int y = 0; y < 4; ++y) {
+                for (int x = 0; x < 4; ++x) {
+                    float2 sample = (float2(x, y) + 0.5) / 4.0 - 0.5;
+                    float3 delta = light.position + right * sample.x * light.size.x +
+                                   up * sample.y * light.size.y - FragPos;
+                    float distanceSquared = max(dot(delta, delta), 1e-4);
+                    float3 direction = delta * rsqrt(distanceSquared);
+                    float cosine = dot(lightNormal, -direction);
+                    cosine = light.castsBothSides != 0 ? abs(cosine) : max(cosine, 0.0);
+                    if (cosine < cos(radians(light.angle))) continue;
+                    float3 radiance = light.diffuse * max(light.intensity, 0.0) * cosine *
+                                      max(light.size.x * light.size.y, 0.0) / (distanceSquared * 16.0);
+                    contribution += evaluateBRDF(direction, radiance, N, V, F0, albedo,
+                                                 metallic, roughness, transmission);
+                }
             }
-            float facing = _1639;
-            float cosTheta = cos(radians(AreaLights[i_4].angle));
-            if ((facing >= cosTheta) && (facing > 0.0)) {
-                float range = max(AreaLights[i_4].range,
-                                        0.00100000005);
-                float attenuation = 1.0 / ((1.0 + (dist / range)) +
-                                           ((dist * dist) / (range * range)));
-                float fade = 1.0 - smoothstep(range * 0.899999976,
-                                              range, dist);
-                float3 radiance =
-                    (((float3(AreaLights[i_4].diffuse) *
-                       max(AreaLights[i_4].intensity, 0.0)) *
-                      attenuation) *
-                     facing) *
-                    fade;
-                float3 param_28 = L;
-                float3 param_29 = radiance;
-                float3 param_30 = N;
-                float3 param_31 = V;
-                float3 param_32 = F0;
-                float3 param_33 = albedo;
-                float param_34 = metallic;
-                float param_35 = roughness;
-                areaResult +=
-                    evaluateBRDF(param_28, param_29, param_30, param_31,
-                                 param_32, param_33, param_34, param_35,
-                                 transmission);
-            }
+            areaResult += contribution * shadowVisibilityForLight(2, i, FragPos, shadowNormal, input.TexCoord);
         }
     }
-    areaResult *= (1.0 - areaShadow);
     float3 param_36 = FragPos;
     float3 param_37 = N;
     float3 param_38 = V;
@@ -620,13 +454,12 @@ FragmentOutput fragmentMain(FragmentInput input) {
     float3 rimResult = _1714;
     float3 lighting =
         ((((directionalResult + pointResult) + spotResult) + areaResult) +
-         rimResult) *
-        lightingOcclusion;
+         rimResult);
     float3 ambientBase =
         ((ambientLight.color.xyz * ambientLight.intensity) * albedo) *
         occlusion * (1.0 - metallic) * (1.0 - transmission);
     bool ddgiEnabled = ps.atlasParams.w > 0.0f && indirectEnabled;
-    float3 ambient = ddgiEnabled ? ambientBase * 0.05f : ambientBase;
+    float3 ambient = ddgiEnabled ? float3(0.0) : ambientBase;
 
     float ddgiSampleBias =
         max(max(ps.spacing.x, max(ps.spacing.y, ps.spacing.z)) * 0.05f, 0.002f);
@@ -666,7 +499,7 @@ FragmentOutput fragmentMain(FragmentInput input) {
     }
     float3 viewFresnel = fresnelSchlick(max(dot(N, V), 0.0), F0);
     float reflectionRoughness = lerp(1.0, 0.12, roughness);
-    float3 ddgiSpecular = ddgiReflection * viewFresnel *
+    float3 ddgiSpecular = ddgiReflection * INV_PI * viewFresnel *
                           reflectionRoughness * occlusion * ddgiGain;
 
     float3 iblContribution = float3(0.0);
@@ -695,7 +528,7 @@ FragmentOutput fragmentMain(FragmentInput input) {
                                          clamp(roughness, 0.0, 1.0));
         float3 specularIBL = specularEnv * roughnessAttenuation;
         iblContribution =
-            ((kD * diffuseIBL) + (kS * specularIBL)) *
+            ((ddgiEnabled ? float3(0.0) : kD * diffuseIBL) + (kS * specularIBL)) *
             occlusion;
     }
     float3 finalColor = (ambient + lighting + ddgiSpecular) + iblContribution;
@@ -766,6 +599,8 @@ FragmentOutput fragmentMain(FragmentInput input) {
     } else if (ddgiDebugMode >= 19.5f) {
         finalColor = ddgiDiffuse * 3.0f;
     }
+    if ((parameters.featureFlags & FEATURE_EMISSION) != 0u)
+        finalColor += max(gEmission.Sample(input.TexCoord).xyz, 0.0);
     output.FragColor = float4(finalColor, 1.0);
     float brightness =
         dot(output.FragColor.xyz,

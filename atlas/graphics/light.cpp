@@ -441,6 +441,23 @@ ShadowParams AreaLight::calculateLightSpaceMatrix() const {
         }
     }
 
+    if (!this->castsBothSides) {
+        float halfAngle = glm::radians(std::clamp(this->angle, 5.0f, 85.0f));
+        float emitterRadius = std::max(
+            0.001f, 0.5f * std::max(static_cast<float>(this->size.width),
+                                   static_cast<float>(this->size.height)));
+        float originOffset = emitterRadius / glm::tan(halfAngle);
+        glm::vec3 shadowOrigin = lightPos - normal * originOffset;
+        float nearPlane = originOffset + 0.001f;
+        ShadowParams params;
+        params.lightView = glm::lookAt(shadowOrigin, shadowOrigin + normal, viewUp);
+        params.lightProjection = glm::perspective(halfAngle * 2.0f, 1.0f,
+                                                  nearPlane, originOffset + clampedRange);
+        params.bias = 0.0005f;
+        params.farPlane = originOffset + clampedRange;
+        return params;
+    }
+
     glm::mat4 lightView = glm::lookAt(lightPos, lightPos + normal, viewUp);
     float projectionPadding = std::max(0.35f, clampedRange * 0.28f);
     float halfWidth = std::max(

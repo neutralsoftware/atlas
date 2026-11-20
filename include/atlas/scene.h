@@ -65,7 +65,7 @@ struct VolumetricLighting {
  * @brief Configuration values for bloom post-processing.
  */
 struct LightBloom {
-    float threshold = 0.8f;
+    float threshold = 2.0f;
     /**
      * @brief Radius of the blur kernel applied to bright fragments.
      */

@@ -462,6 +462,7 @@ class RenderTarget : public Renderable {
     Texture gMaterial;
     Texture gOptical;
     Texture gMedium;
+    Texture gEmission;
 
     /**
      * @brief Multisampled texture for anti-aliasing.

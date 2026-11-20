@@ -20,6 +20,7 @@
 #include <algorithm>
 #include <cmath>
 #include <cstdint>
+#include <cstddef>
 #include <cstring>
 #include <limits>
 #include <memory>
@@ -313,6 +314,16 @@ void collectDdgiObjectsFromQueue(const std::vector<Renderable *> &renderables,
 } // namespace
 
 void photon::GlobalIllumination::init() {
+    static_assert(sizeof(GPUDirectionalLight) == 48);
+    static_assert(sizeof(GPUPointLight) == 80);
+    static_assert(sizeof(GPUSpotLight) == 80);
+    static_assert(sizeof(GPUAreaLight) == 112);
+    static_assert(sizeof(DDGITriangle) == 256);
+    static_assert(offsetof(DDGITriangle, materialID) == 240);
+    static_assert(sizeof(DDGIMaterial) == 176);
+    static_assert(offsetof(DDGIMaterial, albedo) == 48);
+    static_assert(offsetof(DDGIMaterial, emissiveColor) == 64);
+    static_assert(offsetof(DDGIMaterial, optical) == 80);
     ComputeShader ddgiRaytracing =
         ComputeShader::fromDefaultShader(AtlasComputeShader::DDGI);
     ddgiRaytracing.compile();
@@ -324,6 +335,17 @@ void photon::GlobalIllumination::init() {
     giRaytracingPipeline->setShaderProgram(giRaytracingShader->shader);
     giRaytracingPipeline->setComputeThreadgroupSize(64, 1, 1);
     giRaytracingPipeline->build();
+#ifdef VULKAN
+    auto shadows = ComputeShader::fromDefaultShader(AtlasComputeShader::DDGI_SHADOWS);
+    shadows.compile();
+    shadowShader = std::make_shared<ShaderProgram>();
+    shadowShader->computeShader = shadows;
+    shadowShader->compile();
+    shadowPipeline = opal::Pipeline::create();
+    shadowPipeline->setShaderProgram(shadowShader->shader);
+    shadowPipeline->setComputeThreadgroupSize(8, 8, 1);
+    shadowPipeline->build();
+#endif
 
     ComputeShader ddgiWrite =
         ComputeShader::fromDefaultShader(AtlasComputeShader::DDGI_WRITE);
@@ -396,9 +418,10 @@ void photon::GlobalIllumination::updateProbeLayout() {
         collectDdgiObjectsFromQueue(Window::mainWindow->firstRenderables,
                                     seenDdgiObjects, ddgiObjects);
     }
-    const uint64_t layoutSignature = computeDdgiLayoutSignature(
-        ddgiObjects, std::max(0.001f, probeSpacing),
-        probeSpace->probeResolution, probeSpace->textureBorderSize);
+    const uint64_t layoutSignature = hashCombineU64(
+        computeDdgiLayoutSignature(ddgiObjects, std::max(0.001f, probeSpacing),
+                                   probeSpace->probeResolution, probeSpace->textureBorderSize),
+        static_cast<uint64_t>(std::max(1, raysPerProbe)));
     if (hasCachedLayoutSignature && cachedLayoutSignature == layoutSignature &&
         probeRadianceBuffer != nullptr && irradianceMap != nullptr &&
         irradianceMapPrev != nullptr && distanceMap != nullptr &&
@@ -750,6 +773,11 @@ void photon::GlobalIllumination::updateProbeLayout() {
 
 void photon::GlobalIllumination::render(
     const std::shared_ptr<opal::CommandBuffer> &commandBuffer) {
+    shadowVisibilityReady = false;
+    if (probeSpace != nullptr && probeRadianceCapacity !=
+            probeSpace->totalProbes() * std::max(1, raysPerProbe)) {
+        updateProbeLayout();
+    }
     if (commandBuffer == nullptr || giPipeline == nullptr ||
         giRaytracingPipeline == nullptr || probeSpace == nullptr ||
         probeRadianceBuffer == nullptr || irradianceMap == nullptr ||
@@ -1028,7 +1056,7 @@ void photon::GlobalIllumination::render(
     }
     std::shared_ptr<opal::Texture> skyboxTexture = fallbackSkybox;
     int useSkybox = 0;
-    glm::vec3 skyColor(0.12f, 0.14f, 0.18f);
+    glm::vec3 skyColor(0.0f);
     if (scene != nullptr) {
         auto skybox = scene->getSkybox();
         if (skybox != nullptr && skybox->cubemap.texture != nullptr) {
@@ -1046,6 +1074,10 @@ void photon::GlobalIllumination::render(
     giRaytracingPipeline->bindTexture("previousIrradiance",
                                       irradianceMapPrev->texture,
                                       kDdgiPreviousIrradianceTextureUnit);
+
+#ifdef VULKAN
+    giRaytracingPipeline->bindTexture("previousDistance", distanceMapPrev->texture, 62);
+#endif
 
     giRaytracingPipeline->setUniform3f(
         "ps.origin", probeSpace->originWorldSpace.x,
@@ -1137,6 +1169,39 @@ void photon::GlobalIllumination::render(
                             static_cast<unsigned int>(dispatchHeight), 1);
     commandBuffer->computeBarrier();
 
+#ifdef VULKAN
+    shadowVisibilityReady = false;
+    auto gbuffer = Window::mainWindow->getGBuffer();
+    if (shadowPipeline && gbuffer && sceneTLAS && sceneTLAS->isBuilt) {
+        int width = gbuffer->getWidth();
+        int height = gbuffer->getHeight();
+        if (!shadowVisibility || shadowVisibility->creationData.width != width ||
+            shadowVisibility->creationData.height != height * 3) {
+            shadowVisibility = std::make_shared<Texture>(Texture::create(
+                width, height * 3, opal::TextureFormat::Rgba16F,
+                opal::TextureDataFormat::Rgba, TextureType::Color));
+        }
+        shadowPipeline->bindTexture("shadowPositions", gbuffer->gPosition.texture, 63);
+        shadowPipeline->bindTexture("shadowNormals", gbuffer->gNormal.texture, 64);
+        shadowPipeline->bindTexture("shadowOutput", shadowVisibility->texture, 65);
+        shadowPipeline->bindBufferData("sc", &sceneCounts, sizeof(sceneCounts));
+        shadowPipeline->bindBufferData("directionalLights", directionalLights.empty() ? &fallbackDirectional : directionalLights.data(),
+            std::max(size_t(1), directionalLights.size()) * sizeof(GPUDirectionalLight));
+        shadowPipeline->bindBufferData("pointLights", pointLights.empty() ? &fallbackPoint : pointLights.data(),
+            std::max(size_t(1), pointLights.size()) * sizeof(GPUPointLight));
+        shadowPipeline->bindBufferData("spotLights", spotLights.empty() ? &fallbackSpot : spotLights.data(),
+            std::max(size_t(1), spotLights.size()) * sizeof(GPUSpotLight));
+        shadowPipeline->bindBufferData("areaLights", areaLights.empty() ? &fallbackArea : areaLights.data(),
+            std::max(size_t(1), areaLights.size()) * sizeof(GPUAreaLight));
+        shadowPipeline->setUniform1f("rt.normalBias", std::min(normalBias, 0.002f));
+        shadowPipeline->setUniform1f("rt.maxRayDistance", Window::mainWindow->getCamera()->farClip);
+        commandBuffer->bindPipeline(shadowPipeline);
+        commandBuffer->bindInstanceAccelerationStructure(sceneTLAS, 10);
+        commandBuffer->dispatch(width, height, 1);
+        commandBuffer->computeBarrier();
+        shadowVisibilityReady = true;
+    }
+#endif
     frameIndex = std::min(frameIndex + 1, 1 << 30);
 }
 

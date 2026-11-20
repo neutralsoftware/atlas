@@ -298,7 +298,7 @@ RenderTarget::RenderTarget(Window &window, RenderTargetType type,
         fb = opal::Framebuffer::create(width, height);
 
         auto positionTex = opal::Texture::create(
-            opal::TextureType::Texture2D, opal::TextureFormat::Rgba16F, width,
+            opal::TextureType::Texture2D, opal::TextureFormat::Rgba32F, width,
             height, opal::TextureDataFormat::Rgba, nullptr, 1);
         positionTex->setFilterMode(opal::TextureFilterMode::Nearest,
                                    opal::TextureFilterMode::Nearest);
@@ -422,6 +422,23 @@ RenderTarget::RenderTarget(Window &window, RenderTargetType type,
         gMedium.creationData.width = scaledWidth;
         gMedium.creationData.height = scaledHeight;
         gMedium.type = TextureType::Color;
+
+        auto emissionTex = opal::Texture::create(
+            opal::TextureType::Texture2D, opal::TextureFormat::Rgba16F, width,
+            height, opal::TextureDataFormat::Rgba, nullptr, 1);
+        emissionTex->setFilterMode(opal::TextureFilterMode::Nearest,
+                                   opal::TextureFilterMode::Nearest);
+        emissionTex->setWrapMode(opal::TextureAxis::S, opal::TextureWrapMode::ClampToEdge);
+        emissionTex->setWrapMode(opal::TextureAxis::T, opal::TextureWrapMode::ClampToEdge);
+        opal::Attachment emissionAttachment;
+        emissionAttachment.texture = emissionTex;
+        emissionAttachment.type = opal::Attachment::Type::Color;
+        fb->addAttachment(emissionAttachment);
+        gEmission.texture = emissionTex;
+        gEmission.id = emissionTex->textureID;
+        gEmission.creationData.width = scaledWidth;
+        gEmission.creationData.height = scaledHeight;
+        gEmission.type = TextureType::Color;
 
 #ifdef VULKAN
         const unsigned int depthMipLevels = 1;

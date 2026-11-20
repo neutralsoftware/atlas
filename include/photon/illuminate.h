@@ -119,6 +119,7 @@ class PathTracing {
 
     /** @brief Rays traced per pixel each dispatch. */
     int raysPerPixel = 4;
+    int minimumMotionSamples = 8;
     /** @brief Maximum bounce count for indirect transport. */
     int maxBounces = 8;
     /** @brief Scalar multiplier for indirect lighting contribution. */
@@ -253,6 +254,10 @@ class GlobalIllumination {
     std::shared_ptr<opal::PrimitiveAccelerationStructure> sceneBLAS;
     std::shared_ptr<opal::InstanceAccelerationStructure> sceneTLAS;
     bool accelerationStructureDirty = false;
+    std::shared_ptr<ShaderProgram> shadowShader;
+    std::shared_ptr<opal::Pipeline> shadowPipeline;
+    std::shared_ptr<Texture> shadowVisibility;
+    bool shadowVisibilityReady = false;
 
     /** @brief Active probe-space definition used for DDGI dispatch. */
     std::shared_ptr<ProbeSpace> probeSpace;
@@ -265,7 +270,7 @@ class GlobalIllumination {
     /**
      * @brief GPU-packed material description consumed by DDGI compute shaders.
      */
-    struct DDGIMaterial {
+    struct alignas(16) DDGIMaterial {
         /** @brief Material identifier used by triangles. */
         int materialID;
         /** @brief Albedo texture slot index, or -1 if unused. */
@@ -289,7 +294,7 @@ class GlobalIllumination {
         float emissiveIntensity;
 
         /** @brief Base albedo color. */
-        glm::vec3 albedo;
+        alignas(16) glm::vec3 albedo;
         float _pad0;
 
         /** @brief Emissive color. */
@@ -349,14 +354,14 @@ class GlobalIllumination {
     std::vector<std::shared_ptr<opal::Texture>> materialTextures;
 
     /** @brief Baseline spacing scalar used when fitting probe grids. */
-    float probeSpacing = 0.9f;
+    float probeSpacing = 0.3f;
 
     /** @brief Rays traced per probe update. */
-    int raysPerProbe = 48;
+    int raysPerProbe = 128;
     /** @brief Maximum ray distance for DDGI probe tracing. */
     float maxRayDistance = 20.f;
     /** @brief Surface normal bias used to reduce self-intersections. */
-    float normalBias = 0.05;
+    float normalBias = 0.01f;
     /** @brief Temporal blending factor for probe history accumulation. */
     float hysteresis = 0.85;
     /** @brief Whether DDGI tracing evaluates normal maps. */
@@ -364,7 +369,7 @@ class GlobalIllumination {
     /** @brief Strength applied to sampled normal maps when enabled. */
     float normalMapStrength = 1.0f;
     /** @brief Updates one probe group every N frames for staggered updates. */
-    int probeUpdateStride = 4;
+    int probeUpdateStride = 1;
     /** @brief Monotonic frame counter used by DDGI dispatch logic. */
     int frameIndex = 0;
     /** @brief Cached hash to detect when probe layout must be rebuilt. */

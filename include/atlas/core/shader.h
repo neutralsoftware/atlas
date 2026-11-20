@@ -115,6 +115,7 @@ enum class AtlasComputeShader {
     /** @brief Compute shader that writes DDGI probe irradiance into an atlas.
      */
     DDGI_WRITE,
+    DDGI_SHADOWS,
     /** @brief Compute shader used for path tracing output generation. */
     PathTracer,
     PathDenoiser,

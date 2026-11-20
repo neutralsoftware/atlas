@@ -16,6 +16,8 @@
 #include "aurora/terrain.h"
 #include "hydra/atmosphere.h"
 #include "hydra/fluid.h"
+#include <cstdlib>
+#include <string_view>
 #include <iostream>
 #include <memory>
 
@@ -197,14 +199,29 @@ class MainScene : public Scene {
 
         this->setUseAtmosphereSkybox(false);
 
-        window.enableGlobalIllumination();
+        const char *rendererSetting = std::getenv("ATLAS_CORNELL_RENDERER");
+        const std::string_view renderer =
+            rendererSetting ? rendererSetting : "path";
+        if (renderer == "ddgi") {
+            window.enableGlobalIllumination();
+            return;
+        }
+        if (renderer == "deferred") {
+            return;
+        }
+        if (renderer != "path") {
+            std::cerr
+                << "ATLAS_CORNELL_RENDERER must be path, ddgi, or deferred\n";
+            return;
+        }
+        window.enablePathTracing();
 
         if (!window.usePathTracing || !window.pathTracer) {
             std::cerr << window.getPathTracingError() << '\n';
             return;
         }
         // window.pathTracer->pathTracingTexture->display(window);
-        // window.pathTracer->raysPerPixel = 1;
+        window.pathTracer->raysPerPixel = 1;
     }
 };
 
@@ -212,7 +229,7 @@ int main() {
     Window window({.title = "My Window",
                    .width = 1600,
                    .height = 1200,
-                   .renderScale = 5.0f,
+                   .renderScale = 1.0f,
                    .mouseCaptured = true,
                    .multisampling = false,
                    .ssaoScale = 0.4f});

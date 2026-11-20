@@ -328,7 +328,7 @@ void photon::PathTracing::init() {
 
     for (auto &texture : pathTracingHistoryTextures) {
         texture = std::make_shared<Texture>(Texture::create(
-            outputWidth, outputHeight, opal::TextureFormat::Rgba32F,
+            outputWidth, outputHeight, opal::TextureFormat::Rgba16F,
             opal::TextureDataFormat::Rgba, TextureType::Color));
     }
     for (auto &texture : pathTracingHistoryGuides) {
@@ -338,7 +338,7 @@ void photon::PathTracing::init() {
     }
     for (auto &texture : pathTracingHistoryMoments) {
         texture = std::make_shared<Texture>(Texture::create(
-            outputWidth, outputHeight, opal::TextureFormat::Rgba32F,
+            outputWidth, outputHeight, opal::TextureFormat::Rgba16F,
             opal::TextureDataFormat::Rgba, TextureType::Color));
     }
     for (auto &texture : directReservoirSamples) {
@@ -380,7 +380,7 @@ void photon::PathTracing::resizeOutput(int width, int height) {
     outputHeight = newHeight;
     for (auto &texture : pathTracingHistoryTextures) {
         texture = std::make_shared<Texture>(Texture::create(
-            outputWidth, outputHeight, opal::TextureFormat::Rgba32F,
+            outputWidth, outputHeight, opal::TextureFormat::Rgba16F,
             opal::TextureDataFormat::Rgba, TextureType::Color));
     }
     for (auto &texture : pathTracingHistoryGuides) {
@@ -390,7 +390,7 @@ void photon::PathTracing::resizeOutput(int width, int height) {
     }
     for (auto &texture : pathTracingHistoryMoments) {
         texture = std::make_shared<Texture>(Texture::create(
-            outputWidth, outputHeight, opal::TextureFormat::Rgba32F,
+            outputWidth, outputHeight, opal::TextureFormat::Rgba16F,
             opal::TextureDataFormat::Rgba, TextureType::Color));
     }
     for (auto &texture : directReservoirSamples) {
@@ -1641,10 +1641,9 @@ bool photon::PathTracing::render(
     const int pixelStride = 1;
     const int effectiveSamples = cinematicMode
         ? std::min(8, raysPerPixel - accumulatedSamples)
-        : (interactive ? 1 : raysPerPixel);
-    const int effectiveBounces =
-        interactive ? std::min(this->maxBounces, causticGeometryPresent ? 6 : 2)
-                    : this->maxBounces;
+        : std::max(std::max(raysPerPixel, 1),
+                   (interactive || frameIndex == 0) ? std::clamp(minimumMotionSamples, 1, 64) : 1);
+    const int effectiveBounces = this->maxBounces;
     pathTracingPipeline->setUniform1i("sceneData.cinematicMode", cinematicMode ? 1 : 0);
     pathTracingPipeline->setUniform1i("sceneData.accumulatedSamples", accumulatedSamples);
     pathTracingPipeline->setUniform1i("sceneData.beamSegmentLimit", maxBounces);

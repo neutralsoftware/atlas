@@ -54,8 +54,8 @@ float2 ddgiAtlasUV(uint probeIndex, float3 dirWS, ProbeSpace ps, uint atlasW,
 }
 
 float4 sampleDDGITextureBilinear(Texture2D<float4> tex, float2 uv) {
-    uint w = textureSize(tex).x;
-    uint h = textureSize(tex).y;
+    uint w, h;
+    tex.GetDimensions(w, h);
     if (w == 0u || h == 0u) {
         return float4(0.0f);
     }
@@ -100,8 +100,8 @@ float3 sampleDDGIDirectionalRadiance(Texture2D<float4> ddgiTexture,
     if (counts.x == 0u || counts.y == 0u || counts.z == 0u)
         return float3(0.0);
 
-    uint atlasW = textureSize(ddgiTexture).x;
-    uint atlasH = textureSize(ddgiTexture).y;
+    uint atlasW, atlasH;
+    ddgiTexture.GetDimensions(atlasW, atlasH);
     if (atlasW == 0u || atlasH == 0u) {
         return float3(0.0);
     }
@@ -114,9 +114,11 @@ float3 sampleDDGIDirectionalRadiance(Texture2D<float4> ddgiTexture,
         directionLen > 1e-6f ? directionWS / float3(directionLen) : safeNormal;
 
     float3 safeSpacing = max(ps.spacing, float3(1e-4f));
-    float spacingScale =
-        max(max(safeSpacing.x, max(safeSpacing.y, safeSpacing.z)), 1e-4f);
     float3 grid = (posWS - ps.origin) / safeSpacing;
+    float3 lastProbe = max(float3(counts) - 1.0, 0.0);
+    float3 outside = max(-grid, grid - lastProbe);
+    if (any(outside > 0.5)) return float3(0.0);
+    float volumeWeight = 1.0 - smoothstep(0.0, 0.5, max(max(outside.x, outside.y), outside.z));
 
     if (counts.x < 2u || counts.y < 2u || counts.z < 2u) {
         float3 maxCoord = max(float3(0.0f), float3((float)counts.x - 1.0f,
@@ -151,7 +153,7 @@ float3 sampleDDGIDirectionalRadiance(Texture2D<float4> ddgiTexture,
         float3 nearestIrr =
             all(isfinite(nearestSample.xyz)) ? nearestSample.xyz : float3(0.0f);
         nearestIrr *= nearestValidity * nearestVisibility;
-        return max(nearestIrr, float3(0.0f));
+        return max(nearestIrr, float3(0.0f)) * volumeWeight;
     }
 
     float3 maxGrid =
@@ -190,11 +192,7 @@ float3 sampleDDGIDirectionalRadiance(Texture2D<float4> ddgiTexture,
                                                     : float3(0.0f, 1.0f, 0.0f);
                 float frontW = max(dot(safeNormal, dirToProbe), 0.0f);
                 float backfaceW = lerp(0.180000007, 1.0f, frontW * frontW);
-                float distNorm = sDist / spacingScale;
-                float distNorm2 = distNorm * distNorm;
-                float distanceW = 1.0f / (1.0f + distNorm2 * 0.850000024);
-
-                float w = trilinearW * backfaceW * distanceW;
+                float w = trilinearW * backfaceW;
 
                 float4 irrSample = sampleProbeDirectionalRadiance(
                     ddgiTexture, ps, pIndex, atlasW, atlasH, safeDirection);
@@ -223,7 +221,7 @@ float3 sampleDDGIDirectionalRadiance(Texture2D<float4> ddgiTexture,
                 float weightedW = w * validityW * visibility;
                 result += irr * weightedW;
                 weightSum += weightedW;
-                float noBackfaceW = trilinearW * distanceW * validityW *
+                float noBackfaceW = trilinearW * validityW *
                                     visibility;
                 resultNoBackface += irr * noBackfaceW;
                 weightSumNoBackface += noBackfaceW;
@@ -232,10 +230,10 @@ float3 sampleDDGIDirectionalRadiance(Texture2D<float4> ddgiTexture,
     }
 
     if (weightSum > 1e-5f) {
-        return result / weightSum;
+        return result / weightSum * volumeWeight * smoothstep(0.0, 0.05, weightSum);
     }
     if (weightSumNoBackface > 1e-5f) {
-        return resultNoBackface / weightSumNoBackface;
+        return float3(0.0);
     }
 
     return float3(0.0f);

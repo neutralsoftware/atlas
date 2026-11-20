@@ -62,7 +62,7 @@ struct Triangle {
     float4 b1;
     float4 b2;
     int materialID;
-    int3 padding;
+    int padding[3];
 };
 
 struct SceneCounts {
@@ -160,25 +160,13 @@ Sampler2D materialTextures[48];
 [[vk::binding(60, 2)]]
 SamplerCube skybox;
 [[vk::binding(61, 2)]]
-Sampler2D previousIrradiance;
+Texture2D<float4> previousIrradiance;
+[[vk::binding(62, 2)]]
+Texture2D<float4> previousDistance;
 
-uint hashValue(uint value) {
-    value = (value ^ 61u) ^ (value >> 16);
-    value *= 9u;
-    value ^= value >> 4;
-    value *= 0x27d4eb2du;
-    return value ^ (value >> 15);
-}
+#include "utils/ddgi.slang"
 
-float3 sphericalFibonacci(uint index, uint count, uint frameIndex) {
-    float value = float(index) + 0.5;
-    float phi = 6.28318530718 * frac(value / 1.61803398875);
-    phi += float(hashValue(frameIndex * 1471u + 5743u) & 0xFFFFu) / 65536.0 *
-           6.28318530718;
-    float cosine = 1.0 - 2.0 * value / float(max(count, 1u));
-    float sine = sqrt(max(0.0, 1.0 - cosine * cosine));
-    return float3(sine * cos(phi), cosine, sine * sin(phi));
-}
+#include "ddgi_sampling.slang"
 
 float3 probePosition(uint index) {
     uint3 counts = max(uint3(ps.probeCount), uint3(1));
@@ -204,28 +192,74 @@ float4 sampleMaterialTexture(int index, float2 uv) {
         frac(uv), 0.0);
 }
 
-float3 evaluateLights(float3 position, float3 normal) {
+float lightVisibility(float3 position, float3 normal, float3 direction, float distance) {
+    float bias = max(rt.normalBias, 0.0001);
+    if (distance <= 2.0 * bias) return 1.0;
+    RayDesc ray;
+    ray.Origin = position + normal * bias;
+    ray.Direction = direction;
+    ray.TMin = 0.0001;
+    ray.TMax = distance - bias;
+    RayQuery<RAY_FLAG_FORCE_OPAQUE | RAY_FLAG_ACCEPT_FIRST_HIT_AND_END_SEARCH> query;
+    query.TraceRayInline(sceneAS, RAY_FLAG_FORCE_OPAQUE | RAY_FLAG_ACCEPT_FIRST_HIT_AND_END_SEARCH, 0xFF, ray);
+    while (query.Proceed()) {}
+    return query.CommittedStatus() == COMMITTED_TRIANGLE_HIT ? 0.0 : 1.0;
+}
+
+float3 evaluateLights(float3 position, float3 normal, uint seed) {
     float3 radiance = 0.0;
     for (uint index = 0; index < sc.directionalLightCount; ++index) {
         float3 direction = normalize(-directionalLights[index].direction);
         radiance += directionalLights[index].diffuse *
-                    directionalLights[index].intensity *
-                    max(dot(normal, direction), 0.0);
+                    max(directionalLights[index].intensity, 0.0) *
+                    max(dot(normal, direction), 0.0) *
+                    lightVisibility(position, normal, direction, rt.maxRayDistance);
     }
     for (uint index = 0; index < sc.pointLightCount; ++index) {
-        float3 delta = pointLights[index].position - position;
+        PointLight light = pointLights[index];
+        float3 delta = light.position - position;
         float distanceSquared = max(dot(delta, delta), 1e-4);
         float distance = sqrt(distanceSquared);
-        if (distance >= pointLights[index].radius) {
-            continue;
-        }
-        float attenuation =
-            1.0 / max(pointLights[index].constant0 +
-                          pointLights[index].linear * distance +
-                          pointLights[index].quadratic * distanceSquared,
-                      1e-4);
-        radiance += pointLights[index].diffuse * pointLights[index].intensity *
-                    max(dot(normal, delta / distance), 0.0) * attenuation;
+        float3 direction = delta / distance;
+        float fade = 1.0 - smoothstep(light.radius * 0.75, max(light.radius, 0.001), distance);
+        float attenuation = 1.0 / max(light.constant0 + light.linear * distance +
+                                      light.quadratic * distanceSquared, 1e-4);
+        radiance += light.diffuse * max(light.intensity, 0.0) * fade * attenuation *
+                    max(dot(normal, direction), 0.0) *
+                    lightVisibility(position, normal, direction, distance);
+    }
+    for (uint index = 0; index < sc.spotLightCount; ++index) {
+        SpotLight light = spotLights[index];
+        float3 delta = light.position - position;
+        float distanceSquared = max(dot(delta, delta), 1e-4);
+        float distance = sqrt(distanceSquared);
+        float3 direction = delta / distance;
+        float cone = saturate((dot(-direction, normalize(light.direction)) - light.outerCutOff) /
+                              max(light.cutOff - light.outerCutOff, 1e-4));
+        float range = max(light.range, 0.001);
+        float fade = 1.0 - smoothstep(range * 0.75, range, distance);
+        radiance += light.diffuse * max(light.intensity, 0.0) * cone * fade /
+                    distanceSquared * max(dot(normal, direction), 0.0) *
+                    lightVisibility(position, normal, direction, distance);
+    }
+    for (uint index = 0; index < sc.areaLightCount; ++index) {
+        AreaLight light = areaLights[index];
+        uint state = hashValue(seed ^ (index * 747796405u));
+        float2 sample = float2(float(state & 65535u), float(hashValue(state) & 65535u)) / 65536.0 - 0.5;
+        float3 right = normalize(light.right);
+        float3 up = normalize(light.up);
+        float3 delta = light.position + right * sample.x * light.size.x +
+                       up * sample.y * light.size.y - position;
+        float distanceSquared = max(dot(delta, delta), 1e-4);
+        float distance = sqrt(distanceSquared);
+        float3 direction = delta / distance;
+        float cosine = dot(normalize(cross(right, up)), -direction);
+        cosine = light.castsBothSides != 0 ? abs(cosine) : max(cosine, 0.0);
+        if (cosine < cos(light.angle * 0.01745329252)) continue;
+        float area = max(light.size.x * light.size.y, 0.0);
+        radiance += light.diffuse * max(light.intensity, 0.0) * cosine * area /
+                    distanceSquared * max(dot(normal, direction), 0.0) *
+                    lightVisibility(position, normal, direction, distance);
     }
     return radiance;
 }
@@ -259,7 +293,7 @@ void computeMain(uint3 dispatchThreadID: SV_DispatchThreadID) {
     while (query.Proceed()) {
     }
     float3 radiance = skyRadiance(direction);
-    float distance = -1.0;
+    float distance = rt.maxRayDistance;
     if (query.CommittedStatus() == COMMITTED_TRIANGLE_HIT) {
         uint primitive = query.CommittedPrimitiveIndex();
         if (primitive < sc.triCount) {
@@ -270,6 +304,11 @@ void computeMain(uint3 dispatchThreadID: SV_DispatchThreadID) {
                                       triangle.n1.xyz * weights.y +
                                       triangle.n2.xyz * weights.z);
             float3 position = origin + direction * query.CommittedRayT();
+            if (dot(normal, direction) >= 0.0) {
+                probeRadianceOut[probeIndex * raysPerProbe + localRay] =
+                    float4(0.0, 0.0, 0.0, -query.CommittedRayT());
+                return;
+            }
             uint materialIndex = uint(max(triangle.materialID, 0));
             if (materialIndex < sc.materialCount) {
                 Material material = materials[materialIndex];
@@ -282,17 +321,75 @@ void computeMain(uint3 dispatchThreadID: SV_DispatchThreadID) {
                         sampleMaterialTexture(material.albedoTextureIndex, uv)
                             .xyz;
                 }
-                float2 previousUv = frac(direction.xz * 0.5 + 0.5);
-                float3 previous =
-                    previousIrradiance.SampleLevel(previousUv, 0.0).xyz;
+                float3 previous = rt.frameIndex >= max(rt.probeUpdateStride, 1u)
+                    ? sampleDDGIIrradiance(previousIrradiance, previousDistance, ps,
+                                          position + normal * rt.normalBias, normal)
+                    : float3(0.0);
+                float metallic = saturate(material.metallic);
+                if (material.metallicTextureIndex >= 0)
+                    metallic *= sampleMaterialTexture(material.metallicTextureIndex, uv).x;
+                float3 diffuse = clamp(albedo, 0.0, 0.99) * (1.0 - metallic) *
+                                 (1.0 - saturate(material.optical.y)) / 3.14159265359;
                 radiance = material.emissiveColor * material.emissiveIntensity +
-                           albedo * evaluateLights(position, normal) *
-                               (1.0 / 3.14159265359) +
-                           previous * 0.15;
+                           diffuse * (evaluateLights(position, normal,
+                               hashValue(rayIndex)) + previous);
             }
             distance = query.CommittedRayT();
         }
     }
     probeRadianceOut[probeIndex * raysPerProbe + localRay] =
         float4(max(radiance, 0.0), distance);
+}
+
+[[vk::binding(63, 2)]] Texture2D<float4> shadowPositions;
+[[vk::binding(64, 2)]] Texture2D<float4> shadowNormals;
+[[vk::binding(65, 2)]] RWTexture2D<float4> shadowOutput;
+
+[shader("compute")]
+[numthreads(8, 8, 1)]
+void shadowMain(uint3 gid : SV_DispatchThreadID) {
+    uint width, height;
+    shadowPositions.GetDimensions(width, height);
+    if (gid.x >= width || gid.y >= height) return;
+    float3 position = shadowPositions.Load(int3(gid.xy, 0)).xyz;
+    float3 normal = shadowNormals.Load(int3(gid.xy, 0)).xyz;
+    float visibility[12];
+    for (uint i = 0; i < 12; ++i) visibility[i] = 1.0;
+    if (dot(normal, normal) > 0.25) {
+        normal = normalize(normal);
+        for (uint i = 0; i < min(sc.directionalLightCount, 2u); ++i)
+            visibility[i] = lightVisibility(position, normal, normalize(-directionalLights[i].direction), rt.maxRayDistance);
+        for (uint i = 0; i < min(sc.pointLightCount, 4u); ++i) {
+            float3 delta = pointLights[i].position - position;
+            visibility[2+i] = lightVisibility(position, normal, normalize(delta), length(delta));
+        }
+        for (uint i = 0; i < min(sc.spotLightCount, 2u); ++i) {
+            float3 delta = spotLights[i].position - position;
+            visibility[6+i] = lightVisibility(position, normal, normalize(delta), length(delta));
+        }
+        for (uint i = 0; i < min(sc.areaLightCount, 2u); ++i) {
+            AreaLight light = areaLights[i];
+            float sum = 0.0;
+            float weight = 0.0;
+            for (uint y = 0; y < 8; ++y) {
+                for (uint x = 0; x < 8; ++x) {
+                    float2 uv = (float2(x,y) + 0.5) / 8.0 - 0.5;
+                    float3 delta = light.position + normalize(light.right) * uv.x * light.size.x +
+                                   normalize(light.up) * uv.y * light.size.y - position;
+                    float distanceSquared = max(dot(delta,delta), 1e-6);
+                    float3 direction = delta * rsqrt(distanceSquared);
+                    float cosine = dot(normalize(cross(light.right,light.up)), -direction);
+                    cosine = light.castsBothSides != 0 ? abs(cosine) : max(cosine,0.0);
+                    float w = cosine >= cos(light.angle * 0.01745329252)
+                        ? max(dot(normal,direction),0.0) * cosine / distanceSquared : 0.0;
+                    sum += w * lightVisibility(position, normal, direction, sqrt(distanceSquared));
+                    weight += w;
+                }
+            }
+            visibility[8+i] = weight > 1e-8 ? sum / weight : 1.0;
+        }
+    }
+    for (uint tile = 0; tile < 3; ++tile)
+        shadowOutput[uint2(gid.x, gid.y + tile * height)] = float4(
+            visibility[tile*4],visibility[tile*4+1],visibility[tile*4+2],visibility[tile*4+3]);
 }

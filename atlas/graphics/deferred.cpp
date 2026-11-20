@@ -206,6 +206,7 @@ void Window::enableGlobalIllumination() {
         return;
     }
     usesGlobalIllumination = true;
+    realtimePBRFeatureFlags |= photon::IndirectLighting;
     ddgiSystem = std::make_shared<photon::GlobalIllumination>();
     ddgiSystem->sampleNormalMaps = false;
     ddgiSystem->init();
@@ -573,6 +574,12 @@ void Window::deferredRendering(
     lightPipeline->bindTexture2D("gMaterial", this->gBuffer->gMaterial.id, 3);
     lightPipeline->bindTexture2D("gOptical", this->gBuffer->gOptical.id, 18);
     lightPipeline->bindTexture2D("gMedium", this->gBuffer->gMedium.id, 19);
+    lightPipeline->bindTexture2D("gEmission", this->gBuffer->gEmission.id, 20);
+    bool rayShadowsReady = usesGlobalIllumination && ddgiSystem &&
+                           ddgiSystem->shadowVisibilityReady && ddgiSystem->shadowVisibility;
+    lightPipeline->setUniform1i("uniforms.useRayTracedShadows", rayShadowsReady ? 1 : 0);
+    lightPipeline->bindTexture("rayShadowMap", rayShadowsReady
+        ? ddgiSystem->shadowVisibility->texture : this->gBuffer->gEmission.texture, 21);
 
     int boundTextures = 4;
 

@@ -1287,7 +1287,7 @@ computeMain(uint3 dispatchThreadID
     float2 primaryUv = (float2(gid) + 0.5) / float2(width, height);
     float3 primaryDirection = float3(0.0, 0.0, 1.0);
     uint samples = max(sceneData.raysPerPixel, 1u);
-    uint iterations = samples + (sceneData.cinematicMode != 0 ? 1u : 0u);
+    uint iterations = samples + 1u;
     for (uint sampleIndex = 0; sampleIndex < iterations; ++sampleIndex) {
         float2 jitter =
             sampleIndex == 0
@@ -1301,7 +1301,7 @@ computeMain(uint3 dispatchThreadID
             safeNormal(world.xyz / world.w - cam.camPos, float3(0.0, 0.0, 1.0));
         SurfaceHit sampleHit;
         float3 radiance = samplePath(cam.camPos, direction, state, sampleHit);
-        if (sceneData.cinematicMode == 0 || sampleIndex > 0) {
+        if (sampleIndex > 0) {
             color += radiance;
         }
         if (sampleIndex == 0) {
@@ -1315,10 +1315,10 @@ computeMain(uint3 dispatchThreadID
     float previousWeight =
         sceneData.frameIndex > 0
             ? min(previous.w,
-                  float(max(sceneData.accumulationFrameLimit, 1u) - 1u))
+                  float(clamp(sceneData.accumulationFrameLimit, 1u, 2048u) - 1u))
             : 0.0;
     float historyLength = min(previousWeight + 1.0,
-                              float(max(sceneData.accumulationFrameLimit, 1u)));
+                              float(clamp(sceneData.accumulationFrameLimit, 1u, 2048u)));
     float sampleWeight = sceneData.cinematicMode != 0 ? float(samples) : 1.0;
     if (sceneData.cinematicMode != 0) {
         previousWeight = sceneData.frameIndex > 0 ? float(sceneData.accumulatedSamples) : 0.0;
@@ -1361,7 +1361,7 @@ computeMain(uint3 dispatchThreadID
     if (previousWeight == 0.0) {
         moments = 0.0;
     }
-    float currentLuminance = dot(color, float3(0.2126, 0.7152, 0.0722));
+    float currentLuminance = clamp(dot(color, float3(0.2126, 0.7152, 0.0722)), 0.0, 255.0);
     float mean = (moments.x * previousWeight + currentLuminance * sampleWeight) /
                  max(previousWeight + sampleWeight, 1.0);
     float meanSquared =

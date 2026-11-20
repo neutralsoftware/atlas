@@ -41,6 +41,13 @@
       "entry": "computeMain",
       "profile": "spirv_1_5",
       "symbol": "DDGI_WRITE"
+    },
+    {
+      "source": "photon/vulkan/ddgi.slang",
+      "stage": "compute",
+      "entry": "shadowMain",
+      "profile": "spirv_1_5",
+      "symbol": "DDGI_SHADOWS"
     }
   ]
 }

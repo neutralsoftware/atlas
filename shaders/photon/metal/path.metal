@@ -74,7 +74,7 @@ kernel void main0(texture2d<float, access::write> outTex [[texture(0)]],
     DirectReservoir directReservoir = emptyDirectReservoir();
 
     uint spp = max(sceneData.raysPerPixel, 1u);
-    uint iterations = spp + (sceneData.cinematicMode != 0 ? 1u : 0u);
+    uint iterations = spp + 1u;
     for (uint s = 0; s < iterations; ++s) {
         uint cameraRng = seedBase(gid, w, sceneData.frameIndex,
                                   s + 0x9E3779B9u);
@@ -116,7 +116,7 @@ kernel void main0(texture2d<float, access::write> outTex [[texture(0)]],
         if (!all(isfinite(sample))) {
             sample = float3(0.0);
         }
-        if (sceneData.cinematicMode == 0 || s > 0) {
+        if (s > 0) {
             color += clampLuminance(sample, max(sceneData.fireflyClamp, 1.0));
         }
         if (s == 0) {
@@ -165,7 +165,7 @@ kernel void main0(texture2d<float, access::write> outTex [[texture(0)]],
         prevColor = float4(0.0);
         previousMoments = float4(0.0);
     }
-    float historyLimit = max(float(sceneData.accumulationFrameLimit), 1.0);
+    float historyLimit = clamp(float(sceneData.accumulationFrameLimit), 1.0, 2048.0);
     float previousWeight =
         historyValid ? min(prevColor.w, max(historyLimit - 1.0, 0.0)) : 0.0;
     float newHistoryLength = min(previousWeight + 1.0, historyLimit);
@@ -176,7 +176,7 @@ kernel void main0(texture2d<float, access::write> outTex [[texture(0)]],
     float accumulationDenominator = max(previousWeight + sampleWeight, 1.0);
     float3 accum =
         (prevColor.xyz * previousWeight + color * sampleWeight) / accumulationDenominator;
-    float moment = max(luminance(color), 0.0);
+    float moment = clamp(luminance(color), 0.0, 255.0);
     float accumulatedMoment =
         (previousMoments.x * previousWeight + moment * sampleWeight) /
         accumulationDenominator;

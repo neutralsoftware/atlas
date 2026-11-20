@@ -107,6 +107,8 @@ struct MaterialPush
     float volumeAbsorptionStrength;
     float3 volumeScatteringColor;
     float volumeScatteringStrength;
+    float3 emissiveColor;
+    float emissiveIntensity;
 };
 
 struct FragmentOutput
@@ -117,6 +119,7 @@ struct FragmentOutput
     float4 gMaterial : SV_Target3;
     float4 gOptical : SV_Target4;
     float4 gMedium : SV_Target5;
+    float4 gEmission : SV_Target6;
 };
 
 struct FragmentInput
@@ -523,6 +526,7 @@ FragmentOutput fragmentMain(FragmentInput input, float4 gl_FragCoord : SV_Positi
         mediumExtinction = material.volumeDensity * extinctionStrength;
     }
     output.gMedium = float4(mediumColor, mediumExtinction);
+    output.gEmission = float4(max(material.emissiveColor, 0.0) * max(material.emissiveIntensity, 0.0), 1.0);
     return output;
 }
 #endif

@@ -39,15 +39,7 @@ float3 octDecode(float2 encoded) {
     return normalize(normal);
 }
 
-float3 sphericalFibonacci(uint index, uint count, uint frameIndex) {
-    float value = float(index) + 0.5;
-    float phi = 6.28318530718 * frac(value / 1.61803398875);
-    phi += float((frameIndex * 1471u + 5743u) & 0xFFFFu) /
-           65536.0 * 6.28318530718;
-    float cosine = 1.0 - 2.0 * value / float(max(count, 1u));
-    float sine = sqrt(max(0.0, 1.0 - cosine * cosine));
-    return float3(sine * cos(phi), cosine, sine * sin(phi));
-}
+#include "ddgi_sampling.slang"
 
 [shader("compute")]
 [numthreads(8, 8, 1)]
@@ -96,11 +88,17 @@ void computeMain(uint3 dispatchThreadID : SV_DispatchThreadID) {
     float distanceWeightSum = 0.0;
     float distanceSum = 0.0;
     float distanceSquaredSum = 0.0;
+    uint backfaces = 0u;
     for (uint rayIndex = 0; rayIndex < raysPerProbe; ++rayIndex) {
         float3 rayDirection = sphericalFibonacci(rayIndex, raysPerProbe,
                                                  rt.frameIndex);
         float weight = max(dot(direction, rayDirection), 0.0);
         float4 sample = probeRadiance[probeIndex * raysPerProbe + rayIndex];
+        weightSum += weight;
+        if (sample.w < 0.0) {
+            backfaces++;
+            continue;
+        }
         float distance = sample.w > 0.0
                              ? min(sample.w, rt.maxRayDistance)
                              : rt.maxRayDistance;
@@ -111,24 +109,28 @@ void computeMain(uint3 dispatchThreadID : SV_DispatchThreadID) {
         distanceSum += distance * distanceWeight;
         distanceSquaredSum += distance * distance * distanceWeight;
         distanceWeightSum += distanceWeight;
-        weightSum += weight;
     }
     float3 irradiance = weightSum > 1e-6
-                            ? radiance * (12.5663706144 / float(raysPerProbe))
+                            ? radiance * (3.14159265359 / weightSum)
                             : 0.0;
     float2 distanceMoments = distanceWeightSum > 1e-6
                                  ? float2(distanceSum, distanceSquaredSum) /
                                        distanceWeightSum
                                  : float2(rt.maxRayDistance,
                                           rt.maxRayDistance * rt.maxRayDistance);
-    float history = rt.frameIndex < stride ? 0.0 : clamp(rt.hysteresis, 0.0, 0.995);
+    float4 previous = prevTexture.Load(int3(pixel, 0));
+    float history = rt.frameIndex < stride || previous.w <= 0.0
+                        ? 0.0 : min(clamp(rt.hysteresis, 0.0, 0.995),
+                                    float(rt.frameIndex / stride) / float(rt.frameIndex / stride + 1u));
+    float validity = 1.0 - smoothstep(0.1, 0.3, float(backfaces) / float(raysPerProbe));
+    validity = lerp(validity, saturate(previous.w), history);
     float3 previousIrradiance = prevTexture.Load(int3(pixel, 0)).xyz;
     float2 previousMoments = prevDistance.Load(int3(pixel, 0)).xy;
     if (!all(isfinite(previousIrradiance)))
         previousIrradiance = irradiance;
     if (!all(isfinite(previousMoments)))
         previousMoments = distanceMoments;
-    outTexture[pixel] = float4(lerp(irradiance, previousIrradiance, history), 1.0);
+    outTexture[pixel] = float4(lerp(irradiance, previousIrradiance, history), validity);
     outDistance[pixel] = float4(lerp(distanceMoments, previousMoments, history),
                                 0.0, 1.0);
 }
