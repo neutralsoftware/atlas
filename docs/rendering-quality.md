@@ -27,3 +27,9 @@ Both native path tracers use a separate center ray for stable denoising guides. 
 Standalone Slang compilation and SPIR-V validation cover Vulkan DDGI tracing/writeback, Photon, and deferred lighting. No Atlas project build or GPU visual/performance run was performed. Native Metal compilation requires a macOS validation run.
 
 After rebuilding, compare all three Cornell modes. Check red/green bounce on the white ceiling and boxes, shadow separation with multiple lights, and bloom on bright emitters rather than ordinary walls. Move continuously at one stationary sample per pixel, comparing motion floors of 1 and 8; inspect diagonal edges after settling. Measure GPU frame time before choosing higher probe or motion budgets for larger scenes.
+
+## Activation and ceiling-shadow follow-up
+
+`enableGlobalIllumination()` now enables the deferred `IndirectLighting` feature as well as probe updates. Previously the default realtime feature mask excluded indirect lighting, so the deferred shader ignored DDGI even after its probe pipeline was enabled.
+
+One-sided area lights now use a perspective shadow frustum from a virtual point behind the emitter. Its near plane starts just beyond the emitter to exclude the debug plane and ceiling behind it. The depth pass retains both surface orientations and uses a smaller raster bias. This replaces the parallel orthographic projection that hid overhead box shadows beneath their footprints. Two-sided lights retain the existing orthographic approximation.

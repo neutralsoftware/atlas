@@ -206,6 +206,7 @@ void Window::enableGlobalIllumination() {
         return;
     }
     usesGlobalIllumination = true;
+    realtimePBRFeatureFlags |= photon::IndirectLighting;
     ddgiSystem = std::make_shared<photon::GlobalIllumination>();
     ddgiSystem->sampleNormalMaps = false;
     ddgiSystem->init();
