@@ -197,14 +197,14 @@ class MainScene : public Scene {
 
         this->setUseAtmosphereSkybox(false);
 
-        window.enableGlobalIllumination();
+        window.enablePathTracing();
 
         if (!window.usePathTracing || !window.pathTracer) {
             std::cerr << window.getPathTracingError() << '\n';
             return;
         }
         // window.pathTracer->pathTracingTexture->display(window);
-        // window.pathTracer->raysPerPixel = 1;
+        window.pathTracer->raysPerPixel = 1;
     }
 };
 
