@@ -43,6 +43,7 @@ struct Material {
     float roughness;
     float ao;
     float emissiveIntensity;
+    float2 _padBeforeAlbedo;
 
     packed_float3 albedo;
     float _pad0;
@@ -57,6 +58,8 @@ struct Material {
     float4 volumeScattering;
     float4 volumeEmission;
 };
+
+static_assert(sizeof(Material) == 176);
 
 struct Triangle {
     float4 v0;
@@ -81,6 +84,8 @@ struct Triangle {
     int materialID;
     int padding[3];
 };
+
+static_assert(sizeof(Triangle) == 256);
 
 struct SceneCounts {
     uint triCount;

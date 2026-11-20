@@ -20,6 +20,7 @@
 #include <algorithm>
 #include <cmath>
 #include <cstdint>
+#include <cstddef>
 #include <cstring>
 #include <limits>
 #include <memory>
@@ -313,6 +314,16 @@ void collectDdgiObjectsFromQueue(const std::vector<Renderable *> &renderables,
 } // namespace
 
 void photon::GlobalIllumination::init() {
+    static_assert(sizeof(GPUDirectionalLight) == 48);
+    static_assert(sizeof(GPUPointLight) == 80);
+    static_assert(sizeof(GPUSpotLight) == 80);
+    static_assert(sizeof(GPUAreaLight) == 112);
+    static_assert(sizeof(DDGITriangle) == 256);
+    static_assert(offsetof(DDGITriangle, materialID) == 240);
+    static_assert(sizeof(DDGIMaterial) == 176);
+    static_assert(offsetof(DDGIMaterial, albedo) == 48);
+    static_assert(offsetof(DDGIMaterial, emissiveColor) == 64);
+    static_assert(offsetof(DDGIMaterial, optical) == 80);
     ComputeShader ddgiRaytracing =
         ComputeShader::fromDefaultShader(AtlasComputeShader::DDGI);
     ddgiRaytracing.compile();

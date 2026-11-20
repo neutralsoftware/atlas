@@ -266,7 +266,7 @@ class GlobalIllumination {
     /**
      * @brief GPU-packed material description consumed by DDGI compute shaders.
      */
-    struct DDGIMaterial {
+    struct alignas(16) DDGIMaterial {
         /** @brief Material identifier used by triangles. */
         int materialID;
         /** @brief Albedo texture slot index, or -1 if unused. */
@@ -290,7 +290,7 @@ class GlobalIllumination {
         float emissiveIntensity;
 
         /** @brief Base albedo color. */
-        glm::vec3 albedo;
+        alignas(16) glm::vec3 albedo;
         float _pad0;
 
         /** @brief Emissive color. */

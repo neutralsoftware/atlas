@@ -33,3 +33,11 @@ After rebuilding, compare all three Cornell modes. Check red/green bounce on the
 `enableGlobalIllumination()` now enables the deferred `IndirectLighting` feature as well as probe updates. Previously the default realtime feature mask excluded indirect lighting, so the deferred shader ignored DDGI even after its probe pipeline was enabled.
 
 One-sided area lights now use a perspective shadow frustum from a virtual point behind the emitter. Its near plane starts just beyond the emitter to exclude the debug plane and ceiling behind it. The depth pass retains both surface orientations and uses a smaller raster bias. This replaces the parallel orthographic projection that hid overhead box shadows beneath their footprints. Two-sided lights retain the existing orthographic approximation.
+
+## GPU buffer layout and shadow filtering follow-up
+
+Vulkan DDGI triangle records used a 272-byte shader stride while C++ uploaded 256-byte records. Changing the shader's vector padding to three scalar elements restores the 256-byte stride. Material color fields also disagreed: CPU albedo began at byte 40, but the shader expected byte 48. Material records now explicitly align albedo at 48, emissive color at 64, and optical data at 80, with a 176-byte stride. Native Metal material padding is updated to the same format. C++ and Metal static assertions guard record sizes; `python scripts/check_ddgi_layout.py` validates the actual Slang-generated SPIR-V layout for all six scene-data buffers.
+
+Shadow filtering now interpolates four depth comparisons per tap, rather than interpolating raw depth or returning a nearest-texel result. Perspective area shadows use 24 blocker-search samples and 32 filtered taps, with a penumbra derived from emitter size and blocker/receiver separation. Filtering grows away from contact, up to a 32-texel cap. This adds texture-fetch cost and remains an approximation using one shadow map.
+
+Validation includes a syntax-only check of `photon/gi.cpp` with its CPU layout assertions and SPIR-V reflection/validation. No project build, GPU image comparison, or native Metal compilation was performed.

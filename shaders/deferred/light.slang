@@ -231,7 +231,8 @@ float shadowVisibilityForLight(int lightType, int lightIndex, float3 position, f
             ? calculatePointShadow(data, position, texture1, texture2, texture3,
                                    texture4, texture5, cubeMap1, cubeMap2, cubeMap3, cubeMap4, cubeMap5)
             : calculateShadow(data, position, normal, texture1, texture2, texture3,
-                              texture4, texture5, uniforms);
+                              texture4, texture5, uniforms,
+                              lightType == 2 ? AreaLights[lightIndex].size : float2(0.0));
         shadow = max(shadow, value);
     }
     return 1.0 - saturate(shadow);

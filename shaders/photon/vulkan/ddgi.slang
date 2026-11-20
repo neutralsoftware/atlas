@@ -62,7 +62,7 @@ struct Triangle {
     float4 b1;
     float4 b2;
     int materialID;
-    int3 padding;
+    int padding[3];
 };
 
 struct SceneCounts {

@@ -117,141 +117,91 @@ float4 sampleTextureAt(
     return float4(0.0);
 }
 
+float filteredShadowComparison(int index, float2 uv, float depth, float2 dims,
+                               Sampler2D texture1, Sampler2D texture2,
+                               Sampler2D texture3, Sampler2D texture4, Sampler2D texture5) {
+    float2 pixel = uv * dims - 0.5;
+    float2 base = floor(pixel);
+    float2 f = frac(pixel);
+    float result = 0.0;
+    for (int y = 0; y < 2; ++y) {
+        for (int x = 0; x < 2; ++x) {
+            float2 tap = (base + float2(x, y) + 0.5) / dims;
+            if (any(tap < 0.0) || any(tap > 1.0)) continue;
+            float stored = sampleTextureAt(index, tap, texture1, texture2,
+                                            texture3, texture4, texture5).x;
+            result += float(depth > stored) * (x == 0 ? 1.0 - f.x : f.x) *
+                      (y == 0 ? 1.0 - f.y : f.y);
+        }
+    }
+    return result;
+}
+
+float shadowViewDepth(float depth, float4x4 inverseProjection) {
+    float4 position = mul(float4(0.0, 0.0, depth, 1.0), inverseProjection);
+    return abs(position.z / position.w);
+}
+
 float calculateShadow(
     ShadowParameters shadowParam, float3 fragPos,
     float3 normal, Sampler2D texture1, Sampler2D texture2,
     Sampler2D texture3, Sampler2D texture4, Sampler2D texture5,
-    UBO uniforms) {
-    int param = shadowParam.textureIndex;
-    float2 dims = getTextureDimensions(
-        param, texture1, texture2, texture3, texture4, texture5);
-    bool _411 = dims.x == 0.0;
-    bool _419;
-    if (!_411) {
-        _419 = dims.y == 0.0;
-    } else {
-        _419 = _411;
-    }
-    if (_419) {
-        return 0.0;
-    }
-    float4 fragPosLightSpace =
-        mul(float4(fragPos, 1.0), (mul(shadowParam.lightView, shadowParam.lightProjection)));
-    if (fragPosLightSpace.w == 0.0) {
-        return 0.0;
-    }
-    float3 clipCoords = fragPosLightSpace.xyz / float3(fragPosLightSpace.w);
-    float2 projCoordsXY = (clipCoords.xy * 0.5) + float2(0.5);
+    UBO uniforms, float2 emitterSize) {
+    int index = shadowParam.textureIndex;
+    float2 dims = getTextureDimensions(index, texture1, texture2, texture3, texture4, texture5);
+    if (any(dims <= 0.0)) return 0.0;
+    float4 lightPosition = mul(float4(fragPos, 1.0), shadowParam.lightView);
+    float4 clip = mul(lightPosition, shadowParam.lightProjection);
+    if (clip.w <= 0.0) return 0.0;
+    float3 projected = clip.xyz / clip.w;
+    float2 uv = projected.xy * 0.5 + 0.5;
 #if defined(ATLAS_BACKEND_METAL) || defined(ATLAS_BACKEND_VULKAN)
-    projCoordsXY.y = 1.0 - projCoordsXY.y;
+    uv.y = 1.0 - uv.y;
 #endif
-    float3 projCoords = float3(projCoordsXY, clipCoords.z);
-    bool _456 = projCoords.x < 0.0;
-    bool _463;
-    if (!_456) {
-        _463 = projCoords.x > 1.0;
-    } else {
-        _463 = _456;
-    }
-    bool _470;
-    if (!_463) {
-        _470 = projCoords.y < 0.0;
-    } else {
-        _470 = _463;
-    }
-    bool _477;
-    if (!_470) {
-        _477 = projCoords.y > 1.0;
-    } else {
-        _477 = _470;
-    }
-    bool _485;
-    if (!_477) {
-        _485 = projCoords.z < 0.0;
-    } else {
-        _485 = _477;
-    }
-    bool _493;
-    if (!_485) {
-        _493 = projCoords.z > 1.0;
-    } else {
-        _493 = _485;
-    }
-    if (_493) {
+    if (any(uv < 0.0) || any(uv > 1.0) || projected.z < 0.0 || projected.z > 1.0)
         return 0.0;
-    }
-    float currentDepth = projCoords.z;
-    bool isAreaShadow = shadowParam.lightType == 2;
-    float3 lightDirWorld = normalize(
-        -(mul(float4(0.0, 0.0, -1.0, 0.0), inverseMatrix(shadowParam.lightView)))
-             .xyz);
-    float biasValue = shadowParam.bias0;
-    if (isAreaShadow) {
-        biasValue = max(biasValue, 0.00120000006);
-    }
-    float ndotl = max(dot(normal, lightDirWorld), 0.0);
-    float minBias =
-        max(isAreaShadow ? 0.000250000012
-                               : 4.99999987e-05,
-                  biasValue * (isAreaShadow ? 0.850000024 : 0.25));
-    float bias0 = max(biasValue * (1.0 - ndotl), minBias);
-    if (isAreaShadow) {
-        bias0 += 0.000250000012;
+    float3 lightDirection = normalize(
+        -mul(float4(0.0, 0.0, -1.0, 0.0), inverseMatrix(shadowParam.lightView)).xyz);
+    float bias = max(shadowParam.bias0 * (1.0 - saturate(dot(normal, lightDirection))),
+                     shadowParam.bias0 * 0.25);
+    float depth = projected.z - max(bias, 0.00001);
+    float2 filterRadius = 1.5 / dims;
+    if (shadowParam.lightType == 2 && any(emitterSize > 0.0) &&
+        abs(shadowParam.lightProjection[3][3]) < 0.0001) {
+        float4x4 inverseProjection = inverseMatrix(shadowParam.lightProjection);
+        float receiver = max(abs(lightPosition.z), 0.0001);
+        float2 projectedEmitter = emitterSize * 0.25 *
+            abs(float2(shadowParam.lightProjection[0][0], shadowParam.lightProjection[1][1]));
+        float2 searchRadius = clamp(projectedEmitter / receiver, 2.0 / dims, 48.0 / dims);
+        float blockerSum = 0.0;
+        float blockers = 0.0;
+        for (int i = 0; i < 24; ++i) {
+            float angle = float(i) * 2.39996323;
+            float2 disk = sqrt((float(i) + 0.5) / 24.0) * float2(cos(angle), sin(angle));
+            float2 tap = uv + disk * searchRadius;
+            if (any(tap < 0.0) || any(tap > 1.0)) continue;
+            float stored = sampleTextureAt(index, tap, texture1, texture2,
+                                            texture3, texture4, texture5).x;
+            if (stored < depth) {
+                blockerSum += shadowViewDepth(stored, inverseProjection);
+                blockers += 1.0;
+            }
+        }
+        if (blockers > 0.0) {
+            float blocker = max(blockerSum / blockers, 0.0001);
+            float separation = max(receiver - blocker, 0.0) / blocker;
+            filterRadius = clamp(projectedEmitter * separation / receiver,
+                                 1.5 / dims, 32.0 / dims);
+        }
     }
     float shadow = 0.0;
-    float2 texelSize = float2(1.0) / dims;
-    float _distance = length(float3(uniforms.cameraPosition) - fragPos);
-    float2 shadowMapSize = dims;
-    float avgDim = 0.5 * (shadowMapSize.x + shadowMapSize.y);
-    float resFactor = clamp(1024.0 / max(avgDim, 1.0), 0.75, 1.25);
-    float distFactor = clamp(_distance / 800.0, 0.0, 1.0);
-    float texelRadius =
-        lerp(isAreaShadow ? 1.79999995 : 1.0,
-            isAreaShadow ? 4.19999981 : 3.0, distFactor) *
-        resFactor;
-    float2 filterRadius = texelSize * texelRadius;
-    int kernelSamples = isAreaShadow ? 6 : 8;
-    int sampleCount = 0;
-    for (int i = 0; i < kernelSamples; i++) {
-        float2 offset = _660[i] * filterRadius;
-        float2 uv = projCoords.xy + offset;
-        bool _676 = uv.x < 0.0;
-        bool _683;
-        if (!_676) {
-            _683 = uv.x > 1.0;
-        } else {
-            _683 = _676;
-        }
-        bool _690;
-        if (!_683) {
-            _690 = uv.y < 0.0;
-        } else {
-            _690 = _683;
-        }
-        bool _697;
-        if (!_690) {
-            _697 = uv.y > 1.0;
-        } else {
-            _697 = _690;
-        }
-        if (_697) {
-            continue;
-        }
-        int param_1 = shadowParam.textureIndex;
-        float2 param_2 = uv;
-        float pcfDepth =
-            sampleTextureAt(param_1, param_2, texture1, texture2, texture3, texture4, texture5)
-                .x;
-        shadow += float((currentDepth - bias0) > pcfDepth);
-        sampleCount++;
+    for (int i = 0; i < 32; ++i) {
+        float angle = float(i) * 2.39996323;
+        float2 disk = sqrt((float(i) + 0.5) / 32.0) * float2(cos(angle), sin(angle));
+        shadow += filteredShadowComparison(index, uv + disk * filterRadius, depth, dims,
+                                            texture1, texture2, texture3, texture4, texture5);
     }
-    if (sampleCount > 0) {
-        shadow /= float(sampleCount);
-    }
-    if (isAreaShadow) {
-        shadow = smoothstep(0.180000007, 0.920000017, shadow);
-    }
-    return shadow;
+    return shadow / 32.0;
 }
 
 float
