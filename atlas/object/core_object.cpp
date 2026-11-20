@@ -685,6 +685,9 @@ void CoreObject::render(float dt,
         this->pipeline->setUniform1f("material.volumeScatteringStrength",
                                      material.volumeScatteringStrength);
 
+        this->pipeline->setUniform3f("material.emissiveColor", material.emissiveColor.r,
+                                     material.emissiveColor.g, material.emissiveColor.b);
+        this->pipeline->setUniform1f("material.emissiveIntensity", material.emissiveIntensity);
         this->pipeline->setUniform3f("albedo", material.albedo.r,
                                      material.albedo.g, material.albedo.b);
         this->pipeline->setUniform1f("metallic", material.metallic);

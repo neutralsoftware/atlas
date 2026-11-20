@@ -1012,7 +1012,7 @@ class Window {
     std::shared_ptr<opal::Pipeline> ssrPipeline;
 
     bool debug = false;
-    bool useSSR = false;
+    bool useSSR = true;
     int ssrQuality = 1;
     bool ssrDebugMode = false;
     uint32_t realtimePBRFeatureFlags = photon::NormalRealtimePBRFeatures;

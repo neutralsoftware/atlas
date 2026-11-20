@@ -41,3 +41,29 @@ Vulkan DDGI triangle records used a 272-byte shader stride while C++ uploaded 25
 Shadow filtering now interpolates four depth comparisons per tap, rather than interpolating raw depth or returning a nearest-texel result. Perspective area shadows use 24 blocker-search samples and 32 filtered taps, with a penumbra derived from emitter size and blocker/receiver separation. Filtering grows away from contact, up to a 32-texel cap. This adds texture-fetch cost and remains an approximation using one shadow map.
 
 Validation includes a syntax-only check of `photon/gi.cpp` with its CPU layout assertions and SPIR-V reflection/validation. No project build, GPU image comparison, or native Metal compilation was performed.
+
+## Position precision, emission, and effects coverage
+
+World positions now use RGBA32F rather than RGBA16F. Quantized world-position derivatives were feeding false surface normals into DDGI and shadow bias. Lighting now prefers the stored surface normal, with geometric derivatives used only when no normal is available. Shadow filters use 48 blocker samples and 64 comparison taps with a stable kernel. This increases position-buffer bandwidth and shadow sampling cost.
+
+Probe sampling rejects locations more than half a grid cell outside the volume and fades over the boundary. Near-zero visibility weights fade toward black rather than being normalized back to full brightness. The fallback that ignored surface orientation has been removed. This reduces exterior leakage but does not replace probe relocation or ray-traced visibility at the receiver.
+
+A seventh, HDR emission attachment carries material emissive color times intensity into deferred lighting, bloom, and the scene color used by SSR. The EmissiveLighting feature controls visible emission. DDGI continues to gather emission through its probe rays. SSR is enabled by default for native windows; explicit application settings still override it.
+
+| Photon feature | Deferred / DDGI mapping | Remaining difference |
+| --- | --- | --- |
+| Direct lighting and shadows | PBR lights, per-light filtered shadow maps | Approximate area-light visibility |
+| Diffuse indirect light | DDGI material-colored probe transport | Grid-scale visibility, no GI in deferred without DDGI |
+| Reflections | SSR, sky/environment fallback, approximate probe reflection | Off-screen local objects are unavailable to SSR |
+| Emission | HDR emission attachment, bloom, DDGI probe source | Small emitters can be missed by probe rays |
+| Transmission/refraction | Screen-space transmission and probe/environment fallback | No complete refracted geometry traversal |
+| Dispersion | Per-channel refracted directions from IOR/Abbe number | Screen-space/environment approximation |
+| Absorption | Attenuation color/distance and medium extinction | Estimated thickness |
+| Volumes | Existing atmosphere/volumetric passes and material medium response | No general path-integrated heterogeneous transport |
+| Normal maps / textures / alpha | Existing deferred material pass | Raster visibility rules |
+| Iridescence | No deferred thin-film parameter mapping yet | Photon-only |
+| Subsurface scattering | No deferred subsurface parameter mapping yet | Photon-only |
+| Caustics | No deferred photon-map resolve yet | Photon-only |
+| Diffraction | No physical diffraction solver in either renderer | Dispersion is a separate effect |
+
+This table describes current coverage, not full effect parity. Full transport parity requires additional material storage and ray-traced secondary transport. Shader and syntax checks cannot establish visual equivalence; GPU comparison remains outstanding.

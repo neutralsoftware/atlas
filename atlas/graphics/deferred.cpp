@@ -574,6 +574,7 @@ void Window::deferredRendering(
     lightPipeline->bindTexture2D("gMaterial", this->gBuffer->gMaterial.id, 3);
     lightPipeline->bindTexture2D("gOptical", this->gBuffer->gOptical.id, 18);
     lightPipeline->bindTexture2D("gMedium", this->gBuffer->gMedium.id, 19);
+    lightPipeline->bindTexture2D("gEmission", this->gBuffer->gEmission.id, 20);
 
     int boundTextures = 4;
 

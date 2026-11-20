@@ -115,6 +115,10 @@ float3 sampleDDGIDirectionalRadiance(Texture2D<float4> ddgiTexture,
 
     float3 safeSpacing = max(ps.spacing, float3(1e-4f));
     float3 grid = (posWS - ps.origin) / safeSpacing;
+    float3 lastProbe = max(float3(counts) - 1.0, 0.0);
+    float3 outside = max(-grid, grid - lastProbe);
+    if (any(outside > 0.5)) return float3(0.0);
+    float volumeWeight = 1.0 - smoothstep(0.0, 0.5, max(max(outside.x, outside.y), outside.z));
 
     if (counts.x < 2u || counts.y < 2u || counts.z < 2u) {
         float3 maxCoord = max(float3(0.0f), float3((float)counts.x - 1.0f,
@@ -149,7 +153,7 @@ float3 sampleDDGIDirectionalRadiance(Texture2D<float4> ddgiTexture,
         float3 nearestIrr =
             all(isfinite(nearestSample.xyz)) ? nearestSample.xyz : float3(0.0f);
         nearestIrr *= nearestValidity * nearestVisibility;
-        return max(nearestIrr, float3(0.0f));
+        return max(nearestIrr, float3(0.0f)) * volumeWeight;
     }
 
     float3 maxGrid =
@@ -226,10 +230,10 @@ float3 sampleDDGIDirectionalRadiance(Texture2D<float4> ddgiTexture,
     }
 
     if (weightSum > 1e-5f) {
-        return result / weightSum;
+        return result / weightSum * volumeWeight * smoothstep(0.0, 0.05, weightSum);
     }
     if (weightSumNoBackface > 1e-5f) {
-        return resultNoBackface / weightSumNoBackface;
+        return float3(0.0);
     }
 
     return float3(0.0f);

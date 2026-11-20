@@ -82,6 +82,7 @@ static const uint FEATURE_ENVIRONMENT_LIGHTING = 1u << 2;
 static const uint FEATURE_INDIRECT_LIGHTING = 1u << 4;
 static const uint FEATURE_TRANSMISSION = 1u << 5;
 static const uint FEATURE_DISPERSION = 1u << 6;
+static const uint FEATURE_EMISSION = 1u << 3;
 static const uint FEATURE_VOLUMES = 1u << 9;
 
 struct AreaLight {
@@ -219,6 +220,7 @@ struct FragmentInput {
 [[vk::binding(4, 2)]] Sampler2D ssao;
 [[vk::binding(18, 2)]] Texture2D<float4> gOptical;
 [[vk::binding(19, 2)]] Texture2D<float4> gMedium;
+[[vk::binding(20, 2)]] Sampler2D gEmission;
 [[vk::binding(16, 6)]] Texture2D<float4> irradianceMap;
 [[vk::binding(17, 6)]] Texture2D<float4> ddgiDistanceMap;
 float shadowVisibilityForLight(int lightType, int lightIndex, float3 position, float3 normal) {
@@ -309,7 +311,7 @@ FragmentOutput fragmentMain(FragmentInput input) {
                          geomNormalLen > 9.99999975e-06;
     float3 shadowNormal = N;
     float3 ddgiNormal = N;
-    if (hasGeomNormal) {
+    if (hasGeomNormal && !hasNormal) {
         geomNormal /= float3(geomNormalLen);
         if (dot(N, geomNormal) < 0.0) {
             geomNormal = -geomNormal;
@@ -581,6 +583,8 @@ FragmentOutput fragmentMain(FragmentInput input) {
     } else if (ddgiDebugMode >= 19.5f) {
         finalColor = ddgiDiffuse * 3.0f;
     }
+    if ((parameters.featureFlags & FEATURE_EMISSION) != 0u)
+        finalColor += max(gEmission.Sample(input.TexCoord).xyz, 0.0);
     output.FragColor = float4(finalColor, 1.0);
     float brightness =
         dot(output.FragColor.xyz,

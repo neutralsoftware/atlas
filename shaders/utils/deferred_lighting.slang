@@ -174,8 +174,7 @@ float calculateShadow(
         ? float2(uvDy.y * depthDx - uvDx.y * depthDy,
                  uvDx.x * depthDy - uvDy.x * depthDx) / determinant
         : float2(0.0);
-    float rotation = frac(52.9829189 * frac(dot(floor(uv * dims),
-                                               float2(0.06711056, 0.00583715)))) * 6.28318530718;
+    float rotation = 0.0;
     float2 filterRadius = 1.5 / dims;
     if (shadowParam.lightType == 2 && any(emitterSize > 0.0) &&
         abs(shadowParam.lightProjection[3][3]) < 0.0001) {
@@ -186,9 +185,9 @@ float calculateShadow(
         float2 searchRadius = clamp(projectedEmitter / receiver, 2.0 / dims, 48.0 / dims);
         float blockerSum = 0.0;
         float blockers = 0.0;
-        for (int i = 0; i < 24; ++i) {
+        for (int i = 0; i < 48; ++i) {
             float angle = float(i) * 2.39996323 + rotation;
-            float2 disk = sqrt((float(i) + 0.5) / 24.0) * float2(cos(angle), sin(angle));
+            float2 disk = sqrt((float(i) + 0.5) / 48.0) * float2(cos(angle), sin(angle));
             float2 tap = uv + disk * searchRadius;
             if (any(tap < 0.0) || any(tap > 1.0)) continue;
             float stored = sampleTextureAt(index, tap, texture1, texture2,
@@ -206,14 +205,14 @@ float calculateShadow(
         }
     }
     float shadow = 0.0;
-    for (int i = 0; i < 32; ++i) {
+    for (int i = 0; i < 64; ++i) {
         float angle = float(i) * 2.39996323 + rotation;
-        float2 disk = sqrt((float(i) + 0.5) / 32.0) * float2(cos(angle), sin(angle));
+        float2 disk = sqrt((float(i) + 0.5) / 64.0) * float2(cos(angle), sin(angle));
         shadow += filteredShadowComparison(index, uv + disk * filterRadius,
                                             depth + dot(depthGradient, disk * filterRadius), dims, depthGradient,
                                             texture1, texture2, texture3, texture4, texture5);
     }
-    return shadow / 32.0;
+    return shadow / 64.0;
 }
 
 float
