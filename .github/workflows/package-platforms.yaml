@@ -2,9 +2,9 @@ name: Package platform artifacts
 
 on:
     push:
-        branches: [main, prerelease]
+        branches: [stable, prerelease]
     pull_request:
-        branches: [main]
+        branches: [stable, prerelease]
     workflow_dispatch:
 
 permissions:
