@@ -200,7 +200,8 @@ class MainScene : public Scene {
         this->setUseAtmosphereSkybox(false);
 
         const char *rendererSetting = std::getenv("ATLAS_CORNELL_RENDERER");
-        const std::string_view renderer = rendererSetting ? rendererSetting : "path";
+        const std::string_view renderer =
+            rendererSetting ? rendererSetting : "path";
         if (renderer == "ddgi") {
             window.enableGlobalIllumination();
             return;
@@ -209,7 +210,8 @@ class MainScene : public Scene {
             return;
         }
         if (renderer != "path") {
-            std::cerr << "ATLAS_CORNELL_RENDERER must be path, ddgi, or deferred\n";
+            std::cerr
+                << "ATLAS_CORNELL_RENDERER must be path, ddgi, or deferred\n";
             return;
         }
         window.enablePathTracing();
