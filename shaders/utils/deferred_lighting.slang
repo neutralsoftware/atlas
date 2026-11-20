@@ -117,7 +117,7 @@ float4 sampleTextureAt(
     return float4(0.0);
 }
 
-float filteredShadowComparison(int index, float2 uv, float depth, float2 dims,
+float filteredShadowComparison(int index, float2 uv, float depth, float2 dims, float2 depthGradient,
                                Sampler2D texture1, Sampler2D texture2,
                                Sampler2D texture3, Sampler2D texture4, Sampler2D texture5) {
     float2 pixel = uv * dims - 0.5;
@@ -130,7 +130,7 @@ float filteredShadowComparison(int index, float2 uv, float depth, float2 dims,
             if (any(tap < 0.0) || any(tap > 1.0)) continue;
             float stored = sampleTextureAt(index, tap, texture1, texture2,
                                             texture3, texture4, texture5).x;
-            result += float(depth > stored) * (x == 0 ? 1.0 - f.x : f.x) *
+            result += float(depth + dot(depthGradient, tap - uv) > stored) * (x == 0 ? 1.0 - f.x : f.x) *
                       (y == 0 ? 1.0 - f.y : f.y);
         }
     }
@@ -165,6 +165,17 @@ float calculateShadow(
     float bias = max(shadowParam.bias0 * (1.0 - saturate(dot(normal, lightDirection))),
                      shadowParam.bias0 * 0.25);
     float depth = projected.z - max(bias, 0.00001);
+    float2 uvDx = ddx(uv);
+    float2 uvDy = ddy(uv);
+    float depthDx = ddx(projected.z);
+    float depthDy = ddy(projected.z);
+    float determinant = uvDx.x * uvDy.y - uvDx.y * uvDy.x;
+    float2 depthGradient = abs(determinant) > 1e-10
+        ? float2(uvDy.y * depthDx - uvDx.y * depthDy,
+                 uvDx.x * depthDy - uvDy.x * depthDx) / determinant
+        : float2(0.0);
+    float rotation = frac(52.9829189 * frac(dot(floor(uv * dims),
+                                               float2(0.06711056, 0.00583715)))) * 6.28318530718;
     float2 filterRadius = 1.5 / dims;
     if (shadowParam.lightType == 2 && any(emitterSize > 0.0) &&
         abs(shadowParam.lightProjection[3][3]) < 0.0001) {
@@ -176,13 +187,13 @@ float calculateShadow(
         float blockerSum = 0.0;
         float blockers = 0.0;
         for (int i = 0; i < 24; ++i) {
-            float angle = float(i) * 2.39996323;
+            float angle = float(i) * 2.39996323 + rotation;
             float2 disk = sqrt((float(i) + 0.5) / 24.0) * float2(cos(angle), sin(angle));
             float2 tap = uv + disk * searchRadius;
             if (any(tap < 0.0) || any(tap > 1.0)) continue;
             float stored = sampleTextureAt(index, tap, texture1, texture2,
                                             texture3, texture4, texture5).x;
-            if (stored < depth) {
+            if (stored < depth + dot(depthGradient, tap - uv)) {
                 blockerSum += shadowViewDepth(stored, inverseProjection);
                 blockers += 1.0;
             }
@@ -196,9 +207,10 @@ float calculateShadow(
     }
     float shadow = 0.0;
     for (int i = 0; i < 32; ++i) {
-        float angle = float(i) * 2.39996323;
+        float angle = float(i) * 2.39996323 + rotation;
         float2 disk = sqrt((float(i) + 0.5) / 32.0) * float2(cos(angle), sin(angle));
-        shadow += filteredShadowComparison(index, uv + disk * filterRadius, depth, dims,
+        shadow += filteredShadowComparison(index, uv + disk * filterRadius,
+                                            depth + dot(depthGradient, disk * filterRadius), dims, depthGradient,
                                             texture1, texture2, texture3, texture4, texture5);
     }
     return shadow / 32.0;

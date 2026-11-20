@@ -1315,10 +1315,10 @@ computeMain(uint3 dispatchThreadID
     float previousWeight =
         sceneData.frameIndex > 0
             ? min(previous.w,
-                  float(max(sceneData.accumulationFrameLimit, 1u) - 1u))
+                  float(clamp(sceneData.accumulationFrameLimit, 1u, 2048u) - 1u))
             : 0.0;
     float historyLength = min(previousWeight + 1.0,
-                              float(max(sceneData.accumulationFrameLimit, 1u)));
+                              float(clamp(sceneData.accumulationFrameLimit, 1u, 2048u)));
     float sampleWeight = sceneData.cinematicMode != 0 ? float(samples) : 1.0;
     if (sceneData.cinematicMode != 0) {
         previousWeight = sceneData.frameIndex > 0 ? float(sceneData.accumulatedSamples) : 0.0;
@@ -1361,7 +1361,7 @@ computeMain(uint3 dispatchThreadID
     if (previousWeight == 0.0) {
         moments = 0.0;
     }
-    float currentLuminance = dot(color, float3(0.2126, 0.7152, 0.0722));
+    float currentLuminance = clamp(dot(color, float3(0.2126, 0.7152, 0.0722)), 0.0, 255.0);
     float mean = (moments.x * previousWeight + currentLuminance * sampleWeight) /
                  max(previousWeight + sampleWeight, 1.0);
     float meanSquared =

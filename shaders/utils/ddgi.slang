@@ -114,8 +114,6 @@ float3 sampleDDGIDirectionalRadiance(Texture2D<float4> ddgiTexture,
         directionLen > 1e-6f ? directionWS / float3(directionLen) : safeNormal;
 
     float3 safeSpacing = max(ps.spacing, float3(1e-4f));
-    float spacingScale =
-        max(max(safeSpacing.x, max(safeSpacing.y, safeSpacing.z)), 1e-4f);
     float3 grid = (posWS - ps.origin) / safeSpacing;
 
     if (counts.x < 2u || counts.y < 2u || counts.z < 2u) {
@@ -190,11 +188,7 @@ float3 sampleDDGIDirectionalRadiance(Texture2D<float4> ddgiTexture,
                                                     : float3(0.0f, 1.0f, 0.0f);
                 float frontW = max(dot(safeNormal, dirToProbe), 0.0f);
                 float backfaceW = lerp(0.180000007, 1.0f, frontW * frontW);
-                float distNorm = sDist / spacingScale;
-                float distNorm2 = distNorm * distNorm;
-                float distanceW = 1.0f / (1.0f + distNorm2 * 0.850000024);
-
-                float w = trilinearW * backfaceW * distanceW;
+                float w = trilinearW * backfaceW;
 
                 float4 irrSample = sampleProbeDirectionalRadiance(
                     ddgiTexture, ps, pIndex, atlasW, atlasH, safeDirection);
@@ -223,7 +217,7 @@ float3 sampleDDGIDirectionalRadiance(Texture2D<float4> ddgiTexture,
                 float weightedW = w * validityW * visibility;
                 result += irr * weightedW;
                 weightSum += weightedW;
-                float noBackfaceW = trilinearW * distanceW * validityW *
+                float noBackfaceW = trilinearW * validityW *
                                     visibility;
                 resultNoBackface += irr * noBackfaceW;
                 weightSumNoBackface += noBackfaceW;

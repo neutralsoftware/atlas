@@ -328,7 +328,7 @@ void photon::PathTracing::init() {
 
     for (auto &texture : pathTracingHistoryTextures) {
         texture = std::make_shared<Texture>(Texture::create(
-            outputWidth, outputHeight, opal::TextureFormat::Rgba32F,
+            outputWidth, outputHeight, opal::TextureFormat::Rgba16F,
             opal::TextureDataFormat::Rgba, TextureType::Color));
     }
     for (auto &texture : pathTracingHistoryGuides) {
@@ -338,7 +338,7 @@ void photon::PathTracing::init() {
     }
     for (auto &texture : pathTracingHistoryMoments) {
         texture = std::make_shared<Texture>(Texture::create(
-            outputWidth, outputHeight, opal::TextureFormat::Rgba32F,
+            outputWidth, outputHeight, opal::TextureFormat::Rgba16F,
             opal::TextureDataFormat::Rgba, TextureType::Color));
     }
     for (auto &texture : directReservoirSamples) {
@@ -380,7 +380,7 @@ void photon::PathTracing::resizeOutput(int width, int height) {
     outputHeight = newHeight;
     for (auto &texture : pathTracingHistoryTextures) {
         texture = std::make_shared<Texture>(Texture::create(
-            outputWidth, outputHeight, opal::TextureFormat::Rgba32F,
+            outputWidth, outputHeight, opal::TextureFormat::Rgba16F,
             opal::TextureDataFormat::Rgba, TextureType::Color));
     }
     for (auto &texture : pathTracingHistoryGuides) {
@@ -390,7 +390,7 @@ void photon::PathTracing::resizeOutput(int width, int height) {
     }
     for (auto &texture : pathTracingHistoryMoments) {
         texture = std::make_shared<Texture>(Texture::create(
-            outputWidth, outputHeight, opal::TextureFormat::Rgba32F,
+            outputWidth, outputHeight, opal::TextureFormat::Rgba16F,
             opal::TextureDataFormat::Rgba, TextureType::Color));
     }
     for (auto &texture : directReservoirSamples) {

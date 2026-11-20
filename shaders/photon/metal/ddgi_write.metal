@@ -59,7 +59,16 @@ static inline float3 sphericalFibonacci(uint index, uint count, uint frameIndex)
     uint rotSeed = wangHash(frameIndex * 1471u + 5743u);
     float rotAngle = float(rotSeed & 0xFFFFu) / 65536.0f * TAU;
     phi += rotAngle;
-    return float3(sinTheta * cos(phi), cosTheta, sinTheta * sin(phi));
+    float3 direction = float3(sinTheta * cos(phi), cosTheta, sinTheta * sin(phi));
+    uint tiltSeed = wangHash(frameIndex * 3253u + 7919u);
+    float tiltCos = 2.0 * float(tiltSeed & 65535u) / 65535.0 - 1.0;
+    float tiltSin = sqrt(max(0.0, 1.0 - tiltCos * tiltCos));
+    float spin = float(wangHash(tiltSeed) & 65535u) / 65536.0 * 6.28318530718;
+    float3 tilted = float3(tiltCos * direction.x - tiltSin * direction.y,
+                           tiltSin * direction.x + tiltCos * direction.y,
+                           direction.z);
+    return float3(cos(spin) * tilted.x - sin(spin) * tilted.z,
+                  tilted.y, sin(spin) * tilted.x + cos(spin) * tilted.z);
 }
 
 kernel void main0(texture2d<float, access::write> outTexture [[texture(0)]],
@@ -70,8 +79,6 @@ kernel void main0(texture2d<float, access::write> outTexture [[texture(0)]],
                   constant ProbeSpace &ps [[buffer(1)]],
                   constant RaytracingSettings &rt [[buffer(2)]],
                   uint2 gid [[thread_position_in_grid]]) {
-    const float FOUR_PI = 12.566370614359172f;
-
     uint border = (uint)ps.atlasParams.x;
     uint innerRes = (uint)ps.atlasParams.y;
     uint probesPerRow = (uint)ps.atlasParams.z;
@@ -138,7 +145,7 @@ kernel void main0(texture2d<float, access::write> outTexture [[texture(0)]],
     float nearHitThreshold =
         max(max(rt.normalBias * 2.0f, spacingScale * 0.1f), 0.002f);
 
-    for (uint r = 0; r < raysPerProbe; r += rayStep) {
+    for (uint r = (rt.frameIndex / updateStride) % rayStep; r < raysPerProbe; r += rayStep) {
         sampledRayCount++;
         float4 raySample = probeRadiance[baseOffset + r];
         float hitDistance = raySample.w;
@@ -169,7 +176,7 @@ kernel void main0(texture2d<float, access::write> outTexture [[texture(0)]],
                                     rt.maxRayDistance * rt.maxRayDistance);
     float invRayCount = 1.0f / float(max(sampledRayCount, 1u));
     if (weightSum > 1e-6f) {
-        irradiance = sum * (FOUR_PI * invRayCount);
+        irradiance = sum * (3.14159265359f / weightSum);
         if (distanceWeightSum > 1e-6f)
             distanceMoments = float2(distanceSum, distanceSquaredSum) / distanceWeightSum;
     }

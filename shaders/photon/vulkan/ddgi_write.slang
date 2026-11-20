@@ -94,6 +94,7 @@ void computeMain(uint3 dispatchThreadID : SV_DispatchThreadID) {
                                                  rt.frameIndex);
         float weight = max(dot(direction, rayDirection), 0.0);
         float4 sample = probeRadiance[probeIndex * raysPerProbe + rayIndex];
+        weightSum += weight;
         if (sample.w < 0.0) {
             backfaces++;
             continue;
@@ -108,10 +109,9 @@ void computeMain(uint3 dispatchThreadID : SV_DispatchThreadID) {
         distanceSum += distance * distanceWeight;
         distanceSquaredSum += distance * distance * distanceWeight;
         distanceWeightSum += distanceWeight;
-        weightSum += weight;
     }
     float3 irradiance = weightSum > 1e-6
-                            ? radiance * (12.5663706144 / float(raysPerProbe))
+                            ? radiance * (3.14159265359 / weightSum)
                             : 0.0;
     float2 distanceMoments = distanceWeightSum > 1e-6
                                  ? float2(distanceSum, distanceSquaredSum) /
