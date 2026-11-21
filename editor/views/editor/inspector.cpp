@@ -25,6 +25,7 @@
 #include <QDragEnterEvent>
 #include <QDropEvent>
 #include <QFile>
+#include <QFileDialog>
 #include <QFileInfo>
 #include <QDir>
 #include <QFrame>
@@ -1222,8 +1223,11 @@ QWidget *primitiveField(const QString &name, const QString &path,
     }
     auto *field = new QLineEdit(value.toString(), parent);
     tagEditor(field, path, "text");
-    connectLiveText(field,
-                    [field, changed, path] { changed(path, field->text()); });
+    const auto commit = [field, changed, path] { changed(path, field->text()); };
+    if (path == "/texture")
+        QObject::connect(field, &QLineEdit::editingFinished, field, commit);
+    else
+        connectLiveText(field, commit);
     return field;
 }
 
@@ -1842,15 +1846,24 @@ void InspectorPanel::refreshObjectEditors(const QJsonObject &object) {
     }
     const QString materialPath = objectProperties.value("material").toString();
     objectProperties.remove("material");
+    const QString animationGraph = objectProperties.take("animationGraph").toString();
     const QStringList hidden{"id",       "name",       "type",
                              "position", "rotation",   "scale",
                              "parent",   "components", "objects"};
     for (const QString &key : hidden)
         objectProperties.remove(key);
+    if (type.compare("particleEmitter", Qt::CaseInsensitive) == 0)
+        objectProperties.remove("maxParticles");
     const QJsonObject transform{{"position", object.value("position")},
                                 {"rotation", object.value("rotation")},
                                 {"scale", object.value("scale")}};
     const QJsonArray components = object.value("components").toArray();
+    if (auto *field = content->findChild<QLabel *>("animationGraphPath")) {
+        field->setText(animationGraph.isEmpty() ? QStringLiteral("No graph assigned")
+                                                : animationGraph);
+    }
+    if (auto *button = content->findChild<QPushButton *>("clearAnimationGraph"))
+        button->setEnabled(!animationGraph.isEmpty());
     const QList<QFrame *> cards = content->findChildren<QFrame *>();
     for (QFrame *card : cards) {
         if (card->objectName() != "inspectorComponent")
@@ -2029,13 +2042,16 @@ void InspectorPanel::showObject(const QJsonObject &object) {
     }
     const QString materialPath = objectProperties.value("material").toString();
     objectProperties.remove("material");
+    const QString animationGraph = objectProperties.take("animationGraph").toString();
     const QStringList hidden{"id",       "name",       "type",
                              "position", "rotation",   "scale",
                              "parent",   "components", "objects"};
     for (const QString &key : hidden)
         objectProperties.remove(key);
+    if (type.compare("particleEmitter", Qt::CaseInsensitive) == 0)
+        objectProperties.remove("maxParticles");
     if (!objectProperties.isEmpty()) {
-        contentLayout->addWidget(componentCard(
+        auto *card = componentCard(
             componentTitle(type), objectProperties, QString(),
             [update](const QString &path, const QJsonValue &value) {
                 update("object", -1, path, value);
@@ -2046,7 +2062,63 @@ void InspectorPanel::showObject(const QJsonObject &object) {
                                          {"object", objectReference},
                                          {"component", "object"},
                                          {"componentIndex", -1}}),
-            {}, "object"));
+            {}, "object");
+        if (type.compare("particleEmitter", Qt::CaseInsensitive) == 0) {
+            auto *body = card->findChild<QWidget *>("inspectorComponentBody");
+            auto *browse = new QPushButton(tr("Choose Particle Texture…"), body);
+            body->layout()->addWidget(browse);
+            connect(browse, &QPushButton::clicked, this, [this, update] {
+                const QString path = QFileDialog::getOpenFileName(
+                    this, tr("Choose Particle Texture"),
+                    QFileInfo(projectFile).absolutePath(),
+                    tr("Images (*.png *.jpg *.jpeg *.bmp *.tga)"));
+                if (!path.isEmpty())
+                    update("object", -1, "/texture", path);
+            });
+        }
+        contentLayout->addWidget(card);
+    }
+
+    if (type.compare("model", Qt::CaseInsensitive) == 0) {
+        auto *card = componentCard("Animation", {}, QString(), {}, content);
+        auto *controls = new QWidget(card);
+        auto *layout = new QHBoxLayout(controls);
+        layout->setContentsMargins(0, 0, 0, 0);
+        auto *field = new QLabel(animationGraph.isEmpty() ? tr("No graph assigned")
+                                                          : animationGraph, controls);
+        field->setObjectName("animationGraphPath");
+        field->setWordWrap(true);
+        auto *browse = new QPushButton(tr("Assign Graph…"), controls);
+        auto *clear = new QPushButton(tr("Clear"), controls);
+        clear->setObjectName("clearAnimationGraph");
+        clear->setEnabled(!animationGraph.isEmpty());
+        layout->addWidget(field, 1);
+        layout->addWidget(browse);
+        layout->addWidget(clear);
+        auto *body = card->findChild<QWidget *>("inspectorComponentBody");
+        body->layout()->addWidget(controls);
+
+        QStringList clips;
+        for (const auto &clip : object.value("animationClips").toArray())
+            clips.append(clip.toString());
+        auto *clipList = new QLabel(clips.isEmpty() ? tr("No embedded clips")
+                                                   : tr("Clips: %1").arg(clips.join(", ")),
+                                    card);
+        clipList->setWordWrap(true);
+        clipList->setTextInteractionFlags(Qt::TextSelectableByMouse);
+        body->layout()->addWidget(clipList);
+
+        connect(browse, &QPushButton::clicked, this, [this, update] {
+            const QString path = QFileDialog::getOpenFileName(
+                this, tr("Assign Animation Graph"), QFileInfo(projectFile).absolutePath(),
+                tr("Animation graphs (*.json)"));
+            if (!path.isEmpty())
+                update("object", -1, "/animationGraph", path);
+        });
+        connect(clear, &QPushButton::clicked, this, [update] {
+            update("object", -1, "/animationGraph", QStringLiteral(""));
+        });
+        contentLayout->addWidget(card);
     }
 
     if (!materialPath.isEmpty()) {

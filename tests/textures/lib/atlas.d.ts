@@ -268,6 +268,17 @@ declare module "atlas" {
         static fromResource(path: string): Model;
 
         getObjects(): CoreObject[];
+        getAnimationClips(): string[];
+        playAnimation(name: string, loop?: boolean, speed?: number): boolean;
+        crossfadeAnimation(name: string, seconds: number, loop?: boolean, speed?: number): boolean;
+        stopAnimation(): void;
+        setAnimationPaused(paused: boolean): void;
+        loadAnimationGraph(path: string): void;
+        clearAnimationGraph(): void;
+        getAnimationState(): string | null;
+        setAnimationFloat(name: string, value: number): boolean;
+        setAnimationBool(name: string, value: boolean): boolean;
+        triggerAnimation(name: string): boolean;
 
         override move(position: Position3d): void;
         override setPosition(position: Position3d): void;

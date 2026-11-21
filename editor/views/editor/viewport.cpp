@@ -709,9 +709,10 @@ class RuntimePropertyCommand : public QUndoCommand {
     }
 
     void redo() override {
-        if (viewport != nullptr) {
-            viewport->applyRuntimeObjectProperty(objectId, component,
-                                                 componentIndex, path, after);
+        if (viewport != nullptr &&
+            !viewport->applyRuntimeObjectProperty(objectId, component,
+                                                  componentIndex, path, after)) {
+            setObsolete(true);
         }
     }
 

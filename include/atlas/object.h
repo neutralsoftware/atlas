@@ -861,6 +861,10 @@ class Model : public GameObject {
         const std::function<void(float, const std::string &)> &progress,
         bool loadAnimations = false);
 
+    void fromResourceWithEmbeddedAnimations(
+        const Resource &resource,
+        const std::function<void(float, const std::string &)> &progress = {});
+
     Animator &getAnimator() { return animator; }
     const Animator &getAnimator() const { return animator; }
     bool importAnimationClip(const Resource &resource, std::string_view sourceName,
@@ -1098,8 +1102,8 @@ class Model : public GameObject {
 
     void loadModel(
         const Resource &resource,
-        const std::function<void(float, const std::string &)> &progress = {},
-        bool loadAnimations = false);
+        const std::function<void(float, const std::string &)> &progress,
+        bool loadAnimations, bool embeddedAnimationsOnly = false);
     void processNode(aiNode *node, const aiScene *scene,
                      glm::mat4 parentTransform,
                      const std::unordered_map<std::string, atlas::animation::NodeIndex> *nodes,

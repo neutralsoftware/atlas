@@ -55,11 +55,15 @@ class MainScene : public Scene {
 
         Workspace::get().setRootPath(TEST_PATH);
         Resource humanoidResource = Workspace::get().createResource(
-            "resources/walkXBot.fbx", "Humanoid",
-            ResourceType::Model);
+            "resources/walkXBot.fbx", "Humanoid", ResourceType::Model);
 
         humanoid = Model();
         humanoid.fromResource(humanoidResource, true);
+        auto &animator = humanoid.getAnimator();
+        for (const auto &clip : animator.getClips()) {
+            std::cout << clip.name << std::endl;
+        }
+        animator.play("mixamo.com", true, 1.0f);
         humanoid.setScale({0.01f, 0.01f, 0.01f});
         window.addObject(&humanoid);
     }

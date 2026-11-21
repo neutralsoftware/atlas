@@ -138,6 +138,7 @@ class Animator {
     bool isFinished() const;
 
     void setStateMachine(AnimationStateMachine machine);
+    void clearStateMachine();
     bool setFloat(std::string_view parameter, float value);
     bool setBool(std::string_view parameter, bool value);
     bool trigger(std::string_view parameter);

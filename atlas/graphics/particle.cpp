@@ -13,6 +13,7 @@
 #include "atlas/window.h"
 #include "opal/opal.h"
 #include <numbers>
+#include <cmath>
 #include <random>
 #include <utility>
 #include "atlas/particle.h"
@@ -29,15 +30,9 @@ struct ParticleInstanceData {
 };
 
 ParticleEmitter::ParticleEmitter(unsigned int maxParticles)
-    : maxParticles(maxParticles), vao(nullptr), quadBuffer(nullptr),
-      instanceBuffer(nullptr), indexBuffer(nullptr), program({}), texture({}) {
-    particles.reserve(maxParticles);
-
-    this->direction = {0.0, 1.0, 0.0};
-    for (auto &p : particles) {
-        p.active = false;
-    }
-}
+    : particles(maxParticles), maxParticles(maxParticles), vao(nullptr),
+      quadBuffer(nullptr), instanceBuffer(nullptr), indexBuffer(nullptr),
+      program({}), texture({}) {}
 
 void ParticleEmitter::initialize() {
     static const QuadVertex quadVertices[] = {
@@ -131,7 +126,8 @@ void ParticleEmitter::spawnParticle() {
     }
 }
 
-void ParticleEmitter::updateParticle(Particle &p, float deltaTime) {
+void ParticleEmitter::updateParticle(Particle &p, float deltaTime,
+                                     const Magnitude3d &wind) {
     if (!p.active)
         return;
 
@@ -153,14 +149,9 @@ void ParticleEmitter::updateParticle(Particle &p, float deltaTime) {
             cos((time * 0.8f) + (p.position.z * 0.1f)) * 0.02f * deltaTime;
     }
 
-    Magnitude3d windDirection = Magnitude3d{0.0f, 0.0f, 0.0f};
-    if (Window::mainWindow->getCurrentScene()->atmosphere.isEnabled()) {
-        windDirection = Window::mainWindow->getCurrentScene()->atmosphere.wind;
-    }
-
-    p.velocity.x += windDirection.x * deltaTime;
-    p.velocity.y += windDirection.y * deltaTime;
-    p.velocity.z += windDirection.z * deltaTime;
+    p.velocity.x += wind.x * deltaTime;
+    p.velocity.y += wind.y * deltaTime;
+    p.velocity.z += wind.z * deltaTime;
 
     p.position = p.position + p.velocity * deltaTime;
 
@@ -174,8 +165,8 @@ void ParticleEmitter::updateParticle(Particle &p, float deltaTime) {
         }
     }
 
-    float lifeRatio = p.life / p.maxLife;
-    p.color.a = lifeRatio;
+    const float lifeRatio = std::clamp(p.life / p.maxLife, 0.0f, 1.0f);
+    p.color.a = color.a * std::pow(lifeRatio, 2.0f * std::max(0.0f, settings.fadeSpeed));
 }
 
 Position3d ParticleEmitter::generateSpawnPosition() {
@@ -305,18 +296,39 @@ void ParticleEmitter::update(Window &window) {
             burstCount = 0;
         }
 
-        if (!doesEmitOnce) {
-            float emissionInterval = 1.0f / spawnRate;
-            while (timeSinceLastEmission >= emissionInterval) {
-                spawnParticle();
-                timeSinceLastEmission -= emissionInterval;
+        if (doesEmitOnce && !hasEmittedOnce) {
+            for (std::size_t index = 0; index < particles.size(); ++index) {
+                if (!particles[index].active)
+                    activateParticle(static_cast<int>(index));
             }
+            hasEmittedOnce = true;
+        } else if (!doesEmitOnce && spawnRate > 0.0f) {
+            const double interval = 1.0 / spawnRate;
+            if (timeSinceLastEmission >= interval) {
+                const double elapsedIntervals = timeSinceLastEmission / interval;
+                auto remaining = static_cast<std::size_t>(std::min(
+                    elapsedIntervals, static_cast<double>(particles.size())));
+                timeSinceLastEmission = static_cast<float>(
+                    std::fmod(timeSinceLastEmission, interval));
+                for (std::size_t index = 0;
+                     index < particles.size() && remaining > 0; ++index) {
+                    if (!particles[index].active) {
+                        activateParticle(static_cast<int>(index));
+                        --remaining;
+                    }
+                }
+            }
+        } else if (spawnRate <= 0.0f) {
+            timeSinceLastEmission = 0.0f;
         }
     }
 
-    for (auto &p : particles) {
-        updateParticle(p, dt);
-    }
+    const Scene *scene = window.getCurrentScene();
+    const Magnitude3d wind = scene != nullptr && scene->atmosphere.isEnabled()
+                                 ? scene->atmosphere.wind
+                                 : Magnitude3d{0.0f, 0.0f, 0.0f};
+    for (auto &p : particles)
+        updateParticle(p, dt, wind);
 
     std::vector<ParticleInstanceData> instanceData;
     instanceData.reserve(maxParticles);
@@ -482,12 +494,14 @@ void ParticleEmitter::setParticleSettings(
 }
 
 void ParticleEmitter::emitOnce() {
+    timeSinceLastEmission = 0.0f;
     this->doesEmitOnce = true;
     this->hasEmittedOnce = false;
     this->isEmitting = true;
 }
 
 void ParticleEmitter::emitContinuously() {
+    timeSinceLastEmission = 0.0f;
     this->doesEmitOnce = false;
     this->hasEmittedOnce = false;
     this->isEmitting = true;

@@ -824,6 +824,90 @@ Texture loadTextureDefinition(const json &value, const std::string &baseDir,
     return Texture::fromResource(resource, type, params, borderColor);
 }
 
+json particleSettingsJson(const ParticleSettings &settings) {
+    return {{"minLifetime", settings.minLifetime},
+            {"maxLifetime", settings.maxLifetime},
+            {"minSize", settings.minSize},
+            {"maxSize", settings.maxSize},
+            {"fadeSpeed", settings.fadeSpeed},
+            {"gravity", settings.gravity},
+            {"spread", settings.spread},
+            {"speedVariation", settings.speedVariation}};
+}
+
+void applyParticleEmitterProperties(ParticleEmitter &emitter,
+                                    const json &objectData,
+                                    const std::string &baseDir) {
+    if (const json *textureField = findField(objectData, {"texture"})) {
+        if (isEmptyStringValue(*textureField)) {
+            emitter.disableTexture();
+        } else {
+            emitter.attachTexture(loadTextureDefinition(
+                *textureField, baseDir, TextureType::Color, false));
+        }
+    }
+
+    Color color = Color::white();
+    if (tryReadColorAny(objectData, {"color"}, color)) {
+        emitter.setColor(color);
+    }
+
+    bool useTexture = false;
+    if (tryReadBoolAny(objectData, {"useTexture"}, useTexture) && !useTexture)
+        emitter.disableTexture();
+    Position3d direction;
+    if (tryReadVec3Any(objectData, {"direction"}, direction)) {
+        emitter.setDirection(direction);
+    }
+
+    float spawnRadius = 0.1f;
+    if (tryReadFloatAny(objectData, {"spawnRadius"}, spawnRadius) &&
+        std::isfinite(spawnRadius) && spawnRadius >= 0.0f) {
+        emitter.setSpawnRadius(spawnRadius);
+    }
+
+    float spawnRate = 10.0f;
+    if (tryReadFloatAny(objectData, {"spawnRate"}, spawnRate) &&
+        std::isfinite(spawnRate) && spawnRate >= 0.0f) {
+        emitter.setSpawnRate(spawnRate);
+    }
+
+    std::string emissionType;
+    if (tryReadStringAny(objectData, {"emissionType"}, emissionType)) {
+        const std::string emissionToken = normalizeToken(emissionType);
+        if (emissionToken == "ambient") {
+            emitter.setEmissionType(ParticleEmissionType::Ambient);
+        } else {
+            emitter.setEmissionType(ParticleEmissionType::Fountain);
+        }
+    }
+
+    bool emitOnce = false;
+    if (tryReadBoolAny(objectData, {"emitOnce"}, emitOnce)) {
+        if (emitOnce)
+            emitter.emitOnce();
+        else
+            emitter.emitContinuously();
+    }
+
+    if (const json *settingsField = findField(objectData, {"settings"});
+        settingsField != nullptr && settingsField->is_object()) {
+        ParticleSettings settings;
+        tryReadFloatAny(*settingsField, {"minLifetime"},
+                        settings.minLifetime);
+        tryReadFloatAny(*settingsField, {"maxLifetime"},
+                        settings.maxLifetime);
+        tryReadFloatAny(*settingsField, {"minSize"}, settings.minSize);
+        tryReadFloatAny(*settingsField, {"maxSize"}, settings.maxSize);
+        tryReadFloatAny(*settingsField, {"fadeSpeed"}, settings.fadeSpeed);
+        tryReadFloatAny(*settingsField, {"gravity"}, settings.gravity);
+        tryReadFloatAny(*settingsField, {"spread"}, settings.spread);
+        tryReadFloatAny(*settingsField, {"speedVariation"},
+                        settings.speedVariation);
+        emitter.setParticleSettings(settings);
+    }
+}
+
 MaterialDefinition loadMaterialDefinition(const json &value,
                                           const std::string &baseDir) {
     JsonDefinition definition = loadJsonDefinition(value, baseDir);
@@ -4861,10 +4945,21 @@ createRenderable(Context &context, const json &objectData,
         }
 
         auto object = std::make_shared<Model>();
-        object->fromResource(createRuntimeResource(baseDir, source,
-                                                   ResourceType::Model,
-                                                   "runtime-model"),
-                             context.modelImportProgress);
+        object->fromResourceWithEmbeddedAnimations(
+            createRuntimeResource(baseDir, source, ResourceType::Model,
+                                  "runtime-model"),
+            context.modelImportProgress);
+        std::string animationGraph;
+        if (tryReadStringAny(objectData, {"animationGraph"}, animationGraph) &&
+            !animationGraph.empty()) {
+            try {
+                object->getAnimator().setStateMachine(AnimationStateMachine::load(
+                    resolveRuntimePath(baseDir, animationGraph)));
+            } catch (const std::exception &error) {
+                RUNTIME_LOG("Animation graph could not be loaded: " +
+                            std::string(error.what()));
+            }
+        }
 
         registerGameObject(context, *object, objectData, normalizedType,
                            generatedIndex);
@@ -4890,79 +4985,13 @@ createRenderable(Context &context, const json &objectData,
         tryReadIntAny(objectData, {"maxParticles"}, maxParticles);
 
         auto object = std::make_shared<ParticleEmitter>(
-            static_cast<unsigned int>(maxParticles));
+            static_cast<unsigned int>(std::max(1, maxParticles)));
         registerGameObject(context, *object, objectData, normalizedType,
                            generatedIndex);
         context.objects.push_back(object);
 
-        if (const json *textureField = findField(objectData, {"texture"});
-            textureField != nullptr && !isEmptyStringValue(*textureField)) {
-            object->attachTexture(loadTextureDefinition(
-                *textureField, baseDir, TextureType::Color, false));
-        }
-
-        Color color = Color::white();
-        if (tryReadColorAny(objectData, {"color"}, color)) {
-            object->setColor(color);
-        }
-
-        bool useTexture = false;
-        if (tryReadBoolAny(objectData, {"useTexture"}, useTexture)) {
-            if (useTexture) {
-                object->enableTexture();
-            } else {
-                object->disableTexture();
-            }
-        }
-
         applyTransform(*object, objectData);
-
-        Position3d direction;
-        if (tryReadVec3Any(objectData, {"direction"}, direction)) {
-            object->setDirection(direction);
-        }
-
-        float spawnRadius = 0.1f;
-        if (tryReadFloatAny(objectData, {"spawnRadius"}, spawnRadius)) {
-            object->setSpawnRadius(spawnRadius);
-        }
-
-        float spawnRate = 10.0f;
-        if (tryReadFloatAny(objectData, {"spawnRate"}, spawnRate)) {
-            object->setSpawnRate(spawnRate);
-        }
-
-        std::string emissionType;
-        if (tryReadStringAny(objectData, {"emissionType"}, emissionType)) {
-            const std::string emissionToken = normalizeToken(emissionType);
-            if (emissionToken == "ambient") {
-                object->setEmissionType(ParticleEmissionType::Ambient);
-            } else {
-                object->setEmissionType(ParticleEmissionType::Fountain);
-            }
-        }
-
-        bool emitOnce = false;
-        if (tryReadBoolAny(objectData, {"emitOnce"}, emitOnce) && emitOnce) {
-            object->emitOnce();
-        }
-
-        if (const json *settingsField = findField(objectData, {"settings"});
-            settingsField != nullptr && settingsField->is_object()) {
-            ParticleSettings settings;
-            tryReadFloatAny(*settingsField, {"minLifetime"},
-                            settings.minLifetime);
-            tryReadFloatAny(*settingsField, {"maxLifetime"},
-                            settings.maxLifetime);
-            tryReadFloatAny(*settingsField, {"minSize"}, settings.minSize);
-            tryReadFloatAny(*settingsField, {"maxSize"}, settings.maxSize);
-            tryReadFloatAny(*settingsField, {"fadeSpeed"}, settings.fadeSpeed);
-            tryReadFloatAny(*settingsField, {"gravity"}, settings.gravity);
-            tryReadFloatAny(*settingsField, {"spread"}, settings.spread);
-            tryReadFloatAny(*settingsField, {"speedVariation"},
-                            settings.speedVariation);
-            object->setParticleSettings(settings);
-        }
+        applyParticleEmitterProperties(*object, objectData, baseDir);
 
         collectPendingComponents(context, *object, objectData, baseDir,
                                  rigidbodies, standard, joints);
@@ -5724,6 +5753,35 @@ json editorObjectJson(const Context &context, GameObject &object,
     } else {
         node["properties"] = json::object();
     }
+    if (auto *emitter = dynamic_cast<ParticleEmitter *>(&object)) {
+        auto &properties = node["properties"];
+        const auto direction = emitter->getRotation().toGlmQuat() *
+                               glm::vec3(0.0f, 1.0f, 0.0f);
+        const bool hasTexture = properties.contains("texture") &&
+                                !isEmptyStringValue(properties["texture"]);
+        const json defaults{
+            {"color", {1.0f, 1.0f, 1.0f, 1.0f}},
+            {"direction", {direction.x, direction.y, direction.z}},
+            {"spawnRadius", 0.1f},
+            {"spawnRate", 10.0f},
+            {"emissionType", "fountain"},
+            {"emitOnce", false},
+            {"texture", ""},
+            {"useTexture", hasTexture}};
+        for (const auto &[key, value] : defaults.items()) {
+            if (!properties.contains(key))
+                properties[key] = value;
+        }
+        properties["settings"] = particleSettingsJson(emitter->settings);
+    }
+    if (auto *model = dynamic_cast<Model *>(&object)) {
+        auto &properties = node["properties"];
+        if (!properties.contains("animationGraph"))
+            properties["animationGraph"] = "";
+        auto &clips = node["animationClips"] = json::array();
+        for (const auto &clip : model->getAnimator().getClips())
+            clips.push_back(clip.name);
+    }
     if (auto components = context.editorComponentData.find(id);
         components != context.editorComponentData.end()) {
         node["components"] = components->second;
@@ -5899,6 +5957,11 @@ bool Context::setObjectProperty(int id, const std::string &component,
             object->setPosition(vector);
         } else if (property == "rotation") {
             object->setRotation(Rotation3d{vector.x, vector.y, vector.z});
+            if (auto *emitter = dynamic_cast<ParticleEmitter *>(object)) {
+                Position3d direction;
+                if (tryReadVec3Any(editorObjectSourceData[id], {"direction"}, direction))
+                    emitter->setDirection(direction);
+            }
         } else if (property == "scale") {
             auto clampComponent = [](float component) {
                 if (!std::isfinite(component))
@@ -5936,9 +5999,86 @@ bool Context::setObjectProperty(int id, const std::string &component,
     }
 
     if (normalizedComponent == "object") {
+        if (propertyPath == "/animationGraph") {
+            auto *model = dynamic_cast<Model *>(object);
+            if (model == nullptr || !value.is_string()) {
+                return false;
+            }
+            const auto path = value.get<std::string>();
+            if (path.empty()) {
+                model->getAnimator().clearStateMachine();
+                editorObjectSourceData[id].erase("animationGraph");
+                return true;
+            }
+            try {
+                const auto resolved = std::filesystem::path(
+                    resolveRuntimePath(sceneDir, path));
+                model->getAnimator().setStateMachine(
+                    AnimationStateMachine::load(resolved));
+                const auto relative = resolved.lexically_relative(sceneDir);
+                editorObjectSourceData[id]["animationGraph"] =
+                    (relative.empty() ? resolved : relative).generic_string();
+                return true;
+            } catch (const std::exception &error) {
+                RUNTIME_LOG("Animation graph could not be applied: " +
+                            std::string(error.what()));
+                if (errorReporter)
+                    errorReporter(error.what());
+                return false;
+            }
+        }
         json &source = editorLightSourceData.contains(id)
                            ? editorLightSourceData[id]
                            : editorObjectSourceData[id];
+        if (auto *emitter = dynamic_cast<ParticleEmitter *>(object)) {
+            const std::string pointerPath =
+                propertyPath.starts_with('/') ? propertyPath : "/" + propertyPath;
+            const std::string field = pointerPath.substr(
+                1, pointerPath.find('/', 1) - 1);
+            if (field == "maxParticles")
+                return false;
+            if (field == "color" || field == "direction" || field == "spawnRate" ||
+                field == "spawnRadius" || field == "emissionType" ||
+                field == "emitOnce" || field == "settings" || field == "texture" ||
+                field == "useTexture") {
+                json updated = source;
+                if (field == "settings")
+                    updated["settings"] = particleSettingsJson(emitter->settings);
+                if (!setJsonProperty(updated, pointerPath, value))
+                    return false;
+                json changes = {{field, updated[field]}};
+                if (field == "emissionType" && updated.contains("settings"))
+                    changes["settings"] = updated["settings"];
+                if (field == "texture" || field == "useTexture") {
+                    changes["texture"] = updated.value("texture", json(""));
+                    changes["useTexture"] = updated.value(
+                        "useTexture", json(!isEmptyStringValue(changes["texture"])));
+                    if (field == "texture" && changes["texture"].is_string() &&
+                        !isEmptyStringValue(changes["texture"])) {
+                        const std::filesystem::path resolved = resolveRuntimePath(
+                            sceneDir, changes["texture"].get<std::string>());
+                        const auto relative = resolved.lexically_relative(sceneDir);
+                        updated["texture"] =
+                            (relative.empty() ? resolved : relative).generic_string();
+                    }
+                }
+                if (field == "spawnRate" || field == "spawnRadius") {
+                    float amount = 0.0f;
+                    if (!tryReadFloatAny(changes, {field.c_str()}, amount) ||
+                        !std::isfinite(amount) || amount < 0.0f)
+                        return false;
+                }
+                try {
+                    applyParticleEmitterProperties(*emitter, changes, sceneDir);
+                } catch (const std::exception &error) {
+                    if (errorReporter)
+                        errorReporter(error.what());
+                    return false;
+                }
+                source = std::move(updated);
+                return true;
+            }
+        }
         if (!setJsonProperty(source, propertyPath, value)) {
             return false;
         }
@@ -7194,7 +7334,8 @@ bool Context::saveCurrentScene() {
         } else if (node.is_object()) {
             for (auto &[key, value] : node.items()) {
                 if (value.is_string() && (key == "source" || key == "path" ||
-                                          key == "material")) {
+                                          key == "material" ||
+                                          key == "animationGraph")) {
                     const auto raw = value.get<std::string>();
                     const auto resolved = std::filesystem::path(
                         resolveRuntimePath(sceneDir, raw));

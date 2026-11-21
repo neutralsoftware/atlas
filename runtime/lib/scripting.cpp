@@ -37,6 +37,7 @@
 #include <glm/glm.hpp>
 #include <glm/gtc/quaternion.hpp>
 #include <iostream>
+#include <limits>
 #include <memory>
 #include <quickjs.h>
 #include <string>
@@ -14529,8 +14530,13 @@ JSValue jsCreateModel(JSContext *ctx, JSValueConst, int argc,
 
     Resource resource = Workspace::get().createResource(resourcePath, name,
                                                         ResourceType::Model);
-    auto object = ownModel(*host, std::make_shared<Model>());
-    object->fromResource(resource);
+    auto object = std::make_shared<Model>();
+    try {
+        object->fromResourceWithEmbeddedAnimations(resource);
+    } catch (const std::exception &error) {
+        return JS_ThrowInternalError(ctx, "%s", error.what());
+    }
+    ownModel(*host, object);
     attachObjectIfReady(*host, *object);
     return syncObjectWrapper(ctx, *host, *object);
 }
@@ -14565,6 +14571,107 @@ JSValue jsGetModelObjects(JSContext *ctx, JSValueConst, int argc,
     }
 
     return result;
+}
+
+JSValue jsModelAnimation(JSContext *ctx, JSValueConst, int argc,
+                         JSValueConst *argv) {
+    auto *host = getHost(ctx);
+    if (host == nullptr || argc < 2 || !JS_IsObject(argv[1])) {
+        return JS_ThrowTypeError(ctx, "Expected a model and animation command");
+    }
+
+    Model *model = resolveModelArg(ctx, *host, argv[0]);
+    if (model == nullptr)
+        return JS_EXCEPTION;
+
+    Animator &animator = model->getAnimator();
+    std::string action;
+    readStringProperty(ctx, argv[1], "action", action);
+    if (action == "clips") {
+        JSValue result = JS_NewArray(ctx);
+        const auto &clips = animator.getClips();
+        for (std::uint32_t i = 0; i < clips.size(); ++i) {
+            if (JS_SetPropertyUint32(ctx, result, i,
+                                   JS_NewString(ctx, clips[i].name.c_str())) < 0) {
+                JS_FreeValue(ctx, result);
+                return JS_EXCEPTION;
+            }
+        }
+        return result;
+    }
+    if (action == "state") {
+        const auto &state = animator.getState();
+        return state.empty() ? JS_NULL : JS_NewString(ctx, state.c_str());
+    }
+    if (action == "stop") {
+        animator.stop();
+        return JS_UNDEFINED;
+    }
+    if (action == "clearGraph") {
+        animator.clearStateMachine();
+        return JS_UNDEFINED;
+    }
+    if (action == "pause") {
+        bool paused = false;
+        if (!readBoolProperty(ctx, argv[1], "value", paused))
+            return JS_ThrowTypeError(ctx, "Expected paused value");
+        animator.setPaused(paused);
+        return JS_UNDEFINED;
+    }
+
+    std::string name;
+    if (!readStringProperty(ctx, argv[1], "name", name) || name.empty())
+        return JS_ThrowTypeError(ctx, "Expected an animation name or graph path");
+
+    if (action == "loadGraph") {
+        try {
+            std::filesystem::path path(name);
+            if (path.is_relative() && host->context != nullptr)
+                path = std::filesystem::path(host->context->sceneDir) / path;
+            animator.setStateMachine(AnimationStateMachine::load(path));
+            return JS_UNDEFINED;
+        } catch (const std::exception &error) {
+            return JS_ThrowInternalError(ctx, "%s", error.what());
+        }
+    }
+    if (action == "trigger")
+        return JS_NewBool(ctx, animator.trigger(name));
+    if (action == "setBool") {
+        bool value = false;
+        if (!readBoolProperty(ctx, argv[1], "value", value))
+            return JS_ThrowTypeError(ctx, "Expected a boolean animation parameter");
+        return JS_NewBool(ctx, animator.setBool(name, value));
+    }
+    if (action == "setFloat") {
+        double value = 0.0;
+        if (!readNumberProperty(ctx, argv[1], "value", value) ||
+            !std::isfinite(value) ||
+            std::abs(value) > std::numeric_limits<float>::max())
+            return JS_ThrowTypeError(ctx, "Expected a finite animation parameter");
+        return JS_NewBool(ctx, animator.setFloat(name, static_cast<float>(value)));
+    }
+
+    bool loop = true;
+    double speed = 1.0;
+    if (!readBoolProperty(ctx, argv[1], "loop", loop) ||
+        !readNumberProperty(ctx, argv[1], "speed", speed) ||
+        !std::isfinite(speed) ||
+        std::abs(speed) > std::numeric_limits<float>::max())
+        return JS_ThrowTypeError(ctx, "Expected a loop flag and finite playback speed");
+
+    if (action == "play")
+        return JS_NewBool(ctx, animator.play(name, loop, static_cast<float>(speed)));
+    if (action == "crossfade") {
+        double seconds = 0.0;
+        if (!readNumberProperty(ctx, argv[1], "seconds", seconds) ||
+            !std::isfinite(seconds) ||
+            std::abs(seconds) > std::numeric_limits<float>::max())
+            return JS_ThrowTypeError(ctx, "Expected a finite fade duration");
+        return JS_NewBool(ctx, animator.crossfade(
+                                   name, static_cast<float>(seconds), loop,
+                                   static_cast<float>(speed)));
+    }
+    return JS_ThrowTypeError(ctx, "Unknown animation command");
 }
 
 JSValue jsMoveModel(JSContext *ctx, JSValueConst, int argc,
@@ -17182,6 +17289,9 @@ void runtime::scripting::installGlobals(JSContext *ctx) {
     JS_SetPropertyStr(
         ctx, global, "__atlasGetModelObjects",
         JS_NewCFunction(ctx, jsGetModelObjects, "__atlasGetModelObjects", 1));
+    JS_SetPropertyStr(ctx, global, "__atlasModelAnimation",
+                      JS_NewCFunction(ctx, jsModelAnimation,
+                                      "__atlasModelAnimation", 2));
     JS_SetPropertyStr(ctx, global, "__atlasMoveModel",
                       JS_NewCFunction(ctx, jsMoveModel, "__atlasMoveModel", 2));
     JS_SetPropertyStr(

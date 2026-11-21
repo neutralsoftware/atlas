@@ -526,6 +526,50 @@ export class Model extends GameObject {
         return globalThis.__atlasGetModelObjects(this);
     }
 
+    getAnimationClips() {
+        return globalThis.__atlasModelAnimation(this, { action: "clips" });
+    }
+
+    playAnimation(name, loop = true, speed = 1) {
+        return globalThis.__atlasModelAnimation(this, { action: "play", name, loop, speed });
+    }
+
+    crossfadeAnimation(name, seconds, loop = true, speed = 1) {
+        return globalThis.__atlasModelAnimation(this, { action: "crossfade", name, seconds, loop, speed });
+    }
+
+    stopAnimation() {
+        globalThis.__atlasModelAnimation(this, { action: "stop" });
+    }
+
+    setAnimationPaused(value) {
+        globalThis.__atlasModelAnimation(this, { action: "pause", value });
+    }
+
+    loadAnimationGraph(name) {
+        globalThis.__atlasModelAnimation(this, { action: "loadGraph", name });
+    }
+
+    clearAnimationGraph() {
+        globalThis.__atlasModelAnimation(this, { action: "clearGraph" });
+    }
+
+    getAnimationState() {
+        return globalThis.__atlasModelAnimation(this, { action: "state" });
+    }
+
+    setAnimationFloat(name, value) {
+        return globalThis.__atlasModelAnimation(this, { action: "setFloat", name, value });
+    }
+
+    setAnimationBool(name, value) {
+        return globalThis.__atlasModelAnimation(this, { action: "setBool", name, value });
+    }
+
+    triggerAnimation(name) {
+        return globalThis.__atlasModelAnimation(this, { action: "trigger", name });
+    }
+
     move(position) {
         this.position.x += position.x;
         this.position.y += position.y;

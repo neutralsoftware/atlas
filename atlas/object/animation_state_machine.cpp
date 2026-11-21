@@ -165,6 +165,12 @@ void Animator::setStateMachine(AnimationStateMachine graph) {
     activeState = initial->name;
 }
 
+void Animator::clearStateMachine() {
+    machine = {};
+    parameterValues.clear();
+    stop();
+}
+
 bool Animator::setParameter(std::string_view name, AnimationParameterKind kind, float value) {
     const auto parameter = std::ranges::find_if(machine.parameters,
         [&](const auto &p) { return p.name == name && p.kind == kind; });

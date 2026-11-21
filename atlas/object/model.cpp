@@ -850,10 +850,16 @@ void Model::fromResource(
     loadModel(resource, progress, loadAnimations);
 }
 
+void Model::fromResourceWithEmbeddedAnimations(
+    const Resource &resource,
+    const std::function<void(float, const std::string &)> &progress) {
+    loadModel(resource, progress, true, true);
+}
+
 void Model::loadModel(
     const Resource &resource,
     const std::function<void(float, const std::string &)> &progress,
-    bool loadAnimations) {
+    bool loadAnimations, bool embeddedAnimationsOnly) {
     Assimp::Importer importer;
     if (resource.type != ResourceType::Model) {
         atlas_warning("Resource is not a model: " + resource.name);
@@ -955,6 +961,8 @@ void Model::loadModel(
 
     preloadMaterialTextures(scene, textureCache);
 
+    loadAnimations = loadAnimations &&
+                     (!embeddedAnimationsOnly || scene->HasAnimations());
     const auto imported = loadAnimations ? importSkeleton(scene) : SkeletonImportResult{};
     objects.clear();
     animator.setSkeleton(imported.skeleton);

@@ -348,7 +348,7 @@ class ParticleEmitter : public GameObject {
     std::optional<Position3d> firstCameraPosition = std::nullopt;
 
     void spawnParticle();
-    void updateParticle(Particle &p, float deltaTime);
+    void updateParticle(Particle &p, float deltaTime, const Magnitude3d &wind);
     Magnitude3d generateRandomVelocity();
     Position3d generateSpawnPosition();
     int findInactiveParticle();
