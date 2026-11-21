@@ -860,6 +860,11 @@ class Model : public GameObject {
         const std::function<void(float, const std::string &)> &progress,
         bool loadAnimations = false);
 
+    Animator &getAnimator() { return animator; }
+    const Animator &getAnimator() const { return animator; }
+    bool importAnimationClip(const Resource &resource, std::string_view sourceName,
+                             std::string_view name = {});
+
     /**
      * @brief Gets the objects that make up the model.
      *
@@ -1088,9 +1093,7 @@ class Model : public GameObject {
     Rotation3d modelRotation{0.0f, 0.0f, 0.0f};
     Scale3d modelScale{1.0f, 1.0f, 1.0f};
 
-    Skeleton skeleton;
-
-    std::vector<AnimationClip> animations;
+    Animator animator;
 
     void loadModel(
         const Resource &resource,

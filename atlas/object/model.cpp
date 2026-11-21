@@ -696,8 +696,8 @@ SkeletonImportResult importSkeleton(const aiScene *scene) {
     return result;
 }
 
-AnimationClip importAnimation(const aiAnimation *source,
-                              const SkeletonImportResult &skeleton,
+AnimationClip importClip(const aiAnimation *source,
+                              const std::unordered_map<std::string, atlas::animation::NodeIndex> &nodes,
                               float fallbackTicksPerSecond = 1.0f) {
     AnimationClip clip;
     clip.name = source->mName.C_Str();
@@ -718,8 +718,8 @@ AnimationClip importAnimation(const aiAnimation *source,
     for (unsigned int i = 0; i < source->mNumChannels; i++) {
         const aiNodeAnim *src = source->mChannels[i];
 
-        auto it = skeleton.nodeByName.find(src->mNodeName.C_Str());
-        if (it == skeleton.nodeByName.end()) {
+        auto it = nodes.find(src->mNodeName.C_Str());
+        if (it == nodes.end()) {
             atlas_warning("Animation channel for unknown node: " +
                           std::string(src->mNodeName.C_Str()));
             continue;
@@ -734,6 +734,7 @@ AnimationClip importAnimation(const aiAnimation *source,
             channel.positionKeyframes.push_back({
                 .time = static_cast<float>(key.mTime * secondsPerTick),
                 .value = glm::vec3(key.mValue.x, key.mValue.y, key.mValue.z),
+                .step = key.mInterpolation == aiAnimInterpolation_Step,
             });
         }
 
@@ -744,6 +745,7 @@ AnimationClip importAnimation(const aiAnimation *source,
                 .time = static_cast<float>(key.mTime * secondsPerTick),
                 .value = glm::quat(key.mValue.w, key.mValue.x, key.mValue.y,
                                    key.mValue.z),
+                .step = key.mInterpolation == aiAnimInterpolation_Step,
             });
         }
 
@@ -753,6 +755,7 @@ AnimationClip importAnimation(const aiAnimation *source,
             channel.scaleKeyframes.push_back({
                 .time = static_cast<float>(key.mTime * secondsPerTick),
                 .value = glm::vec3(key.mValue.x, key.mValue.y, key.mValue.z),
+                .step = key.mInterpolation == aiAnimInterpolation_Step,
             });
         }
 
@@ -954,18 +957,16 @@ void Model::loadModel(
 
     const auto imported = loadAnimations ? importSkeleton(scene) : SkeletonImportResult{};
     objects.clear();
-    skeleton = imported.skeleton;
-    animations.clear();
+    animator.setSkeleton(imported.skeleton);
     if (loadAnimations) {
         for (unsigned int i = 0; i < scene->mNumAnimations; ++i) {
-            auto clip = importAnimation(scene->mAnimations[i], imported);
+            auto clip = importClip(scene->mAnimations[i], imported.nodeByName);
             if (clip.name.empty())
                 clip.name = "Animation " + std::to_string(i + 1);
             const std::string baseName = clip.name;
-            for (unsigned int suffix = 2; std::ranges::any_of(
-                     animations, [&](const auto &other) { return other.name == clip.name; }); ++suffix)
+            for (unsigned int suffix = 2; animator.findClip(clip.name); ++suffix)
                 clip.name = baseName + " (" + std::to_string(suffix) + ")";
-            animations.push_back(std::move(clip));
+            animator.addClip(std::move(clip));
         }
     }
 
@@ -973,15 +974,8 @@ void Model::loadModel(
     processNode(scene->mRootNode, scene, glm::mat4(1.0f),
                 loadAnimations ? &imported.nodeByName : nullptr, nextNode, textureCache);
 
-    std::vector<glm::mat4> bindPose;
-    bindPose.reserve(skeleton.nodes.size());
-    for (const auto &node : skeleton.nodes) {
-        bindPose.push_back(node.parent == atlas::animation::INVALID_NODE_INDEX
-                               ? node.localTransform
-                               : bindPose[node.parent] * node.localTransform);
-    }
     for (const auto &object : objects)
-        static_cast<ModelMesh &>(*object).updateSkin(bindPose);
+        static_cast<ModelMesh &>(*object).updateSkin(animator.getGlobalPose());
 
     if (progress)
         progress(1.0f, "Finishing import");
@@ -1653,14 +1647,48 @@ std::vector<Texture> Model::loadMaterialTextures(
     return textures;
 }
 
+bool Model::importAnimationClip(const Resource &resource,
+                                std::string_view sourceName,
+                                std::string_view name) {
+    if (resource.type != ResourceType::Model || animator.getSkeleton().nodes.empty())
+        return false;
+
+    Assimp::Importer importer;
+    const aiScene *scene = importer.ReadFile(resource.path.string(), 0);
+    if (!scene)
+        return false;
+
+    std::unordered_map<std::string, atlas::animation::NodeIndex> nodes;
+    const auto &skeletonNodes = animator.getSkeleton().nodes;
+    for (atlas::animation::NodeIndex i = 0; i < skeletonNodes.size(); ++i)
+        nodes.emplace(skeletonNodes[i].name, i);
+
+    for (unsigned int i = 0; i < scene->mNumAnimations; ++i) {
+        const auto *source = scene->mAnimations[i];
+        const std::string candidate = source->mName.length
+            ? source->mName.C_Str() : "Animation " + std::to_string(i + 1);
+        if (candidate != sourceName && !(sourceName.empty() && scene->mNumAnimations == 1))
+            continue;
+        auto clip = importClip(source, nodes);
+        if (clip.channels.empty())
+            return false;
+        clip.name = name.empty() ? candidate : std::string(name);
+        return animator.addClip(std::move(clip));
+    }
+    return false;
+}
+
 void Model::update(Window &window) {
     for (auto &component : components) {
         component->update(window.getDeltaTime());
     }
+    animator.update(window.getDeltaTime());
     for (auto &obj : objects) {
         if (obj == nullptr) {
             continue;
         }
+        if (auto *mesh = dynamic_cast<ModelMesh *>(obj.get()))
+            mesh->updateSkin(animator.getGlobalPose());
         bool hasAnyTexture = !obj->textures.empty();
         if (!hasAnyTexture) {
             obj->material = material;
