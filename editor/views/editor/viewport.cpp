@@ -1522,6 +1522,10 @@ bool ViewportPanel::stepRuntime(bool allowDuringStartup) {
     runtimeFrameInProgress = true;
     const auto frameGuard = qScopeGuard([this] {
         runtimeFrameInProgress = false;
+        if (runtimeReloadPending && !shuttingDown) {
+            runtimeReloadPending = false;
+            QTimer::singleShot(0, this, &ViewportPanel::reloadRuntime);
+        }
         if (runtimeResizePending && !shuttingDown) {
             runtimeResizePending = false;
             resizeTimer->start();
@@ -2244,11 +2248,19 @@ ViewportPanel::runtimeObjectProperty(int id, const QString &component,
 }
 
 void ViewportPanel::playRuntime() {
-    if (runtimeContext == nullptr) {
+    if (runtimeContext == nullptr || runtimeStarting || runtimeFrameInProgress ||
+        runtimeImportInProgress || shuttingDown || playbackState == 1) {
+        return;
+    }
+    if (playbackState == 2) {
+        runtimeContext->setEditorSimulationEnabled(true);
+        playbackState = 1;
+        emit playbackStateChanged(playbackState);
+        captureRuntimeInput();
         return;
     }
     finishKeyboardTransform(false);
-    if (playbackState == 0 && !saveRuntimeScene()) {
+    if (!saveRuntimeScene()) {
         qWarning() << "Atlas editor could not checkpoint the scene for play";
         return;
     }
@@ -2274,7 +2286,8 @@ void ViewportPanel::toggleRuntimePlayback() {
 }
 
 void ViewportPanel::pauseRuntime() {
-    if (runtimeContext == nullptr || playbackState == 0) {
+    if (runtimeContext == nullptr || runtimeStarting || runtimeFrameInProgress ||
+        runtimeImportInProgress || shuttingDown || playbackState != 1) {
         return;
     }
     runtimeContext->setEditorSimulationEnabled(false);
@@ -2343,11 +2356,11 @@ void ViewportPanel::releaseRuntimeInput() {
 }
 
 void ViewportPanel::reloadRuntime() {
-    if (runtimeImportInProgress) {
-        runtimeReloadPending = true;
+    if (shuttingDown || runtimeStarting) {
         return;
     }
-    if (shuttingDown) {
+    if (runtimeImportInProgress || runtimeFrameInProgress) {
+        runtimeReloadPending = true;
         return;
     }
     if (selectionToRestore.isEmpty() && runtimeContext != nullptr) {

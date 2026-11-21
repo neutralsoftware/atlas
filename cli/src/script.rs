@@ -131,11 +131,15 @@ fn update_tsconfig(project_dir: &Path) -> Result<(), String> {
         String::from("moduleResolution"),
         Value::String(String::from("Bundler")),
     );
-    compiler_options.insert(String::from("baseUrl"), Value::String(String::from(".")));
-    compiler_options.insert(
-        String::from("ignoreDeprecations"),
-        Value::String(String::from("6.0")),
-    );
+    if compiler_options.get("baseUrl").and_then(Value::as_str) == Some(".")
+        && compiler_options
+            .get("ignoreDeprecations")
+            .and_then(Value::as_str)
+            == Some("6.0")
+    {
+        compiler_options.remove("baseUrl");
+        compiler_options.remove("ignoreDeprecations");
+    }
     compiler_options.insert(String::from("strict"), Value::Bool(true));
     compiler_options.insert(String::from("noEmit"), Value::Bool(true));
     compiler_options.insert(String::from("skipLibCheck"), Value::Bool(true));
@@ -145,11 +149,11 @@ fn update_tsconfig(project_dir: &Path) -> Result<(), String> {
         let paths = json_object_mut(compiler_options, "paths")?;
         paths.insert(
             String::from("atlas"),
-            Value::Array(vec![Value::String(String::from("lib/atlas.d.ts"))]),
+            Value::Array(vec![Value::String(String::from("./lib/atlas.d.ts"))]),
         );
         paths.insert(
             String::from("atlas/*"),
-            Value::Array(vec![Value::String(String::from("lib/*"))]),
+            Value::Array(vec![Value::String(String::from("./lib/*"))]),
         );
     }
 
