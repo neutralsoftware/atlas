@@ -174,7 +174,11 @@ std::vector<LayoutDescriptor> CoreVertex::getLayoutDescriptors() {
             {"tangent", 4, 3, opal::VertexAttributeType::Float, false,
              sizeof(CoreVertex), offsetof(CoreVertex, tangent)},
             {"bitangent", 5, 3, opal::VertexAttributeType::Float, false,
-             sizeof(CoreVertex), offsetof(CoreVertex, bitangent)}};
+             sizeof(CoreVertex), offsetof(CoreVertex, bitangent)},
+            {"joints", 10, 4, opal::VertexAttributeType::UnsignedInt, false,
+             sizeof(CoreVertex), offsetof(CoreVertex, joints)},
+            {"weights", 11, 4, opal::VertexAttributeType::Float, false,
+             sizeof(CoreVertex), offsetof(CoreVertex, weights)}};
 }
 
 CoreObject::CoreObject() : vao(nullptr), vbo(nullptr), ebo(nullptr) {
@@ -535,6 +539,10 @@ void CoreObject::refreshPipeline() {
     this->pipeline = this->shaderProgram.requestPipeline(unbuiltPipeline);
 }
 
+void CoreObject::bindSkin(opal::Pipeline &target) const {
+    target.setUniform1i("hasSkin", 0);
+}
+
 void CoreObject::render(float dt,
                         std::shared_ptr<opal::CommandBuffer> commandBuffer,
                         bool updatePipeline) {
@@ -582,6 +590,7 @@ void CoreObject::render(float dt,
 
     this->pipeline->setUniform1i("isInstanced", 0);
     this->pipeline->setUniformBool("isInstanced", false);
+    bindSkin(*this->pipeline);
     this->pipeline->setUniformMat4f("model", model);
     this->pipeline->setUniformMat4f("view", view);
     this->pipeline->setUniformMat4f("projection", projection);

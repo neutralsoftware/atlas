@@ -10,6 +10,7 @@
 #ifndef ATLAS_OBJECT_H
 #define ATLAS_OBJECT_H
 
+#include "animation.h"
 #include "atlas/component.h"
 #include "atlas/physics.h"
 #include "bezel/bezel.h"
@@ -175,6 +176,8 @@ struct CoreVertex {
      *
      */
     Normal3d bitangent = {0.0, 0.0, 0.0};
+    glm::uvec4 joints{0};
+    glm::vec4 weights{0.0f};
 
     /**
      * @brief Function that constructs a new CoreVertex object.
@@ -438,6 +441,8 @@ class CoreObject : public GameObject {
      *
      */
     void renderColorWithTexture();
+
+    virtual void bindSkin(opal::Pipeline &pipeline) const;
     /**
      * @brief Function to render the object with only its color.
      *
@@ -804,6 +809,23 @@ class aiNode;
 class aiScene;
 class aiMesh;
 class aiMaterial;
+class ModelMesh : public CoreObject {
+  public:
+    static constexpr unsigned int MaxJoints = 256;
+
+    const Skin &getSkin() const { return skin; }
+    glm::vec3 posedPosition(const CoreVertex &vertex) const;
+
+  private:
+    friend class Model;
+    void updateSkin(const std::vector<glm::mat4> &globalPose);
+    void bindSkin(opal::Pipeline &pipeline) const override;
+
+    Skin skin;
+    glm::mat4 inverseMeshTransform{1.0f};
+    std::vector<glm::mat4> jointMatrices;
+};
+
 /**
  * @brief Class that represents a 3D model composed of multiple CoreObjects. It
  * can be loaded from a resource file and manages its constituent objects.
@@ -831,11 +853,18 @@ class Model : public GameObject {
      * @brief Loads the model from a resource.
      *
      * @param resource The resource to load the model from.
+     * @param loadAnimations Whether to load animations.
      */
-    void fromResource(const Resource &resource);
+    void fromResource(const Resource &resource, bool loadAnimations = false);
     void fromResource(
         const Resource &resource,
-        const std::function<void(float, const std::string &)> &progress);
+        const std::function<void(float, const std::string &)> &progress,
+        bool loadAnimations = false);
+
+    Animator &getAnimator() { return animator; }
+    const Animator &getAnimator() const { return animator; }
+    bool importAnimationClip(const Resource &resource, std::string_view sourceName,
+                             std::string_view name = {});
 
     /**
      * @brief Gets the objects that make up the model.
@@ -1065,17 +1094,23 @@ class Model : public GameObject {
     Rotation3d modelRotation{0.0f, 0.0f, 0.0f};
     Scale3d modelScale{1.0f, 1.0f, 1.0f};
 
+    Animator animator;
+
     void loadModel(
         const Resource &resource,
-        const std::function<void(float, const std::string &)> &progress = {});
+        const std::function<void(float, const std::string &)> &progress = {},
+        bool loadAnimations = false);
     void processNode(aiNode *node, const aiScene *scene,
                      glm::mat4 parentTransform,
+                     const std::unordered_map<std::string, atlas::animation::NodeIndex> *nodes,
+                     atlas::animation::NodeIndex &nextNode,
                      std::unordered_map<std::string, Texture> &textureCache);
     void preloadMaterialTextures(
         const aiScene *scene,
         std::unordered_map<std::string, Texture> &textureCache);
-    CoreObject
+    ModelMesh
     processMesh(aiMesh *mesh, const aiScene *scene, const glm::mat4 &transform,
+                Skin skin, const std::vector<VertexSkinData> &vertexSkin,
                 std::unordered_map<std::string, Texture> &textureCache);
     std::vector<Texture> loadMaterialTextures(
         aiMaterial *mat, std::any type, const std::string &typeName,

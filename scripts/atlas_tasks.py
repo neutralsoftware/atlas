@@ -65,7 +65,7 @@ def configure(backend="AUTO", release_dir=None):
 
 
 def configure_target(
-    backend="AUTO", bezel_native="OFF", ftet_wild=None, directory=None, options=None
+        backend="AUTO", bezel_native="OFF", ftet_wild=None, directory=None, options=None
 ):
     directory = directory or BUILD
     if ftet_wild is None:
@@ -85,7 +85,7 @@ def configure_target(
             key, value = line.split("=", 1)
             cached[key.split(":", 1)[0]] = value
     if (directory / "build.ninja").is_file() and all(
-        cached.get(key, "").upper() == value for key, value in requested.items()
+            cached.get(key, "").upper() == value for key, value in requested.items()
     ):
         return
     execute(
@@ -152,7 +152,7 @@ def native_environment(test_dir, debug=False):
     if WINDOWS:
         directories = [NATIVE_BUILD / "bin", NATIVE_BUILD / "lib"]
         for manifest in sorted(
-            NATIVE_BUILD.glob(f"atlas-test-{test_dir.name}-dlls-*.txt")
+                NATIVE_BUILD.glob(f"atlas-test-{test_dir.name}-dlls-*.txt")
         ):
             directories.extend(
                 Path(line).parent
@@ -167,7 +167,16 @@ def native_environment(test_dir, debug=False):
 
 def run_test(test="", backend="AUTO", bezel_native="OFF", ftet_wild=None, debug=False):
     test_dir, binary = build_native_test(test, backend, bezel_native, ftet_wild)
-    execute(binary, cwd=test_dir, env=native_environment(test_dir, debug))
+    env = native_environment(test_dir, debug)
+
+    if debug:
+        debugger = shutil.which("lldb")
+        if not debugger:
+            raise RuntimeError("LLDB not found. Install LLVM or add lldb to PATH.")
+
+        execute(debugger, "--", binary, cwd=test_dir, env=env)
+    else:
+        execute(binary, cwd=test_dir, env=env)
 
 
 def run_project(test=""):

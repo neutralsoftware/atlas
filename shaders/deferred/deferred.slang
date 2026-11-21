@@ -1,12 +1,15 @@
 #if defined(ATLAS_VERTEX)
 #include "utils/matrix.slang"
 
+#include "utils/skinning.slang"
+
 struct UBO
 {
     row_major float4x4 model;
     row_major float4x4 view;
     row_major float4x4 projection;
     uint isInstanced;
+    uint hasSkin;
 };
 
 struct VertexOutput
@@ -33,6 +36,8 @@ struct VertexInput
     [[vk::location(7)]] float4 instanceModel_1 : TEXCOORD7;
     [[vk::location(8)]] float4 instanceModel_2 : TEXCOORD8;
     [[vk::location(9)]] float4 instanceModel_3 : TEXCOORD9;
+    [[vk::location(10)]] uint4 joints : TEXCOORD10;
+    [[vk::location(11)]] float4 weights : TEXCOORD11;
 };
 
 [[vk::binding(0, 0)]] ConstantBuffer<UBO> uniforms;
@@ -40,6 +45,8 @@ struct VertexInput
 VertexOutput vertexMain(VertexInput input)
 {
     VertexOutput output = {};
+    row_major float4x4 skin = skinMatrix(input.joints, input.weights, uniforms.hasSkin);
+    float4 position = mul(float4(input.aPos, 1.0), skin);
     row_major float3x3 TBN = {};
     row_major float4x4 instanceModel = {};
     instanceModel[0] = input.instanceModel_0;
@@ -56,17 +63,19 @@ VertexOutput vertexMain(VertexInput input)
     {
         finalModel = uniforms.model;
     }
-    float4 worldPos = mul(float4(input.aPos, 1.0), finalModel);
+    float4 worldPos = mul(position, finalModel);
     output.FragPos = worldPos.xyz;
     output.gl_Position = mul(worldPos, (mul(uniforms.view, uniforms.projection)));
     output.TexCoord = input.aTexCoord;
     output.outColor = input.aColor;
-    row_major float4x4 _81 = transpose(inverseMatrix(finalModel));
+    row_major float4x4 _81 = transpose(inverseMatrix(mul(skin, finalModel)));
     row_major float3x3 normalMatrix = float3x3(_81[0].xyz, _81[1].xyz, _81[2].xyz);
     output.Normal = normalize(mul(input.aNormal, normalMatrix));
-    float3 T = normalize(mul(input.aTangent, normalMatrix));
-    float3 B = normalize(mul(input.aBitangent, normalMatrix));
-    float3 N = normalize(mul(input.aNormal, normalMatrix));
+    float3 N = output.Normal;
+    float3 T = mul(mul(float4(input.aTangent, 0.0), skin), finalModel).xyz;
+    T = normalize(T - N * dot(T, N));
+    float3 B = mul(mul(float4(input.aBitangent, 0.0), skin), finalModel).xyz;
+    B = cross(N, T) * (dot(cross(N, T), B) < 0.0 ? -1.0 : 1.0);
     TBN = float3x3(float3(T), float3(B), float3(N));
     output.TBN_0 = TBN[0];
     output.TBN_1 = TBN[1];

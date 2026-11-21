@@ -9,6 +9,8 @@
 #include <any>
 #include <assimp/material.h>
 #include <assimp/scene.h>
+#include "assimp/matrix4x4.h"
+#include "atlas/animation.h"
 #include "atlas/object.h"
 #include "atlas/texture.h"
 #include "atlas/tracer/data.h"
@@ -43,12 +45,14 @@
 #include <unordered_set>
 #include <utility>
 #include <vector>
+#include "glm/ext/matrix_float4x4.hpp"
+#include "glm/ext/vector_float4.hpp"
 #include "stb/stb_image.h"
 
+#define GLM_ENABLE_EXPERIMENTAL
 #include <glm/glm.hpp>
 #include <glm/gtc/matrix_transform.hpp>
 #include <glm/gtc/type_ptr.hpp>
-#define GLM_ENABLE_EXPERIMENTAL
 #include <glm/gtx/string_cast.hpp>
 #include <glm/gtc/epsilon.hpp>
 
@@ -102,7 +106,8 @@ nlohmann::json modelFileStamp(const std::string &path) {
     const auto time = std::filesystem::last_write_time(path, error);
     if (error)
         return {};
-    return {{"path", path}, {"size", size},
+    return {{"path", path},
+            {"size", size},
             {"time", time.time_since_epoch().count()}};
 }
 
@@ -113,7 +118,8 @@ std::filesystem::path modelSceneCachePath(const Resource &resource,
     if (error)
         return {};
     const std::string key = std::filesystem::absolute(resource.path, error)
-                                .lexically_normal().string() +
+                                .lexically_normal()
+                                .string() +
                             "|" + std::to_string(flags) + "|" +
                             std::to_string(aiGetVersionMajor()) + "." +
                             std::to_string(aiGetVersionMinor()) + "." +
@@ -144,7 +150,8 @@ bool isModelSceneCacheValid(const std::filesystem::path &path) {
         if (!dependencies.is_array() || dependencies.empty())
             return false;
         for (const auto &dependency : dependencies) {
-            if (dependency != modelFileStamp(dependency.at("path").get<std::string>()))
+            if (dependency !=
+                modelFileStamp(dependency.at("path").get<std::string>()))
                 return false;
         }
         return true;
@@ -164,10 +171,12 @@ void storeModelSceneCache(const aiScene *scene,
         std::filesystem::create_directories(path.parent_path(), error);
         if (error)
             return;
-        const auto nonce = std::chrono::steady_clock::now().time_since_epoch().count();
+        const auto nonce =
+            std::chrono::steady_clock::now().time_since_epoch().count();
         temporary = path.string() + "." + std::to_string(nonce) + ".tmp";
         Assimp::Exporter exporter;
-        if (exporter.Export(scene, "assbin", temporary.string()) != AI_SUCCESS) {
+        if (exporter.Export(scene, "assbin", temporary.string()) !=
+            AI_SUCCESS) {
             std::filesystem::remove(temporary, error);
             return;
         }
@@ -191,8 +200,8 @@ void storeModelSceneCache(const aiScene *scene,
             return;
         }
         nlohmann::json metadata{{"version", 1},
-                               {"scene", modelFileStamp(path.string())},
-                               {"dependencies", std::move(dependencies)}};
+                                {"scene", modelFileStamp(path.string())},
+                                {"dependencies", std::move(dependencies)}};
         std::ofstream output(path.string() + ".json", std::ios::trunc);
         output << metadata.dump();
     } catch (const std::exception &) {
@@ -324,9 +333,11 @@ loadDecodedTextureCache(const ModelTextureJob &job) {
     if (!input || header.magic != 0x41544C4153544558ULL ||
         header.version != 1 || header.width == 0 || header.height == 0 ||
         header.width > static_cast<uint32_t>(job.maximumDimension > 0
-                                                 ? job.maximumDimension : 16384) ||
+                                                 ? job.maximumDimension
+                                                 : 16384) ||
         header.height > static_cast<uint32_t>(job.maximumDimension > 0
-                                                  ? job.maximumDimension : 16384) ||
+                                                  ? job.maximumDimension
+                                                  : 16384) ||
         header.pixelBytes != expectedPixels ||
         (header.aoBytes != 0 && header.aoBytes != expectedAo)) {
         return std::nullopt;
@@ -535,8 +546,9 @@ Texture uploadModelTexture(const ModelTextureJob &job,
     const opal::TextureFormat format = job.textureType == TextureType::Color
                                            ? opal::TextureFormat::sRgba8
                                            : opal::TextureFormat::Rgba8;
-    const unsigned int mipLevels = 1u + static_cast<unsigned int>(std::floor(std::log2(
-                                    std::max(decoded.width, decoded.height))));
+    const unsigned int mipLevels =
+        1u + static_cast<unsigned int>(std::floor(
+                 std::log2(std::max(decoded.width, decoded.height))));
     auto opalTexture = opal::Texture::create(
         opal::TextureType::Texture2D, format, decoded.width, decoded.height,
         opal::TextureDataFormat::Rgba, decoded.pixels.data(), mipLevels);
@@ -638,19 +650,210 @@ void importMaterialProperties(aiMaterial *material, CoreObject &object) {
         }
     }
 }
+
+glm::mat4 convertMatrix(const aiMatrix4x4 &m) {
+    glm::mat4 result{1.0f};
+
+    result[0] = glm::vec4(m.a1, m.b1, m.c1, m.d1);
+    result[1] = glm::vec4(m.a2, m.b2, m.c2, m.d2);
+    result[2] = glm::vec4(m.a3, m.b3, m.c3, m.d3);
+    result[3] = glm::vec4(m.a4, m.b4, m.c4, m.d4);
+
+    return result;
+}
+
+struct SkeletonImportResult {
+    Skeleton skeleton;
+
+    std::unordered_map<std::string, atlas::animation::NodeIndex> nodeByName;
+};
+
+void importAnimationNode(const aiNode *source,
+                         atlas::animation::NodeIndex parent,
+                         SkeletonImportResult &result) {
+    atlas::animation::NodeIndex index =
+        static_cast<atlas::animation::NodeIndex>(result.skeleton.nodes.size());
+
+    result.skeleton.nodes.push_back({
+        .name = source->mName.C_Str(),
+        .parent = parent,
+        .localTransform = convertMatrix(source->mTransformation),
+    });
+    result.nodeByName.emplace(source->mName.C_Str(), index);
+
+    for (unsigned int i = 0; i < source->mNumChildren; i++) {
+        importAnimationNode(source->mChildren[i], index, result);
+    }
+}
+
+SkeletonImportResult importSkeleton(const aiScene *scene) {
+    SkeletonImportResult result;
+
+    if (scene->mRootNode) {
+        importAnimationNode(scene->mRootNode,
+                            atlas::animation::INVALID_NODE_INDEX, result);
+    }
+    return result;
+}
+
+AnimationClip importClip(const aiAnimation *source,
+                              const std::unordered_map<std::string, atlas::animation::NodeIndex> &nodes,
+                              float fallbackTicksPerSecond = 1.0f) {
+    AnimationClip clip;
+    clip.name = source->mName.C_Str();
+
+    const double ticksPerSecond = source->mTicksPerSecond > 0.0
+                                      ? source->mTicksPerSecond
+                                      : fallbackTicksPerSecond;
+
+    if (ticksPerSecond <= 0.0) {
+        atlas_error("Invalid ticks per second for animation: " + clip.name);
+        return clip;
+    }
+
+    const double secondsPerTick = 1.0 / ticksPerSecond;
+
+    clip.duration = static_cast<float>(source->mDuration * secondsPerTick);
+
+    for (unsigned int i = 0; i < source->mNumChannels; i++) {
+        const aiNodeAnim *src = source->mChannels[i];
+
+        auto it = nodes.find(src->mNodeName.C_Str());
+        if (it == nodes.end()) {
+            atlas_warning("Animation channel for unknown node: " +
+                          std::string(src->mNodeName.C_Str()));
+            continue;
+        }
+
+        AnimationChannel channel;
+        channel.targetNode = it->second;
+
+        for (unsigned int j = 0; j < src->mNumPositionKeys; j++) {
+            const auto &key = src->mPositionKeys[j];
+
+            channel.positionKeyframes.push_back({
+                .time = static_cast<float>(key.mTime * secondsPerTick),
+                .value = glm::vec3(key.mValue.x, key.mValue.y, key.mValue.z),
+                .step = key.mInterpolation == aiAnimInterpolation_Step,
+            });
+        }
+
+        for (unsigned int j = 0; j < src->mNumRotationKeys; j++) {
+            const auto &key = src->mRotationKeys[j];
+
+            channel.rotationKeyframes.push_back({
+                .time = static_cast<float>(key.mTime * secondsPerTick),
+                .value = glm::quat(key.mValue.w, key.mValue.x, key.mValue.y,
+                                   key.mValue.z),
+                .step = key.mInterpolation == aiAnimInterpolation_Step,
+            });
+        }
+
+        for (unsigned int j = 0; j < src->mNumScalingKeys; j++) {
+            const auto &key = src->mScalingKeys[j];
+
+            channel.scaleKeyframes.push_back({
+                .time = static_cast<float>(key.mTime * secondsPerTick),
+                .value = glm::vec3(key.mValue.x, key.mValue.y, key.mValue.z),
+                .step = key.mInterpolation == aiAnimInterpolation_Step,
+            });
+        }
+
+        clip.channels.push_back(std::move(channel));
+    }
+
+    return clip;
+}
+
+struct ImportedSkin {
+    Skin skin;
+    std::vector<VertexSkinData> vertices;
+};
+
+ImportedSkin importSkin(const aiMesh *mesh,
+                        const std::unordered_map<std::string, atlas::animation::NodeIndex> &nodes) {
+    ImportedSkin result;
+    result.vertices.resize(mesh->mNumVertices);
+
+    using Influence = std::pair<uint32_t, float>;
+    std::vector<std::vector<Influence>> influences(mesh->mNumVertices);
+
+    for (unsigned b = 0; b < mesh->mNumBones; b++) {
+        const aiBone *bone = mesh->mBones[b];
+
+        auto it = nodes.find(bone->mName.C_Str());
+
+        if (it == nodes.end()) {
+            atlas_warning("Bone for unknown node: " +
+                          std::string(bone->mName.C_Str()));
+            continue;
+        }
+
+        uint32_t jointIndex = static_cast<uint32_t>(result.skin.joints.size());
+
+        result.skin.joints.push_back({
+            .nodeIndex = it->second,
+            .inverseBindMatrix = convertMatrix(bone->mOffsetMatrix),
+        });
+
+        for (unsigned w = 0; w < bone->mNumWeights; ++w) {
+            const auto &weight = bone->mWeights[w];
+
+            if (weight.mVertexId >= mesh->mNumVertices) {
+                atlas_warning("Bone weight for invalid vertex index: " +
+                              std::to_string(weight.mVertexId));
+                continue;
+            }
+
+            if (weight.mWeight > 0.0f) {
+                influences[weight.mVertexId].emplace_back(jointIndex,
+                                                          weight.mWeight);
+            }
+        }
+    }
+
+    for (size_t v = 0; v < influences.size(); ++v) {
+        auto &list = influences[v];
+
+        std::ranges::sort(list, [](const auto &a, const auto &b) {
+            return a.second > b.second;
+        });
+
+        auto &vertex = result.vertices[v];
+
+        float total = 0.0f;
+        const size_t count = std::min<size_t>(4, list.size());
+
+        for (size_t i = 0; i < count; ++i) {
+            vertex.joints[i] = list[i].first;
+            vertex.weights[i] = list[i].second;
+            total += list[i].second;
+        }
+
+        if (total > 0.0f)
+            vertex.weights /= total;
+    }
+
+    return result;
+}
+
 } // namespace
 
-void Model::fromResource(const Resource &resource) { loadModel(resource); }
+void Model::fromResource(const Resource &resource, bool loadAnimations) {
+    loadModel(resource, {}, loadAnimations);
+}
 
 void Model::fromResource(
     const Resource &resource,
-    const std::function<void(float, const std::string &)> &progress) {
-    loadModel(resource, progress);
+    const std::function<void(float, const std::string &)> &progress,
+    bool loadAnimations) {
+    loadModel(resource, progress, loadAnimations);
 }
 
 void Model::loadModel(
     const Resource &resource,
-    const std::function<void(float, const std::string &)> &progress) {
+    const std::function<void(float, const std::string &)> &progress,
+    bool loadAnimations) {
     Assimp::Importer importer;
     if (resource.type != ResourceType::Model) {
         atlas_warning("Resource is not a model: " + resource.name);
@@ -672,7 +875,7 @@ void Model::loadModel(
     };
     auto status = std::make_shared<ImportStatus>();
     const auto reportProgress = [status](float value, const std::string &text) {
-        std::lock_guard<std::mutex> lock(status->mutex);
+        std::scoped_lock lock(status->mutex);
         status->value = std::max(status->value, value);
         status->text = text;
     };
@@ -684,7 +887,8 @@ void Model::loadModel(
 
     unsigned int importFlags =
         aiProcess_Triangulate | aiProcess_CalcTangentSpace |
-        aiProcess_SortByPType | aiProcess_GenSmoothNormals;
+        aiProcess_SortByPType | aiProcess_GenSmoothNormals |
+        aiProcess_ValidateDataStructure | aiProcess_PopulateArmatureData;
     std::string extension = resource.path.extension().string();
     std::transform(extension.begin(), extension.end(), extension.begin(),
                    [](unsigned char value) { return std::tolower(value); });
@@ -705,7 +909,8 @@ void Model::loadModel(
             auto *io = new ModelImportIO();
             importer.SetIOHandler(io);
             scene = importer.ReadFile(resource.path.string(), importFlags);
-            if (scene != nullptr && !(scene->mFlags & AI_SCENE_FLAGS_INCOMPLETE) &&
+            if (scene != nullptr &&
+                !(scene->mFlags & AI_SCENE_FLAGS_INCOMPLETE) &&
                 scene->mRootNode != nullptr) {
                 reportProgress(0.85f, "Caching imported model");
                 storeModelSceneCache(scene, sceneCachePath, *io);
@@ -750,7 +955,27 @@ void Model::loadModel(
 
     preloadMaterialTextures(scene, textureCache);
 
-    processNode(scene->mRootNode, scene, glm::mat4(1.0f), textureCache);
+    const auto imported = loadAnimations ? importSkeleton(scene) : SkeletonImportResult{};
+    objects.clear();
+    animator.setSkeleton(imported.skeleton);
+    if (loadAnimations) {
+        for (unsigned int i = 0; i < scene->mNumAnimations; ++i) {
+            auto clip = importClip(scene->mAnimations[i], imported.nodeByName);
+            if (clip.name.empty())
+                clip.name = "Animation " + std::to_string(i + 1);
+            const std::string baseName = clip.name;
+            for (unsigned int suffix = 2; animator.findClip(clip.name); ++suffix)
+                clip.name = baseName + " (" + std::to_string(suffix) + ")";
+            animator.addClip(std::move(clip));
+        }
+    }
+
+    atlas::animation::NodeIndex nextNode = 0;
+    processNode(scene->mRootNode, scene, glm::mat4(1.0f),
+                loadAnimations ? &imported.nodeByName : nullptr, nextNode, textureCache);
+
+    for (const auto &object : objects)
+        static_cast<ModelMesh &>(*object).updateSkin(animator.getGlobalPose());
 
     if (progress)
         progress(1.0f, "Finishing import");
@@ -978,14 +1203,35 @@ void Model::preloadMaterialTextures(
 
 void Model::processNode(
     aiNode *node, const aiScene *scene, glm::mat4 parentTransform,
+    const std::unordered_map<std::string, atlas::animation::NodeIndex> *nodes,
+    atlas::animation::NodeIndex &nextNode,
     std::unordered_map<std::string, Texture> &textureCache) {
     glm::mat4 nodeTransform =
         parentTransform * assimpToGlmMatrix(node->mTransformation);
 
+    const auto nodeIndex = nextNode++;
     for (unsigned int i = 0; i < node->mNumMeshes; i++) {
         aiMesh *mesh = scene->mMeshes[node->mMeshes[i]];
-        auto obj = std::make_shared<CoreObject>(
-            processMesh(mesh, scene, nodeTransform, textureCache));
+        ImportedSkin importedSkin;
+        if (nodes) {
+            importedSkin = importSkin(mesh, *nodes);
+            const auto rigidJoint = static_cast<unsigned int>(importedSkin.skin.joints.size());
+            bool usesRigidJoint = false;
+            for (auto &vertex : importedSkin.vertices) {
+                if (vertex.weights.x == 0.0f) {
+                    vertex.joints.x = rigidJoint;
+                    vertex.weights.x = 1.0f;
+                    usesRigidJoint = true;
+                }
+            }
+            if (usesRigidJoint)
+                importedSkin.skin.joints.push_back({nodeIndex, glm::mat4(1.0f)});
+            if (importedSkin.skin.joints.size() > ModelMesh::MaxJoints)
+                throw std::runtime_error("Model mesh exceeds the 256 joint palette limit");
+        }
+        auto obj = std::make_shared<ModelMesh>(processMesh(
+            mesh, scene, nodeTransform, std::move(importedSkin.skin),
+            importedSkin.vertices, textureCache));
         this->objects.push_back(obj);
         importedMeshCount++;
         if (importProgress && totalMeshCount > 0) {
@@ -997,15 +1243,22 @@ void Model::processNode(
     }
 
     for (unsigned int i = 0; i < node->mNumChildren; i++) {
-        processNode(node->mChildren[i], scene, nodeTransform, textureCache);
+        processNode(node->mChildren[i], scene, nodeTransform, nodes, nextNode, textureCache);
     }
 }
 
-CoreObject
+ModelMesh
 Model::processMesh(aiMesh *mesh, const aiScene *scene,
-                   const glm::mat4 &transform,
+                   const glm::mat4 &transform, Skin skin,
+                   const std::vector<VertexSkinData> &vertexSkin,
                    std::unordered_map<std::string, Texture> &textureCache) {
-    CoreObject object;
+    ModelMesh object;
+    object.skin = std::move(skin);
+    if (!object.skin.joints.empty()) {
+        if (glm::determinant(glm::mat3(transform)) == 0.0f)
+            throw std::runtime_error("Animated mesh has a singular bind transform");
+        object.inverseMeshTransform = glm::inverse(transform);
+    }
     std::vector<CoreVertex> vertices;
     std::vector<unsigned int> indices;
     const glm::mat3 linearTransform = glm::mat3(transform);
@@ -1033,6 +1286,10 @@ Model::processMesh(aiMesh *mesh, const aiScene *scene,
                                   mesh->mVertices[i].z, 1.0f);
 
         CoreVertex vertex;
+        if (!vertexSkin.empty()) {
+            vertex.joints = vertexSkin[i].joints;
+            vertex.weights = vertexSkin[i].weights;
+        }
         vertex.position = Position3d::fromGlm(glm::vec3(pos));
 
         // ---------- Normals ----------
@@ -1127,7 +1384,7 @@ Model::processMesh(aiMesh *mesh, const aiScene *scene,
     for (unsigned int i = 0; i < mesh->mNumFaces; i++) {
         if (i % 16384 == 0)
             reportMeshProgress(0.7f + 0.15f * static_cast<float>(i) /
-                                         mesh->mNumFaces,
+                                          mesh->mNumFaces,
                                "Converting model indices");
         const aiFace &face = mesh->mFaces[i];
         for (unsigned int j = 0; j < face.mNumIndices; j++)
@@ -1390,14 +1647,48 @@ std::vector<Texture> Model::loadMaterialTextures(
     return textures;
 }
 
+bool Model::importAnimationClip(const Resource &resource,
+                                std::string_view sourceName,
+                                std::string_view name) {
+    if (resource.type != ResourceType::Model || animator.getSkeleton().nodes.empty())
+        return false;
+
+    Assimp::Importer importer;
+    const aiScene *scene = importer.ReadFile(resource.path.string(), 0);
+    if (!scene)
+        return false;
+
+    std::unordered_map<std::string, atlas::animation::NodeIndex> nodes;
+    const auto &skeletonNodes = animator.getSkeleton().nodes;
+    for (atlas::animation::NodeIndex i = 0; i < skeletonNodes.size(); ++i)
+        nodes.emplace(skeletonNodes[i].name, i);
+
+    for (unsigned int i = 0; i < scene->mNumAnimations; ++i) {
+        const auto *source = scene->mAnimations[i];
+        const std::string candidate = source->mName.length
+            ? source->mName.C_Str() : "Animation " + std::to_string(i + 1);
+        if (candidate != sourceName && !(sourceName.empty() && scene->mNumAnimations == 1))
+            continue;
+        auto clip = importClip(source, nodes);
+        if (clip.channels.empty())
+            return false;
+        clip.name = name.empty() ? candidate : std::string(name);
+        return animator.addClip(std::move(clip));
+    }
+    return false;
+}
+
 void Model::update(Window &window) {
     for (auto &component : components) {
         component->update(window.getDeltaTime());
     }
+    animator.update(window.getDeltaTime());
     for (auto &obj : objects) {
         if (obj == nullptr) {
             continue;
         }
+        if (auto *mesh = dynamic_cast<ModelMesh *>(obj.get()))
+            mesh->updateSkin(animator.getGlobalPose());
         bool hasAnyTexture = !obj->textures.empty();
         if (!hasAnyTexture) {
             obj->material = material;

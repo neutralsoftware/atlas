@@ -253,9 +253,12 @@ ShadowParams DirectionalLight::calculateLightSpaceMatrix(
                 modelMatrix =
                     glm::scale(modelMatrix, modelMesh->getScale().toGlm());
 
+                const auto *skinned = dynamic_cast<const ModelMesh *>(modelMesh.get());
                 for (const auto &vertex : modelVertices) {
+                    const auto position = skinned ? skinned->posedPosition(vertex)
+                                                  : vertex.position.toGlm();
                     glm::vec3 worldPos = glm::vec3(
-                        modelMatrix * glm::vec4(vertex.position.toGlm(), 1.0f));
+                        modelMatrix * glm::vec4(position, 1.0f));
                     worldPoints.push_back(worldPos);
                     worldMin = glm::min(worldMin, worldPos);
                     worldMax = glm::max(worldMax, worldPos);
