@@ -135,8 +135,9 @@ def main():
     ])
 
     bin_directory = build_directory / "bin"
+    docking_name = "qtadvanceddocking-qt6d.dll" if args.debug else "qtadvanceddocking-qt6.dll"
     for name in ["AtlasEditor.exe", "atlas.exe", "atlasrun.exe", "runtime.dll",
-                 "qtadvanceddocking-qt6.dll"]:
+                 docking_name]:
         copy_required(bin_directory / name, package_directory / name)
 
     copy_runtime_dlls(
@@ -170,7 +171,7 @@ def main():
     icon = package_directory / "atlas-star.ico"
     run([
         require("magick"), "-background", "none",
-        root / "editor" / "assets" / "atlas-star.png",
+        root / "editor" / "assets" / "atlasStar.svg",
         "-resize", "256x256", "-gravity", "center", "-extent", "256x256",
         "-define", "icon:auto-resize=256,128,64,48,32,16",
         icon,
@@ -180,7 +181,8 @@ def main():
         raise RuntimeError("rcedit x86_64 executable was not found")
     run([rcedit, package_directory / "AtlasEditor.exe", "--set-icon", icon])
 
-    if not (package_directory / "platforms" / "qwindows.dll").is_file():
+    platform_plugin = "qwindowsd.dll" if args.debug else "qwindows.dll"
+    if not (package_directory / "platforms" / platform_plugin).is_file():
         raise RuntimeError("Qt Windows platform plugin is missing")
     if not (package_directory / "atlas.exe").is_file():
         raise RuntimeError("Atlas CLI is missing")

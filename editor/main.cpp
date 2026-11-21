@@ -225,7 +225,7 @@ int main(int argc, char **argv) {
 
 #ifndef Q_OS_MACOS
 #ifdef Q_OS_WIN
-    app.setWindowIcon(QIcon(":/editor/assets/atlas-star.png"));
+    app.setWindowIcon(QIcon(":/editor/assets/atlasStar.svg"));
 #else
 #ifdef ATLAS_DEBUG_BUILD
     app.setWindowIcon(

@@ -279,11 +279,14 @@ void ParticleEmitter::activateParticle(int index) {
 void ParticleEmitter::update(Window &window) {
     float dt = window.getDeltaTime();
     Camera *cam = window.getCamera();
-    this->model = glm::translate(
-        glm::mat4(1.0f),
-        glm::vec3(cam->position.x, cam->position.y, cam->position.z));
-    if (!firstCameraPosition.has_value()) {
-        firstCameraPosition = cam->position;
+    if (cam != nullptr) {
+        this->model = glm::translate(
+            glm::mat4(1.0f),
+            glm::vec3(cam->position.x, cam->position.y, cam->position.z));
+        if (!firstCameraPosition.has_value())
+            firstCameraPosition = cam->position;
+    } else {
+        this->model = glm::mat4(1.0f);
     }
 
     if (isEmitting) {
