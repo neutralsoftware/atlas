@@ -78,6 +78,7 @@ class PhysicsWorld;
 class Collider {
   public:
     virtual ~Collider() = default;
+    Position3d offset = Position3d::zero();
     /** @brief Returns the smallest extent used for broad-phase heuristics. */
     virtual float getMinExtent() const = 0;
 

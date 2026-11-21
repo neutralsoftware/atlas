@@ -1095,6 +1095,9 @@ class Window {
     bool editorOrbitPivotInitialized = false;
     std::unique_ptr<CoreObject> editorGridObject;
     std::unique_ptr<CoreObject> editorOutlineObject;
+    std::unique_ptr<CoreObject> editorColliderObject;
+    std::weak_ptr<bezel::Collider> editorColliderShape;
+    bool editorColliderInitialized = false;
     std::unique_ptr<CoreObject> editorGizmoObject;
     std::unique_ptr<CoreObject> editorCameraFrustumObject;
     bool editorGridInitialized = false;

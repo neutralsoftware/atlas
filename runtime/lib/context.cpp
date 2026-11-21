@@ -2789,11 +2789,16 @@ void configureRigidbodyCollider(const std::shared_ptr<Rigidbody> &rigidbody,
     std::string colliderType;
     tryReadStringAny(colliderData, {"type"}, colliderType);
     const std::string token = normalizeToken(colliderType);
+    Position3d offset = Position3d::zero();
+    tryReadVec3Any(colliderData, {"offset"}, offset);
+    if (!isFiniteVector(offset))
+        offset = Position3d::zero();
 
     if (token == "box") {
         Position3d size{1.0f, 1.0f, 1.0f};
         tryReadVec3Any(colliderData, {"size", "extents", "dimensions"}, size);
         rigidbody->addBoxCollider(size);
+        rigidbody->body->collider->offset = offset;
         return;
     }
 
@@ -2801,6 +2806,7 @@ void configureRigidbodyCollider(const std::shared_ptr<Rigidbody> &rigidbody,
         float radius = 0.5f;
         tryReadFloatAny(colliderData, {"radius"}, radius);
         rigidbody->addSphereCollider(radius);
+        rigidbody->body->collider->offset = offset;
         return;
     }
 
@@ -2810,13 +2816,14 @@ void configureRigidbodyCollider(const std::shared_ptr<Rigidbody> &rigidbody,
         tryReadFloatAny(colliderData, {"radius"}, radius);
         tryReadFloatAny(colliderData, {"height"}, height);
         rigidbody->addCapsuleCollider(radius, height);
+        rigidbody->body->collider->offset = offset;
         return;
     }
 
     if (token == "mesh") {
         if (auto *coreObject = dynamic_cast<CoreObject *>(&object);
             coreObject != nullptr) {
-            rigidbody->addMeshCollider();
+            rigidbody->addMeshCollider(offset);
             return;
         }
 
@@ -2846,6 +2853,7 @@ void configureRigidbodyCollider(const std::shared_ptr<Rigidbody> &rigidbody,
 
             rigidbody->body->setCollider(
                 std::make_shared<bezel::MeshCollider>(vertices, indices));
+            rigidbody->body->collider->offset = offset;
             return;
         }
 

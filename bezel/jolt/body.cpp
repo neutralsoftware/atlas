@@ -12,6 +12,7 @@
 #include "atlas/units.h"
 #include <bezel/bezel.h>
 #include <bezel/jolt/world.h>
+#include <Jolt/Physics/Collision/Shape/RotatedTranslatedShape.h>
 #include <cmath>
 #include <memory>
 #include <utility>
@@ -28,6 +29,12 @@ void bezel::Rigidbody::create(
     JPH::BodyInterface &bodyInterface = world->physicsSystem.GetBodyInterface();
 
     auto shape = collider->getJoltShape();
+    const glm::vec3 offset = collider->offset.toGlm();
+    if (shape.GetPtr() != nullptr && offset != glm::vec3(0.0f)) {
+        shape = new JPH::RotatedTranslatedShape(
+            JPH::Vec3(offset.x, offset.y, offset.z), JPH::Quat::sIdentity(),
+            shape.GetPtr());
+    }
 
     JPH::RVec3 joltPosition(position.x, position.y, position.z);
 

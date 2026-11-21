@@ -404,7 +404,7 @@ class Rigidbody : public Component {
     /** @brief Adds a sphere collider to the rigidbody. */
     void addSphereCollider(float radius);
     /** @brief Adds a mesh collider from the owning object's mesh (if any). */
-    void addMeshCollider();
+    void addMeshCollider(const Position3d &offset = Position3d::zero());
     /** @brief Sets friction coefficient for contact resolution. */
     void setFriction(float friction);
 

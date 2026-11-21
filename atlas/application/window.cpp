@@ -12,6 +12,7 @@
 #include "atlas/light.h"
 #include "atlas/network/pipe.h"
 #include "atlas/object.h"
+#include "atlas/physics.h"
 #include "atlas/scene.h"
 #include "atlas/texture.h"
 #include "atlas/tracer/data.h"
@@ -510,6 +511,81 @@ void appendEditorLine(std::vector<CoreVertex> &vertices, const glm::vec3 &from,
                       const glm::vec3 &to, const Color &color) {
     vertices.push_back(editorVertex(from, color));
     vertices.push_back(editorVertex(to, color));
+}
+
+std::vector<CoreVertex> editorColliderLines(const bezel::Collider &collider) {
+    std::vector<CoreVertex> vertices;
+    const Color green{0.15f, 1.0f, 0.28f, 1.0f};
+    const glm::vec3 x{1.0f, 0.0f, 0.0f};
+    const glm::vec3 y{0.0f, 1.0f, 0.0f};
+    const glm::vec3 z{0.0f, 0.0f, 1.0f};
+    const auto line = [&](const glm::vec3 &a, const glm::vec3 &b) {
+        appendEditorLine(vertices, a, b, green);
+    };
+    const auto arc = [&](const glm::vec3 &center, const glm::vec3 &u,
+                         const glm::vec3 &v, float radius, float angle) {
+        constexpr int segments = 32;
+        glm::vec3 previous = center + radius * u;
+        for (int i = 1; i <= segments; ++i) {
+            const float t = angle * static_cast<float>(i) / segments;
+            const glm::vec3 next =
+                center + radius * (std::cos(t) * u + std::sin(t) * v);
+            line(previous, next);
+            previous = next;
+        }
+    };
+
+    if (const auto *box = dynamic_cast<const bezel::BoxCollider *>(&collider)) {
+        const glm::vec3 half = box->halfExtents.toGlm();
+        std::array<glm::vec3, 8> corners;
+        for (std::size_t i = 0; i < corners.size(); ++i) {
+            corners[i] = half * glm::vec3(i & 1 ? 1.0f : -1.0f,
+                                         i & 2 ? 1.0f : -1.0f,
+                                         i & 4 ? 1.0f : -1.0f);
+        }
+        for (std::size_t i = 0; i < corners.size(); ++i) {
+            for (std::size_t axis : {1u, 2u, 4u}) {
+                if ((i & axis) == 0)
+                    line(corners[i], corners[i | axis]);
+            }
+        }
+    } else if (const auto *sphere =
+                   dynamic_cast<const bezel::SphereCollider *>(&collider)) {
+        const glm::vec3 center{0.0f};
+        arc(center, x, y, sphere->radius, glm::two_pi<float>());
+        arc(center, x, z, sphere->radius, glm::two_pi<float>());
+        arc(center, y, z, sphere->radius, glm::two_pi<float>());
+    } else if (const auto *capsule =
+                   dynamic_cast<const bezel::CapsuleCollider *>(&collider)) {
+        const glm::vec3 top = y * (0.5f * capsule->height);
+        const glm::vec3 bottom = -top;
+        const float radius = capsule->radius;
+        arc(top, x, z, radius, glm::two_pi<float>());
+        arc(bottom, x, z, radius, glm::two_pi<float>());
+        for (const glm::vec3 &axis : {x, z}) {
+            arc(top, axis, y, radius, glm::pi<float>());
+            arc(bottom, axis, -y, radius, glm::pi<float>());
+            line(top + radius * axis, bottom + radius * axis);
+            line(top - radius * axis, bottom - radius * axis);
+        }
+    } else if (const auto *mesh =
+                   dynamic_cast<const bezel::MeshCollider *>(&collider)) {
+        for (std::size_t i = 0; i + 2 < mesh->indices.size(); i += 3) {
+            const auto a = mesh->indices[i];
+            const auto b = mesh->indices[i + 1];
+            const auto c = mesh->indices[i + 2];
+            if (a >= mesh->vertices.size() || b >= mesh->vertices.size() ||
+                c >= mesh->vertices.size())
+                continue;
+            const glm::vec3 p = mesh->vertices[a].toGlm();
+            const glm::vec3 q = mesh->vertices[b].toGlm();
+            const glm::vec3 r = mesh->vertices[c].toGlm();
+            line(p, q);
+            line(q, r);
+            line(r, p);
+        }
+    }
+    return vertices;
 }
 
 void linePlaneBasis(const glm::vec3 &axis, glm::vec3 &u, glm::vec3 &v) {
@@ -4185,6 +4261,34 @@ void Window::renderEditorOverlays(
                                      opal::CompareOp::Always);
             renderEditorLineObject(editorGizmoObject.get(), view, projection,
                                    commandBuffer);
+        }
+        const auto *rigidbody = selectedEditorObject->rigidbody;
+        if (rigidbody != nullptr && rigidbody->body &&
+            rigidbody->body->collider) {
+            const auto &collider = rigidbody->body->collider;
+            if (editorColliderShape.lock() != collider) {
+                const auto vertices = editorColliderLines(*collider);
+                if (vertices.empty()) {
+                    editorColliderObject.reset();
+                    editorColliderInitialized = false;
+                } else {
+                    ensureEditorLineObject(editorColliderObject,
+                                           editorColliderInitialized, vertices);
+                }
+                editorColliderShape = collider;
+            }
+            const glm::mat4 transform =
+                glm::translate(glm::mat4(1.0f),
+                               selectedEditorObject->getPosition().toGlm()) *
+                glm::mat4_cast(selectedEditorObject->getRotation().toGlmQuat()) *
+                glm::translate(glm::mat4(1.0f), collider->offset.toGlm());
+            updatePipelineStateField(this->primitiveStyle,
+                                     opal::PrimitiveStyle::Lines);
+            updatePipelineStateField(this->useDepth, false);
+            updatePipelineStateField(this->depthCompareOp, opal::CompareOp::Always);
+            updatePipelineStateField(this->lineWidth, 1.8f);
+            renderEditorLineObject(editorColliderObject.get(), view * transform,
+                                   projection, commandBuffer);
         }
     }
 

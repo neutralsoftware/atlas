@@ -1497,7 +1497,14 @@ QFrame *componentCard(const QString &title, const QJsonObject &properties,
     auto *bodyLayout = new QVBoxLayout(body);
     bodyLayout->setContentsMargins(4, 2, 4, 0);
     bodyLayout->setSpacing(5);
-    addPropertyRows(bodyLayout, properties, path, changed, syncProvider, body);
+    QJsonObject fields = properties;
+    if (fields.value("collider").isObject()) {
+        auto collider = fields.value("collider").toObject();
+        if (!collider.contains("offset"))
+            collider.insert("offset", QJsonArray{0.0, 0.0, 0.0});
+        fields.insert("collider", collider);
+    }
+    addPropertyRows(bodyLayout, fields, path, changed, syncProvider, body);
     layout->addWidget(body);
     QObject::connect(
         header, &QToolButton::toggled, card, [header, body](bool expanded) {

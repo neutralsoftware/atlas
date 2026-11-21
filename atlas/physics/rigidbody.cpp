@@ -174,7 +174,7 @@ void Rigidbody::addSphereCollider(float radius) {
     body->setCollider(std::make_shared<bezel::SphereCollider>(radius));
 }
 
-void Rigidbody::addMeshCollider() {
+void Rigidbody::addMeshCollider(const Position3d &offset) {
     if (!body) {
         body = std::make_shared<bezel::Rigidbody>();
         if (object) {
@@ -190,6 +190,7 @@ void Rigidbody::addMeshCollider() {
         }
         body->setCollider(std::make_shared<bezel::MeshCollider>(
             vertices, coreObject->indices));
+        body->collider->offset = offset;
         body->position = object->getPosition();
         body->rotation = object->getRotation();
         body->create(Window::mainWindow->physicsWorld);
