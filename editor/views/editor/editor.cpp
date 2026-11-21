@@ -2591,11 +2591,19 @@ void EditorWindow::refreshScriptWatcher() {
     if (!existing.isEmpty())
         scriptWatcher->removePaths(existing);
     QStringList scripts;
-    QDirIterator iterator(QFileInfo(projectFile).absolutePath(),
+    const QDir projectRoot(QFileInfo(projectFile).absolutePath());
+    QDirIterator iterator(projectRoot.absolutePath(),
                           {"*.js", "*.ts"}, QDir::Files,
                           QDirIterator::Subdirectories);
-    while (iterator.hasNext())
-        scripts.append(iterator.next());
+    while (iterator.hasNext()) {
+        const QString path = iterator.next();
+        const QString relative = projectRoot.relativeFilePath(path);
+        if (relative == "dist/scripts.js" ||
+            relative.startsWith(".atlas-script-build/") ||
+            relative.startsWith("node_modules/"))
+            continue;
+        scripts.append(path);
+    }
     if (!scripts.isEmpty())
         scriptWatcher->addPaths(scripts);
 }

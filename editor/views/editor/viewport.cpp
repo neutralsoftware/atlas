@@ -1404,8 +1404,9 @@ void ViewportPanel::startRuntime() {
             QCoreApplication::processEvents(QEventLoop::ExcludeUserInputEvents);
         };
         runtimeContext->loadProject();
+        const bool startingPlayback = std::exchange(playAfterRuntimeStart, false);
         runtimeContext->setEditorControlsEnabled(true);
-        runtimeContext->setEditorSimulationEnabled(false);
+        runtimeContext->setEditorSimulationEnabled(startingPlayback);
         runtimeContext->setEditorControlMode(0);
         runtimeContext->setEditorShadingMode(shadingMode);
         runtimeContext->setEditorPathTracingPreview(pbrPreview);
@@ -1414,19 +1415,14 @@ void ViewportPanel::startRuntime() {
         emit cameraFocusChanged(false);
         playbackState = 0;
         emit playbackStateChanged(playbackState);
-        emit runtimeLoadingStatusChanged("Preparing viewport...");
+        emit runtimeLoadingStatusChanged(startingPlayback
+                                             ? "Starting viewport playback..."
+                                             : "Preparing viewport...");
         QCoreApplication::processEvents(QEventLoop::ExcludeUserInputEvents);
         if (shuttingDown)
             return;
-        if (!stepRuntime(true)) {
-            stopRuntime();
-            playAfterRuntimeStart = false;
-            emit runtimeErrorOccurred("The first viewport frame failed");
-            emit runtimeLoadingFinished();
-            emit runtimeStartupFinished(false,
-                                        "The first viewport frame failed");
-            return;
-        }
+        if (!stepRuntime(true))
+            throw std::runtime_error("The viewport was unavailable for its first frame");
         refreshSceneSnapshot();
         if (!selectionToRestore.isEmpty()) {
             const QJsonDocument document =
@@ -1445,9 +1441,7 @@ void ViewportPanel::startRuntime() {
         emit sceneOpened(currentRuntimeScene());
         emit runtimeLoadingFinished();
         emit runtimeStartupFinished(true, {});
-        if (playAfterRuntimeStart) {
-            playAfterRuntimeStart = false;
-            runtimeContext->setEditorSimulationEnabled(true);
+        if (startingPlayback) {
             playbackState = 1;
             emit playbackStateChanged(playbackState);
             captureRuntimeInput();
