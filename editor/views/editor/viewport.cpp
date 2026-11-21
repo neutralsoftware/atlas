@@ -1537,6 +1537,9 @@ bool ViewportPanel::stepRuntime(bool allowDuringStartup) {
         return false;
     try {
         if (!runtimeContext->stepFrame()) {
+            if (allowDuringStartup)
+                throw std::runtime_error(
+                    "The viewport runtime stopped before presenting its first frame");
             emit runtimeErrorOccurred(
                 "The viewport runtime stopped unexpectedly");
             stopRuntime();
@@ -1558,6 +1561,8 @@ bool ViewportPanel::stepRuntime(bool allowDuringStartup) {
         }
         return true;
     } catch (const std::exception &error) {
+        if (allowDuringStartup)
+            throw;
         const QString message = QString::fromUtf8(error.what());
         qWarning().noquote()
             << QStringLiteral("Atlas viewport runtime frame failed: %1")
@@ -1566,6 +1571,8 @@ bool ViewportPanel::stepRuntime(bool allowDuringStartup) {
         stopRuntime();
         return false;
     } catch (...) {
+        if (allowDuringStartup)
+            throw;
         qWarning() << "Atlas viewport runtime frame failed";
         emit runtimeErrorOccurred("The viewport runtime frame failed");
         stopRuntime();

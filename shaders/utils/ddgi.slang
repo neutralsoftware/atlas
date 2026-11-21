@@ -120,70 +120,29 @@ float3 sampleDDGIDirectionalRadiance(Texture2D<float4> ddgiTexture,
     if (any(outside > 0.5)) return float3(0.0);
     float volumeWeight = 1.0 - smoothstep(0.0, 0.5, max(max(outside.x, outside.y), outside.z));
 
-    if (counts.x < 2u || counts.y < 2u || counts.z < 2u) {
-        float3 maxCoord = max(float3(0.0f), float3((float)counts.x - 1.0f,
-                                                   (float)counts.y - 1.0f,
-                                                   (float)counts.z - 1.0f));
-        float3 clampedGrid = clamp(grid, float3(0.0f), maxCoord);
-        uint3 nearest = uint3(
-            (uint)clamp(int(floor(clampedGrid.x + 0.5f)), 0, int(counts.x) - 1),
-            (uint)clamp(int(floor(clampedGrid.y + 0.5f)), 0, int(counts.y) - 1),
-            (uint)clamp(int(floor(clampedGrid.z + 0.5f)), 0,
-                        int(counts.z) - 1));
-        uint pIndex = probeIndexFromCoord(nearest, counts);
-        float4 nearestSample = sampleProbeDirectionalRadiance(
-            ddgiTexture, ps, pIndex, atlasW, atlasH, safeDirection);
-        float3 nearestProbePos = ps.origin + float3(nearest) * safeSpacing;
-        float3 nearestDirection =
-            safeNormalizeDDGI(posWS - nearestProbePos, safeNormal);
-        float4 nearestMoments = sampleProbeDirectionalRadiance(
-            ddgiDistance, ps, pIndex, atlasW, atlasH, nearestDirection);
-        float nearestDistance = length(posWS - nearestProbePos);
-        float nearestVariance = max(
-            nearestMoments.y - nearestMoments.x * nearestMoments.x, 0.0001f);
-        float nearestDelta = max(nearestDistance - nearestMoments.x, 0.0f);
-        float nearestVisibility =
-            nearestDelta <= 0.0f
-                ? 1.0f
-                : nearestVariance /
-                      (nearestVariance + nearestDelta * nearestDelta);
-        float nearestValidity = isfinite(nearestSample.w)
-                                    ? clamp(nearestSample.w, 0.0f, 1.0f)
-                                    : 0.0f;
-        float3 nearestIrr =
-            all(isfinite(nearestSample.xyz)) ? nearestSample.xyz : float3(0.0f);
-        nearestIrr *= nearestValidity * nearestVisibility;
-        return max(nearestIrr, float3(0.0f)) * volumeWeight;
-    }
-
-    float3 maxGrid =
-        float3((float)counts.x - 1.0001f, (float)counts.y - 1.0001f,
-               (float)counts.z - 1.0001f);
-    float3 clampedGrid = clamp(grid, float3(0.0f), maxGrid);
-
-    float3 baseF = floor(clampedGrid);
-    float3 frac = clampedGrid - baseF;
-    int3 baseI = int3(baseF);
-    int3 maxBase =
-        int3(int(counts.x) - 2, int(counts.y) - 2, int(counts.z) - 2);
-    baseI = clamp(baseI, int3(0), maxBase);
+    float3 clampedGrid = clamp(grid, float3(0.0f), lastProbe);
+    uint3 base = uint3(floor(clampedGrid));
+    uint3 next = min(base + uint3(1u), counts - uint3(1u));
+    float3 frac = clampedGrid - float3(base);
 
     float3 result = float3(0.0f);
     float weightSum = 0.0f;
-    float3 resultNoBackface = float3(0.0f);
-    float weightSumNoBackface = 0.0f;
 
     for (uint dz = 0; dz <= 1u; dz++) {
         for (uint dy = 0; dy <= 1u; dy++) {
             for (uint dx = 0; dx <= 1u; dx++) {
 
-                uint3 pc = uint3(uint(baseI.x) + dx, uint(baseI.y) + dy,
-                                 uint(baseI.z) + dz);
-                uint pIndex = probeIndexFromCoord(pc, counts);
+                uint3 pc = uint3(dx == 0u ? base.x : next.x,
+                                 dy == 0u ? base.y : next.y,
+                                 dz == 0u ? base.z : next.z);
 
                 float trilinearW = ((dx == 0u) ? (1.0f - frac.x) : frac.x) *
                                    ((dy == 0u) ? (1.0f - frac.y) : frac.y) *
                                    ((dz == 0u) ? (1.0f - frac.z) : frac.z);
+
+                if (trilinearW <= 0.0f)
+                    continue;
+                uint pIndex = probeIndexFromCoord(pc, counts);
 
                 float3 probePos = ps.origin + float3(pc) * safeSpacing;
                 float3 surfaceToProbe = probePos - posWS;
@@ -221,19 +180,12 @@ float3 sampleDDGIDirectionalRadiance(Texture2D<float4> ddgiTexture,
                 float weightedW = w * validityW * visibility;
                 result += irr * weightedW;
                 weightSum += weightedW;
-                float noBackfaceW = trilinearW * validityW *
-                                    visibility;
-                resultNoBackface += irr * noBackfaceW;
-                weightSumNoBackface += noBackfaceW;
             }
         }
     }
 
     if (weightSum > 1e-5f) {
         return result / weightSum * volumeWeight * smoothstep(0.0, 0.05, weightSum);
-    }
-    if (weightSumNoBackface > 1e-5f) {
-        return float3(0.0);
     }
 
     return float3(0.0f);

@@ -8,8 +8,8 @@ RequestExecutionLevel admin
 SetCompressor /SOLID lzma
 BrandingText "Atlas Engine"
 
-!define MUI_ICON "${SOURCE_DIR}\atlas-star.ico"
-!define MUI_UNICON "${SOURCE_DIR}\atlas-star.ico"
+!define MUI_ICON "${SOURCE_DIR}\atlas-star-dark.ico"
+!define MUI_UNICON "${SOURCE_DIR}\atlas-star-dark.ico"
 !define MUI_ABORTWARNING
 !define MUI_HEADERIMAGE
 !define MUI_HEADERIMAGE_RIGHT
@@ -35,8 +35,8 @@ Section
     SetOutPath "$INSTDIR"
     File /r "${SOURCE_DIR}\*"
     CreateDirectory "$SMPROGRAMS\Atlas Engine"
-    CreateShortcut "$SMPROGRAMS\Atlas Engine\Atlas Engine.lnk" "$INSTDIR\AtlasEditor.exe"
-    CreateShortcut "$DESKTOP\Atlas Engine.lnk" "$INSTDIR\AtlasEditor.exe"
+    CreateShortcut "$SMPROGRAMS\Atlas Engine\Atlas Engine.lnk" "$INSTDIR\AtlasEditor.exe" "" "$INSTDIR\atlas-star-dark.ico" 0
+    CreateShortcut "$DESKTOP\Atlas Engine.lnk" "$INSTDIR\AtlasEditor.exe" "" "$INSTDIR\atlas-star-dark.ico" 0
     WriteUninstaller "$INSTDIR\Uninstall.exe"
 SectionEnd
 

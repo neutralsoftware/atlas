@@ -462,7 +462,7 @@ FragmentOutput fragmentMain(FragmentInput input) {
     float3 ambient = ddgiEnabled ? float3(0.0) : ambientBase;
 
     float ddgiSampleBias =
-        max(max(ps.spacing.x, max(ps.spacing.y, ps.spacing.z)) * 0.05f, 0.002f);
+        max(min(ps.spacing.x, min(ps.spacing.y, ps.spacing.z)) * 0.02f, 0.001f);
     float3 ddgiSamplePos = FragPos + ddgiNormal * ddgiSampleBias;
     float3 ddgiIrradiance = float3(0.0f);
     if (ddgiEnabled) {

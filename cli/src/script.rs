@@ -224,6 +224,7 @@ fn run_npm_install(project_dir: &Path) -> Result<(), String> {
     let output = Command::new("npm")
         .current_dir(project_dir)
         .arg("install")
+        .arg("--include=optional")
         .output()
         .map_err(|e| format!("Failed to run npm install: {e}"))?;
 
@@ -359,12 +360,26 @@ fn find_local_esbuild(project_dir: &Path) -> Option<PathBuf> {
             return Some(native);
         }
     }
+    None
+}
+
+fn find_local_esbuild_shim(project_dir: &Path) -> Option<PathBuf> {
     let shim = if cfg!(windows) {
         "esbuild.cmd"
     } else {
         "esbuild"
     };
     let path = project_dir.join("node_modules/.bin").join(shim);
+    path.is_file().then_some(path)
+}
+
+fn find_bundled_esbuild() -> Option<PathBuf> {
+    let name = if cfg!(windows) {
+        "esbuild.exe"
+    } else {
+        "esbuild"
+    };
+    let path = std::env::current_exe().ok()?.parent()?.join(name);
     path.is_file().then_some(path)
 }
 
@@ -415,8 +430,21 @@ fn write_script_bundle_support_files(
 }
 
 fn run_esbuild(project_dir: &Path, entry_points: &[PathBuf]) -> Result<(), String> {
+    let mut local_esbuild = find_local_esbuild(project_dir)
+        .or_else(find_bundled_esbuild)
+        .or_else(|| find_local_esbuild_shim(project_dir));
+    if local_esbuild.is_none() && !command_exists("esbuild") && command_exists("npm") {
+        eprintln!(
+            "Installing project dependencies, including the esbuild binary for this platform..."
+        );
+        run_npm_install(project_dir)?;
+        local_esbuild = find_local_esbuild(project_dir)
+            .or_else(find_bundled_esbuild)
+            .or_else(|| find_local_esbuild_shim(project_dir));
+    }
+
     let entry_path = write_script_bundle_support_files(project_dir, entry_points)?;
-    let mut command = if let Some(esbuild_path) = find_local_esbuild(project_dir) {
+    let mut command = if let Some(esbuild_path) = local_esbuild {
         Command::new(esbuild_path)
     } else if command_exists("esbuild") {
         Command::new("esbuild")

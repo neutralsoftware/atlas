@@ -1,9 +1,15 @@
 import argparse
+import base64
+import hashlib
+import io
+import json
 import os
 import platform
 import shutil
 import subprocess
 import sys
+import tarfile
+import urllib.request
 from pathlib import Path
 
 
@@ -98,6 +104,30 @@ def copy_runtime_dlls(manifest, destination):
         copy_required(source, destination / source.name)
 
 
+def package_esbuild(destination):
+    version = "0.25.5"
+    metadata_url = "https://registry.npmjs.org/@esbuild%2Fwin32-x64"
+    with urllib.request.urlopen(metadata_url, timeout=30) as response:
+        metadata = json.load(response)
+    package = metadata["versions"][version]
+    with urllib.request.urlopen(package["dist"]["tarball"], timeout=60) as response:
+        archive_data = response.read()
+
+    integrity = package["dist"]["integrity"]
+    algorithm, expected_digest = integrity.split("-", 1)
+    if algorithm != "sha512":
+        raise RuntimeError(f"Unsupported esbuild package integrity: {algorithm}")
+    actual_digest = hashlib.sha512(archive_data).digest()
+    if actual_digest != base64.b64decode(expected_digest):
+        raise RuntimeError("Downloaded esbuild package failed its integrity check")
+
+    with tarfile.open(fileobj=io.BytesIO(archive_data), mode="r:gz") as archive:
+        member = archive.extractfile("package/esbuild.exe")
+        if member is None:
+            raise RuntimeError("Windows esbuild executable was not present in its package")
+        destination.write_bytes(member.read())
+
+
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("--debug", action="store_true")
@@ -135,6 +165,8 @@ def main():
     ])
 
     bin_directory = build_directory / "bin"
+    copy_required(root / "target" / mode / "atlas.exe", bin_directory / "atlas.exe")
+    package_esbuild(package_directory / "esbuild.exe")
     docking_name = "qtadvanceddocking-qt6d.dll" if args.debug else "qtadvanceddocking-qt6.dll"
     for name in ["AtlasEditor.exe", "atlas.exe", "atlasrun.exe", "runtime.dll",
                  docking_name]:
@@ -168,7 +200,7 @@ def main():
         for dll in vcpkg_bin.glob("*.dll"):
             shutil.copy2(dll, package_directory / dll.name)
 
-    icon = package_directory / "atlas-star.ico"
+    icon = package_directory / "atlas-star-dark.ico"
     run([
         require("magick"), "-background", "none",
         root / "editor" / "assets" / "atlasStar.svg",
