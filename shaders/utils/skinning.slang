@@ -5,7 +5,7 @@ struct SkinPalette
 
 [[vk::binding(1, 0)]] ConstantBuffer<SkinPalette> skinPalette;
 
-row_major float4x4 skinMatrix(uint4 joints, float4 weights, uint enabled)
+float4x4 skinMatrix(uint4 joints, float4 weights, uint enabled)
 {
     if (enabled == 0 || dot(weights, float4(1.0)) <= 0.0)
         return float4x4(1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1);
