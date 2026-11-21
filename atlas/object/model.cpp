@@ -762,6 +762,78 @@ AnimationClip importAnimation(const aiAnimation *source,
     return clip;
 }
 
+struct ImportedSkin {
+    Skin skin;
+    std::vector<VertexSkinData> vertices;
+};
+
+ImportedSkin importSkin(const aiMesh *mesh,
+                        const std::unordered_map<std::string, atlas::animation::NodeIndex> &nodes) {
+    ImportedSkin result;
+    result.vertices.resize(mesh->mNumVertices);
+
+    using Influence = std::pair<uint32_t, float>;
+    std::vector<std::vector<Influence>> influences(mesh->mNumVertices);
+
+    for (unsigned b = 0; b < mesh->mNumBones; b++) {
+        const aiBone *bone = mesh->mBones[b];
+
+        auto it = nodes.find(bone->mName.C_Str());
+
+        if (it == nodes.end()) {
+            atlas_warning("Bone for unknown node: " +
+                          std::string(bone->mName.C_Str()));
+            continue;
+        }
+
+        uint32_t jointIndex = static_cast<uint32_t>(result.skin.joints.size());
+
+        result.skin.joints.push_back({
+            .nodeIndex = it->second,
+            .inverseBindMatrix = convertMatrix(bone->mOffsetMatrix),
+        });
+
+        for (unsigned w = 0; w < bone->mNumWeights; ++w) {
+            const auto &weight = bone->mWeights[w];
+
+            if (weight.mVertexId >= mesh->mNumVertices) {
+                atlas_warning("Bone weight for invalid vertex index: " +
+                              std::to_string(weight.mVertexId));
+                continue;
+            }
+
+            if (weight.mWeight > 0.0f) {
+                influences[weight.mVertexId].emplace_back(jointIndex,
+                                                          weight.mWeight);
+            }
+        }
+    }
+
+    for (size_t v = 0; v < influences.size(); ++v) {
+        auto &list = influences[v];
+
+        std::ranges::sort(list, [](const auto &a, const auto &b) {
+            return a.second > b.second;
+        });
+
+        auto &vertex = result.vertices[v];
+
+        float total = 0.0f;
+        const size_t count = std::min<size_t>(4, list.size());
+
+        for (size_t i = 0; i < count; ++i) {
+            vertex.joints[i] = list[i].first;
+            vertex.weights[i] = list[i].second;
+            total += list[i].second;
+        }
+
+        if (total > 0.0f)
+            vertex.weights /= total;
+    }
+
+    return result;
+}
+
 } // namespace
 
 void Model::fromResource(const Resource &resource, bool loadAnimations) {
@@ -880,29 +952,36 @@ void Model::loadModel(
 
     preloadMaterialTextures(scene, textureCache);
 
-    processNode(scene->mRootNode, scene, glm::mat4(1.0f), textureCache);
-
+    const auto imported = loadAnimations ? importSkeleton(scene) : SkeletonImportResult{};
+    objects.clear();
+    skeleton = imported.skeleton;
+    animations.clear();
     if (loadAnimations) {
-        if (progress)
-            progress(0.95f, "Loading skeleton and animations");
-        SkeletonImportResult skeleton = importSkeleton(scene);
-        std::vector<AnimationClip> animations;
-        for (unsigned int i = 0; i < scene->mNumAnimations; i++) {
-            const aiAnimation *src = scene->mAnimations[i];
-            AnimationClip clip = importAnimation(src, skeleton);
+        for (unsigned int i = 0; i < scene->mNumAnimations; ++i) {
+            auto clip = importAnimation(scene->mAnimations[i], imported);
+            if (clip.name.empty())
+                clip.name = "Animation " + std::to_string(i + 1);
+            const std::string baseName = clip.name;
+            for (unsigned int suffix = 2; std::ranges::any_of(
+                     animations, [&](const auto &other) { return other.name == clip.name; }); ++suffix)
+                clip.name = baseName + " (" + std::to_string(suffix) + ")";
             animations.push_back(std::move(clip));
         }
-        std::cout << "Imported skeleton with " << skeleton.skeleton.nodes.size()
-                  << " nodes." << std::endl;
-        std::cout << "Imported " << animations.size() << " animation clips."
-                  << std::endl;
-        for (auto &clip : animations) {
-            std::cout << "Imported animation: " << clip.name << " ("
-                      << clip.duration << " seconds, " << clip.channels.size()
-                      << " channels)" << std::endl;
-        }
-        this->skeleton = std::move(skeleton.skeleton);
     }
+
+    atlas::animation::NodeIndex nextNode = 0;
+    processNode(scene->mRootNode, scene, glm::mat4(1.0f),
+                loadAnimations ? &imported.nodeByName : nullptr, nextNode, textureCache);
+
+    std::vector<glm::mat4> bindPose;
+    bindPose.reserve(skeleton.nodes.size());
+    for (const auto &node : skeleton.nodes) {
+        bindPose.push_back(node.parent == atlas::animation::INVALID_NODE_INDEX
+                               ? node.localTransform
+                               : bindPose[node.parent] * node.localTransform);
+    }
+    for (const auto &object : objects)
+        static_cast<ModelMesh &>(*object).updateSkin(bindPose);
 
     if (progress)
         progress(1.0f, "Finishing import");
@@ -1130,14 +1209,35 @@ void Model::preloadMaterialTextures(
 
 void Model::processNode(
     aiNode *node, const aiScene *scene, glm::mat4 parentTransform,
+    const std::unordered_map<std::string, atlas::animation::NodeIndex> *nodes,
+    atlas::animation::NodeIndex &nextNode,
     std::unordered_map<std::string, Texture> &textureCache) {
     glm::mat4 nodeTransform =
         parentTransform * assimpToGlmMatrix(node->mTransformation);
 
+    const auto nodeIndex = nextNode++;
     for (unsigned int i = 0; i < node->mNumMeshes; i++) {
         aiMesh *mesh = scene->mMeshes[node->mMeshes[i]];
-        auto obj = std::make_shared<CoreObject>(
-            processMesh(mesh, scene, nodeTransform, textureCache));
+        ImportedSkin importedSkin;
+        if (nodes) {
+            importedSkin = importSkin(mesh, *nodes);
+            const auto rigidJoint = static_cast<unsigned int>(importedSkin.skin.joints.size());
+            bool usesRigidJoint = false;
+            for (auto &vertex : importedSkin.vertices) {
+                if (vertex.weights.x == 0.0f) {
+                    vertex.joints.x = rigidJoint;
+                    vertex.weights.x = 1.0f;
+                    usesRigidJoint = true;
+                }
+            }
+            if (usesRigidJoint)
+                importedSkin.skin.joints.push_back({nodeIndex, glm::mat4(1.0f)});
+            if (importedSkin.skin.joints.size() > ModelMesh::MaxJoints)
+                throw std::runtime_error("Model mesh exceeds the 256 joint palette limit");
+        }
+        auto obj = std::make_shared<ModelMesh>(processMesh(
+            mesh, scene, nodeTransform, std::move(importedSkin.skin),
+            importedSkin.vertices, textureCache));
         this->objects.push_back(obj);
         importedMeshCount++;
         if (importProgress && totalMeshCount > 0) {
@@ -1149,15 +1249,22 @@ void Model::processNode(
     }
 
     for (unsigned int i = 0; i < node->mNumChildren; i++) {
-        processNode(node->mChildren[i], scene, nodeTransform, textureCache);
+        processNode(node->mChildren[i], scene, nodeTransform, nodes, nextNode, textureCache);
     }
 }
 
-CoreObject
+ModelMesh
 Model::processMesh(aiMesh *mesh, const aiScene *scene,
-                   const glm::mat4 &transform,
+                   const glm::mat4 &transform, Skin skin,
+                   const std::vector<VertexSkinData> &vertexSkin,
                    std::unordered_map<std::string, Texture> &textureCache) {
-    CoreObject object;
+    ModelMesh object;
+    object.skin = std::move(skin);
+    if (!object.skin.joints.empty()) {
+        if (glm::determinant(glm::mat3(transform)) == 0.0f)
+            throw std::runtime_error("Animated mesh has a singular bind transform");
+        object.inverseMeshTransform = glm::inverse(transform);
+    }
     std::vector<CoreVertex> vertices;
     std::vector<unsigned int> indices;
     const glm::mat3 linearTransform = glm::mat3(transform);
@@ -1185,6 +1292,10 @@ Model::processMesh(aiMesh *mesh, const aiScene *scene,
                                   mesh->mVertices[i].z, 1.0f);
 
         CoreVertex vertex;
+        if (!vertexSkin.empty()) {
+            vertex.joints = vertexSkin[i].joints;
+            vertex.weights = vertexSkin[i].weights;
+        }
         vertex.position = Position3d::fromGlm(glm::vec3(pos));
 
         // ---------- Normals ----------

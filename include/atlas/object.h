@@ -176,6 +176,8 @@ struct CoreVertex {
      *
      */
     Normal3d bitangent = {0.0, 0.0, 0.0};
+    glm::uvec4 joints{0};
+    glm::vec4 weights{0.0f};
 
     /**
      * @brief Function that constructs a new CoreVertex object.
@@ -439,6 +441,8 @@ class CoreObject : public GameObject {
      *
      */
     void renderColorWithTexture();
+
+    virtual void bindSkin(opal::Pipeline &pipeline) const;
     /**
      * @brief Function to render the object with only its color.
      *
@@ -805,6 +809,22 @@ class aiNode;
 class aiScene;
 class aiMesh;
 class aiMaterial;
+class ModelMesh : public CoreObject {
+  public:
+    static constexpr unsigned int MaxJoints = 256;
+
+    const Skin &getSkin() const { return skin; }
+    void updateSkin(const std::vector<glm::mat4> &globalPose);
+
+  private:
+    friend class Model;
+    void bindSkin(opal::Pipeline &pipeline) const override;
+
+    Skin skin;
+    glm::mat4 inverseMeshTransform{1.0f};
+    std::vector<glm::mat4> jointMatrices;
+};
+
 /**
  * @brief Class that represents a 3D model composed of multiple CoreObjects. It
  * can be loaded from a resource file and manages its constituent objects.
@@ -1069,7 +1089,8 @@ class Model : public GameObject {
     Scale3d modelScale{1.0f, 1.0f, 1.0f};
 
     Skeleton skeleton;
-    Skin skinning;
+
+    std::vector<AnimationClip> animations;
 
     void loadModel(
         const Resource &resource,
@@ -1077,12 +1098,15 @@ class Model : public GameObject {
         bool loadAnimations = false);
     void processNode(aiNode *node, const aiScene *scene,
                      glm::mat4 parentTransform,
+                     const std::unordered_map<std::string, atlas::animation::NodeIndex> *nodes,
+                     atlas::animation::NodeIndex &nextNode,
                      std::unordered_map<std::string, Texture> &textureCache);
     void preloadMaterialTextures(
         const aiScene *scene,
         std::unordered_map<std::string, Texture> &textureCache);
-    CoreObject
+    ModelMesh
     processMesh(aiMesh *mesh, const aiScene *scene, const glm::mat4 &transform,
+                Skin skin, const std::vector<VertexSkinData> &vertexSkin,
                 std::unordered_map<std::string, Texture> &textureCache);
     std::vector<Texture> loadMaterialTextures(
         aiMaterial *mat, std::any type, const std::string &typeName,

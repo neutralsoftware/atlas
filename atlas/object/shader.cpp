@@ -52,7 +52,7 @@ VertexShader VertexShader::fromDefaultShader(AtlasVertexShader shader) {
     }
     case AtlasVertexShader::Color: {
         vertexShader = VertexShader::fromSource(COLOR_VERT);
-        vertexShader.desiredAttributes = {0, 1};
+        vertexShader.desiredAttributes = {0, 1, 10, 11};
         vertexShader.capabilities = {ShaderCapability::Instances};
         vertexShader.fromDefaultShaderType = shader;
         VertexShader::vertexShaderCache[shader] = vertexShader;
@@ -62,7 +62,7 @@ VertexShader VertexShader::fromDefaultShader(AtlasVertexShader shader) {
         return VertexShader::fromDefaultShader(AtlasVertexShader::Deferred);
     case AtlasVertexShader::Texture: {
         vertexShader = VertexShader::fromSource(TEXTURE_VERT);
-        vertexShader.desiredAttributes = {0, 1, 2};
+        vertexShader.desiredAttributes = {0, 1, 2, 10, 11};
         vertexShader.capabilities = {ShaderCapability::Textures};
         vertexShader.fromDefaultShaderType = shader;
         VertexShader::vertexShaderCache[shader] = vertexShader;
@@ -86,7 +86,7 @@ VertexShader VertexShader::fromDefaultShader(AtlasVertexShader shader) {
     }
     case AtlasVertexShader::Depth: {
         vertexShader = VertexShader::fromSource(DEPTH_VERT);
-        vertexShader.desiredAttributes = {0};
+        vertexShader.desiredAttributes = {0, 10, 11};
         vertexShader.capabilities = {ShaderCapability::Instances};
         vertexShader.fromDefaultShaderType = shader;
         VertexShader::vertexShaderCache[shader] = vertexShader;
@@ -112,7 +112,7 @@ VertexShader VertexShader::fromDefaultShader(AtlasVertexShader shader) {
         return VertexShader::fromDefaultShader(AtlasVertexShader::PointLightShadowNoGeom);
     case AtlasVertexShader::PointLightShadowNoGeom: {
         vertexShader = VertexShader::fromSource(POINT_DEPTH_NOGEOM_VERT);
-        vertexShader.desiredAttributes = {0};
+        vertexShader.desiredAttributes = {0, 10, 11};
         vertexShader.capabilities = {ShaderCapability::Instances};
         vertexShader.fromDefaultShaderType = shader;
         VertexShader::vertexShaderCache[shader] = vertexShader;
@@ -120,7 +120,7 @@ VertexShader VertexShader::fromDefaultShader(AtlasVertexShader shader) {
     }
     case AtlasVertexShader::Deferred: {
         vertexShader = VertexShader::fromSource(DEFERRED_VERT);
-        vertexShader.desiredAttributes = {0, 1, 2, 3, 4, 5};
+        vertexShader.desiredAttributes = {0, 1, 2, 3, 4, 5, 10, 11};
         vertexShader.capabilities = {
             ShaderCapability::Textures, ShaderCapability::Deferred,
             ShaderCapability::Material, ShaderCapability::Instances};

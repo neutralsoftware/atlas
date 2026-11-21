@@ -12,6 +12,7 @@
 
 #include "glm/ext/matrix_float4x4.hpp"
 #include "glm/ext/quaternion_float.hpp"
+#include "glm/ext/vector_uint4.hpp"
 #include <cstdint>
 #include <string>
 #include <vector>
@@ -36,6 +37,11 @@ struct SkinJoint {
     atlas::animation::NodeIndex nodeIndex =
         atlas::animation::INVALID_NODE_INDEX;
     glm::mat4 inverseBindMatrix{1.0f};
+};
+
+struct VertexSkinData {
+    glm::uvec4 joints{0};
+    glm::vec4 weights{0.0f};
 };
 
 struct Skin {

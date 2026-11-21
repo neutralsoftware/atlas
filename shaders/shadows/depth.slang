@@ -1,10 +1,13 @@
 #if defined(ATLAS_VERTEX)
+#include "utils/skinning.slang"
+
 struct UBO
 {
     row_major float4x4 model;
     row_major float4x4 view;
     row_major float4x4 projection;
     uint isInstanced;
+    uint hasSkin;
 };
 
 struct VertexOutput
@@ -19,6 +22,8 @@ struct VertexInput
     [[vk::location(7)]] float4 instanceModel_1 : TEXCOORD7;
     [[vk::location(8)]] float4 instanceModel_2 : TEXCOORD8;
     [[vk::location(9)]] float4 instanceModel_3 : TEXCOORD9;
+    [[vk::location(10)]] uint4 joints : TEXCOORD10;
+    [[vk::location(11)]] float4 weights : TEXCOORD11;
 };
 
 [[vk::binding(0, 0)]] ConstantBuffer<UBO> uniforms;
@@ -26,6 +31,8 @@ struct VertexInput
 VertexOutput vertexMain(VertexInput input)
 {
     VertexOutput output = {};
+    row_major float4x4 skin = skinMatrix(input.joints, input.weights, uniforms.hasSkin);
+    float4 position = mul(float4(input.aPos, 1.0), skin);
     row_major float4x4 instanceModel = {};
     instanceModel[0] = input.instanceModel_0;
     instanceModel[1] = input.instanceModel_1;
@@ -36,7 +43,7 @@ VertexOutput vertexMain(VertexInput input)
     {
         row_major float4x4 _36 = mul(uniforms.view, uniforms.projection);
         row_major float4x4 _40 = mul(instanceModel, _36);
-        float4 _49 = float4(input.aPos, 1.0);
+        float4 _49 = position;
         float4 _50 = mul(_49, _40);
         output.gl_Position = _50;
     }
@@ -44,7 +51,7 @@ VertexOutput vertexMain(VertexInput input)
     {
         row_major float4x4 _58 = mul(uniforms.view, uniforms.projection);
         row_major float4x4 _61 = mul(uniforms.model, _58);
-        float4 _66 = float4(input.aPos, 1.0);
+        float4 _66 = position;
         float4 _67 = mul(_66, _61);
         output.gl_Position = _67;
     }

@@ -1,10 +1,13 @@
 #if defined(ATLAS_VERTEX)
+#include "utils/skinning.slang"
+
 struct UBO
 {
     row_major float4x4 model;
     row_major float4x4 view;
     row_major float4x4 projection;
     uint isInstanced;
+    uint hasSkin;
 };
 
 struct VertexOutput
@@ -21,6 +24,8 @@ struct VertexInput
     [[vk::location(7)]] float4 instanceModel_1 : TEXCOORD7;
     [[vk::location(8)]] float4 instanceModel_2 : TEXCOORD8;
     [[vk::location(9)]] float4 instanceModel_3 : TEXCOORD9;
+    [[vk::location(10)]] uint4 joints : TEXCOORD10;
+    [[vk::location(11)]] float4 weights : TEXCOORD11;
 };
 
 [[vk::binding(0, 0)]] ConstantBuffer<UBO> uniforms;
@@ -28,6 +33,8 @@ struct VertexInput
 VertexOutput vertexMain(VertexInput input)
 {
     VertexOutput output = {};
+    row_major float4x4 skin = skinMatrix(input.joints, input.weights, uniforms.hasSkin);
+    float4 position = mul(float4(input.aPos, 1.0), skin);
     row_major float4x4 instanceModel = {};
     instanceModel[0] = input.instanceModel_0;
     instanceModel[1] = input.instanceModel_1;
@@ -43,7 +50,7 @@ VertexOutput vertexMain(VertexInput input)
     {
         mvp = mul(uniforms.model, (mul(uniforms.view, uniforms.projection)));
     }
-    output.gl_Position = mul(float4(input.aPos, 1.0), mvp);
+    output.gl_Position = mul(position, mvp);
     output.vertexColor = input.aColor;
     return output;
 }
