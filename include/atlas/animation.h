@@ -12,12 +12,15 @@
 
 #include "glm/ext/matrix_float4x4.hpp"
 #include "glm/ext/quaternion_float.hpp"
+#include "glm/ext/vector_float3.hpp"
 #include "glm/ext/vector_uint4.hpp"
 #include <cstddef>
 #include <cstdint>
 #include <string>
 #include <string_view>
 #include <optional>
+#include <filesystem>
+#include <unordered_map>
 #include <vector>
 
 namespace atlas::animation {
@@ -73,6 +76,49 @@ struct AnimationClip {
     std::vector<AnimationChannel> channels;
 };
 
+enum class AnimationParameterKind { Float, Bool, Trigger };
+enum class AnimationComparison { Equal, NotEqual, Less, Greater, LessEqual, GreaterEqual };
+
+struct AnimationParameter {
+    std::string name;
+    AnimationParameterKind kind = AnimationParameterKind::Float;
+    float initialValue = 0.0f;
+};
+
+struct AnimationCondition {
+    std::string parameter;
+    AnimationComparison comparison = AnimationComparison::Equal;
+    float value = 1.0f;
+};
+
+struct AnimationState {
+    std::string name;
+    std::string clip;
+    bool loop = true;
+    float speed = 1.0f;
+    float x = 0.0f;
+    float y = 0.0f;
+};
+
+struct AnimationTransition {
+    std::string from;
+    std::string to;
+    float fadeSeconds = 0.2f;
+    bool waitForEnd = false;
+    std::vector<AnimationCondition> conditions;
+};
+
+struct AnimationStateMachine {
+    std::string initialState;
+    std::vector<AnimationParameter> parameters;
+    std::vector<AnimationState> states;
+    std::vector<AnimationTransition> transitions;
+
+    void validate() const;
+    static AnimationStateMachine load(const std::filesystem::path &path);
+    void save(const std::filesystem::path &path) const;
+};
+
 class Animator {
   public:
     void setSkeleton(Skeleton skeleton);
@@ -90,6 +136,12 @@ class Animator {
     void stop();
     void setPaused(bool value) { paused = value; }
     bool isFinished() const;
+
+    void setStateMachine(AnimationStateMachine machine);
+    bool setFloat(std::string_view parameter, float value);
+    bool setBool(std::string_view parameter, bool value);
+    bool trigger(std::string_view parameter);
+    const std::string &getState() const { return activeState; }
     void update(float deltaSeconds);
     const std::vector<glm::mat4> &getGlobalPose() const { return globalPose; }
 
@@ -113,7 +165,12 @@ class Animator {
     void advance(Playback &playback, float deltaSeconds) const;
     void sample(const Playback &playback, std::vector<NodePose> &pose) const;
     void evaluate();
+    void updateStateMachine();
+    bool setParameter(std::string_view name, AnimationParameterKind kind, float value);
 
+    AnimationStateMachine machine;
+    std::string activeState;
+    std::unordered_map<std::string, float> parameterValues;
     Skeleton skeleton;
     std::vector<AnimationClip> clips;
     std::vector<NodePose> bindPose;

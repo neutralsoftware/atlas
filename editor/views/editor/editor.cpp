@@ -95,6 +95,7 @@
 #include "editor/views/inputActionsDialog.h"
 #include "editor/views/materialEditor.h"
 #include "editor/views/graphiteEditor.h"
+#include "editor/views/animationGraphEditor.h"
 #include "editor/views/postProcessing.h"
 #include "editor/views/viewport.h"
 #include "editor/views/viewportTools.h"
@@ -639,6 +640,8 @@ void EditorWindow::setupMenus() {
                [this] { takeViewportScreenshot(); });
 
     auto *toolsMenu = menuBar()->addMenu("Tools");
+    addCommand(toolsMenu, "Animation State Machine...", QString(),
+               [this] { showAnimationGraphEditor(this); });
     auto *toolsSettings = addCommand(toolsMenu, "Project Settings…", QString(),
                                      [this] { showProjectSettings(); });
     toolsSettings->setMenuRole(QAction::NoRole);

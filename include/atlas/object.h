@@ -814,10 +814,11 @@ class ModelMesh : public CoreObject {
     static constexpr unsigned int MaxJoints = 256;
 
     const Skin &getSkin() const { return skin; }
-    void updateSkin(const std::vector<glm::mat4> &globalPose);
+    glm::vec3 posedPosition(const CoreVertex &vertex) const;
 
   private:
     friend class Model;
+    void updateSkin(const std::vector<glm::mat4> &globalPose);
     void bindSkin(opal::Pipeline &pipeline) const override;
 
     Skin skin;

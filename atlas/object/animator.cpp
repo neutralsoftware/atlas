@@ -58,6 +58,8 @@ void Animator::setSkeleton(Skeleton newSkeleton) {
             throw std::invalid_argument("Skeleton nodes must follow their parents");
     }
 
+    machine = {};
+    parameterValues.clear();
     skeleton = std::move(newSkeleton);
     clips.clear();
     bindPose.assign(skeleton.nodes.size(), {});
@@ -108,6 +110,7 @@ bool Animator::play(std::string_view name, bool loop, float speed) {
     const auto next = makePlayback(name, loop, speed);
     if (!next)
         return false;
+    activeState.clear();
     current = next;
     outgoing.reset();
     fadeSnapshot.clear();
@@ -133,6 +136,7 @@ bool Animator::crossfade(std::string_view name, float seconds, bool loop,
         fadeSnapshot.clear();
         outgoing = current;
     }
+    activeState.clear();
     current = next;
     blend.reset();
     fadeDuration = seconds;
@@ -162,6 +166,7 @@ void Animator::clearBlend() {
 }
 
 void Animator::stop() {
+    activeState.clear();
     current.reset();
     outgoing.reset();
     blend.reset();
@@ -251,7 +256,7 @@ void Animator::evaluate() {
 }
 
 void Animator::update(float deltaSeconds) {
-    if (!current || paused || !std::isfinite(deltaSeconds) || deltaSeconds <= 0.0f)
+    if (!current || paused || !std::isfinite(deltaSeconds) || deltaSeconds < 0.0f)
         return;
     advance(*current, deltaSeconds);
     if (blend)
@@ -267,4 +272,5 @@ void Animator::update(float deltaSeconds) {
         }
     }
     evaluate();
+    updateStateMachine();
 }
