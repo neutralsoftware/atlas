@@ -21,7 +21,6 @@
 #include "opal/opal.h"
 #include <string>
 #include <utility>
-#include <utility>
 #include <vector>
 
 /**
@@ -218,9 +217,8 @@ class Text : public UIObject {
             .width = graphite::measureTextWidth(resolvedFont, content,
                                                 style.fontSize) +
                      (style.padding.width * 2.0f),
-            .height =
-                graphite::getLineHeight(resolvedFont, style.fontSize) +
-                (style.padding.height * 2.0f),
+            .height = graphite::getLineHeight(resolvedFont, style.fontSize) +
+                      (style.padding.height * 2.0f),
         };
     }
 
