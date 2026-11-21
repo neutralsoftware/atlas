@@ -179,6 +179,27 @@ set_property(SOURCE main.cpp APPEND PROPERTY
 )
 add_dependencies(AtlasEditor generate_shaders generate_atlas_themes atlas_editor_cli)
 
+if (WIN32)
+    set(ATLAS_WINDOWS_ESBUILD "${CMAKE_RUNTIME_OUTPUT_DIRECTORY}/esbuild.exe")
+    add_custom_command(
+            OUTPUT "${ATLAS_WINDOWS_ESBUILD}"
+            COMMAND "${Python3_EXECUTABLE}"
+            "${CMAKE_SOURCE_DIR}/scripts/package_windows.py"
+            --stage-esbuild "${ATLAS_WINDOWS_ESBUILD}"
+            DEPENDS "${CMAKE_SOURCE_DIR}/scripts/package_windows.py"
+            VERBATIM
+    )
+    add_custom_target(atlas_editor_esbuild DEPENDS "${ATLAS_WINDOWS_ESBUILD}")
+    add_custom_target(atlas_editor_windows_cli
+            COMMAND "${CMAKE_COMMAND}" -E make_directory "${CMAKE_RUNTIME_OUTPUT_DIRECTORY}"
+            COMMAND "${CMAKE_COMMAND}" -E copy_if_different
+            "${ATLAS_EDITOR_CLI}" "${CMAKE_RUNTIME_OUTPUT_DIRECTORY}/atlas.exe"
+            VERBATIM
+    )
+    add_dependencies(atlas_editor_windows_cli atlas_editor_cli)
+    add_dependencies(AtlasEditor atlas_editor_esbuild atlas_editor_windows_cli)
+endif ()
+
 if (APPLE)
     set_target_properties(AtlasEditor PROPERTIES
             MACOSX_BUNDLE TRUE
@@ -205,10 +226,15 @@ if (APPLE)
             VERBATIM
     )
 else ()
-    add_custom_command(TARGET AtlasEditor POST_BUILD
+    if (NOT WIN32)
+        add_custom_command(TARGET AtlasEditor POST_BUILD
             COMMAND "${CMAKE_COMMAND}" -E copy_if_different
             "${ATLAS_EDITOR_CLI}"
             "$<TARGET_FILE_DIR:AtlasEditor>/atlas${CMAKE_EXECUTABLE_SUFFIX}"
+            VERBATIM
+        )
+    endif ()
+    add_custom_command(TARGET AtlasEditor POST_BUILD
             COMMAND "${CMAKE_COMMAND}" -E copy_if_different
             "$<TARGET_FILE:runtime_lib>"
             "$<TARGET_FILE_DIR:AtlasEditor>/$<TARGET_FILE_NAME:runtime_lib>"

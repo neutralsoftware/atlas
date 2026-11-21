@@ -154,9 +154,16 @@ bool writeConfig(const ToolchainPaths& toolchain, QString* error) {
     return true;
 }
 
+QString siblingEsbuild(const QString& cli) {
+    return QFileInfo(cli).dir().filePath("esbuild.exe");
+}
+
 bool isInstalled(const ToolchainPaths& toolchain) {
+    const QString esbuild = siblingEsbuild(toolchain.bundledCli);
     return filesMatch(toolchain.bundledCli, toolchain.installedCli) &&
            filesMatch(toolchain.bundledRuntime, toolchain.installedRuntime) &&
+           (!QFileInfo(esbuild).isFile() ||
+            filesMatch(esbuild, siblingEsbuild(toolchain.installedCli))) &&
            configMatches(toolchain);
 }
 
@@ -173,7 +180,7 @@ void setPromptDismissed(bool dismissed) {
 }
 
 bool installToolchain(const ToolchainPaths& toolchain, QWidget* parent,
-                      bool reportExistingInstallation) {
+                      bool reportExistingInstallation, bool silent = false) {
     if (isInstalled(toolchain)) {
         setPromptDismissed(false);
         if (reportExistingInstallation) {
@@ -186,6 +193,7 @@ bool installToolchain(const ToolchainPaths& toolchain, QWidget* parent,
 
     const QFileInfo cliInfo(toolchain.installedCli);
     const QFileInfo runtimeInfo(toolchain.installedRuntime);
+    const QString esbuild = siblingEsbuild(toolchain.bundledCli);
     QString error;
     if (!QDir().mkpath(cliInfo.absolutePath()) ||
         !QDir().mkpath(runtimeInfo.absolutePath())) {
@@ -194,6 +202,9 @@ bool installToolchain(const ToolchainPaths& toolchain, QWidget* parent,
                          &error) ||
                !copyFile(toolchain.bundledRuntime,
                          toolchain.installedRuntime, &error) ||
+               (QFileInfo(esbuild).isFile() &&
+                !copyFile(esbuild, siblingEsbuild(toolchain.installedCli),
+                          &error)) ||
                !writeConfig(toolchain, &error)) {
     }
     if (!error.isEmpty()) {
@@ -202,9 +213,11 @@ bool installToolchain(const ToolchainPaths& toolchain, QWidget* parent,
     }
 
     setPromptDismissed(false);
-    QMessageBox::information(
-        parent, "Atlas Toolchain Installed",
-        "The Atlas toolchain is ready. Projects can now be created, run, and exported from Atlas Engine.");
+    if (!silent) {
+        QMessageBox::information(
+            parent, "Atlas Toolchain Installed",
+            "The Atlas toolchain is ready. Projects can now be created, run, and exported from Atlas Engine.");
+    }
     return true;
 }
 }
@@ -218,7 +231,7 @@ bool ToolchainInstaller::ensureInstalled(QWidget* parent) {
     if (configMatches(toolchain) &&
         QFileInfo(toolchain.installedCli).isFile() &&
         QFileInfo(toolchain.installedRuntime).isFile()) {
-        return true;
+        return installToolchain(toolchain, parent, false, true);
     }
     if (promptDismissed())
         return false;

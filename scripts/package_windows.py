@@ -105,6 +105,7 @@ def copy_runtime_dlls(manifest, destination):
 
 
 def package_esbuild(destination):
+    destination.parent.mkdir(parents=True, exist_ok=True)
     version = "0.25.5"
     metadata_url = "https://registry.npmjs.org/@esbuild%2Fwin32-x64"
     with urllib.request.urlopen(metadata_url, timeout=30) as response:
@@ -133,7 +134,11 @@ def main():
     parser.add_argument("--debug", action="store_true")
     parser.add_argument("--release", action="store_true")
     parser.add_argument("--locate-makensis", action="store_true")
+    parser.add_argument("--stage-esbuild", type=Path)
     args = parser.parse_args()
+    if args.stage_esbuild is not None:
+        package_esbuild(args.stage_esbuild)
+        return
     if args.locate_makensis:
         print(locate_makensis())
         return
@@ -165,10 +170,8 @@ def main():
     ])
 
     bin_directory = build_directory / "bin"
-    copy_required(root / "target" / mode / "atlas.exe", bin_directory / "atlas.exe")
-    package_esbuild(package_directory / "esbuild.exe")
     docking_name = "qtadvanceddocking-qt6d.dll" if args.debug else "qtadvanceddocking-qt6.dll"
-    for name in ["AtlasEditor.exe", "atlas.exe", "atlasrun.exe", "runtime.dll",
+    for name in ["AtlasEditor.exe", "atlas.exe", "atlasrun.exe", "runtime.dll", "esbuild.exe",
                  docking_name]:
         copy_required(bin_directory / name, package_directory / name)
 
