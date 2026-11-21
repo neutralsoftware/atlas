@@ -49,10 +49,10 @@
 #include "glm/ext/vector_float4.hpp"
 #include "stb/stb_image.h"
 
+#define GLM_ENABLE_EXPERIMENTAL
 #include <glm/glm.hpp>
 #include <glm/gtc/matrix_transform.hpp>
 #include <glm/gtc/type_ptr.hpp>
-#define GLM_ENABLE_EXPERIMENTAL
 #include <glm/gtx/string_cast.hpp>
 #include <glm/gtc/epsilon.hpp>
 
@@ -696,19 +696,89 @@ SkeletonImportResult importSkeleton(const aiScene *scene) {
     return result;
 }
 
+AnimationClip importAnimation(const aiAnimation *source,
+                              const SkeletonImportResult &skeleton,
+                              float fallbackTicksPerSecond = 1.0f) {
+    AnimationClip clip;
+    clip.name = source->mName.C_Str();
+
+    const double ticksPerSecond = source->mTicksPerSecond > 0.0
+                                      ? source->mTicksPerSecond
+                                      : fallbackTicksPerSecond;
+
+    if (ticksPerSecond <= 0.0) {
+        atlas_error("Invalid ticks per second for animation: " + clip.name);
+        return clip;
+    }
+
+    const double secondsPerTick = 1.0 / ticksPerSecond;
+
+    clip.duration = static_cast<float>(source->mDuration * secondsPerTick);
+
+    for (unsigned int i = 0; i < source->mNumChannels; i++) {
+        const aiNodeAnim *src = source->mChannels[i];
+
+        auto it = skeleton.nodeByName.find(src->mNodeName.C_Str());
+        if (it == skeleton.nodeByName.end()) {
+            atlas_warning("Animation channel for unknown node: " +
+                          std::string(src->mNodeName.C_Str()));
+            continue;
+        }
+
+        AnimationChannel channel;
+        channel.targetNode = it->second;
+
+        for (unsigned int j = 0; j < src->mNumPositionKeys; j++) {
+            const auto &key = src->mPositionKeys[j];
+
+            channel.positionKeyframes.push_back({
+                .time = static_cast<float>(key.mTime * secondsPerTick),
+                .value = glm::vec3(key.mValue.x, key.mValue.y, key.mValue.z),
+            });
+        }
+
+        for (unsigned int j = 0; j < src->mNumRotationKeys; j++) {
+            const auto &key = src->mRotationKeys[j];
+
+            channel.rotationKeyframes.push_back({
+                .time = static_cast<float>(key.mTime * secondsPerTick),
+                .value = glm::quat(key.mValue.w, key.mValue.x, key.mValue.y,
+                                   key.mValue.z),
+            });
+        }
+
+        for (unsigned int j = 0; j < src->mNumScalingKeys; j++) {
+            const auto &key = src->mScalingKeys[j];
+
+            channel.scaleKeyframes.push_back({
+                .time = static_cast<float>(key.mTime * secondsPerTick),
+                .value = glm::vec3(key.mValue.x, key.mValue.y, key.mValue.z),
+            });
+        }
+
+        clip.channels.push_back(std::move(channel));
+    }
+
+    return clip;
+}
+
 } // namespace
 
-void Model::fromResource(const Resource &resource) { loadModel(resource); }
+void Model::fromResource(const Resource &resource, bool loadAnimations) {
+    loadModel(resource, {}, loadAnimations);
+}
 
 void Model::fromResource(
     const Resource &resource,
-    const std::function<void(float, const std::string &)> &progress) {
-    loadModel(resource, progress);
+    const std::function<void(float, const std::string &)> &progress,
+    bool loadAnimations) {
+    loadModel(resource, progress, loadAnimations);
 }
 
 void Model::loadModel(
     const Resource &resource,
-    const std::function<void(float, const std::string &)> &progress) {
+    const std::function<void(float, const std::string &)> &progress,
+    bool loadAnimations) {
     Assimp::Importer importer;
     if (resource.type != ResourceType::Model) {
         atlas_warning("Resource is not a model: " + resource.name);
@@ -730,7 +800,7 @@ void Model::loadModel(
     };
     auto status = std::make_shared<ImportStatus>();
     const auto reportProgress = [status](float value, const std::string &text) {
-        std::lock_guard<std::mutex> lock(status->mutex);
+        std::scoped_lock lock(status->mutex);
         status->value = std::max(status->value, value);
         status->text = text;
     };
@@ -742,7 +812,8 @@ void Model::loadModel(
 
     unsigned int importFlags =
         aiProcess_Triangulate | aiProcess_CalcTangentSpace |
-        aiProcess_SortByPType | aiProcess_GenSmoothNormals;
+        aiProcess_SortByPType | aiProcess_GenSmoothNormals |
+        aiProcess_ValidateDataStructure | aiProcess_PopulateArmatureData;
     std::string extension = resource.path.extension().string();
     std::transform(extension.begin(), extension.end(), extension.begin(),
                    [](unsigned char value) { return std::tolower(value); });
@@ -810,6 +881,28 @@ void Model::loadModel(
     preloadMaterialTextures(scene, textureCache);
 
     processNode(scene->mRootNode, scene, glm::mat4(1.0f), textureCache);
+
+    if (loadAnimations) {
+        if (progress)
+            progress(0.95f, "Loading skeleton and animations");
+        SkeletonImportResult skeleton = importSkeleton(scene);
+        std::vector<AnimationClip> animations;
+        for (unsigned int i = 0; i < scene->mNumAnimations; i++) {
+            const aiAnimation *src = scene->mAnimations[i];
+            AnimationClip clip = importAnimation(src, skeleton);
+            animations.push_back(std::move(clip));
+        }
+        std::cout << "Imported skeleton with " << skeleton.skeleton.nodes.size()
+                  << " nodes." << std::endl;
+        std::cout << "Imported " << animations.size() << " animation clips."
+                  << std::endl;
+        for (auto &clip : animations) {
+            std::cout << "Imported animation: " << clip.name << " ("
+                      << clip.duration << " seconds, " << clip.channels.size()
+                      << " channels)" << std::endl;
+        }
+        this->skeleton = std::move(skeleton.skeleton);
+    }
 
     if (progress)
         progress(1.0f, "Finishing import");

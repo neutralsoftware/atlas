@@ -832,11 +832,13 @@ class Model : public GameObject {
      * @brief Loads the model from a resource.
      *
      * @param resource The resource to load the model from.
+     * @param loadAnimations Whether to load animations.
      */
-    void fromResource(const Resource &resource);
+    void fromResource(const Resource &resource, bool loadAnimations = false);
     void fromResource(
         const Resource &resource,
-        const std::function<void(float, const std::string &)> &progress);
+        const std::function<void(float, const std::string &)> &progress,
+        bool loadAnimations = false);
 
     /**
      * @brief Gets the objects that make up the model.
@@ -1071,7 +1073,8 @@ class Model : public GameObject {
 
     void loadModel(
         const Resource &resource,
-        const std::function<void(float, const std::string &)> &progress = {});
+        const std::function<void(float, const std::string &)> &progress = {},
+        bool loadAnimations = false);
     void processNode(aiNode *node, const aiScene *scene,
                      glm::mat4 parentTransform,
                      std::unordered_map<std::string, Texture> &textureCache);
