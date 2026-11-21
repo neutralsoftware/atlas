@@ -33,7 +33,8 @@ struct Skeleton {
 };
 
 struct SkinJoint {
-    atlas::animation::NodeIndex nodeIdex = atlas::animation::INVALID_NODE_INDEX;
+    atlas::animation::NodeIndex nodeIndex =
+        atlas::animation::INVALID_NODE_INDEX;
     glm::mat4 inverseBindMatrix{1.0f};
 };
 

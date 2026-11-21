@@ -10,6 +10,7 @@
 #ifndef ATLAS_OBJECT_H
 #define ATLAS_OBJECT_H
 
+#include "animation.h"
 #include "atlas/component.h"
 #include "atlas/physics.h"
 #include "bezel/bezel.h"
@@ -1064,6 +1065,9 @@ class Model : public GameObject {
     Position3d modelPosition = Position3d::zero();
     Rotation3d modelRotation{0.0f, 0.0f, 0.0f};
     Scale3d modelScale{1.0f, 1.0f, 1.0f};
+
+    Skeleton skeleton;
+    Skin skinning;
 
     void loadModel(
         const Resource &resource,

@@ -9,6 +9,8 @@
 #include <any>
 #include <assimp/material.h>
 #include <assimp/scene.h>
+#include "assimp/matrix4x4.h"
+#include "atlas/animation.h"
 #include "atlas/object.h"
 #include "atlas/texture.h"
 #include "atlas/tracer/data.h"
@@ -43,6 +45,8 @@
 #include <unordered_set>
 #include <utility>
 #include <vector>
+#include "glm/ext/matrix_float4x4.hpp"
+#include "glm/ext/vector_float4.hpp"
 #include "stb/stb_image.h"
 
 #include <glm/glm.hpp>
@@ -102,7 +106,8 @@ nlohmann::json modelFileStamp(const std::string &path) {
     const auto time = std::filesystem::last_write_time(path, error);
     if (error)
         return {};
-    return {{"path", path}, {"size", size},
+    return {{"path", path},
+            {"size", size},
             {"time", time.time_since_epoch().count()}};
 }
 
@@ -113,7 +118,8 @@ std::filesystem::path modelSceneCachePath(const Resource &resource,
     if (error)
         return {};
     const std::string key = std::filesystem::absolute(resource.path, error)
-                                .lexically_normal().string() +
+                                .lexically_normal()
+                                .string() +
                             "|" + std::to_string(flags) + "|" +
                             std::to_string(aiGetVersionMajor()) + "." +
                             std::to_string(aiGetVersionMinor()) + "." +
@@ -144,7 +150,8 @@ bool isModelSceneCacheValid(const std::filesystem::path &path) {
         if (!dependencies.is_array() || dependencies.empty())
             return false;
         for (const auto &dependency : dependencies) {
-            if (dependency != modelFileStamp(dependency.at("path").get<std::string>()))
+            if (dependency !=
+                modelFileStamp(dependency.at("path").get<std::string>()))
                 return false;
         }
         return true;
@@ -164,10 +171,12 @@ void storeModelSceneCache(const aiScene *scene,
         std::filesystem::create_directories(path.parent_path(), error);
         if (error)
             return;
-        const auto nonce = std::chrono::steady_clock::now().time_since_epoch().count();
+        const auto nonce =
+            std::chrono::steady_clock::now().time_since_epoch().count();
         temporary = path.string() + "." + std::to_string(nonce) + ".tmp";
         Assimp::Exporter exporter;
-        if (exporter.Export(scene, "assbin", temporary.string()) != AI_SUCCESS) {
+        if (exporter.Export(scene, "assbin", temporary.string()) !=
+            AI_SUCCESS) {
             std::filesystem::remove(temporary, error);
             return;
         }
@@ -191,8 +200,8 @@ void storeModelSceneCache(const aiScene *scene,
             return;
         }
         nlohmann::json metadata{{"version", 1},
-                               {"scene", modelFileStamp(path.string())},
-                               {"dependencies", std::move(dependencies)}};
+                                {"scene", modelFileStamp(path.string())},
+                                {"dependencies", std::move(dependencies)}};
         std::ofstream output(path.string() + ".json", std::ios::trunc);
         output << metadata.dump();
     } catch (const std::exception &) {
@@ -324,9 +333,11 @@ loadDecodedTextureCache(const ModelTextureJob &job) {
     if (!input || header.magic != 0x41544C4153544558ULL ||
         header.version != 1 || header.width == 0 || header.height == 0 ||
         header.width > static_cast<uint32_t>(job.maximumDimension > 0
-                                                 ? job.maximumDimension : 16384) ||
+                                                 ? job.maximumDimension
+                                                 : 16384) ||
         header.height > static_cast<uint32_t>(job.maximumDimension > 0
-                                                  ? job.maximumDimension : 16384) ||
+                                                  ? job.maximumDimension
+                                                  : 16384) ||
         header.pixelBytes != expectedPixels ||
         (header.aoBytes != 0 && header.aoBytes != expectedAo)) {
         return std::nullopt;
@@ -535,8 +546,9 @@ Texture uploadModelTexture(const ModelTextureJob &job,
     const opal::TextureFormat format = job.textureType == TextureType::Color
                                            ? opal::TextureFormat::sRgba8
                                            : opal::TextureFormat::Rgba8;
-    const unsigned int mipLevels = 1u + static_cast<unsigned int>(std::floor(std::log2(
-                                    std::max(decoded.width, decoded.height))));
+    const unsigned int mipLevels =
+        1u + static_cast<unsigned int>(std::floor(
+                 std::log2(std::max(decoded.width, decoded.height))));
     auto opalTexture = opal::Texture::create(
         opal::TextureType::Texture2D, format, decoded.width, decoded.height,
         opal::TextureDataFormat::Rgba, decoded.pixels.data(), mipLevels);
@@ -638,6 +650,52 @@ void importMaterialProperties(aiMaterial *material, CoreObject &object) {
         }
     }
 }
+
+glm::mat4 convertMatrix(const aiMatrix4x4 &m) {
+    glm::mat4 result{1.0f};
+
+    result[0] = glm::vec4(m.a1, m.b1, m.c1, m.d1);
+    result[1] = glm::vec4(m.a2, m.b2, m.c2, m.d2);
+    result[2] = glm::vec4(m.a3, m.b3, m.c3, m.d3);
+    result[3] = glm::vec4(m.a4, m.b4, m.c4, m.d4);
+
+    return result;
+}
+
+struct SkeletonImportResult {
+    Skeleton skeleton;
+
+    std::unordered_map<std::string, atlas::animation::NodeIndex> nodeByName;
+};
+
+void importAnimationNode(const aiNode *source,
+                         atlas::animation::NodeIndex parent,
+                         SkeletonImportResult &result) {
+    atlas::animation::NodeIndex index =
+        static_cast<atlas::animation::NodeIndex>(result.skeleton.nodes.size());
+
+    result.skeleton.nodes.push_back({
+        .name = source->mName.C_Str(),
+        .parent = parent,
+        .localTransform = convertMatrix(source->mTransformation),
+    });
+    result.nodeByName.emplace(source->mName.C_Str(), index);
+
+    for (unsigned int i = 0; i < source->mNumChildren; i++) {
+        importAnimationNode(source->mChildren[i], index, result);
+    }
+}
+
+SkeletonImportResult importSkeleton(const aiScene *scene) {
+    SkeletonImportResult result;
+
+    if (scene->mRootNode) {
+        importAnimationNode(scene->mRootNode,
+                            atlas::animation::INVALID_NODE_INDEX, result);
+    }
+    return result;
+}
+
 } // namespace
 
 void Model::fromResource(const Resource &resource) { loadModel(resource); }
@@ -705,7 +763,8 @@ void Model::loadModel(
             auto *io = new ModelImportIO();
             importer.SetIOHandler(io);
             scene = importer.ReadFile(resource.path.string(), importFlags);
-            if (scene != nullptr && !(scene->mFlags & AI_SCENE_FLAGS_INCOMPLETE) &&
+            if (scene != nullptr &&
+                !(scene->mFlags & AI_SCENE_FLAGS_INCOMPLETE) &&
                 scene->mRootNode != nullptr) {
                 reportProgress(0.85f, "Caching imported model");
                 storeModelSceneCache(scene, sceneCachePath, *io);
@@ -1127,7 +1186,7 @@ Model::processMesh(aiMesh *mesh, const aiScene *scene,
     for (unsigned int i = 0; i < mesh->mNumFaces; i++) {
         if (i % 16384 == 0)
             reportMeshProgress(0.7f + 0.15f * static_cast<float>(i) /
-                                         mesh->mNumFaces,
+                                          mesh->mNumFaces,
                                "Converting model indices");
         const aiFace &face = mesh->mFaces[i];
         for (unsigned int j = 0; j < face.mNumIndices; j++)
