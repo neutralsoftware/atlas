@@ -634,7 +634,15 @@ class CoreObject : public GameObject {
         glm::vec3 minimum;
         glm::vec3 maximum;
     };
+    struct DrawRange {
+        uint32_t first;
+        uint32_t count;
+        RenderBounds bounds;
+    };
     std::optional<RenderBounds> importedRenderBounds;
+    std::vector<DrawRange> importedDrawRanges;
+    static bool intersectsClipBounds(const glm::mat4 &clipRows,
+                                     const RenderBounds &bounds);
     bool decalEnabled = false;
     float decalOffset = 0.004f;
     void drawDecal(const std::shared_ptr<opal::Pipeline> &decalPipeline,

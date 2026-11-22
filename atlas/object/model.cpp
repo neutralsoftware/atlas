@@ -19,6 +19,7 @@
 #include "atlas/units.h"
 #include "atlas/window.h"
 #include "atlas/workspace.h"
+#include "large_static_gltf.h"
 #include <assimp/Importer.hpp>
 #include <assimp/Exporter.hpp>
 #include <assimp/DefaultIOSystem.h>
@@ -1215,6 +1216,38 @@ void Model::loadModel(
     }
 
     atlas_log("Loading model: " + resource.name);
+
+    if (!loadAnimations || embeddedAnimationsOnly) {
+        if (auto meshes = atlas::detail::loadLargeStaticGltf(resource.path, progress)) {
+            std::vector<std::shared_ptr<CoreObject>> loaded;
+            loaded.reserve(meshes->size());
+            for (auto &mesh : *meshes) {
+                auto object = std::make_shared<ModelMesh>();
+                object->vertices = std::move(mesh.vertices);
+                object->indices = std::move(mesh.indices);
+                object->material = mesh.material;
+                object->name = std::move(mesh.name);
+                object->importedDrawRanges.reserve(mesh.ranges.size());
+                auto minimum = mesh.ranges.front().minimum;
+                auto maximum = mesh.ranges.front().maximum;
+                for (const auto &range : mesh.ranges) {
+                    object->importedDrawRanges.push_back(
+                        {range.first, range.count, {range.minimum, range.maximum}});
+                    minimum = glm::min(minimum, range.minimum);
+                    maximum = glm::max(maximum, range.maximum);
+                }
+                object->importedRenderBounds = CoreObject::RenderBounds{minimum, maximum};
+                loaded.push_back(std::move(object));
+            }
+            animator.setSkeleton({});
+            objects = std::move(loaded);
+            if (progress)
+                progress(1.0f, "Finishing large static glTF");
+            atlas_log("Loaded large static glTF with parallel geometry preparation: " +
+                      resource.name);
+            return;
+        }
+    }
 
     struct ImportStatus {
         std::mutex mutex;
