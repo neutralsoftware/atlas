@@ -2253,6 +2253,18 @@ bool Window::stepFrame() {
 
             this->deferredRendering(target, commandBuffer);
 
+            const auto needsForwardDraw = [](Renderable *object) {
+                return object != nullptr && !object->editorOnly &&
+                       !object->renderLateForward && !object->canUseDeferredRendering();
+            };
+            if (!editorControlsEnabled && lateForwardRenderables.empty() &&
+                std::none_of(firstRenderables.begin(), firstRenderables.end(),
+                             needsForwardDraw) &&
+                std::none_of(renderables.begin(), renderables.end(),
+                             needsForwardDraw)) {
+                continue;
+            }
+
             auto forwardFramebuffer = target->getFramebuffer();
             if (target->type == RenderTargetType::Multisampled &&
                 target->getResolveFramebuffer() != nullptr) {
