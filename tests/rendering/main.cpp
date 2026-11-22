@@ -16,6 +16,7 @@
 #include "aurora/terrain.h"
 #include "hydra/atmosphere.h"
 #include "hydra/fluid.h"
+#include <array>
 #include <cstdlib>
 #include <string_view>
 #include <iostream>
@@ -27,6 +28,7 @@ class MainScene : public Scene {
     RenderTarget frameBuffer;
     AreaLight areaLight;
     DirectionalLight light;
+    std::array<Light, 8> candleLights;
 
     Model model;
     Model curtains;
@@ -148,7 +150,25 @@ class MainScene : public Scene {
                 "pkg_d_10k_candles/pkg_d_10k_candles/"
                 "NewSponza_4_Combined_glTF.gltf",
                 "Candles Model", ResourceType::Model));
+            for (const auto &mesh : candles.getObjects()) {
+                if (mesh && mesh->material.emissiveIntensity > 0.0f) {
+                    mesh->material.emissiveColor = Color(1.0f, 0.72f, 0.14f);
+                    mesh->material.emissiveIntensity *= 6.0f;
+                }
+            }
             window.addObject(&candles);
+
+            for (size_t i = 0; i < candleLights.size(); ++i) {
+                auto &candleLight = candleLights[i];
+                const float x = -12.0f + 8.0f * static_cast<float>(i % 4);
+                const float y = i < 4 ? 3.0f : 8.0f;
+                candleLight.position = {x, y, 0.0f};
+                candleLight.color = Color(1.0f, 0.56f, 0.10f);
+                candleLight.shineColor = candleLight.color;
+                candleLight.intensity = 20.0f;
+                candleLight.distance = 12.0f;
+                addLight(&candleLight);
+            }
         }
 
         window.addObject(&model);
@@ -158,7 +178,7 @@ class MainScene : public Scene {
 
         const char *rendererSetting = std::getenv("ATLAS_TEST_RENDERER");
         const std::string_view renderer =
-            rendererSetting ? rendererSetting : "path";
+            rendererSetting ? rendererSetting : "deferred";
         if (renderer == "ddgi") {
             window.enableGlobalIllumination();
             return;

@@ -1393,6 +1393,9 @@ struct Window::AtlasHudState {
              << historyValue(renderHistory, historyCount - 1) << " ms";
 #ifdef VULKAN
         line << "  |  Fence " << window.frameFenceWaitMs << " ms";
+        line << "  |  Acquire "
+             << window.activeCommandBuffer->getSwapchainAcquireMs() << " ms";
+        line << "  |  S/P prev " << window.frameSubmitMs << " ms";
 #else
         line << "  |  CPU " << cpuPercent << "%";
 #endif
@@ -2300,10 +2303,6 @@ bool Window::stepFrame() {
                         if (meshObject == nullptr) {
                             continue;
                         }
-                        bool hasAnyTexture = !meshObject->textures.empty();
-                        if (!hasAnyTexture) {
-                            meshObject->material = model->material;
-                        }
                         meshObject->material.useNormalMap =
                             model->material.useNormalMap;
                         meshObject->material.normalMapStrength =
@@ -2527,16 +2526,25 @@ bool Window::stepFrame() {
 
     const int frameDrawCallCount = commandBuffer->getAndResetDrawCallCount();
     if (this->atlasHud != nullptr) {
-        this->renderAtlasHud(
-            commandBuffer, static_cast<float>(cpuTime) / 1000.0f,
-            static_cast<float>(gpuTimer.stop()) / 1000.0f, frameDrawCallCount);
+        double renderCpuMs = static_cast<double>(gpuTimer.stop()) / 1000.0;
+#ifdef VULKAN
+        renderCpuMs = std::max(0.0, renderCpuMs - commandBuffer->getSwapchainAcquireMs());
+#endif
+        this->renderAtlasHud(commandBuffer, static_cast<float>(cpuTime) / 1000.0f,
+                             static_cast<float>(renderCpuMs), frameDrawCallCount);
     }
 
     this->lastViewMatrix = screenView;
 
     commandBuffer->endPass();
 
+#ifdef VULKAN
+    const double submitStarted = atlasGetTimeSecondsPrecise();
+#endif
     commandBuffer->commit();
+#ifdef VULKAN
+    this->frameSubmitMs = (atlasGetTimeSecondsPrecise() - submitStarted) * 1000.0;
+#endif
 
 #ifdef OPENGL
     SDL_GL_SwapWindow(window);

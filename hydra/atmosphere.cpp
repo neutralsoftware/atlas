@@ -37,12 +37,14 @@ std::array<Color, 6> blendKeyframeColors(const std::array<Color, 6> &a,
     return blended;
 }
 
-const std::array<SkyKeyframe, 7> &skyKeyframes() {
-    static const std::array<SkyKeyframe, 7> frames = {
-        {{0.0f,
-          {Color::fromHex(0x04081A), Color::fromHex(0x04081A),
-           Color::fromHex(0x020310), Color::fromHex(0x080910),
-           Color::fromHex(0x030A1C), Color::fromHex(0x030A1C)}},
+const std::array<SkyKeyframe, 9> &skyKeyframes() {
+    static const std::array<Color, 6> night = {
+        Color::fromHex(0x04081A), Color::fromHex(0x04081A),
+        Color::fromHex(0x020310), Color::fromHex(0x080910),
+        Color::fromHex(0x030A1C), Color::fromHex(0x030A1C)};
+    static const std::array<SkyKeyframe, 9> frames = {
+        {{0.0f, night},
+         {0.125f, night},
          {0.18f,
           {Color::fromHex(0xF7B486), Color::fromHex(0x1B2F5C),
            Color::fromHex(0x142447), Color::fromHex(0x201924),
@@ -63,10 +65,8 @@ const std::array<SkyKeyframe, 7> &skyKeyframes() {
           {Color::fromHex(0x1E2C57), Color::fromHex(0xFE9068),
            Color::fromHex(0x1B2F56), Color::fromHex(0x1F1B28),
            Color::fromHex(0x273C6D), Color::fromHex(0xE06A4C)}},
-         {1.0f,
-          {Color::fromHex(0x04081A), Color::fromHex(0x04081A),
-           Color::fromHex(0x020310), Color::fromHex(0x080910),
-           Color::fromHex(0x030A1C), Color::fromHex(0x030A1C)}}}};
+         {0.90f, night},
+         {1.0f, night}}};
     return frames;
 }
 } // namespace

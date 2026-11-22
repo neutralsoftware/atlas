@@ -343,10 +343,6 @@ void Window::deferredRendering(
                 if (meshRenderable == nullptr || meshRenderable->editorOnly) {
                     continue;
                 }
-                bool hasAnyTexture = !meshRenderable->textures.empty();
-                if (!hasAnyTexture) {
-                    meshRenderable->material = model->material;
-                }
                 meshRenderable->material.useNormalMap =
                     model->material.useNormalMap;
                 meshRenderable->material.normalMapStrength =

@@ -228,10 +228,6 @@ void collectPathTracingObject(Renderable *renderable,
                 (!model->canUseDeferredRendering() && !object->isDecal())) {
                 continue;
             }
-            bool hasAnyTexture = !object->textures.empty();
-            if (!hasAnyTexture) {
-                object->material = model->material;
-            }
             object->material.useNormalMap = model->material.useNormalMap;
             object->material.normalMapStrength =
                 model->material.normalMapStrength;
@@ -1011,6 +1007,7 @@ bool photon::PathTracing::buildAccelerationStructure(
             materialData.push_back(data);
             sceneHasVolumes |= data.isVolume != 0;
 
+#ifdef METAL
             const glm::vec3 emission =
                 glm::vec3(data.emissiveColor[0], data.emissiveColor[1],
                           data.emissiveColor[2]) *
@@ -1057,6 +1054,7 @@ bool photon::PathTracing::buildAccelerationStructure(
                     emissiveTriangleData.push_back(triangle);
                 }
             }
+#endif
 
             objectID++;
         }
@@ -1446,7 +1444,7 @@ bool photon::PathTracing::render(
     } else if (interactiveFramesRemaining > 0) {
         interactiveFramesRemaining--;
     }
-    bool nextInteractive = !cinematicMode && (cameraChanged || interactiveFramesRemaining > 0);
+    const bool nextInteractive = cameraChanged || interactiveFramesRemaining > 0;
     if (interactive != nextInteractive) {
         interactive = nextInteractive;
         frameIndex = 0;
@@ -1767,13 +1765,15 @@ bool photon::PathTracing::render(
         return true;
     }
     const int refinementFrame = std::max(frameIndex, 0);
-    const int pixelStride = 1;
+    const int pixelStride = interactive ? 2 : 1;
+    const int motionSamples = cinematicMode
+                                  ? 1
+                                  : std::clamp(minimumMotionSamples, 1, 64);
     const int effectiveSamples =
-        interactive ? std::max(samplesPerFrame,
-                               std::clamp(minimumMotionSamples, 1, 64))
+        interactive ? motionSamples
                     : std::min(cinematicMode ? 8 : samplesPerFrame,
                                sampleBudget - accumulatedSamples);
-    const int effectiveBounces = this->maxBounces;
+    const int effectiveBounces = interactive ? std::min(maxBounces, 4) : maxBounces;
     pathTracingPipeline->setUniform1i("sceneData.cinematicMode", cinematicMode ? 1 : 0);
     pathTracingPipeline->setUniform1i("sceneData.accumulatedSamples", accumulatedSamples);
     pathTracingPipeline->setUniform1i("sceneData.beamSegmentLimit", maxBounces);
