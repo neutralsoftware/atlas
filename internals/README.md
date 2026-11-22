@@ -22,6 +22,8 @@ The line references describe this checkout on 2026-07-19. They are deliberately 
 14. [Adding a class](14-adding-a-class.md) — the complete TypeScript, JavaScript, runtime, scene, and Inspector procedure.
 15. [Editor design](15-editor-design.md) — minimal developer-workspace styling, typography, icons, behavior boundaries, and validation.
 
+16. [Concurrent loading and rendering](18-concurrent-loading-and-rendering.md) — CPU workers, model loading, Photon geometry preparation, and Vulkan fence timing.
+
 ## The three most important distinctions
 
 - **Atlas library vs Atlas runtime:** `atlas/` and `include/atlas/` implement the engine. `runtime/lib/` turns that engine into a project loader, scripting host, editor-facing API, and shared library.
