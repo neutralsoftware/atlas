@@ -251,10 +251,12 @@ void CoreObject::attachVertices(const std::vector<CoreVertex> &newVertices) {
 
     vertices = newVertices;
     importedRenderBounds.reset();
+    importedDrawRanges.clear();
 }
 
 void CoreObject::attachIndices(const std::vector<Index> &newIndices) {
     indices = newIndices;
+    importedDrawRanges.clear();
 }
 
 void CoreObject::setPosition(const Position3d &newPosition) {
@@ -619,10 +621,14 @@ void CoreObject::drawDecal(
 bool CoreObject::intersectsRenderFrustum(const glm::mat4 &clipFromWorld) const {
     if (!importedRenderBounds || !instances.empty())
         return true;
-    const auto &bounds = *importedRenderBounds;
+    return intersectsClipBounds(glm::transpose(clipFromWorld * model),
+                                *importedRenderBounds);
+}
+
+bool CoreObject::intersectsClipBounds(const glm::mat4 &rows,
+                                     const RenderBounds &bounds) {
     const auto center = bounds.minimum * 0.5f + bounds.maximum * 0.5f;
     const auto extent = bounds.maximum * 0.5f - bounds.minimum * 0.5f;
-    const auto rows = glm::transpose(clipFromWorld * model);
     for (int axis = 0; axis < 3; ++axis) {
         const glm::vec4 sides[] = {rows[3] + rows[axis], rows[3] - rows[axis]};
         for (const auto &plane : sides) {
@@ -1112,7 +1118,29 @@ void CoreObject::renderUsingProgram(
     if (!indices.empty()) {
         commandBuffer->bindDrawingState(vao);
         commandBuffer->bindPipeline(this->pipeline);
-        commandBuffer->drawIndexed(indices.size(), 1, 0, 0, 0, id);
+        if (!importedDrawRanges.empty() &&
+            program.vertexShader.fromDefaultShaderType == AtlasVertexShader::Deferred) {
+            const auto rows = glm::transpose(projection * view * model);
+            uint32_t first = 0;
+            uint32_t count = 0;
+            const auto submitRange = [&] {
+                if (count != 0)
+                    commandBuffer->drawIndexed(count, 1, first, 0, 0, id);
+            };
+            for (const auto &range : importedDrawRanges) {
+                if (!intersectsClipBounds(rows, range.bounds))
+                    continue;
+                if (first + count != range.first) {
+                    submitRange();
+                    first = range.first;
+                    count = 0;
+                }
+                count += range.count;
+            }
+            submitRange();
+        } else {
+            commandBuffer->drawIndexed(indices.size(), 1, 0, 0, 0, id);
+        }
         commandBuffer->unbindDrawingState();
 
         return;
@@ -1159,6 +1187,7 @@ void CoreObject::updateVertices() {
     }
 
     importedRenderBounds.reset();
+    importedDrawRanges.clear();
     vbo->bind();
     vbo->updateData(0, vertices.size() * sizeof(CoreVertex), vertices.data());
     vbo->unbind();

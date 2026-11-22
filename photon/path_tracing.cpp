@@ -740,119 +740,144 @@ bool photon::PathTracing::buildAccelerationStructure(
         materialData.reserve(traceableObjects.size());
         std::vector<std::vector<float>> accelerationPositionChunks(chunkCount);
         std::vector<std::vector<uint32_t>> accelerationIndexChunks(chunkCount);
-        std::vector<GeometryBounds> chunkBounds(chunkCount);
         cachedBLASPrimitiveOffsets.resize(chunkCount);
+        auto &workers = atlas::detail::Workers::shared();
+        workers.parallelFor(chunkCount, 1, [&](size_t chunk) {
+            const auto start = offsets[chunkStarts[chunk]];
+            const auto end = offsets[chunkStarts[chunk + 1]];
+            accelerationPositionChunks[chunk].resize((end.vertex - start.vertex) * 3);
+            accelerationIndexChunks[chunk].resize(end.index - start.index);
+            cachedBLASPrimitiveOffsets[chunk] = static_cast<uint32_t>(start.index / 3);
+        });
 
-        const auto packChunk = [&](size_t chunk) {
-            const auto firstObject = chunkStarts[chunk];
-            const auto endObject = chunkStarts[chunk + 1];
-            const auto start = offsets[firstObject];
-            const auto end = offsets[endObject];
-            auto &positions = accelerationPositionChunks[chunk];
-            auto &indices = accelerationIndexChunks[chunk];
-            auto &bounds = chunkBounds[chunk];
-            positions.resize((end.vertex - start.vertex) * 3);
-            indices.resize(end.index - start.index);
-            cachedBLASPrimitiveOffsets[chunk] =
-                static_cast<uint32_t>(start.index / 3);
+        struct GeometryTask {
+            size_t chunk;
+            size_t object;
+            size_t firstVertex;
+            size_t firstIndex;
+        };
+        constexpr size_t verticesPerTask = 65536;
+        constexpr size_t indicesPerTask = 65536 * 3;
+        std::vector<GeometryTask> tasks;
+        for (size_t chunk = 0; chunk < chunkCount; ++chunk) {
+            for (size_t object = chunkStarts[chunk]; object < chunkStarts[chunk + 1];
+                 ++object) {
+                const auto &geometry = *traceableObjects[object];
+                for (size_t vertex = 0, index = 0;
+                     vertex < geometry.vertices.size() || index < geometry.indices.size();
+                     vertex += verticesPerTask, index += indicesPerTask) {
+                    tasks.push_back({chunk, object, vertex, index});
+                }
+            }
+        }
+        std::vector<GeometryBounds> taskBounds(tasks.size());
+        workers.parallelFor(tasks.size(), 1, [&](size_t taskIndex) {
+            const auto &task = tasks[taskIndex];
+            const auto objectIndex = task.object;
+            const auto start = offsets[chunkStarts[task.chunk]];
+            auto &positions = accelerationPositionChunks[task.chunk];
+            auto &indices = accelerationIndexChunks[task.chunk];
+            auto &bounds = taskBounds[taskIndex];
+            const auto *object = traceableObjects[objectIndex];
+            const auto &objectVertices = object->vertices;
+            const auto &objectIndices = object->indices;
+            const auto offset = offsets[objectIndex];
+            const auto chunkVertex = offset.vertex - start.vertex;
+            const auto chunkIndex = offset.index - start.index;
+            const auto *mesh = dynamic_cast<const ModelMesh *>(object);
+            const bool skinned =
+                mesh != nullptr && !mesh->getJointMatrices().empty();
+            const auto &material = object->material;
+            const float decalOffset = object->isDecal() ? object->getDecalOffset() : 0.0f;
+            glm::mat3 decalNormalTransform(0.0f);
+            if (decalOffset > 0.0f) {
+                const glm::mat3 linear(object->model);
+                if (std::abs(glm::determinant(linear)) > 1e-8f)
+                    decalNormalTransform = glm::transpose(glm::inverse(linear));
+            }
+            const bool canCastCaustics =
+                !object->isDecal() && material.roughness < 0.25f &&
+                (material.transmittance > 0.001f || material.metallic > 0.001f);
+            bounds.hasCaustics = canCastCaustics && task.firstVertex < objectVertices.size();
 
-            for (size_t objectIndex = firstObject; objectIndex < endObject;
-                 ++objectIndex) {
-                const auto *object = traceableObjects[objectIndex];
-                const auto &objectVertices = object->vertices;
-                const auto &objectIndices = object->indices;
-                const auto offset = offsets[objectIndex];
-                const auto chunkVertex = offset.vertex - start.vertex;
-                const auto chunkIndex = offset.index - start.index;
-                const auto *mesh = dynamic_cast<const ModelMesh *>(object);
-                const bool skinned =
-                    mesh != nullptr && !mesh->getJointMatrices().empty();
-                const auto &material = object->material;
-                const float decalOffset = object->isDecal() ? object->getDecalOffset() : 0.0f;
-                glm::mat3 decalNormalTransform(0.0f);
+            const size_t vertexEnd = std::min(task.firstVertex + verticesPerTask,
+                                              objectVertices.size());
+            for (size_t vertex = task.firstVertex; vertex < vertexEnd; ++vertex) {
+                const auto &v = objectVertices[vertex];
+                glm::vec4 localPosition(v.position.toGlm(), 1.0f);
+                glm::vec3 normal = v.normal.toGlm();
+                glm::vec3 tangent = v.tangent.toGlm();
+                glm::vec3 bitangent = v.bitangent.toGlm();
+                if (skinned) {
+                    const glm::mat4 pose = mesh->posedTransform(v);
+                    const glm::mat3 linear(pose);
+                    localPosition = pose * localPosition;
+                    tangent = linear * tangent;
+                    bitangent = linear * bitangent;
+                    const float determinant = glm::determinant(linear);
+                    if (std::abs(determinant) > 1e-8f)
+                        normal = glm::transpose(glm::inverse(linear)) * normal;
+                }
+                glm::vec3 worldPosition(object->model * localPosition);
                 if (decalOffset > 0.0f) {
-                    const glm::mat3 linear(object->model);
-                    if (std::abs(glm::determinant(linear)) > 1e-8f)
-                        decalNormalTransform = glm::transpose(glm::inverse(linear));
+                    const glm::vec3 decalNormal = decalNormalTransform * normal;
+                    const float length = glm::length(decalNormal);
+                    if (length > 1e-5f && std::isfinite(length))
+                        worldPosition += decalNormal * (decalOffset / length);
                 }
-                const bool canCastCaustics =
-                    !object->isDecal() && material.roughness < 0.25f &&
-                    (material.transmittance > 0.001f || material.metallic > 0.001f);
-                bounds.hasCaustics |= canCastCaustics;
+                bounds.minimum = glm::min(bounds.minimum, worldPosition);
+                bounds.maximum = glm::max(bounds.maximum, worldPosition);
+                if (canCastCaustics) {
+                    bounds.causticMinimum =
+                        glm::min(bounds.causticMinimum, worldPosition);
+                    bounds.causticMaximum =
+                        glm::max(bounds.causticMaximum, worldPosition);
+                }
+                const size_t positionOffset = 3 * (chunkVertex + vertex);
+                positions[positionOffset] = worldPosition.x;
+                positions[positionOffset + 1] = worldPosition.y;
+                positions[positionOffset + 2] = worldPosition.z;
 
-                for (size_t vertex = 0; vertex < objectVertices.size(); ++vertex) {
-                    const auto &v = objectVertices[vertex];
-                    glm::vec4 localPosition(v.position.toGlm(), 1.0f);
-                    glm::vec3 normal = v.normal.toGlm();
-                    glm::vec3 tangent = v.tangent.toGlm();
-                    glm::vec3 bitangent = v.bitangent.toGlm();
-                    if (skinned) {
-                        const glm::mat4 pose = mesh->posedTransform(v);
-                        const glm::mat3 linear(pose);
-                        localPosition = pose * localPosition;
-                        tangent = linear * tangent;
-                        bitangent = linear * bitangent;
-                        const float determinant = glm::determinant(linear);
-                        if (std::abs(determinant) > 1e-8f)
-                            normal = glm::transpose(glm::inverse(linear)) * normal;
-                    }
-                    glm::vec3 worldPosition(object->model * localPosition);
-                    if (decalOffset > 0.0f) {
-                        const glm::vec3 decalNormal = decalNormalTransform * normal;
-                        const float length = glm::length(decalNormal);
-                        if (length > 1e-5f && std::isfinite(length))
-                            worldPosition += decalNormal * (decalOffset / length);
-                    }
-                    bounds.minimum = glm::min(bounds.minimum, worldPosition);
-                    bounds.maximum = glm::max(bounds.maximum, worldPosition);
-                    if (canCastCaustics) {
-                        bounds.causticMinimum =
-                            glm::min(bounds.causticMinimum, worldPosition);
-                        bounds.causticMaximum =
-                            glm::max(bounds.causticMaximum, worldPosition);
-                    }
-                    const size_t positionOffset = 3 * (chunkVertex + vertex);
-                    positions[positionOffset] = worldPosition.x;
-                    positions[positionOffset + 1] = worldPosition.y;
-                    positions[positionOffset + 2] = worldPosition.z;
-
-                    VertexData vd{};
-                    vd.position[0] = worldPosition.x;
-                    vd.position[1] = worldPosition.y;
-                    vd.position[2] = worldPosition.z;
-                    vd.normal[0] = normal.x;
-                    vd.normal[1] = normal.y;
-                    vd.normal[2] = normal.z;
-                    vd.uv[0] = v.textureCoordinate[0];
-                    vd.uv[1] = v.textureCoordinate[1];
-                    vd.tangent[0] = tangent.x;
-                    vd.tangent[1] = tangent.y;
-                    vd.tangent[2] = tangent.z;
-                    vd.bitangent[0] = bitangent.x;
-                    vd.bitangent[1] = bitangent.y;
-                    vd.bitangent[2] = bitangent.z;
-                    std::memcpy(vd.normalAndPbrUvOffset,
-                                glm::value_ptr(v.normalAndPbrUvOffset),
-                                sizeof(vd.normalAndPbrUvOffset));
-                    std::memcpy(vd.aoUvOffset, glm::value_ptr(v.aoUvOffset),
-                                sizeof(vd.aoUvOffset));
-                    allVertices[offset.vertex + vertex] = vd;
-                }
-                for (size_t i = 0; i < objectIndices.size(); ++i) {
-                    const auto index = objectIndices[i];
-                    allIndices[offset.index + i] =
-                        static_cast<uint32_t>(offset.vertex + index);
-                    indices[chunkIndex + i] =
-                        static_cast<uint32_t>(chunkVertex + index);
-                }
-                std::fill_n(primitiveObjects.begin() + offset.index / 3,
-                            objectIndices.size() / 3,
+                VertexData vd{};
+                vd.position[0] = worldPosition.x;
+                vd.position[1] = worldPosition.y;
+                vd.position[2] = worldPosition.z;
+                vd.normal[0] = normal.x;
+                vd.normal[1] = normal.y;
+                vd.normal[2] = normal.z;
+                vd.uv[0] = v.textureCoordinate[0];
+                vd.uv[1] = v.textureCoordinate[1];
+                vd.tangent[0] = tangent.x;
+                vd.tangent[1] = tangent.y;
+                vd.tangent[2] = tangent.z;
+                vd.bitangent[0] = bitangent.x;
+                vd.bitangent[1] = bitangent.y;
+                vd.bitangent[2] = bitangent.z;
+                std::memcpy(vd.normalAndPbrUvOffset,
+                            glm::value_ptr(v.normalAndPbrUvOffset),
+                            sizeof(vd.normalAndPbrUvOffset));
+                std::memcpy(vd.aoUvOffset, glm::value_ptr(v.aoUvOffset),
+                            sizeof(vd.aoUvOffset));
+                allVertices[offset.vertex + vertex] = vd;
+            }
+            const size_t indexEnd = std::min(task.firstIndex + indicesPerTask,
+                                             objectIndices.size());
+            for (size_t i = task.firstIndex; i < indexEnd; ++i) {
+                const auto index = objectIndices[i];
+                allIndices[offset.index + i] =
+                    static_cast<uint32_t>(offset.vertex + index);
+                indices[chunkIndex + i] =
+                    static_cast<uint32_t>(chunkVertex + index);
+            }
+            if (task.firstIndex < indexEnd) {
+                std::fill_n(primitiveObjects.begin() +
+                                (offset.index + task.firstIndex) / 3,
+                            (indexEnd - task.firstIndex) / 3,
                             static_cast<uint32_t>(objectIndex));
             }
-        };
-        atlas::detail::Workers::shared().parallelFor(chunkCount, 1, packChunk);
+        });
 
-        for (const auto &bounds : chunkBounds) {
+        for (const auto &bounds : taskBounds) {
             sceneMinimum = glm::min(sceneMinimum, bounds.minimum);
             sceneMaximum = glm::max(sceneMaximum, bounds.maximum);
             if (bounds.hasCaustics) {
