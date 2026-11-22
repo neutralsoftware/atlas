@@ -2253,6 +2253,15 @@ bool Window::stepFrame() {
 
             this->deferredRendering(target, commandBuffer);
 
+            auto forwardFramebuffer = target->getFramebuffer();
+            if (target->type == RenderTargetType::Multisampled &&
+                target->getResolveFramebuffer() != nullptr) {
+                forwardFramebuffer = target->getResolveFramebuffer();
+            }
+            auto resolveCommand = opal::ResolveAction::createForDepth(
+                this->gBuffer->getFramebuffer(), forwardFramebuffer);
+            commandBuffer->performResolve(resolveCommand);
+
             const auto needsForwardDraw = [](Renderable *object) {
                 return object != nullptr && !object->editorOnly &&
                        !object->renderLateForward && !object->canUseDeferredRendering();
@@ -2264,15 +2273,6 @@ bool Window::stepFrame() {
                              needsForwardDraw)) {
                 continue;
             }
-
-            auto forwardFramebuffer = target->getFramebuffer();
-            if (target->type == RenderTargetType::Multisampled &&
-                target->getResolveFramebuffer() != nullptr) {
-                forwardFramebuffer = target->getResolveFramebuffer();
-            }
-            auto resolveCommand = opal::ResolveAction::createForDepth(
-                this->gBuffer->getFramebuffer(), forwardFramebuffer);
-            commandBuffer->performResolve(resolveCommand);
 
             auto forwardRenderPass = opal::RenderPass::create();
             forwardRenderPass->setFramebuffer(forwardFramebuffer);
