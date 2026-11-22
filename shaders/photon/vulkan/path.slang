@@ -772,14 +772,22 @@ SurfaceHit traceSurface(float3 origin, float3 direction) {
     if ((sceneData.featureFlags & PHOTON_FEATURE_NORMAL_MAPS) != 0 &&
         hit.material.useNormalMap != 0.0 &&
         hit.material.normalTextureIndex >= 0) {
-        float3 tangent = safeNormal(vertices[i0].tangent * weights.x +
-                                        vertices[i1].tangent * weights.y +
-                                        vertices[i2].tangent * weights.z,
-                                    float3(1.0, 0.0, 0.0));
+        float3x3 model = (float3x3)transform.model;
+        float3 tangent = mul(vertices[i0].tangent * weights.x +
+                                 vertices[i1].tangent * weights.y +
+                                 vertices[i2].tangent * weights.z,
+                             model);
+        float3 sourceBitangent = mul(vertices[i0].bitangent * weights.x +
+                                         vertices[i1].bitangent * weights.y +
+                                         vertices[i2].bitangent * weights.z,
+                                     model);
         tangent = safeNormal(tangent - hit.normal * dot(hit.normal, tangent),
                              float3(1.0, 0.0, 0.0));
         float3 bitangent =
             safeNormal(cross(hit.normal, tangent), float3(0.0, 0.0, 1.0));
+        if (dot(bitangent, sourceBitangent) < 0.0) {
+            bitangent = -bitangent;
+        }
         float3 tangentNormal =
             sampleMaterialTexture(hit.material.normalTextureIndex, materialUv)
                     .xyz *

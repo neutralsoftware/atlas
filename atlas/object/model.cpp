@@ -898,7 +898,9 @@ void Model::loadModel(
     std::string extension = resource.path.extension().string();
     std::transform(extension.begin(), extension.end(), extension.begin(),
                    [](unsigned char value) { return std::tolower(value); });
-    if (extension != ".gltf" && extension != ".glb") {
+    if (extension == ".gltf" || extension == ".glb") {
+        importFlags |= aiProcess_FlipUVs;
+    } else {
         importFlags |=
             aiProcess_JoinIdenticalVertices | aiProcess_ImproveCacheLocality;
     }
@@ -1345,10 +1347,10 @@ Model::processMesh(aiMesh *mesh, const aiScene *scene,
             glm::length(glm::cross(tangent, bitangent)) < 1e-6f) {
             bitangent = glm::cross(normal, tangent);
         }
-        bitangent = glm::normalize(bitangent);
-        if (glm::dot(glm::cross(tangent, bitangent), normal) < 0.0f) {
-            bitangent = -bitangent;
-        }
+        const glm::vec3 orthogonalBitangent = glm::cross(normal, tangent);
+        bitangent = glm::dot(orthogonalBitangent, bitangent) < 0.0f
+                        ? -orthogonalBitangent
+                        : orthogonalBitangent;
 
         vertex.tangent = Normal3d::fromGlm(tangent);
         vertex.bitangent = Normal3d::fromGlm(bitangent);
