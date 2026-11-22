@@ -514,14 +514,11 @@ kernel void emitCaustics(primitive_acceleration_structure sceneAS [[buffer(0)]],
         uint i0 = indices[primitive * 3], i1 = indices[primitive * 3 + 1],
              i2 = indices[primitive * 3 + 2];
         float2 bary = hit.triangle_barycentric_coord;
-        float2 uv = (float2(vertices[i0].uv) * (1.0f - bary.x - bary.y) +
-                     float2(vertices[i1].uv) * bary.x +
-                     float2(vertices[i2].uv) * bary.y) *
-                        float2(mat.textureScale) +
-                    float2(mat.textureOffset);
+        MaterialUvs uv = interpolateMaterialUvs(
+            mat, vertices[i0], vertices[i1], vertices[i2], bary);
         float3 P = photonRay.origin + hit.distance * photonRay.direction;
         float opacity = resolveMaterialOpacity(
-            mat, uv, sceneData.materialTextureCount, PT_MATERIAL_TEXTURE_ARGS);
+            mat, uv.albedo, sceneData.materialTextureCount, PT_MATERIAL_TEXTURE_ARGS);
         if (!photonFeatureEnabled(sceneData,
                                   PHOTON_FEATURE_ALPHA_TRANSPARENCY))
             opacity = 1.0f;
@@ -571,7 +568,7 @@ kernel void emitCaustics(primitive_acceleration_structure sceneAS [[buffer(0)]],
                         float3(vertices[i1].bitangent) * bary.x +
                         float3(vertices[i2].bitangent) * bary.y;
         float3 N = resolveShadingNormal(
-            mat, uv, localN, localT, localB, instanceData[objectId],
+            mat, uv.normal, localN, localT, localB, instanceData[objectId],
             sceneData.materialTextureCount,
             photonFeatureEnabled(sceneData, PHOTON_FEATURE_NORMAL_MAPS),
             PT_MATERIAL_TEXTURE_ARGS);

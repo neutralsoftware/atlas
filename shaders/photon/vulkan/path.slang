@@ -78,6 +78,8 @@ struct VertexData {
     float2 uv;
     float3 tangent;
     float3 bitangent;
+    float4 normalAndPbrUvOffset;
+    float2 aoUvOffset;
 };
 
 struct InstanceData {
@@ -738,15 +740,28 @@ SurfaceHit traceSurface(float3 origin, float3 direction) {
     hit.material = materials[objectId];
     float2 materialUv =
         hit.uv * hit.material.textureScale + hit.material.textureOffset;
+    float4 textureUvOffsets =
+        vertices[i0].normalAndPbrUvOffset * weights.x +
+        vertices[i1].normalAndPbrUvOffset * weights.y +
+        vertices[i2].normalAndPbrUvOffset * weights.z;
+    float2 pbrUv =
+        materialUv + textureUvOffsets.zw * hit.material.textureScale;
     if ((sceneData.featureFlags & PHOTON_FEATURE_MATERIAL_TEXTURES) != 0) {
+        float2 aoUvOffset = vertices[i0].aoUvOffset * weights.x +
+                            vertices[i1].aoUvOffset * weights.y +
+                            vertices[i2].aoUvOffset * weights.z;
+        float2 aoUv =
+            hit.material.aoTextureIndex == hit.material.metallicTextureIndex
+                ? pbrUv
+                : materialUv + aoUvOffset * hit.material.textureScale;
         hit.material.albedo *=
             sampleMaterialTexture(hit.material.albedoTextureIndex, materialUv);
         float4 metallicSample = sampleMaterialTexture(
-            hit.material.metallicTextureIndex, materialUv);
+            hit.material.metallicTextureIndex, pbrUv);
         float4 roughnessSample = sampleMaterialTexture(
-            hit.material.roughnessTextureIndex, materialUv);
+            hit.material.roughnessTextureIndex, pbrUv);
         float4 aoSample =
-            sampleMaterialTexture(hit.material.aoTextureIndex, materialUv);
+            sampleMaterialTexture(hit.material.aoTextureIndex, aoUv);
         if (hit.material.metallicTextureIndex >= 0) {
             hit.material.metallic *= hit.material.metallicTextureIndex ==
                                              hit.material.roughnessTextureIndex
@@ -788,8 +803,10 @@ SurfaceHit traceSurface(float3 origin, float3 direction) {
         if (dot(bitangent, sourceBitangent) < 0.0) {
             bitangent = -bitangent;
         }
+        float2 normalUv =
+            materialUv + textureUvOffsets.xy * hit.material.textureScale;
         float3 tangentNormal =
-            sampleMaterialTexture(hit.material.normalTextureIndex, materialUv)
+            sampleMaterialTexture(hit.material.normalTextureIndex, normalUv)
                     .xyz *
                 2.0 -
             1.0;

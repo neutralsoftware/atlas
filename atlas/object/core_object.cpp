@@ -178,7 +178,11 @@ std::vector<LayoutDescriptor> CoreVertex::getLayoutDescriptors() {
             {"joints", 10, 4, opal::VertexAttributeType::UnsignedInt, false,
              sizeof(CoreVertex), offsetof(CoreVertex, joints)},
             {"weights", 11, 4, opal::VertexAttributeType::Float, false,
-             sizeof(CoreVertex), offsetof(CoreVertex, weights)}};
+             sizeof(CoreVertex), offsetof(CoreVertex, weights)},
+            {"normalAndPbrUvOffset", 12, 4, opal::VertexAttributeType::Float,
+             false, sizeof(CoreVertex), offsetof(CoreVertex, normalAndPbrUvOffset)},
+            {"aoUvOffset", 13, 2, opal::VertexAttributeType::Float, false,
+             sizeof(CoreVertex), offsetof(CoreVertex, aoUvOffset)}};
 }
 
 CoreObject::CoreObject() : vao(nullptr), vbo(nullptr), ebo(nullptr) {
@@ -1249,6 +1253,9 @@ CoreVertex atlas::interpolateVertex(const CoreVertex &a, const CoreVertex &b) {
     result.normal = (a.normal + b.normal).normalized();
     result.tangent = (a.tangent + b.tangent).normalized();
     result.bitangent = (a.bitangent + b.bitangent).normalized();
+    result.normalAndPbrUvOffset =
+        (a.normalAndPbrUvOffset + b.normalAndPbrUvOffset) * 0.5f;
+    result.aoUvOffset = (a.aoUvOffset + b.aoUvOffset) * 0.5f;
 
     return result;
 }

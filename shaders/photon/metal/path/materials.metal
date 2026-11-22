@@ -246,6 +246,31 @@ float4 sampleMaterialTexture(
 #define PT_MATERIAL_TEXTURE_BINDINGS                                           \
     constant MaterialTextureArguments &materialTextureArguments [[buffer(12)]]
 
+struct MaterialUvs {
+    float2 albedo;
+    float2 normal;
+    float2 metallicRoughness;
+    float2 ao;
+};
+
+MaterialUvs interpolateMaterialUvs(Material mat, constant VertexData &a,
+                                   constant VertexData &b, constant VertexData &c,
+                                   float2 bary) {
+    float w = 1.0f - bary.x - bary.y;
+    float2 scale = float2(mat.textureScale);
+    float2 albedo = (float2(a.uv) * w + float2(b.uv) * bary.x +
+                     float2(c.uv) * bary.y) * scale + float2(mat.textureOffset);
+    float4 offsets = float4(a.normalAndPbrUvOffset) * w +
+                     float4(b.normalAndPbrUvOffset) * bary.x +
+                     float4(c.normalAndPbrUvOffset) * bary.y;
+    float2 pbr = albedo + offsets.zw * scale;
+    float2 ao = albedo + (float2(a.aoUvOffset) * w +
+                         float2(b.aoUvOffset) * bary.x +
+                         float2(c.aoUvOffset) * bary.y) * scale;
+    return {albedo, albedo + offsets.xy * scale, pbr,
+            mat.aoTextureIndex == mat.metallicTextureIndex ? pbr : ao};
+}
+
 float resolveMaterialOpacity(Material mat, float2 uv, uint textureCount,
                              PT_MATERIAL_TEXTURE_PARAMS) {
     float opacity = clamp(mat.albedo.w, 0.0, 1.0);
@@ -260,7 +285,7 @@ float resolveMaterialOpacity(Material mat, float2 uv, uint textureCount,
     return clamp(opacity, 0.0, 1.0);
 }
 
-void resolveMaterialParameters(Material mat, float2 uv, uint textureCount,
+void resolveMaterialParameters(Material mat, MaterialUvs uv, uint textureCount,
                                PT_MATERIAL_TEXTURE_PARAMS,
                                thread float3 &albedo, thread float &metallic,
                                thread float &roughness, thread float &ao,
@@ -280,7 +305,7 @@ void resolveMaterialParameters(Material mat, float2 uv, uint textureCount,
 
     if (mat.albedoTextureIndex >= 0 &&
         uint(mat.albedoTextureIndex) < textureCount) {
-        albedo *= clamp(sampleMaterialTexture(mat.albedoTextureIndex, uv,
+        albedo *= clamp(sampleMaterialTexture(mat.albedoTextureIndex, uv.albedo,
                                               PT_MATERIAL_TEXTURE_ARGS)
                             .xyz,
                         float3(0.0), float3(1.0));
@@ -288,7 +313,7 @@ void resolveMaterialParameters(Material mat, float2 uv, uint textureCount,
     if (mat.metallicTextureIndex >= 0 &&
         uint(mat.metallicTextureIndex) < textureCount) {
         float4 metallicSample = sampleMaterialTexture(
-            mat.metallicTextureIndex, uv, PT_MATERIAL_TEXTURE_ARGS);
+            mat.metallicTextureIndex, uv.metallicRoughness, PT_MATERIAL_TEXTURE_ARGS);
         float metallicValue = metallicSample.x;
         if (mat.roughnessTextureIndex == mat.metallicTextureIndex) {
             metallicValue = metallicSample.z;
@@ -298,7 +323,7 @@ void resolveMaterialParameters(Material mat, float2 uv, uint textureCount,
     if (mat.roughnessTextureIndex >= 0 &&
         uint(mat.roughnessTextureIndex) < textureCount) {
         float4 roughnessSample = sampleMaterialTexture(
-            mat.roughnessTextureIndex, uv, PT_MATERIAL_TEXTURE_ARGS);
+            mat.roughnessTextureIndex, uv.metallicRoughness, PT_MATERIAL_TEXTURE_ARGS);
         float roughnessValue = roughnessSample.x;
         if (mat.roughnessTextureIndex == mat.metallicTextureIndex) {
             roughnessValue = roughnessSample.y;
@@ -306,7 +331,7 @@ void resolveMaterialParameters(Material mat, float2 uv, uint textureCount,
         roughness *= clamp(roughnessValue, 0.0, 1.0);
     }
     if (mat.aoTextureIndex >= 0 && uint(mat.aoTextureIndex) < textureCount) {
-        ao *= clamp(sampleMaterialTexture(mat.aoTextureIndex, uv,
+        ao *= clamp(sampleMaterialTexture(mat.aoTextureIndex, uv.ao,
                                           PT_MATERIAL_TEXTURE_ARGS)
                         .x,
                     0.0, 1.0);

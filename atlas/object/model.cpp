@@ -231,6 +231,97 @@ float roughnessFromShininess(float shininess, float strength) {
     return saturate(std::sqrt(2.0f / (effectiveShininess + 2.0f)));
 }
 
+struct GltfTextureCoordinates {
+    unsigned int channel = 0;
+    glm::vec2 scale{1.0f};
+    glm::vec2 offset{0.0f};
+    float cosine = 1.0f;
+    float sine = 0.0f;
+
+    glm::vec2 at(const aiMesh &mesh, unsigned int vertex) const {
+        if (channel >= AI_MAX_NUMBER_OF_TEXTURECOORDS ||
+            mesh.mTextureCoords[channel] == nullptr)
+            return offset;
+
+        const auto &source = mesh.mTextureCoords[channel][vertex];
+        if (!std::isfinite(source.x) || !std::isfinite(source.y))
+            return offset;
+
+        const glm::vec2 uv = glm::vec2(source.x, source.y) * scale;
+        return offset + glm::vec2(cosine * uv.x - sine * uv.y,
+                                  sine * uv.x + cosine * uv.y);
+    }
+};
+
+void updateModelTangents(std::vector<CoreVertex> &vertices,
+                         const std::vector<unsigned int> &indices) {
+    std::vector<glm::vec3> tangents(vertices.size(), glm::vec3(0.0f));
+    std::vector<glm::vec3> bitangents(vertices.size(), glm::vec3(0.0f));
+    const auto normalUv = [](const CoreVertex &vertex) {
+        return glm::vec2(vertex.textureCoordinate[0], vertex.textureCoordinate[1]) +
+               glm::vec2(vertex.normalAndPbrUvOffset);
+    };
+
+    for (size_t i = 0; i + 2 < indices.size(); i += 3) {
+        const unsigned int a = indices[i];
+        const unsigned int b = indices[i + 1];
+        const unsigned int c = indices[i + 2];
+        const glm::vec3 edgeU =
+            vertices[b].position.toGlm() - vertices[a].position.toGlm();
+        const glm::vec3 edgeV =
+            vertices[c].position.toGlm() - vertices[a].position.toGlm();
+        const glm::vec2 uvU = normalUv(vertices[b]) - normalUv(vertices[a]);
+        const glm::vec2 uvV = normalUv(vertices[c]) - normalUv(vertices[a]);
+        const float determinant = uvU.x * uvV.y - uvU.y * uvV.x;
+        if (std::abs(determinant) <= 1e-8f)
+            continue;
+
+        const glm::vec3 tangent = (edgeU * uvV.y - edgeV * uvU.y) / determinant;
+        const glm::vec3 bitangent = (edgeV * uvU.x - edgeU * uvV.x) / determinant;
+        for (unsigned int index : {a, b, c}) {
+            tangents[index] += tangent;
+            bitangents[index] += bitangent;
+        }
+    }
+
+    for (size_t i = 0; i < vertices.size(); ++i) {
+        auto &vertex = vertices[i];
+        const glm::vec3 normal = vertex.normal.toGlm();
+        const glm::vec3 tangent =
+            tangents[i] - normal * glm::dot(normal, tangents[i]);
+        if (!(glm::dot(tangent, tangent) > 1e-12f))
+            continue;
+
+        const glm::vec3 unitTangent = glm::normalize(tangent);
+        const glm::vec3 bitangent = glm::cross(normal, unitTangent);
+        const float sign =
+            glm::dot(bitangent, bitangents[i]) < 0.0f ? -1.0f : 1.0f;
+        vertex.tangent = Normal3d::fromGlm(unitTangent);
+        vertex.bitangent = Normal3d::fromGlm(bitangent * sign);
+    }
+}
+
+GltfTextureCoordinates gltfTextureCoordinates(
+    const aiMaterial &material, aiTextureType textureType) {
+    GltfTextureCoordinates coordinates;
+    material.Get(AI_MATKEY_UVWSRC(textureType, 0), coordinates.channel);
+    aiUVTransform transform;
+    if (material.Get(AI_MATKEY_UVTRANSFORM(textureType, 0), transform) ==
+        AI_SUCCESS) {
+        coordinates.scale = {transform.mScaling.x, transform.mScaling.y};
+        coordinates.cosine = std::cos(transform.mRotation);
+        coordinates.sine = std::sin(transform.mRotation);
+        const float cosine = coordinates.cosine;
+        const float sine = coordinates.sine;
+        coordinates.offset = {
+            transform.mTranslation.x -
+                0.5f * coordinates.scale.x * (1.0f - cosine + sine),
+            transform.mTranslation.y + 1.0f - coordinates.scale.y +
+                0.5f * coordinates.scale.y * (sine + cosine - 1.0f)};
+    }
+    return coordinates;
+}
+
 struct ModelTextureJob {
     std::string cacheKey;
     std::string fullPath;
@@ -898,7 +989,8 @@ void Model::loadModel(
     std::string extension = resource.path.extension().string();
     std::transform(extension.begin(), extension.end(), extension.begin(),
                    [](unsigned char value) { return std::tolower(value); });
-    if (extension == ".gltf" || extension == ".glb") {
+    usesGltfTextureCoordinates = extension == ".gltf" || extension == ".glb";
+    if (usesGltfTextureCoordinates) {
         importFlags |= aiProcess_FlipUVs;
     } else {
         importFlags |=
@@ -1069,7 +1161,8 @@ void Model::preloadMaterialTextures(
             int aoWidth = 0;
             int aoHeight = 0;
             std::string cacheKey = fullPath + "|" + typeName;
-            if (textureType == TextureType::PBRPack) {
+            if (textureType == TextureType::PBRPack &&
+                !usesGltfTextureCoordinates) {
                 aiString aoTexturePath;
                 if (material->GetTexture(aiTextureType_AMBIENT_OCCLUSION, 0,
                                          &aoTexturePath) == AI_SUCCESS) {
@@ -1275,6 +1368,30 @@ Model::processMesh(aiMesh *mesh, const aiScene *scene,
     const glm::mat3 normalTransform =
         glm::transpose(glm::inverse(linearTransform));
 
+    GltfTextureCoordinates colorCoordinates;
+    GltfTextureCoordinates normalCoordinates;
+    GltfTextureCoordinates pbrCoordinates;
+    GltfTextureCoordinates aoCoordinates;
+    bool needsNormalTangents = false;
+    if (usesGltfTextureCoordinates &&
+        mesh->mMaterialIndex < scene->mNumMaterials) {
+        const auto &material = *scene->mMaterials[mesh->mMaterialIndex];
+        const auto colorType = material.GetTextureCount(aiTextureType_BASE_COLOR)
+                                   ? aiTextureType_BASE_COLOR
+                                   : aiTextureType_DIFFUSE;
+        colorCoordinates = gltfTextureCoordinates(material, colorType);
+        normalCoordinates =
+            gltfTextureCoordinates(material, aiTextureType_NORMALS);
+        needsNormalTangents =
+            material.GetTextureCount(aiTextureType_NORMALS) > 0 &&
+            (normalCoordinates.channel != 0 || normalCoordinates.sine != 0.0f ||
+             normalCoordinates.scale.x * normalCoordinates.cosine < 0.0f ||
+             normalCoordinates.scale.y * normalCoordinates.cosine < 0.0f);
+        pbrCoordinates = gltfTextureCoordinates(
+            material, aiTextureType_GLTF_METALLIC_ROUGHNESS);
+        aoCoordinates = gltfTextureCoordinates(material, aiTextureType_LIGHTMAP);
+    }
+
     vertices.reserve(mesh->mNumVertices);
     const auto reportMeshProgress = [this](float fraction,
                                            const std::string &status) {
@@ -1356,7 +1473,14 @@ Model::processMesh(aiMesh *mesh, const aiScene *scene,
         vertex.bitangent = Normal3d::fromGlm(bitangent);
 
         // ---------- Texture Coordinates ----------
-        if (mesh->mTextureCoords[0]) {
+        if (usesGltfTextureCoordinates) {
+            const glm::vec2 colorUv = colorCoordinates.at(*mesh, i);
+            vertex.textureCoordinate = {colorUv.x, colorUv.y};
+            vertex.normalAndPbrUvOffset = {
+                normalCoordinates.at(*mesh, i) - colorUv,
+                pbrCoordinates.at(*mesh, i) - colorUv};
+            vertex.aoUvOffset = aoCoordinates.at(*mesh, i) - colorUv;
+        } else if (mesh->mTextureCoords[0]) {
             glm::vec2 uv = glm::vec2(mesh->mTextureCoords[0][i].x,
                                      mesh->mTextureCoords[0][i].y);
             if (glm::all(glm::isnan(uv)) || glm::any(glm::isinf(uv)))
@@ -1400,6 +1524,9 @@ Model::processMesh(aiMesh *mesh, const aiScene *scene,
         for (unsigned int j = 0; j < face.mNumIndices; j++)
             indices.push_back(face.mIndices[j]);
     }
+
+    if (needsNormalTangents && mesh->mPrimitiveTypes == aiPrimitiveType_TRIANGLE)
+        updateModelTangents(vertices, indices);
 
     reportMeshProgress(0.85f, "Preparing model materials");
     std::vector<Texture> textures;
@@ -1471,7 +1598,7 @@ Model::processMesh(aiMesh *mesh, const aiScene *scene,
                             roughnessMaps.end());
         }
 
-        if (pbrPackMaps.empty()) {
+        if (usesGltfTextureCoordinates || pbrPackMaps.empty()) {
             auto aoMaps = loadMaterialTextures(
                 material, std::any(aiTextureType_AMBIENT_OCCLUSION),
                 "texture_ao", textureCache);
@@ -1537,7 +1664,7 @@ std::vector<Texture> Model::loadMaterialTextures(
         std::string filename = std::string(str.C_Str());
         std::string fullPath = directory + "/" + filename;
         std::string cacheKey = fullPath + "|" + typeName;
-        if (typeName == "texture_pbr_pack") {
+        if (typeName == "texture_pbr_pack" && !usesGltfTextureCoordinates) {
             aiString aoPath;
             if (material->GetTexture(aiTextureType_AMBIENT_OCCLUSION, 0,
                                      &aoPath) == AI_SUCCESS)
@@ -1597,7 +1724,8 @@ std::vector<Texture> Model::loadMaterialTextures(
                     data.get()[pixel * 4] = 255;
 
                 aiString aoPath;
-                if (material->GetTexture(aiTextureType_AMBIENT_OCCLUSION, 0,
+                if (!usesGltfTextureCoordinates &&
+                    material->GetTexture(aiTextureType_AMBIENT_OCCLUSION, 0,
                                          &aoPath) == AI_SUCCESS) {
                     int aoWidth = 0;
                     int aoHeight = 0;
