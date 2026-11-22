@@ -35,3 +35,4 @@ node_modules
 *.app
 __tracked_surface.stl
 clang-tidy.log
+tests/resources/private
