@@ -168,6 +168,7 @@ class PathTracing {
     float causticLaunchDistance = 1.0f;
     bool causticMapDirty = true;
     bool causticGeometryPresent = false;
+    bool sceneHasVolumes = false;
     uint32_t causticSeed = 1;
     std::shared_ptr<ShaderProgram> computePathTracer;
     std::shared_ptr<ShaderProgram> computePathDenoiser;
@@ -182,7 +183,6 @@ class PathTracing {
     std::vector<CoreObject *> cachedObjects;
     std::vector<CoreObject *> cachedSceneObjects;
     std::vector<glm::mat4> cachedInstanceTransforms;
-    std::vector<uint64_t> cachedObjectStateHashes;
     std::vector<uint64_t> cachedSceneObjectStateHashes;
     uint64_t cachedLightHash = 0;
     int emissiveTriangleCount = 0;
