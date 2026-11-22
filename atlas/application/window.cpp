@@ -2300,10 +2300,6 @@ bool Window::stepFrame() {
                         if (meshObject == nullptr) {
                             continue;
                         }
-                        bool hasAnyTexture = !meshObject->textures.empty();
-                        if (!hasAnyTexture) {
-                            meshObject->material = model->material;
-                        }
                         meshObject->material.useNormalMap =
                             model->material.useNormalMap;
                         meshObject->material.normalMapStrength =

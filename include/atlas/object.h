@@ -982,10 +982,6 @@ class Model : public GameObject {
             if (obj == nullptr) {
                 continue;
             }
-            bool hasAnyTexture = !obj->textures.empty();
-            if (!hasAnyTexture) {
-                obj->material = material;
-            }
             obj->material.useNormalMap = material.useNormalMap;
             obj->material.normalMapStrength = material.normalMapStrength;
             obj->material.textureScale = material.textureScale;
@@ -1012,10 +1008,6 @@ class Model : public GameObject {
         for (auto &obj : objects) {
             if (obj == nullptr) {
                 continue;
-            }
-            bool hasAnyTexture = !obj->textures.empty();
-            if (!hasAnyTexture) {
-                obj->material = material;
             }
             obj->material.useNormalMap = material.useNormalMap;
             obj->material.normalMapStrength = material.normalMapStrength;
@@ -1098,10 +1090,6 @@ class Model : public GameObject {
 
     Model() = default;
 
-    /**
-     * @brief The material properties shared by all objects in the model.
-     *
-     */
     Material material;
 
     /**

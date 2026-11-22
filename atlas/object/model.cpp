@@ -1951,10 +1951,6 @@ void Model::update(Window &window) {
         }
         if (auto *mesh = dynamic_cast<ModelMesh *>(obj.get()))
             mesh->updateSkin(animator.getGlobalPose());
-        bool hasAnyTexture = !obj->textures.empty();
-        if (!hasAnyTexture) {
-            obj->material = material;
-        }
         obj->material.useNormalMap = material.useNormalMap;
         obj->material.normalMapStrength = material.normalMapStrength;
         obj->material.textureScale = material.textureScale;

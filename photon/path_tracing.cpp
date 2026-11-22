@@ -228,10 +228,6 @@ void collectPathTracingObject(Renderable *renderable,
                 (!model->canUseDeferredRendering() && !object->isDecal())) {
                 continue;
             }
-            bool hasAnyTexture = !object->textures.empty();
-            if (!hasAnyTexture) {
-                object->material = model->material;
-            }
             object->material.useNormalMap = model->material.useNormalMap;
             object->material.normalMapStrength =
                 model->material.normalMapStrength;
