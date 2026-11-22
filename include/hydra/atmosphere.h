@@ -357,7 +357,7 @@ class Atmosphere {
      * @brief Overrides the current time of day.
      */
     void setTime(float hours) {
-        if (hours > 0 && hours < 24)
+        if (hours >= 0 && hours < 24)
             timeOfDay = hours;
     }
 

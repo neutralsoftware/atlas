@@ -62,7 +62,7 @@ float4 skyColor(float3 dir, float intensity, texturecube<float> skybox,
         float3 horizonColor = float3(0.58, 0.72, 0.92);
 
         float3 proceduralSky =
-            mix(zenith, horizonColor, horizon) * max(daylight, 0.08);
+            mix(zenith, horizonColor, horizon) * daylight;
 
         skyRGB = max(skyRGB, proceduralSky);
     }
