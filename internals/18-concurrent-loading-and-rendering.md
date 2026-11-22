@@ -15,11 +15,17 @@ Worker functions read stable inputs and write private results or disjoint output
 - Texture decoding uses up to six pending jobs. A new decode can run while the caller uploads the preceding texture. Embedded texture jobs borrow data from the live Assimp scene, so queuing an image does not copy its compressed payload. The decoded cache hashes the input once and publishes completed files with a rename.
 - Geometry preparation transforms vertices, validates indices, and calculates skin weights and tangents on workers. Independent meshes run in parallel. A large single mesh can instead distribute its vertex conversion across workers. Atlas moves the resulting arrays into model objects and attaches materials in scene order.
 
-Assimp scene parsing and scene-cache persistence still precede texture and geometry jobs. Texture upload, GPU object initialization, and changes to Workspace resources stay on the calling thread.
+Assimp scene parsing precedes texture and geometry jobs. Scene-cache writes can overlap them. Texture upload, GPU object initialization, and changes to Workspace resources stay on the calling thread.
+
+## Large static glTF
+
+Eligible untextured glTF assets with a single identity-transform root mesh and a tightly packed external buffer of at least 128 MiB use a bulk import path. Workers read disjoint file ranges, convert vertex streams, and validate and group indexed triangles. The output keeps one Atlas object per source primitive and preserves triangle winding. Triangle order inside those opaque primitives follows spatial buckets so the raster renderer can skip individual ranges outside the active frustum. Unsupported layouts and animated imports use the Assimp path.
+
+The Sponza candles file exercises this path with 12,925,581 vertices and 19,540,000 triangles across three source primitives. When Photon is selected, building its ray-tracing acceleration structure still requires the full scene geometry.
 
 ## Photon and frame submission
 
-[Photon](../photon/path_tracing.cpp) assigns offsets before it packs a scene. Workers convert independent acceleration-structure chunks into disjoint ranges of vertex, index, and triangle-owner data. The caller joins those jobs before uploading buffers and recording the build. Geometry indices, material slots, and emissive triangles retain the scene's original ordering. The caller combines chunk bounds after the workers finish. An unchanged scene reuses its geometry and skips the rebuild.
+[Photon](../photon/path_tracing.cpp) assigns offsets before it packs a scene. Workers convert disjoint ranges of vertex, index, and triangle-owner data. Large meshes are split across workers even when they occupy one acceleration-structure chunk. The caller joins those jobs before uploading buffers and recording the build. Geometry indices, material slots, and emissive triangles retain the scene's original ordering. The caller combines chunk bounds after the workers finish. An unchanged scene reuses its geometry and skips the rebuild.
 
 Photon omits volume processing when the packed scene contains no volume materials. This bypasses Vulkan's per-ray material scans for medium detection and shadow transmittance, and avoids dispatching the volume beam pass for those scenes.
 
