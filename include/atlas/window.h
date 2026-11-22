@@ -986,6 +986,7 @@ class Window {
     float frameTime = 0.0f;
     float framesPerSecond = 0.0f;
     double frameFenceWaitMs = 0.0;
+    double frameSubmitMs = 0.0;
     bool shouldClose = false;
     bool runLoopInitialized = false;
     SDL_WindowID runLoopWindowID = 0;

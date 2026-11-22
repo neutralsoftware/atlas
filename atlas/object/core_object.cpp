@@ -1123,21 +1123,23 @@ void CoreObject::renderUsingProgram(
             const auto rows = glm::transpose(projection * view * model);
             uint32_t first = 0;
             uint32_t count = 0;
-            const auto submitRange = [&] {
+            std::vector<opal::IndexedDrawRange> ranges;
+            const auto appendRange = [&] {
                 if (count != 0)
-                    commandBuffer->drawIndexed(count, 1, first, 0, 0, id);
+                    ranges.push_back({first, count});
             };
             for (const auto &range : importedDrawRanges) {
                 if (!intersectsClipBounds(rows, range.bounds))
                     continue;
                 if (first + count != range.first) {
-                    submitRange();
+                    appendRange();
                     first = range.first;
                     count = 0;
                 }
                 count += range.count;
             }
-            submitRange();
+            appendRange();
+            commandBuffer->drawIndexedRanges(ranges, id);
         } else {
             commandBuffer->drawIndexed(indices.size(), 1, 0, 0, 0, id);
         }

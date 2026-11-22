@@ -31,6 +31,18 @@ Photon omits volume processing when the packed scene contains no volume material
 
 [Window submission](../atlas/application/window.cpp) removes retired objects in one pass per render queue. The Vulkan HUD shows CPU render time and fence wait separately. Fence wait is time the CPU spent waiting for the previous submission. It is distinct from GPU execution time. Vulkan still uses the existing single in-flight frame, so the fence continues to protect shared resources reused by the next frame. Supporting additional in-flight frames requires per-frame command and resource lifetimes in Opal. [Khronos frames in flight](https://docs.vulkan.org/tutorial/latest/03_Drawing_a_triangle/03_Drawing/03_Frames_in_flight.html)
 
+## Sponza candles and frame timing
+
+The model importer maps base color, opacity, roughness, metalness, and emission into each mesh's Atlas material even when the asset has no textures. The candle asset has separate wax, wick, and flame materials. Native code can change those materials through `Model::getObjects()` and each mesh's `material`. The parent model's material still supplies shared normal-map and UV controls. In the Sponza sample, eight warm lights provide illumination for the surrounding stone, while the flame material and bloom provide the glow.
+
+The Sponza sample defaults to Deferred. Set `ATLAS_TEST_RENDERER=path` for Cinematic Photon. During camera motion, Photon traces at half width and height and limits path depth to four bounces. The Cinematic preview traces one sample per traced pixel. When the camera settles, Photon resets accumulation and resumes the configured resolution, bounce depth, and sample budget.
+
+Vulkan Photon still displays emissive surfaces. It skips packing the per-triangle emitter table, which is sampled by Metal Photon.
+
+Vulkan Deferred keeps the imported range culling and binds pipeline, descriptors, and index state once per mesh before submitting its visible ranges. OpenGL and Metal submit the same ranges through their existing indexed draw paths.
+
+Set `ATLAS_HUD_ENABLED=1` before launching. On Vulkan, **Render CPU** measures frame recording with swapchain acquire excluded, **Fence** measures the wait for the previous submission to complete, **Acquire** measures the wait for a swapchain image, and **S/P prev** measures the previous frame's CPU time in submit and present. A long acquire points to swapchain pacing or backpressure. A long fence indicates that work from the previous submission is still outstanding. GPU timestamps or a GPU profiler are needed to attribute that time to individual passes.
+
 ## Measuring the changes
 
 Use the same scene, resolution, renderer, and sampling settings on both revisions. Record cold and warm model-load times separately. For Photon, record the first render and camera-movement frame times separately from a converged stationary image, where sampling stops. Compare frame time percentiles, CPU render time, Vulkan fence wait, and the GPU engine running the graphics or compute work. Asset-load time and frame-rate gains require an Atlas build and a GPU run.
