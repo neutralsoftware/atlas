@@ -111,7 +111,7 @@ class MainScene : public Scene {
 
         this->setAmbientIntensity(0.10f);
 
-        frameBuffer = RenderTarget(window, RenderTargetType::Multisampled);
+        frameBuffer = RenderTarget(window, RenderTargetType::Scene);
         window.addRenderTarget(&frameBuffer);
         frameBuffer.display(window);
 
@@ -164,11 +164,12 @@ class MainScene : public Scene {
             return;
         }
         if (renderer == "deferred") {
+            window.useDeferredRendering();
             return;
         }
         if (renderer != "path") {
             std::cerr
-                << "ATLAS_CORNELL_RENDERER must be path, ddgi, or deferred\n";
+                << "ATLAS_TEST_RENDERER must be path, ddgi, or deferred\n";
             return;
         }
         window.enablePathTracing();

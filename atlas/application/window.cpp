@@ -2262,6 +2262,18 @@ bool Window::stepFrame() {
                 this->gBuffer->getFramebuffer(), forwardFramebuffer);
             commandBuffer->performResolve(resolveCommand);
 
+            const auto needsForwardDraw = [](Renderable *object) {
+                return object != nullptr && !object->editorOnly &&
+                       !object->renderLateForward && !object->canUseDeferredRendering();
+            };
+            if (!editorControlsEnabled && lateForwardRenderables.empty() &&
+                std::none_of(firstRenderables.begin(), firstRenderables.end(),
+                             needsForwardDraw) &&
+                std::none_of(renderables.begin(), renderables.end(),
+                             needsForwardDraw)) {
+                continue;
+            }
+
             auto forwardRenderPass = opal::RenderPass::create();
             forwardRenderPass->setFramebuffer(forwardFramebuffer);
             forwardFramebuffer->setDrawBuffers(2);
@@ -2343,6 +2355,8 @@ bool Window::stepFrame() {
                             shouldRefreshPipeline(obj));
             }
 
+            renderMeshDecals(commandBuffer, targetView, targetProjection,
+                             target->getWidth(), target->getHeight(), false);
             renderEditorOverlays(commandBuffer);
             editorControlsRenderedInScenePass = true;
             commandBuffer->endPass();
@@ -2383,6 +2397,8 @@ bool Window::stepFrame() {
             obj->render(getDeltaTime(), commandBuffer,
                         shouldRefreshPipeline(obj));
         }
+        renderMeshDecals(commandBuffer, targetView, targetProjection,
+                         target->getWidth(), target->getHeight(), false);
         renderEditorOverlays(commandBuffer);
         editorControlsRenderedInScenePass = true;
         commandBuffer->endPass();
@@ -2456,6 +2472,8 @@ bool Window::stepFrame() {
             obj->render(getDeltaTime(), commandBuffer,
                         shouldRefreshPipeline(obj));
         }
+        renderMeshDecals(commandBuffer, screenView, screenProjection,
+                         fbWidth, fbHeight, false);
         renderEditorOverlays(commandBuffer);
         editorControlsRenderedInScenePass = true;
     } else {
@@ -5694,6 +5712,91 @@ void Window::useDeferredRendering() {
         RenderTarget(*this, RenderTargetType::GBuffer));
     this->gBuffer = target;
     this->ssaoMapsDirty = true;
+}
+
+void Window::renderMeshDecals(
+    const std::shared_ptr<opal::CommandBuffer> &commands,
+    const glm::mat4 &view, const glm::mat4 &projection,
+    int width, int height, bool albedoOnly) {
+    std::vector<CoreObject *> decals;
+    std::unordered_set<CoreObject *> seen;
+    const auto collectCore = [&](CoreObject *mesh, bool usesGBuffer) {
+        if (mesh != nullptr && mesh->isVisible && mesh->isDecal() &&
+            (!mesh->editorOnly || editorControlsEnabled) &&
+            (!usesDeferred || albedoOnly == usesGBuffer) &&
+            seen.insert(mesh).second)
+            decals.push_back(mesh);
+    };
+    const auto collect = [&](auto &&self, Renderable *object) -> void {
+        if (object == nullptr || (object->editorOnly && !editorControlsEnabled))
+            return;
+        if (auto *model = dynamic_cast<Model *>(object)) {
+            for (const auto &mesh : model->getObjects())
+                collectCore(mesh.get(), model->useDeferredRendering);
+        } else if (auto *mesh = dynamic_cast<CoreObject *>(object)) {
+            collectCore(mesh, mesh->useDeferredRendering);
+        } else if (auto *compound = dynamic_cast<CompoundObject *>(object)) {
+            for (auto *child : compound->objects)
+                self(self, child);
+        }
+    };
+    for (const auto *queue : {&firstRenderables, &renderables, &lateForwardRenderables}) {
+        for (auto *object : *queue)
+            collect(collect, object);
+    }
+    if (decals.empty())
+        return;
+
+    if (decalProgram.shader == nullptr) {
+        decalProgram = ShaderProgram::fromDefaultShaders(
+            AtlasVertexShader::Decal, AtlasFragmentShader::Decal);
+    }
+    auto &pipeline = decalPipelines[albedoOnly ? 0 : 1];
+    if (pipeline == nullptr) {
+        auto descriptor = opal::Pipeline::create();
+        descriptor->setCullMode(opal::CullMode::Back);
+        descriptor->enableDepthTest(true);
+        descriptor->enableDepthWrite(false);
+        descriptor->setDepthCompareOp(opal::CompareOp::LessEqual);
+        descriptor->enableBlending(true);
+        descriptor->setBlendFunc(opal::BlendFunc::SrcAlpha,
+                                 opal::BlendFunc::OneMinusSrcAlpha);
+        descriptor->setColorWriteMask(true, true, true, false);
+        pipeline = decalProgram.requestPipeline(descriptor);
+    }
+    pipeline->setFrontFace(albedoOnly ? deferredFrontFace : frontFace);
+    pipeline->setViewport(0, 0, width, height);
+
+    if (albedoOnly) {
+        const auto &color = gBuffer->gAlbedoSpec.texture;
+        const auto &depth = gBuffer->depthTexture.texture;
+        if (color == nullptr || depth == nullptr)
+            return;
+        if (decalFramebuffer == nullptr ||
+            decalFramebufferColor.lock() != color ||
+            decalFramebufferDepth.lock() != depth) {
+            decalFramebuffer = opal::Framebuffer::create(width, height);
+            opal::Attachment colorAttachment;
+            colorAttachment.texture = color;
+            colorAttachment.type = opal::Attachment::Type::Color;
+            decalFramebuffer->addAttachment(colorAttachment);
+            opal::Attachment depthAttachment;
+            depthAttachment.texture = depth;
+            depthAttachment.type = opal::Attachment::Type::Depth;
+            decalFramebuffer->addAttachment(depthAttachment);
+            decalFramebuffer->setDrawBuffers(1);
+            decalFramebufferColor = color;
+            decalFramebufferDepth = depth;
+        }
+        auto pass = opal::RenderPass::create();
+        pass->setFramebuffer(decalFramebuffer);
+        commands->beginPass(pass);
+    }
+
+    for (auto *mesh : decals)
+        mesh->drawDecal(pipeline, commands, view, projection);
+    if (albedoOnly)
+        commands->endPass();
 }
 
 void Window::renderPhysicalBloom(RenderTarget *target) {

@@ -107,6 +107,7 @@ enum class AtlasVertexShader {
      */
     Volumetric,
     Fluid,
+    Decal,
 };
 
 enum class AtlasComputeShader {
@@ -435,6 +436,7 @@ enum class AtlasFragmentShader {
     Fluid,
     /** @brief Fragment shader implementing screen-space reflections. */
     SSR,
+    Decal,
 };
 
 /**

@@ -502,13 +502,15 @@ kernel void emitCaustics(primitive_acceleration_structure sceneAS [[buffer(0)]],
             blasPrimitiveOffsets[hit.geometry_id] + hit.primitive_id;
         uint objectId = primitiveObjects[primitive];
         Material mat = materials[objectId];
-        if (mat.isVolume != 0 &&
-            !photonFeatureEnabled(sceneData, PHOTON_FEATURE_VOLUMES)) {
+        if (mat.isDecal != 0.0f ||
+            (mat.isVolume != 0 &&
+             !photonFeatureEnabled(sceneData, PHOTON_FEATURE_VOLUMES))) {
             float3 skippedPosition =
                 photonRay.origin + hit.distance * photonRay.direction;
             photonRay.origin = skippedPosition +
                                photonRay.direction *
-                                   rayOffsetDistance(skippedPosition);
+                                   (mat.isDecal != 0.0f ? 0.00001f
+                                                        : rayOffsetDistance(skippedPosition));
             continue;
         }
         uint i0 = indices[primitive * 3], i1 = indices[primitive * 3 + 1],

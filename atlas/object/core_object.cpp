@@ -250,6 +250,7 @@ void CoreObject::attachVertices(const std::vector<CoreVertex> &newVertices) {
     }
 
     vertices = newVertices;
+    importedRenderBounds.reset();
 }
 
 void CoreObject::attachIndices(const std::vector<Index> &newIndices) {
@@ -547,14 +548,106 @@ void CoreObject::bindSkin(opal::Pipeline &target) const {
     target.setUniform1i("hasSkin", 0);
 }
 
+void CoreObject::setDecal(bool enabled, float surfaceOffset) {
+    decalEnabled = enabled;
+    decalOffset = std::isfinite(surfaceOffset) ? std::max(surfaceOffset, 0.0001f)
+                                               : 0.004f;
+}
+
+void CoreObject::drawDecal(
+    const std::shared_ptr<opal::Pipeline> &decalPipeline,
+    const std::shared_ptr<opal::CommandBuffer> &commands,
+    const glm::mat4 &decalView, const glm::mat4 &decalProjection) {
+    if (!isVisible || vao == nullptr)
+        return;
+
+    const auto findTexture = [&](TextureType type) -> const Texture * {
+        if (!useTexture)
+            return nullptr;
+        const auto it = std::find_if(textures.begin(), textures.end(),
+                                    [type](const Texture &texture) {
+                                        return texture.type == type &&
+                                               (texture.texture || texture.id != 0);
+                                    });
+        return it == textures.end() ? nullptr : &*it;
+    };
+    auto &target = *decalPipeline;
+    target.bind();
+    const auto *color = findTexture(TextureType::Color);
+    const auto *opacity = findTexture(TextureType::Opacity);
+    if (color != nullptr && opacity != nullptr && color->id == opacity->id)
+        opacity = nullptr;
+    const auto bindTexture = [&](const char *name, const Texture *texture, int slot) {
+        if (texture == nullptr)
+            return;
+        if (texture->texture)
+            target.bindTexture(name, texture->texture, slot, id);
+        else
+            target.bindTexture2D(name, texture->id, slot, id);
+    };
+    target.setUniformMat4f("model", model);
+    target.setUniformMat4f("view", decalView);
+    target.setUniformMat4f("projection", decalProjection);
+    target.setUniform1f("decalOffset", decalOffset);
+    bindSkin(target);
+    target.setUniform1i("isInstanced", !instances.empty());
+    if (!instances.empty() && instances != savedInstances) {
+        updateInstances();
+        savedInstances = instances;
+    }
+    target.setUniform4f("decalTint", material.albedo.r, material.albedo.g,
+                        material.albedo.b, material.albedo.a);
+    target.setUniform2f("decalTextureScale", material.textureScale[0],
+                        material.textureScale[1]);
+    target.setUniform2f("decalTextureOffset", material.textureOffset[0],
+                        material.textureOffset[1]);
+    target.setUniform1i("hasDecalColor", color != nullptr);
+    target.setUniform1i("hasDecalOpacity", opacity != nullptr);
+    bindTexture("decalColor", color, 0);
+    bindTexture("decalOpacity", opacity, 1);
+
+    const auto instanceCount = std::max<size_t>(1, instances.size());
+    commands->bindDrawingState(vao);
+    commands->bindPipeline(decalPipeline);
+    if (indices.empty())
+        commands->draw(vertices.size(), instanceCount, 0, 0, id);
+    else
+        commands->drawIndexed(indices.size(), instanceCount, 0, 0, 0, id);
+    commands->unbindDrawingState();
+}
+
+bool CoreObject::intersectsRenderFrustum(const glm::mat4 &clipFromWorld) const {
+    if (!importedRenderBounds || !instances.empty())
+        return true;
+    const auto &bounds = *importedRenderBounds;
+    const auto center = bounds.minimum * 0.5f + bounds.maximum * 0.5f;
+    const auto extent = bounds.maximum * 0.5f - bounds.minimum * 0.5f;
+    const auto rows = glm::transpose(clipFromWorld * model);
+    for (int axis = 0; axis < 3; ++axis) {
+        const glm::vec4 sides[] = {rows[3] + rows[axis], rows[3] - rows[axis]};
+        for (const auto &plane : sides) {
+            if (glm::dot(plane, glm::vec4(center, 1.0f)) +
+                    glm::dot(glm::abs(glm::vec3(plane)), extent) <
+                -0.0001f)
+                return false;
+        }
+    }
+    return true;
+}
+
 void CoreObject::render(float dt,
                         std::shared_ptr<opal::CommandBuffer> commandBuffer,
                         bool updatePipeline) {
+    renderUsingProgram(dt, std::move(commandBuffer), updatePipeline, shaderProgram);
+}
 
-    if (!isVisible) {
+void CoreObject::renderUsingProgram(
+    float dt, std::shared_ptr<opal::CommandBuffer> commandBuffer,
+    bool updatePipeline, const ShaderProgram &program) {
+    if (!isVisible || isDecal()) {
         return;
     }
-    if (shaderProgram.programId == 0) {
+    if (program.programId == 0) {
         atlas_error("Shader program not compiled.");
         return;
     }
@@ -606,10 +699,10 @@ void CoreObject::render(float dt,
     int boundCubemaps = 0;
 
     const bool shaderSupportsTextures =
-        std::find(shaderProgram.capabilities.begin(),
-                  shaderProgram.capabilities.end(),
+        std::find(program.capabilities.begin(),
+                  program.capabilities.end(),
                   ShaderCapability::Textures) !=
-        shaderProgram.capabilities.end();
+        program.capabilities.end();
 
     if (shaderSupportsTextures) {
         this->pipeline->setUniform1i("textureCount", 0);
@@ -662,10 +755,10 @@ void CoreObject::render(float dt,
         }
     }
 
-    if (std::find(shaderProgram.capabilities.begin(),
-                  shaderProgram.capabilities.end(),
+    if (std::find(program.capabilities.begin(),
+                  program.capabilities.end(),
                   ShaderCapability::Material) !=
-        shaderProgram.capabilities.end()) {
+        program.capabilities.end()) {
         this->pipeline->setUniform3f("material.albedo", material.albedo.r,
                                      material.albedo.g, material.albedo.b);
         this->pipeline->setUniform1f("material.metallic", material.metallic);
@@ -710,9 +803,9 @@ void CoreObject::render(float dt,
     }
 
     const bool shaderSupportsIbl =
-        std::find(shaderProgram.capabilities.begin(),
-                  shaderProgram.capabilities.end(),
-                  ShaderCapability::IBL) != shaderProgram.capabilities.end();
+        std::find(program.capabilities.begin(),
+                  program.capabilities.end(),
+                  ShaderCapability::IBL) != program.capabilities.end();
 
     bool hasHdrEnvironment = std::any_of(
         textures.begin(), textures.end(), [](const Texture &texture) {
@@ -722,10 +815,10 @@ void CoreObject::render(float dt,
     const bool useIbl = shaderSupportsIbl && hasHdrEnvironment;
     this->pipeline->setUniformBool("useIBL", useIbl);
 
-    if (std::find(shaderProgram.capabilities.begin(),
-                  shaderProgram.capabilities.end(),
+    if (std::find(program.capabilities.begin(),
+                  program.capabilities.end(),
                   ShaderCapability::Lighting) !=
-        shaderProgram.capabilities.end()) {
+        program.capabilities.end()) {
         Window *window = Window::mainWindow;
         Scene *scene = window->getCurrentScene();
 
@@ -782,10 +875,10 @@ void CoreObject::render(float dt,
         }
     }
 
-    if (std::find(shaderProgram.capabilities.begin(),
-                  shaderProgram.capabilities.end(),
+    if (std::find(program.capabilities.begin(),
+                  program.capabilities.end(),
                   ShaderCapability::LightDeferred) !=
-        shaderProgram.capabilities.end()) {
+        program.capabilities.end()) {
         Window *window = Window::mainWindow;
         RenderTarget *gBuffer = window->gBuffer.get();
         this->pipeline->bindTexture2D("gPosition", gBuffer->gPosition.id,
@@ -805,10 +898,10 @@ void CoreObject::render(float dt,
         boundTextures++;
     }
 
-    if (std::find(shaderProgram.capabilities.begin(),
-                  shaderProgram.capabilities.end(),
+    if (std::find(program.capabilities.begin(),
+                  program.capabilities.end(),
                   ShaderCapability::Shadows) !=
-        shaderProgram.capabilities.end()) {
+        program.capabilities.end()) {
         for (int i = 0; i < 5; i++) {
             std::string uniformName = "cubeMap" + std::to_string(i + 1);
             this->pipeline->setUniform1i(uniformName, i + 10);
@@ -960,10 +1053,10 @@ void CoreObject::render(float dt,
         }
     }
 
-    if (std::find(shaderProgram.capabilities.begin(),
-                  shaderProgram.capabilities.end(),
+    if (std::find(program.capabilities.begin(),
+                  program.capabilities.end(),
                   ShaderCapability::EnvironmentMapping) !=
-        shaderProgram.capabilities.end()) {
+        program.capabilities.end()) {
         Window *window = Window::mainWindow;
         Scene *scene = window->getCurrentScene();
         if (scene->skybox != nullptr) {
@@ -973,10 +1066,10 @@ void CoreObject::render(float dt,
         }
     }
 
-    if (std::find(shaderProgram.capabilities.begin(),
-                  shaderProgram.capabilities.end(),
+    if (std::find(program.capabilities.begin(),
+                  program.capabilities.end(),
                   ShaderCapability::Environment) !=
-        shaderProgram.capabilities.end()) {
+        program.capabilities.end()) {
         Window *window = Window::mainWindow;
         Scene *scene = window->getCurrentScene();
         this->pipeline->setUniform1f("environment.rimLightIntensity",
@@ -987,10 +1080,10 @@ void CoreObject::render(float dt,
                                      scene->environment.rimLight.color.b);
     }
 
-    if (std::find(shaderProgram.capabilities.begin(),
-                  shaderProgram.capabilities.end(),
+    if (std::find(program.capabilities.begin(),
+                  program.capabilities.end(),
                   ShaderCapability::Instances) !=
-            shaderProgram.capabilities.end() &&
+            program.capabilities.end() &&
         !instances.empty()) {
         if (this->instances != this->savedInstances) {
             updateInstances();
@@ -1065,6 +1158,7 @@ void CoreObject::updateVertices() {
                                  "initialized or empty vertex list");
     }
 
+    importedRenderBounds.reset();
     vbo->bind();
     vbo->updateData(0, vertices.size() * sizeof(CoreVertex), vertices.data());
     vbo->unbind();

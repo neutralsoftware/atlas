@@ -47,10 +47,11 @@ float4 traceShadowVisibility(
         uint objectIndex = primitiveObjects[primitiveIndex];
         Material material = materials[objectIndex];
 
-        if (material.isVolume != 0 &&
-            !photonFeatureEnabled(sceneData, PHOTON_FEATURE_VOLUMES)) {
-            float advance =
-                shadowHit.distance + rayOffsetDistance(shadowRay.origin);
+        if (material.isDecal != 0.0f ||
+            (material.isVolume != 0 &&
+             !photonFeatureEnabled(sceneData, PHOTON_FEATURE_VOLUMES))) {
+            float advance = shadowHit.distance +
+                (material.isDecal != 0.0f ? 0.00001f : rayOffsetDistance(shadowRay.origin));
             shadowRay.origin += shadowRay.direction * advance;
             shadowRay.max_distance -= advance;
             if (shadowRay.max_distance <= shadowBias)

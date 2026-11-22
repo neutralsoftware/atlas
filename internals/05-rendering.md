@@ -97,3 +97,9 @@ SSAO setup/render lives at `atlas/graphics/ssao.cpp:21,79`. Bloom target creatio
 ## Pipeline refresh decision
 
 `Window::markPipelineStateDirty()` and `shouldRefreshPipeline()` are at `atlas/application/window.cpp:5044-5064`. Renderables receive the result as the `updatePipeline` argument. This centralizes changes to window-wide depth/blend/cull/viewport state while allowing objects to cache their pipeline between compatible draws.
+
+## Mesh decals
+
+Call `CoreObject::setDecal(true, surfaceOffset)` on a mesh aligned to a receiver. The offset is in world units and defaults to 0.004. The decal uses `material.albedo` as its tint and coverage multiplier, the color texture's alpha, and the red channel of an optional separate opacity texture. Call `setDecal(false)` to return the mesh to ordinary rendering. Atlas imports glTF materials named with `decal` and marked `BLEND` as mesh decals. Sponza's `dirt_decal` uses this path.
+
+Deferred and DDGI raster rendering blend decal color into the G-buffer against the receiver's depth. The blend preserves the receiver's depth, normals, material parameters, and ambient occlusion. Forward rendering composites the decal color over the scene. Photon path tracing uses the same offset and alpha through stochastic coverage. Decals are excluded from shadow casting and DDGI probe geometry. This is a mesh-based API and uses the model's existing UVs.

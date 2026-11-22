@@ -399,10 +399,17 @@ void Window::deferredRendering(
 
     const glm::mat4 deferredView = this->camera->calculateViewMatrix();
     const glm::mat4 deferredProjection = calculateProjectionMatrix();
+    const glm::mat4 clipFromWorld = deferredProjection * deferredView;
     auto renderDeferredRenderable = [&](Renderable *obj) {
         if (obj == nullptr || !obj->canUseDeferredRendering()) {
             return;
         }
+
+        auto *coreObject = dynamic_cast<CoreObject *>(obj);
+        if (coreObject != nullptr &&
+            (!coreObject->isVisible || coreObject->isDecal() ||
+             !coreObject->intersectsRenderFrustum(clipFromWorld)))
+            return;
 
         auto programIt = deferredPrograms.find(obj);
         if (programIt == deferredPrograms.end()) {
@@ -439,11 +446,16 @@ void Window::deferredRendering(
         obj->setViewMatrix(deferredView);
         obj->setProjectionMatrix(deferredProjection);
         obj->setPipeline(pipelineEntry.pipeline);
-        if (auto *coreObject = dynamic_cast<CoreObject *>(obj)) {
+        if (coreObject != nullptr &&
+            (typeid(*coreObject) == typeid(CoreObject) ||
+             typeid(*coreObject) == typeid(ModelMesh))) {
+            coreObject->renderUsingProgram(getDeltaTime(), commandBuffer, false,
+                                            programIt->second);
+        } else if (coreObject != nullptr) {
             ShaderProgram originalProgram = coreObject->shaderProgram;
             coreObject->shaderProgram = programIt->second;
             coreObject->render(getDeltaTime(), commandBuffer, false);
-            coreObject->shaderProgram = originalProgram;
+            coreObject->shaderProgram = std::move(originalProgram);
         } else {
             obj->render(getDeltaTime(), commandBuffer, false);
         }
@@ -457,6 +469,8 @@ void Window::deferredRendering(
 
     commandBuffer->endPass();
     this->gBuffer->unbind();
+    renderMeshDecals(commandBuffer, deferredView, deferredProjection,
+                     gBuffer->getWidth(), gBuffer->getHeight(), true);
 
 #ifndef VULKAN
     if (this->useSSR) {

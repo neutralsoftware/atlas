@@ -129,11 +129,14 @@ float3 sampleRadiance(
             float alpha = resolveMaterialOpacity(mat, uv.albedo,
                                                  sceneData.materialTextureCount,
                                                  PT_MATERIAL_TEXTURE_ARGS);
-            if (!photonFeatureEnabled(sceneData,
-                                      PHOTON_FEATURE_ALPHA_TRANSPARENCY))
+            bool decal = mat.isDecal != 0.0f;
+            if (!decal && !photonFeatureEnabled(sceneData,
+                                                PHOTON_FEATURE_ALPHA_TRANSPARENCY))
                 alpha = 1.0f;
             bool guideRay = sampleIndex == 0 && depth == 0;
-            if (guideRay ? alpha >= 0.5 : (alpha >= 0.999 || rand(rng) < alpha)) {
+            bool frontDecal = !decal || dot(normalMatrix * localN, surfaceRay.direction) < 0.0f;
+            if (frontDecal &&
+                (guideRay ? alpha >= 0.5 : (alpha >= 1.0f || rand(rng) < alpha))) {
                 foundSurface = true;
                 break;
             }
@@ -142,8 +145,9 @@ float3 sampleRadiance(
                 surfaceRay.origin + surfaceRay.direction * hit.distance;
             surfaceRay.origin =
                 rejectedPosition +
-                surfaceRay.direction * rayOffsetDistance(rejectedPosition);
-            surfaceRay.min_distance = 0.0;
+                surfaceRay.direction *
+                    (decal ? 0.00001f : rayOffsetDistance(rejectedPosition));
+            surfaceRay.min_distance = decal ? 0.00001f : 0.0f;
             hit = isect.intersect(surfaceRay, sceneAS);
         }
 
