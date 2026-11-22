@@ -1096,9 +1096,6 @@ class Model : public GameObject {
     std::vector<std::shared_ptr<CoreObject>> objects;
     std::string directory;
     bool usesGltfTextureCoordinates = false;
-    std::function<void(float, const std::string &)> importProgress;
-    unsigned int importedMeshCount = 0;
-    unsigned int totalMeshCount = 0;
     Position3d modelPosition = Position3d::zero();
     Rotation3d modelRotation{0.0f, 0.0f, 0.0f};
     Scale3d modelScale{1.0f, 1.0f, 1.0f};
@@ -1109,18 +1106,12 @@ class Model : public GameObject {
         const Resource &resource,
         const std::function<void(float, const std::string &)> &progress,
         bool loadAnimations, bool embeddedAnimationsOnly = false);
-    void processNode(aiNode *node, const aiScene *scene,
-                     glm::mat4 parentTransform,
-                     const std::unordered_map<std::string, atlas::animation::NodeIndex> *nodes,
-                     atlas::animation::NodeIndex &nextNode,
-                     std::unordered_map<std::string, Texture> &textureCache);
     void preloadMaterialTextures(
         const aiScene *scene,
-        std::unordered_map<std::string, Texture> &textureCache);
-    std::optional<ModelMesh>
-    processMesh(aiMesh *mesh, const aiScene *scene, const glm::mat4 &transform,
-                Skin skin, const std::vector<VertexSkinData> &vertexSkin,
-                std::unordered_map<std::string, Texture> &textureCache);
+        std::unordered_map<std::string, Texture> &textureCache,
+        const std::function<void(float, const std::string &)> &progress);
+    void finishMesh(ModelMesh &object, const aiMesh &mesh, const aiScene &scene,
+                    std::unordered_map<std::string, Texture> &textureCache);
     std::vector<Texture> loadMaterialTextures(
         aiMaterial *mat, std::any type, const std::string &typeName,
         std::unordered_map<std::string, Texture> &textureCache);
