@@ -43,7 +43,7 @@ struct Material {
     float transmittance;
     float ior;
     float reflectivity;
-    float _pad2;
+    float isDecal;
     float2 textureScale;
     float2 textureOffset;
     float3 attenuationColor;
@@ -583,7 +583,8 @@ bool traceOcclusion(float3 origin, float3 direction, float maximumDistance) {
         if (query.CandidateType() == CANDIDATE_NON_OPAQUE_TRIANGLE) {
             uint primitive = blasPrimitiveOffsets[query.CandidateGeometryIndex()] +
                              query.CandidatePrimitiveIndex();
-            if (materials[primitiveObjects[primitive]].isVolume == 0) {
+            Material material = materials[primitiveObjects[primitive]];
+            if (material.isVolume == 0 && material.isDecal == 0.0) {
                 query.CommitNonOpaqueTriangleHit();
             }
         }
@@ -696,12 +697,12 @@ float3 lightVisibility(float3 origin, float3 direction, float maximumDistance) {
     return volumeShadowTransmittance(origin, direction, maximumDistance);
 }
 
-SurfaceHit traceSurface(float3 origin, float3 direction) {
+SurfaceHit traceSurface(float3 origin, float3 direction, float minimumDistance = 0.001) {
     SurfaceHit hit = {};
     RayDesc ray;
     ray.Origin = origin;
     ray.Direction = direction;
-    ray.TMin = 0.001;
+    ray.TMin = minimumDistance;
     ray.TMax = 1.0e30;
     RayQuery<RAY_FLAG_FORCE_OPAQUE> query;
     query.TraceRayInline(sceneAS, RAY_FLAG_FORCE_OPAQUE, 0xFF, ray);
@@ -838,7 +839,7 @@ SurfaceHit traceNonVolumeSurface(float3 origin, float3 direction) {
         if (!hit.valid) {
             return hit;
         }
-        if (hit.material.isVolume == 0) {
+        if (hit.material.isVolume == 0 && hit.material.isDecal == 0.0) {
             hit.distance += traveled;
             return hit;
         }
@@ -1194,9 +1195,11 @@ float3 samplePath(float3 origin, float3 direction, inout uint state,
     bool spectralChannelSelected = false;
     insideMedium = findContainingMedium(origin, mediumObjectId, mediumMaterial);
     float primaryTravel = 0.0;
+    float minimumDistance = 0.001;
     uint bounceCount = max(sceneData.maxBounces, 1u);
     for (uint step = 0, bounce = 0; step < bounceCount + 64 && bounce < bounceCount; ++step) {
-        SurfaceHit hit = traceSurface(origin, direction);
+        SurfaceHit hit = traceSurface(origin, direction, minimumDistance);
+        minimumDistance = 0.001;
         if (!hit.valid) {
             if ((sceneData.featureFlags &
                  PHOTON_FEATURE_ENVIRONMENT_LIGHTING) != 0) {
@@ -1223,13 +1226,20 @@ float3 samplePath(float3 origin, float3 direction, inout uint state,
             insideMedium = findContainingMedium(origin, mediumObjectId, mediumMaterial);
             continue;
         }
+        bool decal = hit.material.isDecal != 0.0;
         float alpha = saturate(hit.material.albedo.w);
-        if ((sceneData.featureFlags & PHOTON_FEATURE_ALPHA_TRANSPARENCY) != 0 &&
-            (guideRay ? alpha < 0.5 : randomValue(state) > alpha)) {
-            if (bounce == 0) {
-                primaryTravel += hit.distance + 0.002;
-            }
-            origin = hit.position + direction * 0.002;
+        bool alphaTest = decal ||
+            (sceneData.featureFlags & PHOTON_FEATURE_ALPHA_TRANSPARENCY) != 0;
+        bool rejected = decal && !hit.frontFace;
+        if (alphaTest && (guideRay ? alpha < 0.5
+                                   : (alpha < 1.0 && randomValue(state) >= alpha)))
+            rejected = true;
+        if (rejected) {
+            float advance = decal ? 0.00001 : 0.002;
+            if (bounce == 0)
+                primaryTravel += hit.distance + advance;
+            origin = hit.position + direction * advance;
+            minimumDistance = decal ? 0.00001 : 0.001;
             continue;
         }
         if (bounce == 0) {

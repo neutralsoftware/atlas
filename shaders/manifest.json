@@ -145,6 +145,18 @@
       "symbol": "DEFERRED_FRAG"
     },
     {
+      "source": "deferred/decal.slang",
+      "stage": "vertex",
+      "entry": "vertexMain",
+      "symbol": "DECAL_VERT"
+    },
+    {
+      "source": "deferred/decal.slang",
+      "stage": "fragment",
+      "entry": "fragmentMain",
+      "symbol": "DECAL_FRAG"
+    },
+    {
       "source": "deferred/light.slang",
       "stage": "vertex",
       "entry": "screenVertexMain",

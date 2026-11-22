@@ -128,6 +128,14 @@ VertexShader VertexShader::fromDefaultShader(AtlasVertexShader shader) {
         VertexShader::vertexShaderCache[shader] = vertexShader;
         break;
     }
+    case AtlasVertexShader::Decal: {
+        vertexShader = VertexShader::fromSource(DECAL_VERT);
+        vertexShader.desiredAttributes = {0, 2, 3, 6, 7, 8, 9, 10, 11};
+        vertexShader.capabilities = {ShaderCapability::Instances};
+        vertexShader.fromDefaultShaderType = shader;
+        VertexShader::vertexShaderCache[shader] = vertexShader;
+        break;
+    }
     case AtlasVertexShader::Light: {
         vertexShader = VertexShader::fromSource(LIGHT_VERT);
         vertexShader.desiredAttributes = {0, 2};
@@ -379,6 +387,12 @@ FragmentShader FragmentShader::fromDefaultShader(AtlasFragmentShader shader) {
     }
     case AtlasFragmentShader::Deferred: {
         fragmentShader = FragmentShader::fromSource(DEFERRED_FRAG);
+        fragmentShader.fromDefaultShaderType = shader;
+        fragmentShaderCache[shader] = fragmentShader;
+        break;
+    }
+    case AtlasFragmentShader::Decal: {
+        fragmentShader = FragmentShader::fromSource(DECAL_FRAG);
         fragmentShader.fromDefaultShaderType = shader;
         fragmentShaderCache[shader] = fragmentShader;
         break;

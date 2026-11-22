@@ -1616,6 +1616,18 @@ void Model::finishMesh(
     if (mesh.mMaterialIndex < scene.mNumMaterials) {
         aiMaterial *material = scene.mMaterials[mesh.mMaterialIndex];
         importMaterialProperties(material, object);
+        aiString alphaMode;
+        aiString materialName;
+        if (usesGltfTextureCoordinates &&
+            material->Get(AI_MATKEY_GLTF_ALPHAMODE, alphaMode) == AI_SUCCESS &&
+            std::string_view(alphaMode.C_Str()) == "BLEND" &&
+            material->Get(AI_MATKEY_NAME, materialName) == AI_SUCCESS) {
+            std::string name = materialName.C_Str();
+            std::transform(name.begin(), name.end(), name.begin(),
+                           [](unsigned char ch) { return std::tolower(ch); });
+            if (name.find("decal") != std::string::npos)
+                object.setDecal();
+        }
 
         auto diffuseMaps =
             loadMaterialTextures(material, std::any(aiTextureType_BASE_COLOR),
@@ -1698,7 +1710,6 @@ void Model::finishMesh(
         auto opacityMaps =
             loadMaterialTextures(material, std::any(aiTextureType_OPACITY),
                                  "texture_opacity", textureCache);
-        aiString alphaMode;
         if (opacityMaps.empty() && !diffuseMaps.empty() &&
             material->Get(AI_MATKEY_GLTF_ALPHAMODE, alphaMode) == AI_SUCCESS &&
             std::string(alphaMode.C_Str()) != "OPAQUE") {

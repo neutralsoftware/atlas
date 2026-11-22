@@ -274,8 +274,14 @@ MaterialUvs interpolateMaterialUvs(Material mat, constant VertexData &a,
 float resolveMaterialOpacity(Material mat, float2 uv, uint textureCount,
                              PT_MATERIAL_TEXTURE_PARAMS) {
     float opacity = clamp(mat.albedo.w, 0.0, 1.0);
+    if (mat.isDecal != 0.0 && mat.albedoTextureIndex >= 0 &&
+        uint(mat.albedoTextureIndex) < textureCount) {
+        opacity *= sampleMaterialTexture(mat.albedoTextureIndex, uv,
+                                         PT_MATERIAL_TEXTURE_ARGS).w;
+    }
     if (mat.opacityTextureIndex >= 0 &&
-        uint(mat.opacityTextureIndex) < textureCount) {
+        uint(mat.opacityTextureIndex) < textureCount &&
+        (mat.isDecal == 0.0 || mat.opacityTextureIndex != mat.albedoTextureIndex)) {
         float4 opacitySample = sampleMaterialTexture(
             mat.opacityTextureIndex, uv, PT_MATERIAL_TEXTURE_ARGS);
         opacity *= mat.opacityTextureIndex == mat.albedoTextureIndex

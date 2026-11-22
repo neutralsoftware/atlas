@@ -635,6 +635,11 @@ class CoreObject : public GameObject {
         glm::vec3 maximum;
     };
     std::optional<RenderBounds> importedRenderBounds;
+    bool decalEnabled = false;
+    float decalOffset = 0.004f;
+    void drawDecal(const std::shared_ptr<opal::Pipeline> &decalPipeline,
+                   const std::shared_ptr<opal::CommandBuffer> &commands,
+                   const glm::mat4 &decalView, const glm::mat4 &decalProjection);
     bool intersectsRenderFrustum(const glm::mat4 &clipFromWorld) const;
     void renderUsingProgram(float dt,
                             std::shared_ptr<opal::CommandBuffer> commandBuffer,
@@ -682,7 +687,10 @@ class CoreObject : public GameObject {
     /**
      * @brief Reports whether the object is configured to cast shadows.
      */
-    bool canCastShadows() const override { return castsShadows; }
+    bool canCastShadows() const override { return castsShadows && !decalEnabled; }
+    void setDecal(bool enabled = true, float surfaceOffset = 0.004f);
+    bool isDecal() const { return decalEnabled; }
+    float getDecalOffset() const { return decalOffset; }
 
     /**
      * @brief Returns the current Euler rotation (pitch, yaw, roll).

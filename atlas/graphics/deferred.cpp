@@ -407,7 +407,8 @@ void Window::deferredRendering(
 
         auto *coreObject = dynamic_cast<CoreObject *>(obj);
         if (coreObject != nullptr &&
-            (!coreObject->isVisible || !coreObject->intersectsRenderFrustum(clipFromWorld)))
+            (!coreObject->isVisible || coreObject->isDecal() ||
+             !coreObject->intersectsRenderFrustum(clipFromWorld)))
             return;
 
         auto programIt = deferredPrograms.find(obj);
@@ -468,6 +469,8 @@ void Window::deferredRendering(
 
     commandBuffer->endPass();
     this->gBuffer->unbind();
+    renderMeshDecals(commandBuffer, deferredView, deferredProjection,
+                     gBuffer->getWidth(), gBuffer->getHeight(), true);
 
 #ifndef VULKAN
     if (this->useSSR) {

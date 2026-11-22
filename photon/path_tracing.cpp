@@ -141,6 +141,10 @@ uint64_t pathTracingObjectStateHash(CoreObject *object,
     append(&model, sizeof(model));
     const auto id = object->getId();
     append(&id, sizeof(id));
+    const bool decal = object->isDecal();
+    const float decalOffset = object->getDecalOffset();
+    append(&decal, sizeof(decal));
+    append(&decalOffset, sizeof(decalOffset));
     if (const auto *mesh = dynamic_cast<const ModelMesh *>(object)) {
         const auto &joints = mesh->getJointMatrices();
         append(joints.data(), joints.size() * sizeof(glm::mat4));
@@ -201,7 +205,8 @@ void collectPathTracingObject(Renderable *renderable,
         return;
     }
     if (auto *object = dynamic_cast<CoreObject *>(renderable)) {
-        if (!object->isVisible || !object->canUseDeferredRendering()) {
+        if (!object->isVisible ||
+            (!object->canUseDeferredRendering() && !object->isDecal())) {
             return;
         }
         if (seen.insert(object).second) {
@@ -220,7 +225,7 @@ void collectPathTracingObject(Renderable *renderable,
         for (const auto &mesh : meshes) {
             CoreObject *object = mesh.get();
             if (object == nullptr || object->editorOnly || !object->isVisible ||
-                !model->canUseDeferredRendering()) {
+                (!model->canUseDeferredRendering() && !object->isDecal())) {
                 continue;
             }
             bool hasAnyTexture = !object->textures.empty();
@@ -482,7 +487,7 @@ bool photon::PathTracing::buildAccelerationStructure(
         float transmittance;
         float ior;
         float reflectivity;
-        float _pad2;
+        float isDecal;
         float textureScale[2];
         float textureOffset[2];
 
@@ -604,7 +609,8 @@ bool photon::PathTracing::buildAccelerationStructure(
         cachedObjects.clear();
         cachedObjects.reserve(pathTracingObjects.size());
         for (auto *object : pathTracingObjects) {
-            if (object == nullptr || !object->canUseDeferredRendering() ||
+            if (object == nullptr ||
+                (!object->canUseDeferredRendering() && !object->isDecal()) ||
                 object->vertices.size() < 3 || object->indices.size() < 3) {
                 continue;
             }
@@ -762,8 +768,15 @@ bool photon::PathTracing::buildAccelerationStructure(
                 const bool skinned =
                     mesh != nullptr && !mesh->getJointMatrices().empty();
                 const auto &material = object->material;
+                const float decalOffset = object->isDecal() ? object->getDecalOffset() : 0.0f;
+                glm::mat3 decalNormalTransform(0.0f);
+                if (decalOffset > 0.0f) {
+                    const glm::mat3 linear(object->model);
+                    if (std::abs(glm::determinant(linear)) > 1e-8f)
+                        decalNormalTransform = glm::transpose(glm::inverse(linear));
+                }
                 const bool canCastCaustics =
-                    material.roughness < 0.25f &&
+                    !object->isDecal() && material.roughness < 0.25f &&
                     (material.transmittance > 0.001f || material.metallic > 0.001f);
                 bounds.hasCaustics |= canCastCaustics;
 
@@ -783,7 +796,13 @@ bool photon::PathTracing::buildAccelerationStructure(
                         if (std::abs(determinant) > 1e-8f)
                             normal = glm::transpose(glm::inverse(linear)) * normal;
                     }
-                    const glm::vec3 worldPosition(object->model * localPosition);
+                    glm::vec3 worldPosition(object->model * localPosition);
+                    if (decalOffset > 0.0f) {
+                        const glm::vec3 decalNormal = decalNormalTransform * normal;
+                        const float length = glm::length(decalNormal);
+                        if (length > 1e-5f && std::isfinite(length))
+                            worldPosition += decalNormal * (decalOffset / length);
+                    }
                     bounds.minimum = glm::min(bounds.minimum, worldPosition);
                     bounds.maximum = glm::max(bounds.maximum, worldPosition);
                     if (canCastCaustics) {
@@ -863,7 +882,7 @@ bool photon::PathTracing::buildAccelerationStructure(
             data.ior = object->material.ior;
             data.transmittance = object->material.transmittance;
             data.reflectivity = object->material.reflectivity;
-            data._pad2 = 0.0f;
+            data.isDecal = object->isDecal() ? 1.0f : 0.0f;
             data.textureScale[0] = object->material.textureScale[0];
             data.textureScale[1] = object->material.textureScale[1];
             data.textureOffset[0] = object->material.textureOffset[0];
@@ -973,7 +992,7 @@ bool photon::PathTracing::buildAccelerationStructure(
                 std::max(data.emissiveIntensity, 0.0f);
             const float emissionLuminance =
                 glm::dot(emission, glm::vec3(0.2126f, 0.7152f, 0.0722f));
-            if (emissionLuminance > 0.0001f) {
+            if (!object->isDecal() && emissionLuminance > 0.0001f) {
                 for (size_t primitive = 0; primitive < objectPrimitiveCount;
                      ++primitive) {
                     const uint32_t i0 =

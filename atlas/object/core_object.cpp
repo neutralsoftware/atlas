@@ -548,6 +548,74 @@ void CoreObject::bindSkin(opal::Pipeline &target) const {
     target.setUniform1i("hasSkin", 0);
 }
 
+void CoreObject::setDecal(bool enabled, float surfaceOffset) {
+    decalEnabled = enabled;
+    decalOffset = std::isfinite(surfaceOffset) ? std::max(surfaceOffset, 0.0001f)
+                                               : 0.004f;
+}
+
+void CoreObject::drawDecal(
+    const std::shared_ptr<opal::Pipeline> &decalPipeline,
+    const std::shared_ptr<opal::CommandBuffer> &commands,
+    const glm::mat4 &decalView, const glm::mat4 &decalProjection) {
+    if (!isVisible || vao == nullptr)
+        return;
+
+    const auto findTexture = [&](TextureType type) -> const Texture * {
+        if (!useTexture)
+            return nullptr;
+        const auto it = std::find_if(textures.begin(), textures.end(),
+                                    [type](const Texture &texture) {
+                                        return texture.type == type &&
+                                               (texture.texture || texture.id != 0);
+                                    });
+        return it == textures.end() ? nullptr : &*it;
+    };
+    auto &target = *decalPipeline;
+    target.bind();
+    const auto *color = findTexture(TextureType::Color);
+    const auto *opacity = findTexture(TextureType::Opacity);
+    if (color != nullptr && opacity != nullptr && color->id == opacity->id)
+        opacity = nullptr;
+    const auto bindTexture = [&](const char *name, const Texture *texture, int slot) {
+        if (texture == nullptr)
+            return;
+        if (texture->texture)
+            target.bindTexture(name, texture->texture, slot, id);
+        else
+            target.bindTexture2D(name, texture->id, slot, id);
+    };
+    target.setUniformMat4f("model", model);
+    target.setUniformMat4f("view", decalView);
+    target.setUniformMat4f("projection", decalProjection);
+    target.setUniform1f("decalOffset", decalOffset);
+    bindSkin(target);
+    target.setUniform1i("isInstanced", !instances.empty());
+    if (!instances.empty() && instances != savedInstances) {
+        updateInstances();
+        savedInstances = instances;
+    }
+    target.setUniform4f("decalTint", material.albedo.r, material.albedo.g,
+                        material.albedo.b, material.albedo.a);
+    target.setUniform2f("decalTextureScale", material.textureScale[0],
+                        material.textureScale[1]);
+    target.setUniform2f("decalTextureOffset", material.textureOffset[0],
+                        material.textureOffset[1]);
+    target.setUniform1i("hasDecalColor", color != nullptr);
+    target.setUniform1i("hasDecalOpacity", opacity != nullptr);
+    bindTexture("decalColor", color, 0);
+    bindTexture("decalOpacity", opacity, 1);
+
+    const auto instanceCount = std::max<size_t>(1, instances.size());
+    commands->bindDrawingState(vao);
+    commands->bindPipeline(decalPipeline);
+    if (indices.empty())
+        commands->draw(vertices.size(), instanceCount, 0, 0, id);
+    else
+        commands->drawIndexed(indices.size(), instanceCount, 0, 0, 0, id);
+    commands->unbindDrawingState();
+}
+
 bool CoreObject::intersectsRenderFrustum(const glm::mat4 &clipFromWorld) const {
     if (!importedRenderBounds || !instances.empty())
         return true;
@@ -576,7 +644,7 @@ void CoreObject::render(float dt,
 void CoreObject::renderUsingProgram(
     float dt, std::shared_ptr<opal::CommandBuffer> commandBuffer,
     bool updatePipeline, const ShaderProgram &program) {
-    if (!isVisible) {
+    if (!isVisible || isDecal()) {
         return;
     }
     if (program.programId == 0) {

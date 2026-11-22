@@ -133,7 +133,8 @@ uint64_t computeDdgiLayoutSignature(const std::vector<CoreObject *> &objects,
         hashCombineU64(signature, static_cast<uint64_t>(probeResolution));
     signature = hashCombineU64(signature, static_cast<uint64_t>(borderSize));
     for (auto *object : objects) {
-        if (object == nullptr || !object->canUseDeferredRendering()) {
+        if (object == nullptr || object->isDecal() ||
+            !object->canUseDeferredRendering()) {
             continue;
         }
         signature = hashCombineU64(
@@ -439,7 +440,8 @@ void photon::GlobalIllumination::updateProbeLayout() {
     std::unordered_map<uint64_t, int> textureSlots;
 
     for (auto *object : ddgiObjects) {
-        if (object == nullptr || !object->canUseDeferredRendering()) {
+        if (object == nullptr || object->isDecal() ||
+            !object->canUseDeferredRendering()) {
             continue;
         }
         findTextureSlotForType(object->textures, TextureType::Color,
@@ -447,7 +449,8 @@ void photon::GlobalIllumination::updateProbeLayout() {
     }
 
     for (auto *object : ddgiObjects) {
-        if (object == nullptr || !object->canUseDeferredRendering()) {
+        if (object == nullptr || object->isDecal() ||
+            !object->canUseDeferredRendering()) {
             continue;
         }
 

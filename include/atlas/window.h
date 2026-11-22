@@ -891,6 +891,11 @@ class Window {
     std::unique_ptr<RenderTarget> modeScreenTarget;
 
     std::shared_ptr<RenderTarget> gBuffer;
+    std::shared_ptr<opal::Framebuffer> decalFramebuffer;
+    std::weak_ptr<opal::Texture> decalFramebufferColor;
+    std::weak_ptr<opal::Texture> decalFramebufferDepth;
+    ShaderProgram decalProgram;
+    std::array<std::shared_ptr<opal::Pipeline>, 2> decalPipelines;
     std::shared_ptr<RenderTarget> ssaoBuffer;
     std::shared_ptr<RenderTarget> ssaoBlurBuffer;
     std::shared_ptr<RenderTarget> volumetricBuffer;
@@ -924,6 +929,9 @@ class Window {
     [[maybe_unused]]
     void renderPingpong(RenderTarget *target);
     void renderPhysicalBloom(RenderTarget *target);
+    void renderMeshDecals(const std::shared_ptr<opal::CommandBuffer> &commands,
+                          const glm::mat4 &view, const glm::mat4 &projection,
+                          int width, int height, bool albedoOnly);
     void deferredRendering(
         RenderTarget *target,
         std::shared_ptr<opal::CommandBuffer> commandBuffer = nullptr);

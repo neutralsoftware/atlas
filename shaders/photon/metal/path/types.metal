@@ -45,7 +45,7 @@ struct Material {
     float transmittance;
     float ior;
     float reflectivity;
-    float _pad2;
+    float isDecal;
     packed_float2 textureScale;
     packed_float2 textureOffset;
 
