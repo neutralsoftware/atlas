@@ -102,7 +102,12 @@ struct VertexData {
     packed_float2 uv;
     packed_float3 tangent;
     packed_float3 bitangent;
+    packed_float4 normalAndPbrUvOffset;
+    packed_float2 aoUvOffset;
 };
+static_assert(sizeof(VertexData) == 80);
+static_assert(__builtin_offsetof(VertexData, normalAndPbrUvOffset) == 56);
+static_assert(__builtin_offsetof(VertexData, aoUvOffset) == 72);
 
 struct InstanceData {
     float4x4 model;

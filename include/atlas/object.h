@@ -178,6 +178,8 @@ struct CoreVertex {
     Normal3d bitangent = {0.0, 0.0, 0.0};
     glm::uvec4 joints{0};
     glm::vec4 weights{0.0f};
+    glm::vec4 normalAndPbrUvOffset{0.0f};
+    glm::vec2 aoUvOffset{0.0f};
 
     /**
      * @brief Function that constructs a new CoreVertex object.
@@ -1091,6 +1093,7 @@ class Model : public GameObject {
   private:
     std::vector<std::shared_ptr<CoreObject>> objects;
     std::string directory;
+    bool usesGltfTextureCoordinates = false;
     std::function<void(float, const std::string &)> importProgress;
     unsigned int importedMeshCount = 0;
     unsigned int totalMeshCount = 0;

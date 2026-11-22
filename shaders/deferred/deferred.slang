@@ -21,6 +21,8 @@ struct VertexOutput
     [[vk::location(4)]] float3 TBN_0 : TEXCOORD4;
     [[vk::location(5)]] float3 TBN_1 : TEXCOORD5;
     [[vk::location(6)]] float3 TBN_2 : TEXCOORD6;
+    [[vk::location(7)]] float4 textureUvOffsets : TEXCOORD7;
+    [[vk::location(8)]] float2 aoUvOffset : TEXCOORD8;
     float4 gl_Position : SV_Position;
 };
 
@@ -38,6 +40,8 @@ struct VertexInput
     [[vk::location(9)]] float4 instanceModel_3 : TEXCOORD9;
     [[vk::location(10)]] uint4 joints : TEXCOORD10;
     [[vk::location(11)]] float4 weights : TEXCOORD11;
+    [[vk::location(12)]] float4 textureUvOffsets : TEXCOORD12;
+    [[vk::location(13)]] float2 aoUvOffset : TEXCOORD13;
 };
 
 [[vk::binding(0, 0)]] ConstantBuffer<UBO> uniforms;
@@ -67,6 +71,8 @@ VertexOutput vertexMain(VertexInput input)
     output.FragPos = worldPos.xyz;
     output.gl_Position = mul(worldPos, (mul(uniforms.view, uniforms.projection)));
     output.TexCoord = input.aTexCoord;
+    output.textureUvOffsets = input.textureUvOffsets;
+    output.aoUvOffset = input.aoUvOffset;
     output.outColor = input.aColor;
     row_major float4x4 _81 = transpose(inverseMatrix(mul(skin, finalModel)));
     row_major float3x3 normalMatrix = float3x3(_81[0].xyz, _81[1].xyz, _81[2].xyz);
@@ -139,6 +145,8 @@ struct FragmentInput
     [[vk::location(4)]] float3 TBN_0 : TEXCOORD4;
     [[vk::location(5)]] float3 TBN_1 : TEXCOORD5;
     [[vk::location(6)]] float3 TBN_2 : TEXCOORD6;
+    [[vk::location(7)]] float4 textureUvOffsets : TEXCOORD7;
+    [[vk::location(8)]] float2 aoUvOffset : TEXCOORD8;
 };
 
 float4 sampleTextureAt(int  textureIndex, float2  uv, Sampler2D texture1, Sampler2D texture2, Sampler2D texture3, Sampler2D texture4, Sampler2D texture5, Sampler2D texture6, Sampler2D texture7, Sampler2D texture8, Sampler2D texture9, Sampler2D texture10)
@@ -260,7 +268,7 @@ float2 parallaxMapping(float2  texCoords, float3  viewDir, UBO  uniforms, Sample
     return currentTexCoords;
 }
 
-float4 enableTextures(int  type, UBO  uniforms, Sampler2D texture1, inout float2  texCoord, Sampler2D texture2, Sampler2D texture3, Sampler2D texture4, Sampler2D texture5, Sampler2D texture6, Sampler2D texture7, Sampler2D texture8, Sampler2D texture9, Sampler2D texture10)
+float4 enableTextures(int  type, UBO  uniforms, Sampler2D texture1, float2 texCoord, Sampler2D texture2, Sampler2D texture3, Sampler2D texture4, Sampler2D texture5, Sampler2D texture6, Sampler2D texture7, Sampler2D texture8, Sampler2D texture9, Sampler2D texture10)
 {
     float4 color = float4(0.0);
     int count = 0;
@@ -413,7 +421,7 @@ FragmentOutput fragmentMain(FragmentInput input, float4 gl_FragCoord : SV_Positi
         }
     }
     int param_4 = 5;
-    float4 normTexture = enableTextures(param_4, uniforms, texture1, texCoord, texture2, texture3, texture4, texture5, texture6, texture7, texture8, texture9, texture10);
+    float4 normTexture = enableTextures(param_4, uniforms, texture1, texCoord + input.textureUvOffsets.xy * uniforms.textureScale, texture2, texture3, texture4, texture5, texture6, texture7, texture8, texture9, texture10);
     bool _527 = normTexture.x != (-1.0);
     bool _534;
     if (_527)
@@ -449,7 +457,7 @@ FragmentOutput fragmentMain(FragmentInput input, float4 gl_FragCoord : SV_Positi
     }
     float3 albedoColor = baseColor.xyz;
     int param_pbr_pack = 14;
-    float4 pbrPackTex = enableTextures(param_pbr_pack, uniforms, texture1, texCoord, texture2, texture3, texture4, texture5, texture6, texture7, texture8, texture9, texture10);
+    float4 pbrPackTex = enableTextures(param_pbr_pack, uniforms, texture1, texCoord + input.textureUvOffsets.zw * uniforms.textureScale, texture2, texture3, texture4, texture5, texture6, texture7, texture8, texture9, texture10);
     bool hasPbrPack = any(pbrPackTex != float4(-1.0));
     float metallicValue = material.metallic;
     int param_5 = 9;
@@ -475,14 +483,14 @@ FragmentOutput fragmentMain(FragmentInput input, float4 gl_FragCoord : SV_Positi
     }
     float aoValue = material.ao;
     int param_7 = 11;
-    float4 aoTex = enableTextures(param_7, uniforms, texture1, texCoord, texture2, texture3, texture4, texture5, texture6, texture7, texture8, texture9, texture10);
-    if (hasPbrPack)
-    {
-        aoValue *= pbrPackTex.x;
-    }
-    else if (any(aoTex != float4(-1.0)))
+    float4 aoTex = enableTextures(param_7, uniforms, texture1, texCoord + input.aoUvOffset * uniforms.textureScale, texture2, texture3, texture4, texture5, texture6, texture7, texture8, texture9, texture10);
+    if (any(aoTex != float4(-1.0)))
     {
         aoValue *= aoTex.x;
+    }
+    else if (hasPbrPack)
+    {
+        aoValue *= pbrPackTex.x;
     }
     metallicValue = clamp(metallicValue, 0.0, 1.0);
     roughnessValue = clamp(roughnessValue, 0.0, 1.0);

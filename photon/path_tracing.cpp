@@ -19,6 +19,7 @@
 #include <cstdint>
 #include <cstring>
 #include <exception>
+#include <glm/gtc/type_ptr.hpp>
 #include <stdexcept>
 #include <unordered_map>
 #include <unordered_set>
@@ -511,6 +512,8 @@ bool photon::PathTracing::buildAccelerationStructure(
         alignas(kPathTracerVectorAlignment) float uv[2];
         alignas(kPathTracerVectorAlignment) float tangent[3];
         alignas(kPathTracerVectorAlignment) float bitangent[3];
+        alignas(kPathTracerVectorAlignment) float normalAndPbrUvOffset[4];
+        alignas(kPathTracerVectorAlignment) float aoUvOffset[2];
     };
 
     struct EmissiveTriangleData {
@@ -541,7 +544,9 @@ bool photon::PathTracing::buildAccelerationStructure(
     static_assert(offsetof(MaterialData, subsurfaceWeight) == 228);
     static_assert(offsetof(MaterialData, subsurfaceColor) == 256);
     static_assert(offsetof(MaterialData, subsurfaceRadius) == 272);
-    static_assert(sizeof(VertexData) == 80);
+    static_assert(sizeof(VertexData) == 112);
+    static_assert(offsetof(VertexData, normalAndPbrUvOffset) == 80);
+    static_assert(offsetof(VertexData, aoUvOffset) == 96);
     static_assert(offsetof(VertexData, normal) == 16);
     static_assert(offsetof(VertexData, uv) == 32);
     static_assert(offsetof(VertexData, tangent) == 48);
@@ -557,7 +562,9 @@ bool photon::PathTracing::buildAccelerationStructure(
     static_assert(offsetof(MaterialData, subsurfaceWeight) == 208);
     static_assert(offsetof(MaterialData, subsurfaceColor) == 224);
     static_assert(offsetof(MaterialData, subsurfaceRadius) == 240);
-    static_assert(sizeof(VertexData) == 56);
+    static_assert(sizeof(VertexData) == 80);
+    static_assert(offsetof(VertexData, normalAndPbrUvOffset) == 56);
+    static_assert(offsetof(VertexData, aoUvOffset) == 72);
 #endif
     static_assert(sizeof(EmissiveTriangleData) == 96);
     static_assert(sizeof(InstanceData) == 112);
@@ -770,6 +777,11 @@ bool photon::PathTracing::buildAccelerationStructure(
                 vd.bitangent[0] = v.bitangent.x;
                 vd.bitangent[1] = v.bitangent.y;
                 vd.bitangent[2] = v.bitangent.z;
+                std::memcpy(vd.normalAndPbrUvOffset,
+                            glm::value_ptr(v.normalAndPbrUvOffset),
+                            sizeof(vd.normalAndPbrUvOffset));
+                std::memcpy(vd.aoUvOffset, glm::value_ptr(v.aoUvOffset),
+                            sizeof(vd.aoUvOffset));
                 allVertices.push_back(vd);
             }
 
@@ -839,10 +851,11 @@ bool photon::PathTracing::buildAccelerationStructure(
                                              TextureType::Roughness,
                                              materialTextures, textureSlots);
             data.aoTextureIndex =
-                pbrPackTextureIndex >= 0
-                    ? pbrPackTextureIndex
-                    : findTextureSlotForType(object->textures, TextureType::AO,
-                                             materialTextures, textureSlots);
+                findTextureSlotForType(object->textures, TextureType::AO,
+                                       materialTextures, textureSlots);
+            if (data.aoTextureIndex < 0) {
+                data.aoTextureIndex = pbrPackTextureIndex;
+            }
             data.opacityTextureIndex =
                 findTextureSlotForType(object->textures, TextureType::Opacity,
                                        materialTextures, textureSlots);

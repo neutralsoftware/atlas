@@ -65,7 +65,7 @@ float3 sampleRadiance(
         Material mat{};
         InstanceData inst{};
         uint surfaceObjectIndex = 0xFFFFFFFFu;
-        float2 texUV = float2(0.0);
+        MaterialUvs uv = {};
         float3 localN = float3(0.0, 1.0, 0.0);
         float3 localT = float3(1.0, 0.0, 0.0);
         float3 localB = float3(0.0, 0.0, 1.0);
@@ -103,10 +103,8 @@ float3 sampleRadiance(
             float b1 = bary.x;
             float b2 = bary.y;
 
-            texUV = float2(vertices[i0].uv) * b0 +
-                    float2(vertices[i1].uv) * b1 + float2(vertices[i2].uv) * b2;
-            texUV =
-                texUV * float2(mat.textureScale) + float2(mat.textureOffset);
+            uv = interpolateMaterialUvs(mat, vertices[i0], vertices[i1],
+                                        vertices[i2], bary);
             localN = normalizeOr(float3(vertices[i0].normal) * b0 +
                                      float3(vertices[i1].normal) * b1 +
                                      float3(vertices[i2].normal) * b2,
@@ -128,7 +126,7 @@ float3 sampleRadiance(
                 cross(p1 - p0, p2 - p0),
                 normalizeOr(normalMatrix * localN, float3(0.0, 1.0, 0.0)));
 
-            float alpha = resolveMaterialOpacity(mat, texUV,
+            float alpha = resolveMaterialOpacity(mat, uv.albedo,
                                                  sceneData.materialTextureCount,
                                                  PT_MATERIAL_TEXTURE_ARGS);
             if (!photonFeatureEnabled(sceneData,
@@ -233,7 +231,7 @@ float3 sampleRadiance(
         }
 
         float3 shadingNormal = resolveShadingNormal(
-            mat, texUV, localN, localT, localB, inst,
+            mat, uv.normal, localN, localT, localB, inst,
             sceneData.materialTextureCount,
             photonFeatureEnabled(sceneData, PHOTON_FEATURE_NORMAL_MAPS),
             PT_MATERIAL_TEXTURE_ARGS);
@@ -256,7 +254,7 @@ float3 sampleRadiance(
         float baseIor;
         float transmittance;
         float abbeNumber;
-        resolveMaterialParameters(mat, texUV, sceneData.materialTextureCount,
+        resolveMaterialParameters(mat, uv, sceneData.materialTextureCount,
                                   PT_MATERIAL_TEXTURE_ARGS, albedoRgb, metallic,
                                   roughness, ao, emissiveRgb, baseIor,
                                   transmittance, abbeNumber);
