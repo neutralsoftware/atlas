@@ -1607,7 +1607,7 @@ void EditorWindow::showProjectSettings() {
     rendering->addRow("Samples per pixel", samplesPerPixel);
     rendering->addRow("Maximum light bounces", maxBounces);
     rendering->addRow(QString(), denoising);
-    rendering->addRow("Temporal accumulation", accumulationFrames);
+    rendering->addRow("Accumulation frames", accumulationFrames);
     rendering->addRow(photonFeatures);
     rendering->addRow("Frame limit (0 = unlimited)", frameLimit);
     auto updatePathTracingControls = [=] {

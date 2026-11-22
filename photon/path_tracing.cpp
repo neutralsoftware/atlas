@@ -335,7 +335,7 @@ void photon::PathTracing::init() {
 
     for (auto &texture : pathTracingHistoryTextures) {
         texture = std::make_shared<Texture>(Texture::create(
-            outputWidth, outputHeight, opal::TextureFormat::Rgba16F,
+            outputWidth, outputHeight, opal::TextureFormat::Rgba32F,
             opal::TextureDataFormat::Rgba, TextureType::Color));
     }
     for (auto &texture : pathTracingHistoryGuides) {
@@ -345,7 +345,7 @@ void photon::PathTracing::init() {
     }
     for (auto &texture : pathTracingHistoryMoments) {
         texture = std::make_shared<Texture>(Texture::create(
-            outputWidth, outputHeight, opal::TextureFormat::Rgba16F,
+            outputWidth, outputHeight, opal::TextureFormat::Rgba32F,
             opal::TextureDataFormat::Rgba, TextureType::Color));
     }
     for (auto &texture : directReservoirSamples) {
@@ -387,7 +387,7 @@ void photon::PathTracing::resizeOutput(int width, int height) {
     outputHeight = newHeight;
     for (auto &texture : pathTracingHistoryTextures) {
         texture = std::make_shared<Texture>(Texture::create(
-            outputWidth, outputHeight, opal::TextureFormat::Rgba16F,
+            outputWidth, outputHeight, opal::TextureFormat::Rgba32F,
             opal::TextureDataFormat::Rgba, TextureType::Color));
     }
     for (auto &texture : pathTracingHistoryGuides) {
@@ -397,7 +397,7 @@ void photon::PathTracing::resizeOutput(int width, int height) {
     }
     for (auto &texture : pathTracingHistoryMoments) {
         texture = std::make_shared<Texture>(Texture::create(
-            outputWidth, outputHeight, opal::TextureFormat::Rgba16F,
+            outputWidth, outputHeight, opal::TextureFormat::Rgba32F,
             opal::TextureDataFormat::Rgba, TextureType::Color));
     }
     for (auto &texture : directReservoirSamples) {
@@ -1183,7 +1183,7 @@ bool photon::PathTracing::createLightBuffers() {
         float outerCos;
 
         float range;
-        alignas(kPathTracerVectorAlignment) float _pad0[3];
+        float _pad0[kPathTracerVectorAlignment == 16 ? 7 : 3];
     };
 
     struct alignas(kPathTracerVectorAlignment) AreaLightData {
@@ -1199,7 +1199,7 @@ bool photon::PathTracing::createLightBuffers() {
         float color[3];
         float twoSided;
         float emissionCos;
-        alignas(kPathTracerVectorAlignment) float _pad[3];
+        float _pad[kPathTracerVectorAlignment == 16 ? 7 : 3];
     };
 
     static_assert(sizeof(PointLightData) == 32);
@@ -1346,6 +1346,13 @@ bool photon::PathTracing::render(
     if (Window::mainWindow == nullptr ||
         Window::mainWindow->getCamera() == nullptr) {
         return fail("The active window or camera is unavailable");
+    }
+
+    if (cachedOutput.lock() != output ||
+        cachedBrightOutput.lock() != brightOutput) {
+        resetAccumulation();
+        cachedOutput = output;
+        cachedBrightOutput = brightOutput;
     }
 
     auto view = Window::mainWindow->getCamera()->calculateViewMatrix();
@@ -1666,18 +1673,37 @@ bool photon::PathTracing::render(
     cachedCloudLighting = cloudLighting;
     cachedCloudsEnabled = cloudsEnabled;
 
+    const float bloomThreshold =
+        scene != nullptr
+            ? std::max(scene->getEnvironment().lightBloom.threshold, 0.0f)
+            : 1.0f;
+    const float sampleClamp = std::max(fireflyClamp, 1.0f);
+    if (cachedBloomThreshold != bloomThreshold ||
+        cachedFireflyClamp != sampleClamp ||
+        cachedIndirectStrength != indirectStrength) {
+        frameIndex = 0;
+        cachedBloomThreshold = bloomThreshold;
+        cachedFireflyClamp = sampleClamp;
+        cachedIndirectStrength = indirectStrength;
+    }
     if (frameIndex == 0) {
         accumulatedSamples = 0;
     }
-    if (cinematicMode && accumulatedSamples >= raysPerPixel) {
+
+    const int samplesPerFrame = std::max(raysPerPixel, 1);
+    const int sampleBudget = cinematicMode
+                                 ? samplesPerFrame
+                                 : std::max(accumulationFrames, 1) * samplesPerFrame;
+    if (!interactive && accumulatedSamples >= sampleBudget) {
         return true;
     }
     const int refinementFrame = std::max(frameIndex, 0);
     const int pixelStride = 1;
-    const int effectiveSamples = cinematicMode
-        ? std::min(8, raysPerPixel - accumulatedSamples)
-        : std::max(std::max(raysPerPixel, 1),
-                   (interactive || frameIndex == 0) ? std::clamp(minimumMotionSamples, 1, 64) : 1);
+    const int effectiveSamples =
+        interactive ? std::max(samplesPerFrame,
+                               std::clamp(minimumMotionSamples, 1, 64))
+                    : std::min(cinematicMode ? 8 : samplesPerFrame,
+                               sampleBudget - accumulatedSamples);
     const int effectiveBounces = this->maxBounces;
     pathTracingPipeline->setUniform1i("sceneData.cinematicMode", cinematicMode ? 1 : 0);
     pathTracingPipeline->setUniform1i("sceneData.accumulatedSamples", accumulatedSamples);
@@ -1687,12 +1713,8 @@ bool photon::PathTracing::render(
                                       effectiveSamples);
     pathTracingPipeline->setUniform1i("sceneData.maxBounces", effectiveBounces);
     pathTracingPipeline->setUniform1i("sceneData.pixelStride", pixelStride);
-    pathTracingPipeline->setUniform1i("sceneData.accumulationFrameLimit",
-                                      accumulationFrames);
-    pathTracingPipeline->setUniform1f("sceneData.fireflyClamp", cinematicMode ? 1e20f : fireflyClamp);
-    pathTracingPipeline->setUniform1f(
-        "sceneData.bloomThreshold",
-        std::max(scene->getEnvironment().lightBloom.threshold, 0.0f));
+    pathTracingPipeline->setUniform1f("sceneData.fireflyClamp", sampleClamp);
+    pathTracingPipeline->setUniform1f("sceneData.bloomThreshold", bloomThreshold);
     pathTracingPipeline->setUniform1i(
         "sceneData.numEmissiveTriangles",
         (featureFlags & EmissiveLighting) != 0 ? emissiveTriangleCount : 0);
@@ -1863,8 +1885,7 @@ bool photon::PathTracing::render(
     if (denoisingEnabled && pathDenoisePipeline != nullptr &&
         denoiseTextures[0] != nullptr && denoiseTextures[1] != nullptr) {
         const std::array<int, 3> denoiseSteps = {1, 2, 4};
-        const size_t denoisePassCount =
-            interactive ? 2 : (refinementFrame < 16 ? 3 : 2);
+        const size_t denoisePassCount = interactive ? 2 : denoiseSteps.size();
         for (size_t pass = 0; pass < denoisePassCount; ++pass) {
             const auto &input =
                 pass == 0 ? output : denoiseTextures[(pass - 1) % 2]->texture;
@@ -1891,16 +1912,14 @@ bool photon::PathTracing::render(
             pathDenoisePipeline->setUniform1i("parameters.stepWidth",
                                               denoiseSteps[pass]);
             pathDenoisePipeline->setUniform1f(
-                "parameters.bloomThreshold",
-                std::max(scene->getEnvironment().lightBloom.threshold, 0.0f));
+                "parameters.bloomThreshold", bloomThreshold);
             commandBuffer->dispatch(outputWidth, outputHeight, 1);
             commandBuffer->computeBarrier();
         }
     }
 
     previousViewProj = viewProj;
-    if (cinematicMode)
-        accumulatedSamples += effectiveSamples;
+    accumulatedSamples += effectiveSamples;
     frameIndex++;
     lastError.clear();
     return true;

@@ -33,9 +33,9 @@ void computeMain(uint3 dispatchThreadID : SV_DispatchThreadID) {
     bool centerSurface = centerGuide.w > 0.0;
     float centerNormalLength = dot(centerGuide.xyz, centerGuide.xyz);
     float centerLuminance = dot(center, float3(0.2126, 0.7152, 0.0722));
-    float standardDeviation = sqrt(max(centerMoments.z, 0.0));
     float temporalMean = max(centerMoments.x, 0.0);
     float historyLength = max(historyTexture.Load(int3(gid, 0)).w, 1.0);
+    float standardDeviation = sqrt(max(centerMoments.z, 0.0) / historyLength);
     float deviationFloor = max(temporalMean * 0.05, 0.02);
     float luminanceDeviation = max(standardDeviation, deviationFloor);
     float luminanceMinimum = max(temporalMean - luminanceDeviation * 3.0, 0.0);
