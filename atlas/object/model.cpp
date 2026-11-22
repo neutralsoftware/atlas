@@ -29,6 +29,7 @@
 #include <assimp/postprocess.h>
 #include <algorithm>
 #include <atomic>
+#include <bit>
 #include <chrono>
 #include <cctype>
 #include <cmath>
@@ -640,40 +641,31 @@ DecodedModelTexture decodeModelTexture(const ModelTextureJob &job) {
     return decoded;
 }
 
-Texture uploadModelTexture(const ModelTextureJob &job,
-                           DecodedModelTexture decoded) {
-    if (decoded.pixels.empty() || decoded.width <= 0 || decoded.height <= 0) {
+opal::Texture::Upload2D modelTextureUpload(const ModelTextureJob &job,
+                                          const DecodedModelTexture &decoded) {
+    if (decoded.pixels.empty() || decoded.width <= 0 || decoded.height <= 0)
         throw std::runtime_error("Failed to decode model texture");
-    }
-    if (job.textureType == TextureType::PBRPack) {
-        const size_t pixelCount =
-            static_cast<size_t>(decoded.width) * decoded.height;
-        for (size_t pixel = 0; pixel < pixelCount; ++pixel) {
-            decoded.pixels[pixel * 4] =
-                decoded.ao.empty() ? 255 : decoded.ao[pixel];
-        }
-    }
+    const auto format = job.textureType == TextureType::Color
+                            ? opal::TextureFormat::sRgba8
+                            : opal::TextureFormat::Rgba8;
+    return {format, decoded.width, decoded.height, opal::TextureDataFormat::Rgba,
+            decoded.pixels.data(),
+            static_cast<unsigned int>(std::bit_width(
+                static_cast<unsigned int>(std::max(decoded.width, decoded.height))))};
+}
 
-    Resource resource = Workspace::get().createResource(
-        job.fullPath, job.filename, job.resourceType);
-    const opal::TextureFormat format = job.textureType == TextureType::Color
-                                           ? opal::TextureFormat::sRgba8
-                                           : opal::TextureFormat::Rgba8;
-    const unsigned int mipLevels =
-        1u + static_cast<unsigned int>(std::floor(
-                 std::log2(std::max(decoded.width, decoded.height))));
-    auto opalTexture = opal::Texture::create(
-        opal::TextureType::Texture2D, format, decoded.width, decoded.height,
-        opal::TextureDataFormat::Rgba, decoded.pixels.data(), mipLevels);
-    opalTexture->setParameters(opal::TextureWrapMode::Repeat,
-                               opal::TextureWrapMode::Repeat,
-                               opal::TextureFilterMode::LinearMipmapLinear,
-                               opal::TextureFilterMode::Linear);
-    opalTexture->automaticallyGenerateMipmaps();
-    return Texture{.resource = resource,
+Texture registerModelTexture(const ModelTextureJob &job,
+                             const DecodedModelTexture &decoded,
+                             std::shared_ptr<opal::Texture> texture) {
+    texture->setParameters(opal::TextureWrapMode::Repeat,
+                           opal::TextureWrapMode::Repeat,
+                           opal::TextureFilterMode::LinearMipmapLinear,
+                           opal::TextureFilterMode::Linear);
+    return Texture{.resource = Workspace::get().createResource(
+                       job.fullPath, job.filename, job.resourceType),
                    .creationData = {decoded.width, decoded.height, 4},
-                   .id = opalTexture->textureID,
-                   .texture = opalTexture,
+                   .id = texture->textureID,
+                   .texture = std::move(texture),
                    .type = job.textureType};
 }
 
@@ -1241,6 +1233,7 @@ void Model::loadModel(
     }
 
     const auto sceneCachePath = modelSceneCachePath(resource, importFlags);
+    ModelImportIO *uncachedIO = nullptr;
     const auto readScene = [&]() -> const aiScene * {
         const aiScene *scene = nullptr;
         if (isModelSceneCacheValid(sceneCachePath)) {
@@ -1255,8 +1248,7 @@ void Model::loadModel(
             if (scene != nullptr &&
                 !(scene->mFlags & AI_SCENE_FLAGS_INCOMPLETE) &&
                 scene->mRootNode != nullptr) {
-                reportProgress(0.85f, "Caching imported model");
-                storeModelSceneCache(scene, sceneCachePath, *io);
+                uncachedIO = io;
             }
         }
         return scene;
@@ -1287,6 +1279,13 @@ void Model::loadModel(
                                  std::string(importer.GetErrorString()));
         return;
     }
+    std::future<void> cacheWrite;
+    if (uncachedIO != nullptr && !sceneCachePath.empty()) {
+        cacheWrite = std::async(std::launch::async, [=] {
+            storeModelSceneCache(scene, sceneCachePath, *uncachedIO);
+        });
+    }
+
     directory = resource.path.parent_path().string();
     if (progress)
         progress(0.88f, "Loading meshes and materials");
@@ -1496,21 +1495,97 @@ void Model::preloadMaterialTextures(
             progress(0.88f + 0.08f * static_cast<float>(completed) / jobs.size(),
                      "Loading model textures");
     };
+    constexpr size_t batchCount = 8;
+    constexpr size_t batchBytes = 96u * 1024 * 1024;
+    struct PendingUpload {
+        size_t jobIndex;
+        DecodedModelTexture decoded;
+    };
+    std::vector<PendingUpload> pending;
+    pending.reserve(batchCount);
+    size_t pendingBytes = 0;
+    size_t uploaded = 0;
+    const auto failTexture = [&](size_t index, const std::exception &error) {
+        atlas_warning("Failed to preload texture '" + jobs[index].filename +
+                      "': " + error.what());
+    };
+    const auto flush = [&] {
+        if (pending.empty())
+            return;
+        std::vector<opal::Texture::Upload2D> uploads;
+        uploads.reserve(pending.size());
+        for (const auto &item : pending)
+            uploads.push_back(modelTextureUpload(jobs[item.jobIndex], item.decoded));
+
+        std::vector<std::shared_ptr<opal::Texture>> textures;
+        try {
+            textures = opal::Texture::create2DBatch(uploads);
+        } catch (const std::exception &) {
+            textures.resize(uploads.size());
+            for (size_t i = 0; i < uploads.size(); ++i) {
+                try {
+                    textures[i] = opal::Texture::create2DBatch({uploads[i]}).front();
+                } catch (const std::exception &error) {
+                    failTexture(pending[i].jobIndex, error);
+                }
+            }
+        }
+        for (size_t i = 0; i < pending.size(); ++i) {
+            const auto &item = pending[i];
+            const auto &job = jobs[item.jobIndex];
+            if (textures[i] != nullptr) {
+                try {
+                    textureCache[job.cacheKey] =
+                        registerModelTexture(job, item.decoded, std::move(textures[i]));
+                } catch (const std::exception &error) {
+                    failTexture(item.jobIndex, error);
+                }
+            }
+        }
+        uploaded += pending.size();
+        pending.clear();
+        pendingBytes = 0;
+        reportTextures(uploaded);
+    };
+
     auto &workers = atlas::detail::Workers::shared();
     workers.process(
         jobs.size(), std::min(workers.size(), size_t{6}),
-        [&](size_t index) { return decodeModelTexture(jobs[index]); },
-        [&](size_t index, std::future<DecodedModelTexture> ready) {
+        [&](size_t index) {
             const auto &job = jobs[index];
-            try {
-                textureCache[job.cacheKey] = uploadModelTexture(job, ready.get());
-            } catch (const std::exception &error) {
-                atlas_warning("Failed to preload texture '" + job.filename +
-                              "': " + error.what());
+            auto decoded = decodeModelTexture(job);
+            if (job.textureType == TextureType::PBRPack) {
+                for (size_t pixel = 0; pixel < decoded.pixels.size() / 4; ++pixel)
+                    decoded.pixels[pixel * 4] =
+                        decoded.ao.empty() ? 255 : decoded.ao[pixel];
             }
-            reportTextures(index + 1);
+            return decoded;
         },
-        progress ? std::function<void(size_t)>(reportTextures) : nullptr);
+        [&](size_t index, std::future<DecodedModelTexture> ready) {
+            DecodedModelTexture decoded;
+            try {
+                decoded = ready.get();
+                if (decoded.pixels.empty() || decoded.width <= 0 || decoded.height <= 0)
+                    throw std::runtime_error("Failed to decode model texture");
+            } catch (const std::exception &error) {
+                failTexture(index, error);
+                ++uploaded;
+                reportTextures(uploaded);
+                return;
+            }
+            decoded.ao.clear();
+            const size_t bytes = decoded.pixels.size();
+            if (pendingBytes + bytes > batchBytes || pending.size() == batchCount)
+                flush();
+            pending.push_back({index, std::move(decoded)});
+            pendingBytes += bytes;
+            if (pendingBytes >= batchBytes || pending.size() == batchCount)
+                flush();
+        },
+        progress ? std::function<void(size_t)>([&](size_t) {
+            reportTextures(uploaded);
+        }) : nullptr);
+    flush();
 }
 
 void Model::finishMesh(
