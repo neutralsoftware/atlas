@@ -816,6 +816,8 @@ class ModelMesh : public CoreObject {
     static constexpr unsigned int MaxJoints = 256;
 
     const Skin &getSkin() const { return skin; }
+    const std::vector<glm::mat4> &getJointMatrices() const { return jointMatrices; }
+    glm::mat4 posedTransform(const CoreVertex &vertex) const;
     glm::vec3 posedPosition(const CoreVertex &vertex) const;
 
   private:
@@ -1115,7 +1117,7 @@ class Model : public GameObject {
     void preloadMaterialTextures(
         const aiScene *scene,
         std::unordered_map<std::string, Texture> &textureCache);
-    ModelMesh
+    std::optional<ModelMesh>
     processMesh(aiMesh *mesh, const aiScene *scene, const glm::mat4 &transform,
                 Skin skin, const std::vector<VertexSkinData> &vertexSkin,
                 std::unordered_map<std::string, Texture> &textureCache);

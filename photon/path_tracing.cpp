@@ -83,7 +83,7 @@ bool mat4ApproximatelyEqual(const glm::mat4 &a, const glm::mat4 &b,
     return true;
 }
 
-uint64_t pathTracingObjectStateHash(const CoreObject *object,
+uint64_t pathTracingObjectStateHash(CoreObject *object,
                                     const glm::mat4 &model) {
     uint64_t hash = 1469598103934665603ULL;
     auto append = [&hash](const void *data, size_t size) {
@@ -137,6 +137,12 @@ uint64_t pathTracingObjectStateHash(const CoreObject *object,
     append(&material.subsurfaceColor, sizeof(material.subsurfaceColor));
     append(&material.subsurfaceRadius, sizeof(material.subsurfaceRadius));
     append(&model, sizeof(model));
+    const auto id = object->getId();
+    append(&id, sizeof(id));
+    if (const auto *mesh = dynamic_cast<const ModelMesh *>(object)) {
+        const auto &joints = mesh->getJointMatrices();
+        append(joints.data(), joints.size() * sizeof(glm::mat4));
+    }
     const size_t vertexCount = object->vertices.size();
     const size_t indexCount = object->indices.size();
     append(&vertexCount, sizeof(vertexCount));
@@ -579,7 +585,7 @@ bool photon::PathTracing::buildAccelerationStructure(
     }
     std::vector<uint64_t> sceneObjectStateHashes;
     sceneObjectStateHashes.reserve(pathTracingObjects.size());
-    for (const auto *object : pathTracingObjects) {
+    for (auto *object : pathTracingObjects) {
         sceneObjectStateHashes.push_back(
             pathTracingObjectStateHash(object, object->model));
     }
@@ -613,7 +619,7 @@ bool photon::PathTracing::buildAccelerationStructure(
         cachedObjects = traceableObjects;
         cachedObjectStateHashes.clear();
         cachedObjectStateHashes.reserve(traceableObjects.size());
-        for (const auto *object : traceableObjects) {
+        for (auto *object : traceableObjects) {
             cachedObjectStateHashes.push_back(
                 pathTracingObjectStateHash(object, object->model));
         }
@@ -744,9 +750,25 @@ bool photon::PathTracing::buildAccelerationStructure(
             const uint32_t accelerationVertexOffset =
                 static_cast<uint32_t>(accelerationPositions.size() / 3);
 
+            const auto *mesh = dynamic_cast<const ModelMesh *>(object);
+            const bool skinned =
+                mesh != nullptr && !mesh->getJointMatrices().empty();
             for (const auto &v : objectVertices) {
-                glm::vec4 worldPosition =
-                    object->model * glm::vec4(v.position.toGlm(), 1.0f);
+                glm::vec4 localPosition(v.position.toGlm(), 1.0f);
+                glm::vec3 normal = v.normal.toGlm();
+                glm::vec3 tangent = v.tangent.toGlm();
+                glm::vec3 bitangent = v.bitangent.toGlm();
+                if (skinned) {
+                    const glm::mat4 pose = mesh->posedTransform(v);
+                    const glm::mat3 linear(pose);
+                    localPosition = pose * localPosition;
+                    tangent = linear * tangent;
+                    bitangent = linear * bitangent;
+                    const float determinant = glm::determinant(linear);
+                    if (std::abs(determinant) > 1e-8f)
+                        normal = glm::transpose(glm::inverse(linear)) * normal;
+                }
+                const glm::vec4 worldPosition = object->model * localPosition;
                 sceneMinimum = glm::min(sceneMinimum, glm::vec3(worldPosition));
                 sceneMaximum = glm::max(sceneMaximum, glm::vec3(worldPosition));
                 if (object->material.roughness < 0.25f &&
@@ -766,17 +788,17 @@ bool photon::PathTracing::buildAccelerationStructure(
                 vd.position[0] = worldPosition.x;
                 vd.position[1] = worldPosition.y;
                 vd.position[2] = worldPosition.z;
-                vd.normal[0] = v.normal.x;
-                vd.normal[1] = v.normal.y;
-                vd.normal[2] = v.normal.z;
+                vd.normal[0] = normal.x;
+                vd.normal[1] = normal.y;
+                vd.normal[2] = normal.z;
                 vd.uv[0] = v.textureCoordinate[0];
                 vd.uv[1] = v.textureCoordinate[1];
-                vd.tangent[0] = v.tangent.x;
-                vd.tangent[1] = v.tangent.y;
-                vd.tangent[2] = v.tangent.z;
-                vd.bitangent[0] = v.bitangent.x;
-                vd.bitangent[1] = v.bitangent.y;
-                vd.bitangent[2] = v.bitangent.z;
+                vd.tangent[0] = tangent.x;
+                vd.tangent[1] = tangent.y;
+                vd.tangent[2] = tangent.z;
+                vd.bitangent[0] = bitangent.x;
+                vd.bitangent[1] = bitangent.y;
+                vd.bitangent[2] = bitangent.z;
                 std::memcpy(vd.normalAndPbrUvOffset,
                             glm::value_ptr(v.normalAndPbrUvOffset),
                             sizeof(vd.normalAndPbrUvOffset));
