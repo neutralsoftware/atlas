@@ -1389,9 +1389,13 @@ struct Window::AtlasHudState {
 
         line.str("");
         line.clear();
-        line << std::fixed << std::setprecision(2) << "Render  "
-             << historyValue(renderHistory, historyCount - 1) << " ms  |  CPU "
-             << cpuPercent << "%";
+        line << std::fixed << std::setprecision(2) << "Render CPU  "
+             << historyValue(renderHistory, historyCount - 1) << " ms";
+#ifdef VULKAN
+        line << "  |  Fence " << window.frameFenceWaitMs << " ms";
+#else
+        line << "  |  CPU " << cpuPercent << "%";
+#endif
         labels[4].content = line.str();
 
         line.str("");
@@ -1967,7 +1971,9 @@ bool Window::stepFrame() {
     SDL_Window *window = this->windowRef;
     auto commandBuffer = this->activeCommandBuffer;
 #ifdef VULKAN
+    const double fenceStarted = atlasGetTimeSecondsPrecise();
     commandBuffer->waitForSubmittedWork();
+    this->frameFenceWaitMs = (atlasGetTimeSecondsPrecise() - fenceStarted) * 1000.0;
 #endif
     auto renderPass = this->runLoopRenderPass;
     constexpr float MAX_DELTA_TIME = 1.0f / 30.0f;
@@ -2021,27 +2027,19 @@ bool Window::stepFrame() {
 
     device->frameCount++;
 
-    for (auto *obj : this->pendingRemovals) {
-        this->renderables.erase(std::remove(this->renderables.begin(),
-                                            this->renderables.end(), obj),
-                                this->renderables.end());
-        this->lateForwardRenderables.erase(
-            std::remove(this->lateForwardRenderables.begin(),
-                        this->lateForwardRenderables.end(), obj),
-            this->lateForwardRenderables.end());
-        this->preferenceRenderables.erase(
-            std::remove(this->preferenceRenderables.begin(),
-                        this->preferenceRenderables.end(), obj),
-            this->preferenceRenderables.end());
-        this->firstRenderables.erase(std::remove(this->firstRenderables.begin(),
-                                                 this->firstRenderables.end(),
-                                                 obj),
-                                     this->firstRenderables.end());
-        this->uiRenderables.erase(std::remove(this->uiRenderables.begin(),
-                                              this->uiRenderables.end(), obj),
-                                  this->uiRenderables.end());
+    if (!this->pendingRemovals.empty()) {
+        const std::unordered_set<Renderable *> removals(
+            this->pendingRemovals.begin(), this->pendingRemovals.end());
+        const auto pendingRemoval = [&](Renderable *object) {
+            return removals.contains(object);
+        };
+        std::erase_if(this->renderables, pendingRemoval);
+        std::erase_if(this->lateForwardRenderables, pendingRemoval);
+        std::erase_if(this->preferenceRenderables, pendingRemoval);
+        std::erase_if(this->firstRenderables, pendingRemoval);
+        std::erase_if(this->uiRenderables, pendingRemoval);
+        this->pendingRemovals.clear();
     }
-    this->pendingRemovals.clear();
 
     const auto objectsToInitialize = this->pendingObjects;
     for (auto *obj : objectsToInitialize) {

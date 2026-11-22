@@ -9,6 +9,7 @@
 
 #include "atlas/window.h"
 #include "atlas/core/shader.h"
+#include "atlas/core/workers.h"
 #include "atlas/object.h"
 #include "atlas/tracer/log.h"
 #include "photon/illuminate.h"
@@ -20,6 +21,7 @@
 #include <cstring>
 #include <exception>
 #include <glm/gtc/type_ptr.hpp>
+#include <memory>
 #include <stdexcept>
 #include <unordered_map>
 #include <unordered_set>
@@ -262,7 +264,6 @@ void photon::PathTracing::init() {
     cachedBLASPrimitiveOffsets.clear();
     cachedObjects.clear();
     cachedSceneObjects.clear();
-    cachedObjectStateHashes.clear();
     cachedSceneObjectStateHashes.clear();
     cachedInstanceTransforms.clear();
     emissiveTriangles.reset();
@@ -271,6 +272,7 @@ void photon::PathTracing::init() {
     lastError.clear();
     causticMapDirty = true;
     causticGeometryPresent = false;
+    sceneHasVolumes = false;
 
     ComputeShader pathTracerShader =
         ComputeShader::fromDefaultShader(AtlasComputeShader::PathTracer);
@@ -598,9 +600,9 @@ bool photon::PathTracing::buildAccelerationStructure(
     if (needsRebuild) {
         accelerationBuildFailed = false;
     }
-    std::vector<CoreObject *> traceableObjects;
     if (needsRebuild) {
-        traceableObjects.reserve(pathTracingObjects.size());
+        cachedObjects.clear();
+        cachedObjects.reserve(pathTracingObjects.size());
         for (auto *object : pathTracingObjects) {
             if (object == nullptr || !object->canUseDeferredRendering() ||
                 object->vertices.size() < 3 || object->indices.size() < 3) {
@@ -612,20 +614,12 @@ bool photon::PathTracing::buildAccelerationStructure(
                 })) {
                 continue;
             }
-            traceableObjects.push_back(object);
+            cachedObjects.push_back(object);
         }
         cachedSceneObjects = pathTracingObjects;
-        cachedSceneObjectStateHashes = sceneObjectStateHashes;
-        cachedObjects = traceableObjects;
-        cachedObjectStateHashes.clear();
-        cachedObjectStateHashes.reserve(traceableObjects.size());
-        for (auto *object : traceableObjects) {
-            cachedObjectStateHashes.push_back(
-                pathTracingObjectStateHash(object, object->model));
-        }
-    } else {
-        traceableObjects = cachedObjects;
+        cachedSceneObjectStateHashes = std::move(sceneObjectStateHashes);
     }
+    const auto &traceableObjects = cachedObjects;
     if (traceableObjects.empty()) {
 #ifdef VULKAN
         if (pathTracingObjects.empty()) {
@@ -660,6 +654,7 @@ bool photon::PathTracing::buildAccelerationStructure(
             materialTextureBindings.clear();
             emissiveTriangleCount = 0;
             causticGeometryPresent = false;
+            sceneHasVolumes = false;
             causticMapDirty = true;
             frameIndex = 0;
             accelerationBuildFailed = false;
@@ -676,7 +671,6 @@ bool photon::PathTracing::buildAccelerationStructure(
     }
     std::vector<MaterialData> materialData;
 
-    std::vector<VertexData> allVertices;
     std::vector<uint32_t> allIndices;
     std::vector<uint32_t> primitiveObjects;
     std::vector<EmissiveTriangleData> emissiveTriangleData;
@@ -685,6 +679,7 @@ bool photon::PathTracing::buildAccelerationStructure(
     if (needsRebuild) {
         causticMapDirty = true;
         causticGeometryPresent = false;
+        sceneHasVolumes = false;
         glm::vec3 causticMinimum(1e30f);
         glm::vec3 causticMaximum(-1e30f);
         glm::vec3 sceneMinimum(1e30f);
@@ -693,129 +688,165 @@ bool photon::PathTracing::buildAccelerationStructure(
         cachedBLASPrimitiveOffsets.clear();
         materialTextures.clear();
         std::unordered_map<uint64_t, int> textureSlots;
+        struct ObjectOffsets {
+            size_t vertex;
+            size_t index;
+        };
+        struct GeometryBounds {
+            glm::vec3 minimum{1e30f};
+            glm::vec3 maximum{-1e30f};
+            glm::vec3 causticMinimum{1e30f};
+            glm::vec3 causticMaximum{-1e30f};
+            bool hasCaustics = false;
+        };
+        std::vector<ObjectOffsets> offsets;
+        offsets.reserve(traceableObjects.size() + 1);
+        std::vector<size_t> chunkStarts{0};
         size_t totalVertexCount = 0;
         size_t totalIndexCount = 0;
-        for (const auto *object : traceableObjects) {
-            totalVertexCount += object->vertices.size();
-            totalIndexCount += object->indices.size();
-        }
-        allVertices.reserve(totalVertexCount);
-        allIndices.reserve(totalIndexCount);
-        primitiveObjects.reserve(totalIndexCount / 3);
-        materialData.reserve(traceableObjects.size());
-
-        std::vector<float> accelerationPositions;
-        std::vector<uint32_t> accelerationIndices;
-        std::vector<std::vector<float>> accelerationPositionChunks;
-        std::vector<std::vector<uint32_t>> accelerationIndexChunks;
-        accelerationIndices.reserve(std::min(
-            totalIndexCount, kPathTracerMaxPrimitivesPerGeometry * size_t{3}));
-        uint32_t chunkPrimitiveOffset = 0;
-        auto flushAccelerationChunk = [&]() {
-            if (accelerationIndices.empty()) {
-                return true;
+        size_t chunkIndexStart = 0;
+        for (size_t i = 0; i < traceableObjects.size(); ++i) {
+            const auto &object = *traceableObjects[i];
+            const size_t chunkIndexCount = totalIndexCount - chunkIndexStart;
+            if (chunkIndexCount != 0 &&
+                (chunkIndexCount + object.indices.size()) / 3 >
+                    kPathTracerMaxPrimitivesPerGeometry) {
+                chunkStarts.push_back(i);
+                chunkIndexStart = totalIndexCount;
             }
-            cachedBLASPrimitiveOffsets.push_back(chunkPrimitiveOffset);
-            accelerationPositionChunks.push_back(
-                std::move(accelerationPositions));
-            accelerationIndexChunks.push_back(std::move(accelerationIndices));
-            accelerationPositions = {};
-            accelerationIndices = {};
-            accelerationIndices.reserve(
-                std::min(totalIndexCount,
-                         kPathTracerMaxPrimitivesPerGeometry * size_t{3}));
-            chunkPrimitiveOffset =
-                static_cast<uint32_t>(primitiveObjects.size());
-            return true;
+            offsets.push_back({totalVertexCount, totalIndexCount});
+            totalVertexCount += object.vertices.size();
+            totalIndexCount += object.indices.size();
+        }
+        offsets.push_back({totalVertexCount, totalIndexCount});
+        if (totalVertexCount > UINT32_MAX || totalIndexCount > UINT32_MAX) {
+            lastError = "Path tracing geometry exceeds the 32-bit index range";
+            accelerationBuildFailed = true;
+            return false;
+        }
+        chunkStarts.push_back(traceableObjects.size());
+
+        const size_t chunkCount = chunkStarts.size() - 1;
+        auto allVertices =
+            std::make_unique_for_overwrite<VertexData[]>(totalVertexCount);
+        allIndices.resize(totalIndexCount);
+        primitiveObjects.resize(totalIndexCount / 3);
+        materialData.reserve(traceableObjects.size());
+        std::vector<std::vector<float>> accelerationPositionChunks(chunkCount);
+        std::vector<std::vector<uint32_t>> accelerationIndexChunks(chunkCount);
+        std::vector<GeometryBounds> chunkBounds(chunkCount);
+        cachedBLASPrimitiveOffsets.resize(chunkCount);
+
+        const auto packChunk = [&](size_t chunk) {
+            const auto firstObject = chunkStarts[chunk];
+            const auto endObject = chunkStarts[chunk + 1];
+            const auto start = offsets[firstObject];
+            const auto end = offsets[endObject];
+            auto &positions = accelerationPositionChunks[chunk];
+            auto &indices = accelerationIndexChunks[chunk];
+            auto &bounds = chunkBounds[chunk];
+            positions.resize((end.vertex - start.vertex) * 3);
+            indices.resize(end.index - start.index);
+            cachedBLASPrimitiveOffsets[chunk] =
+                static_cast<uint32_t>(start.index / 3);
+
+            for (size_t objectIndex = firstObject; objectIndex < endObject;
+                 ++objectIndex) {
+                const auto *object = traceableObjects[objectIndex];
+                const auto &objectVertices = object->vertices;
+                const auto &objectIndices = object->indices;
+                const auto offset = offsets[objectIndex];
+                const auto chunkVertex = offset.vertex - start.vertex;
+                const auto chunkIndex = offset.index - start.index;
+                const auto *mesh = dynamic_cast<const ModelMesh *>(object);
+                const bool skinned =
+                    mesh != nullptr && !mesh->getJointMatrices().empty();
+                const auto &material = object->material;
+                const bool canCastCaustics =
+                    material.roughness < 0.25f &&
+                    (material.transmittance > 0.001f || material.metallic > 0.001f);
+                bounds.hasCaustics |= canCastCaustics;
+
+                for (size_t vertex = 0; vertex < objectVertices.size(); ++vertex) {
+                    const auto &v = objectVertices[vertex];
+                    glm::vec4 localPosition(v.position.toGlm(), 1.0f);
+                    glm::vec3 normal = v.normal.toGlm();
+                    glm::vec3 tangent = v.tangent.toGlm();
+                    glm::vec3 bitangent = v.bitangent.toGlm();
+                    if (skinned) {
+                        const glm::mat4 pose = mesh->posedTransform(v);
+                        const glm::mat3 linear(pose);
+                        localPosition = pose * localPosition;
+                        tangent = linear * tangent;
+                        bitangent = linear * bitangent;
+                        const float determinant = glm::determinant(linear);
+                        if (std::abs(determinant) > 1e-8f)
+                            normal = glm::transpose(glm::inverse(linear)) * normal;
+                    }
+                    const glm::vec3 worldPosition(object->model * localPosition);
+                    bounds.minimum = glm::min(bounds.minimum, worldPosition);
+                    bounds.maximum = glm::max(bounds.maximum, worldPosition);
+                    if (canCastCaustics) {
+                        bounds.causticMinimum =
+                            glm::min(bounds.causticMinimum, worldPosition);
+                        bounds.causticMaximum =
+                            glm::max(bounds.causticMaximum, worldPosition);
+                    }
+                    const size_t positionOffset = 3 * (chunkVertex + vertex);
+                    positions[positionOffset] = worldPosition.x;
+                    positions[positionOffset + 1] = worldPosition.y;
+                    positions[positionOffset + 2] = worldPosition.z;
+
+                    VertexData vd{};
+                    vd.position[0] = worldPosition.x;
+                    vd.position[1] = worldPosition.y;
+                    vd.position[2] = worldPosition.z;
+                    vd.normal[0] = normal.x;
+                    vd.normal[1] = normal.y;
+                    vd.normal[2] = normal.z;
+                    vd.uv[0] = v.textureCoordinate[0];
+                    vd.uv[1] = v.textureCoordinate[1];
+                    vd.tangent[0] = tangent.x;
+                    vd.tangent[1] = tangent.y;
+                    vd.tangent[2] = tangent.z;
+                    vd.bitangent[0] = bitangent.x;
+                    vd.bitangent[1] = bitangent.y;
+                    vd.bitangent[2] = bitangent.z;
+                    std::memcpy(vd.normalAndPbrUvOffset,
+                                glm::value_ptr(v.normalAndPbrUvOffset),
+                                sizeof(vd.normalAndPbrUvOffset));
+                    std::memcpy(vd.aoUvOffset, glm::value_ptr(v.aoUvOffset),
+                                sizeof(vd.aoUvOffset));
+                    allVertices[offset.vertex + vertex] = vd;
+                }
+                for (size_t i = 0; i < objectIndices.size(); ++i) {
+                    const auto index = objectIndices[i];
+                    allIndices[offset.index + i] =
+                        static_cast<uint32_t>(offset.vertex + index);
+                    indices[chunkIndex + i] =
+                        static_cast<uint32_t>(chunkVertex + index);
+                }
+                std::fill_n(primitiveObjects.begin() + offset.index / 3,
+                            objectIndices.size() / 3,
+                            static_cast<uint32_t>(objectIndex));
+            }
         };
+        atlas::detail::Workers::shared().parallelFor(chunkCount, 1, packChunk);
+
+        for (const auto &bounds : chunkBounds) {
+            sceneMinimum = glm::min(sceneMinimum, bounds.minimum);
+            sceneMaximum = glm::max(sceneMaximum, bounds.maximum);
+            if (bounds.hasCaustics) {
+                causticGeometryPresent = true;
+                causticMinimum = glm::min(causticMinimum, bounds.causticMinimum);
+                causticMaximum = glm::max(causticMaximum, bounds.causticMaximum);
+            }
+        }
 
         for (auto *object : traceableObjects) {
-            const auto &objectVertices = object->vertices;
             const auto &objectIndices = object->indices;
             const size_t objectPrimitiveCount = objectIndices.size() / 3;
-
-            if (!accelerationIndices.empty() &&
-                accelerationIndices.size() / 3 + objectPrimitiveCount >
-                    kPathTracerMaxPrimitivesPerGeometry &&
-                !flushAccelerationChunk()) {
-                lastError =
-                    "Failed to allocate a scene acceleration structure chunk";
-                sceneBLAS.reset();
-                accelerationBuildFailed = true;
-                return false;
-            }
-
-            const uint32_t vertexOffset =
-                static_cast<uint32_t>(allVertices.size());
-            const uint32_t accelerationVertexOffset =
-                static_cast<uint32_t>(accelerationPositions.size() / 3);
-
-            const auto *mesh = dynamic_cast<const ModelMesh *>(object);
-            const bool skinned =
-                mesh != nullptr && !mesh->getJointMatrices().empty();
-            for (const auto &v : objectVertices) {
-                glm::vec4 localPosition(v.position.toGlm(), 1.0f);
-                glm::vec3 normal = v.normal.toGlm();
-                glm::vec3 tangent = v.tangent.toGlm();
-                glm::vec3 bitangent = v.bitangent.toGlm();
-                if (skinned) {
-                    const glm::mat4 pose = mesh->posedTransform(v);
-                    const glm::mat3 linear(pose);
-                    localPosition = pose * localPosition;
-                    tangent = linear * tangent;
-                    bitangent = linear * bitangent;
-                    const float determinant = glm::determinant(linear);
-                    if (std::abs(determinant) > 1e-8f)
-                        normal = glm::transpose(glm::inverse(linear)) * normal;
-                }
-                const glm::vec4 worldPosition = object->model * localPosition;
-                sceneMinimum = glm::min(sceneMinimum, glm::vec3(worldPosition));
-                sceneMaximum = glm::max(sceneMaximum, glm::vec3(worldPosition));
-                if (object->material.roughness < 0.25f &&
-                    (object->material.transmittance > 0.001f ||
-                     object->material.metallic > 0.001f)) {
-                    causticGeometryPresent = true;
-                    causticMinimum =
-                        glm::min(causticMinimum, glm::vec3(worldPosition));
-                    causticMaximum =
-                        glm::max(causticMaximum, glm::vec3(worldPosition));
-                }
-                accelerationPositions.push_back(worldPosition.x);
-                accelerationPositions.push_back(worldPosition.y);
-                accelerationPositions.push_back(worldPosition.z);
-
-                VertexData vd{};
-                vd.position[0] = worldPosition.x;
-                vd.position[1] = worldPosition.y;
-                vd.position[2] = worldPosition.z;
-                vd.normal[0] = normal.x;
-                vd.normal[1] = normal.y;
-                vd.normal[2] = normal.z;
-                vd.uv[0] = v.textureCoordinate[0];
-                vd.uv[1] = v.textureCoordinate[1];
-                vd.tangent[0] = tangent.x;
-                vd.tangent[1] = tangent.y;
-                vd.tangent[2] = tangent.z;
-                vd.bitangent[0] = bitangent.x;
-                vd.bitangent[1] = bitangent.y;
-                vd.bitangent[2] = bitangent.z;
-                std::memcpy(vd.normalAndPbrUvOffset,
-                            glm::value_ptr(v.normalAndPbrUvOffset),
-                            sizeof(vd.normalAndPbrUvOffset));
-                std::memcpy(vd.aoUvOffset, glm::value_ptr(v.aoUvOffset),
-                            sizeof(vd.aoUvOffset));
-                allVertices.push_back(vd);
-            }
-
-            for (auto index : objectIndices) {
-                const uint32_t globalIndex = vertexOffset + index;
-                allIndices.push_back(globalIndex);
-                accelerationIndices.push_back(accelerationVertexOffset + index);
-            }
-            for (size_t primitive = 0; primitive < objectIndices.size() / 3;
-                 ++primitive) {
-                primitiveObjects.push_back(static_cast<uint32_t>(objectID));
-            }
+            const auto vertexOffset = static_cast<uint32_t>(offsets[objectID].vertex);
 
             MaterialData data{};
             data.albedo[0] = object->material.albedo.r;
@@ -934,6 +965,7 @@ bool photon::PathTracing::buildAccelerationStructure(
             data.subsurfaceRadius[2] = object->material.subsurfaceRadius.b;
             data._pad6 = 0.0f;
             materialData.push_back(data);
+            sceneHasVolumes |= data.isVolume != 0;
 
             const glm::vec3 emission =
                 glm::vec3(data.emissiveColor[0], data.emissiveColor[1],
@@ -1013,14 +1045,6 @@ bool photon::PathTracing::buildAccelerationStructure(
             emissiveTriangleData.push_back({});
         }
 
-        if (!flushAccelerationChunk()) {
-            lastError =
-                "Failed to allocate a scene acceleration structure chunk";
-            sceneBLAS.reset();
-            accelerationBuildFailed = true;
-            return false;
-        }
-
         if (primitiveObjects.empty() ||
             primitiveObjects.size() != allIndices.size() / 3) {
             lastError = "Path tracing triangle metadata is inconsistent";
@@ -1050,7 +1074,7 @@ bool photon::PathTracing::buildAccelerationStructure(
 
         globalVertices = opal::Buffer::create(
             opal::BufferUsage::ShaderRead,
-            allVertices.size() * sizeof(VertexData), allVertices.data());
+            totalVertexCount * sizeof(VertexData), allVertices.get());
 
         globalIndices = opal::Buffer::create(
             opal::BufferUsage::ShaderRead, allIndices.size() * sizeof(uint32_t),
@@ -1535,9 +1559,6 @@ bool photon::PathTracing::render(
     pathTracingPipeline->setUniform1f(
         "sceneData.indirectStrength",
         (featureFlags & IndirectLighting) != 0 ? this->indirectStrength : 0.0f);
-    pathTracingPipeline->setUniform1i("sceneData.featureFlags",
-                                      static_cast<int>(featureFlags));
-
     const std::string previousError = lastError;
     try {
         if (!this->buildAccelerationStructure(commandBuffer)) {
@@ -1557,6 +1578,10 @@ bool photon::PathTracing::render(
         globalIndices == nullptr || emissiveTriangles == nullptr) {
         return fail("Required scene buffers are unavailable");
     }
+    const auto activeFeatures =
+        sceneHasVolumes ? featureFlags : featureFlags & ~Volumes;
+    pathTracingPipeline->setUniform1i("sceneData.featureFlags",
+                                      static_cast<int>(activeFeatures));
     try {
         if (this->createLightBuffers()) {
             causticMapDirty = true;
@@ -1795,7 +1820,7 @@ bool photon::PathTracing::render(
                 : 0);
         pipeline->setUniform1i("sceneData.maxBounces", maxBounces);
         pipeline->setUniform1i("sceneData.featureFlags",
-                               static_cast<int>(featureFlags));
+                               static_cast<int>(activeFeatures));
         pipeline->setUniform3f(
             "dirLight.direction", directionalLightDirection.x,
             directionalLightDirection.y, directionalLightDirection.z);
@@ -1849,12 +1874,12 @@ bool photon::PathTracing::render(
     }
     pathTracingPipeline->bindBuffer("photonBeams", photonBeams, 18);
     if (spotLightCount > 0 && (featureFlags & Caustics) != 0 &&
-        (featureFlags & Volumes) != 0 && lightBeamPipeline != nullptr) {
+        (activeFeatures & Volumes) != 0 && lightBeamPipeline != nullptr) {
         auto &pipeline = lightBeamPipeline;
         pipeline->setUniform1i("sceneData.numSpotLights", spotLightCount);
         pipeline->setUniform1i("sceneData.beamSegmentLimit", maxBounces);
         pipeline->setUniform1i("sceneData.maxBounces", maxBounces);
-        pipeline->setUniform1i("sceneData.featureFlags", static_cast<int>(featureFlags));
+        pipeline->setUniform1i("sceneData.featureFlags", static_cast<int>(activeFeatures));
         pipeline->setUniform1i("sceneData.materialTextureCount",
             (featureFlags & MaterialTextures) != 0
                 ? std::min<int>(materialTextures.size(), kPathTracerMaxMaterialTextures) : 0);

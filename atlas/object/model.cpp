@@ -11,6 +11,7 @@
 #include <assimp/scene.h>
 #include "assimp/matrix4x4.h"
 #include "atlas/animation.h"
+#include "atlas/core/workers.h"
 #include "atlas/object.h"
 #include "atlas/texture.h"
 #include "atlas/tracer/data.h"
@@ -27,6 +28,7 @@
 #include <assimp/ProgressHandler.hpp>
 #include <assimp/postprocess.h>
 #include <algorithm>
+#include <atomic>
 #include <chrono>
 #include <cctype>
 #include <cmath>
@@ -330,12 +332,8 @@ struct ModelTextureJob {
     TextureType textureType = TextureType::Color;
     ResourceType resourceType = ResourceType::Image;
     int maximumDimension = 0;
-    std::vector<unsigned char> sourceBytes;
-    std::vector<unsigned char> aoBytes;
-    int sourceWidth = 0;
-    int sourceHeight = 0;
-    int aoWidth = 0;
-    int aoHeight = 0;
+    const aiTexture *source = nullptr;
+    const aiTexture *ambientOcclusion = nullptr;
 };
 
 struct DecodedModelTexture {
@@ -378,11 +376,17 @@ uint64_t modelTextureCacheKey(const ModelTextureJob &job) {
     };
     appendPath(job.fullPath);
     appendPath(job.aoPath);
-    if (!job.sourceBytes.empty()) {
-        append(job.sourceBytes.data(), job.sourceBytes.size());
-    }
-    if (!job.aoBytes.empty()) {
-        append(job.aoBytes.data(), job.aoBytes.size());
+    for (const auto *texture : {job.source, job.ambientOcclusion}) {
+        if (texture == nullptr || texture->pcData == nullptr)
+            continue;
+        if (texture->mHeight == 0) {
+            append(texture->pcData, texture->mWidth);
+        } else {
+            append(&texture->mWidth, sizeof(texture->mWidth));
+            append(&texture->mHeight, sizeof(texture->mHeight));
+            append(texture->pcData, static_cast<size_t>(texture->mWidth) *
+                                        texture->mHeight * sizeof(aiTexel));
+        }
     }
     append(&job.maximumDimension, sizeof(job.maximumDimension));
     append(&job.textureType, sizeof(job.textureType));
@@ -400,8 +404,8 @@ std::filesystem::path modelTextureCachePath(const ModelTextureJob &job) {
 }
 
 std::optional<DecodedModelTexture>
-loadDecodedTextureCache(const ModelTextureJob &job) {
-    const std::filesystem::path path = modelTextureCachePath(job);
+loadDecodedTextureCache(const ModelTextureJob &job,
+                        const std::filesystem::path &path) {
     if (path.empty()) {
         return std::nullopt;
     }
@@ -450,13 +454,9 @@ loadDecodedTextureCache(const ModelTextureJob &job) {
     return decoded;
 }
 
-void storeDecodedTextureCache(const ModelTextureJob &job,
+void storeDecodedTextureCache(const std::filesystem::path &path,
                               const DecodedModelTexture &decoded) {
-    if (decoded.pixels.empty()) {
-        return;
-    }
-    const std::filesystem::path path = modelTextureCachePath(job);
-    if (path.empty()) {
+    if (decoded.pixels.empty() || path.empty()) {
         return;
     }
     std::error_code error;
@@ -464,7 +464,13 @@ void storeDecodedTextureCache(const ModelTextureJob &job,
     if (error) {
         return;
     }
-    std::ofstream output(path, std::ios::binary | std::ios::trunc);
+    static std::atomic_uint64_t nextTemporaryId{0};
+    const auto stamp =
+        std::chrono::steady_clock::now().time_since_epoch().count();
+    const auto id = nextTemporaryId.fetch_add(1, std::memory_order_relaxed);
+    auto temporary = path;
+    temporary += "." + std::to_string(stamp) + "." + std::to_string(id) + ".tmp";
+    std::ofstream output(temporary, std::ios::binary | std::ios::trunc);
     if (!output) {
         return;
     }
@@ -480,6 +486,11 @@ void storeDecodedTextureCache(const ModelTextureJob &job,
         output.write(reinterpret_cast<const char *>(decoded.ao.data()),
                      static_cast<std::streamsize>(decoded.ao.size()));
     }
+    output.close();
+    if (output)
+        std::filesystem::rename(temporary, path, error);
+    if (!output || error)
+        std::filesystem::remove(temporary, error);
 }
 
 std::vector<unsigned char> resizeModelTexture(const unsigned char *source,
@@ -530,7 +541,8 @@ std::vector<unsigned char> resizeModelTexture(const unsigned char *source,
 }
 
 DecodedModelTexture decodeModelTexture(const ModelTextureJob &job) {
-    if (auto cached = loadDecodedTextureCache(job)) {
+    const auto cachePath = modelTextureCachePath(job);
+    if (auto cached = loadDecodedTextureCache(job, cachePath)) {
         return std::move(*cached);
     }
     stbi_set_flip_vertically_on_load_thread(false);
@@ -540,18 +552,26 @@ DecodedModelTexture decodeModelTexture(const ModelTextureJob &job) {
     std::unique_ptr<unsigned char, decltype(&stbi_image_free)> source(
         nullptr, stbi_image_free);
     const unsigned char *sourcePixels = nullptr;
-    if (job.sourceWidth > 0 && job.sourceHeight > 0) {
-        width = job.sourceWidth;
-        height = job.sourceHeight;
-        channels = 4;
-        sourcePixels = job.sourceBytes.data();
+    std::vector<unsigned char> rawSource;
+    if (job.source != nullptr && job.source->mHeight > 0) {
+        width = static_cast<int>(job.source->mWidth);
+        height = static_cast<int>(job.source->mHeight);
+        rawSource.resize(static_cast<size_t>(width) * height * 4);
+        for (size_t i = 0; i < rawSource.size() / 4; ++i) {
+            const auto &pixel = job.source->pcData[i];
+            rawSource[i * 4 + 0] = pixel.r;
+            rawSource[i * 4 + 1] = pixel.g;
+            rawSource[i * 4 + 2] = pixel.b;
+            rawSource[i * 4 + 3] = pixel.a;
+        }
+        sourcePixels = rawSource.data();
     } else {
-        source.reset(job.sourceBytes.empty()
+        source.reset(job.source == nullptr
                          ? stbi_load(job.fullPath.c_str(), &width, &height,
                                      &channels, STBI_rgb_alpha)
                          : stbi_load_from_memory(
-                               job.sourceBytes.data(),
-                               static_cast<int>(job.sourceBytes.size()), &width,
+                               reinterpret_cast<const unsigned char *>(job.source->pcData),
+                               static_cast<int>(job.source->mWidth), &width,
                                &height, &channels, STBI_rgb_alpha));
         sourcePixels = source.get();
     }
@@ -579,28 +599,30 @@ DecodedModelTexture decodeModelTexture(const ModelTextureJob &job) {
     }
 
     if (!job.aoPath.empty()) {
-        int aoWidth = job.aoWidth;
-        int aoHeight = job.aoHeight;
+        int aoWidth = 0;
+        int aoHeight = 0;
         int aoChannels = 0;
         std::unique_ptr<unsigned char, decltype(&stbi_image_free)> aoSource(
             nullptr, stbi_image_free);
         const unsigned char *aoPixels = nullptr;
         std::vector<unsigned char> rawAo;
-        if (aoWidth > 0 && aoHeight > 0) {
-            rawAo.resize(static_cast<std::size_t>(aoWidth) * aoHeight);
-            for (std::size_t pixel = 0; pixel < rawAo.size(); ++pixel) {
-                rawAo[pixel] = job.aoBytes[pixel * 4];
-            }
+        const auto *embedded = job.ambientOcclusion;
+        if (embedded != nullptr && embedded->mHeight > 0) {
+            aoWidth = static_cast<int>(embedded->mWidth);
+            aoHeight = static_cast<int>(embedded->mHeight);
+            rawAo.resize(static_cast<size_t>(aoWidth) * aoHeight);
+            for (size_t i = 0; i < rawAo.size(); ++i)
+                rawAo[i] = embedded->pcData[i].b;
             aoPixels = rawAo.data();
         } else {
-            aoSource.reset(job.aoBytes.empty()
-                               ? stbi_load(job.aoPath.c_str(), &aoWidth,
-                                           &aoHeight, &aoChannels, STBI_grey)
-                               : stbi_load_from_memory(
-                                     job.aoBytes.data(),
-                                     static_cast<int>(job.aoBytes.size()),
-                                     &aoWidth, &aoHeight, &aoChannels,
-                                     STBI_grey));
+            aoSource.reset(
+                embedded == nullptr
+                    ? stbi_load(job.aoPath.c_str(), &aoWidth, &aoHeight,
+                                &aoChannels, STBI_grey)
+                    : stbi_load_from_memory(
+                          reinterpret_cast<const unsigned char *>(embedded->pcData),
+                          static_cast<int>(embedded->mWidth), &aoWidth, &aoHeight,
+                          &aoChannels, STBI_grey));
             aoPixels = aoSource.get();
         }
         if (aoPixels != nullptr && aoWidth > 0 && aoHeight > 0) {
@@ -614,7 +636,7 @@ DecodedModelTexture decodeModelTexture(const ModelTextureJob &job) {
             }
         }
     }
-    storeDecodedTextureCache(job, decoded);
+    storeDecodedTextureCache(cachePath, decoded);
     return decoded;
 }
 
@@ -928,6 +950,227 @@ ImportedSkin importSkin(const aiMesh *mesh,
     return result;
 }
 
+struct ModelMeshInput {
+    const aiMesh *mesh;
+    glm::mat4 transform;
+    atlas::animation::NodeIndex nodeIndex;
+};
+
+struct PreparedModelMesh {
+    Skin skin;
+    glm::mat4 inverseMeshTransform{1.0f};
+    std::vector<CoreVertex> vertices;
+    std::vector<Index> indices;
+};
+
+void collectModelMeshes(const aiNode &node, const aiScene &scene,
+                        const glm::mat4 &parentTransform,
+                        atlas::animation::NodeIndex &nextNode,
+                        std::vector<ModelMeshInput> &meshes) {
+    const glm::mat4 transform =
+        parentTransform * assimpToGlmMatrix(node.mTransformation);
+    const auto nodeIndex = nextNode++;
+    for (unsigned int i = 0; i < node.mNumMeshes; ++i)
+        meshes.push_back({scene.mMeshes[node.mMeshes[i]], transform, nodeIndex});
+    for (unsigned int i = 0; i < node.mNumChildren; ++i)
+        collectModelMeshes(*node.mChildren[i], scene, transform, nextNode, meshes);
+}
+
+std::optional<PreparedModelMesh> prepareModelMesh(
+    const ModelMeshInput &input, const aiScene &scene,
+    const std::unordered_map<std::string, atlas::animation::NodeIndex> *nodes,
+    bool usesGltfTextureCoordinates, bool parallelVertices = false) {
+    const auto *mesh = input.mesh;
+    const auto &transform = input.transform;
+    ImportedSkin importedSkin;
+    if (nodes) {
+        importedSkin = importSkin(mesh, *nodes);
+        const auto rigidJoint = static_cast<unsigned int>(importedSkin.skin.joints.size());
+        bool usesRigidJoint = false;
+        for (auto &vertex : importedSkin.vertices) {
+            if (vertex.weights.x == 0.0f) {
+                vertex.joints.x = rigidJoint;
+                vertex.weights.x = 1.0f;
+                usesRigidJoint = true;
+            }
+        }
+        if (usesRigidJoint)
+            importedSkin.skin.joints.push_back({input.nodeIndex, glm::mat4(1.0f)});
+        if (importedSkin.skin.joints.size() > ModelMesh::MaxJoints)
+            throw std::runtime_error("Model mesh exceeds the 256 joint palette limit");
+    }
+    PreparedModelMesh prepared;
+    prepared.skin = std::move(importedSkin.skin);
+    const auto &vertexSkin = importedSkin.vertices;
+    auto &vertices = prepared.vertices;
+    auto &indices = prepared.indices;
+    const glm::mat3 linearTransform(transform);
+    const float determinant = glm::determinant(linearTransform);
+    if (!prepared.skin.joints.empty()) {
+        if (determinant == 0.0f || !std::isfinite(determinant))
+            throw std::runtime_error("Animated mesh has a singular bind transform");
+        prepared.inverseMeshTransform = glm::inverse(transform);
+    }
+    const bool reflected = determinant < 0.0f;
+    const glm::mat3 normalTransform =
+        determinant != 0.0f && std::isfinite(determinant)
+            ? glm::transpose(glm::inverse(linearTransform))
+            : glm::mat3(0.0f);
+
+    indices.reserve(static_cast<size_t>(mesh->mNumFaces) * 3);
+    for (unsigned int i = 0; i < mesh->mNumFaces; ++i) {
+        const auto &face = mesh->mFaces[i];
+        if (face.mNumIndices != 3)
+            continue;
+        const unsigned int a = face.mIndices[0];
+        const unsigned int b = face.mIndices[1];
+        const unsigned int c = face.mIndices[2];
+        if (a >= mesh->mNumVertices || b >= mesh->mNumVertices ||
+            c >= mesh->mNumVertices)
+            continue;
+        indices.push_back(a);
+        indices.push_back(reflected ? c : b);
+        indices.push_back(reflected ? b : c);
+    }
+    if (indices.empty())
+        return std::nullopt;
+
+    GltfTextureCoordinates colorCoordinates;
+    GltfTextureCoordinates normalCoordinates;
+    GltfTextureCoordinates pbrCoordinates;
+    GltfTextureCoordinates aoCoordinates;
+    bool needsNormalTangents = false;
+    if (usesGltfTextureCoordinates &&
+        mesh->mMaterialIndex < scene.mNumMaterials) {
+        const auto &material = *scene.mMaterials[mesh->mMaterialIndex];
+        const auto colorType = material.GetTextureCount(aiTextureType_BASE_COLOR)
+                                   ? aiTextureType_BASE_COLOR
+                                   : aiTextureType_DIFFUSE;
+        colorCoordinates = gltfTextureCoordinates(material, colorType);
+        normalCoordinates =
+            gltfTextureCoordinates(material, aiTextureType_NORMALS);
+        needsNormalTangents =
+            material.GetTextureCount(aiTextureType_NORMALS) > 0 &&
+            (normalCoordinates.channel != 0 || normalCoordinates.sine != 0.0f ||
+             normalCoordinates.scale.x * normalCoordinates.cosine < 0.0f ||
+             normalCoordinates.scale.y * normalCoordinates.cosine < 0.0f);
+        pbrCoordinates = gltfTextureCoordinates(
+            material, aiTextureType_GLTF_METALLIC_ROUGHNESS);
+        aoCoordinates = gltfTextureCoordinates(material, aiTextureType_LIGHTMAP);
+    }
+
+    vertices.resize(mesh->mNumVertices);
+    const auto convertVertex = [&](size_t i) {
+        glm::vec4 pos =
+            transform * glm::vec4(mesh->mVertices[i].x, mesh->mVertices[i].y,
+                                  mesh->mVertices[i].z, 1.0f);
+
+        CoreVertex vertex;
+        if (!vertexSkin.empty()) {
+            vertex.joints = vertexSkin[i].joints;
+            vertex.weights = vertexSkin[i].weights;
+        }
+        vertex.position = Position3d::fromGlm(glm::vec3(pos));
+
+        // ---------- Normals ----------
+        if (mesh->mNormals) {
+            glm::vec3 normal = normalTransform * glm::vec3(mesh->mNormals[i].x,
+                                                           mesh->mNormals[i].y,
+                                                           mesh->mNormals[i].z);
+            if (glm::length(normal) < 1e-6f) {
+                normal = glm::vec3(0.0f, 1.0f, 0.0f);
+            } else {
+                normal = glm::normalize(normal);
+            }
+            vertex.normal = Normal3d::fromGlm(normal);
+        } else {
+            vertex.normal = Normal3d::fromGlm(glm::vec3(0.0f, 1.0f, 0.0f));
+        }
+
+        // ---------- Tangents ----------
+        glm::vec3 normal = vertex.normal.toGlm();
+        glm::vec3 tangent(1.0f, 0.0f, 0.0f);
+        if (mesh->mTangents) {
+            tangent = linearTransform * glm::vec3(mesh->mTangents[i].x,
+                                                  mesh->mTangents[i].y,
+                                                  mesh->mTangents[i].z);
+        }
+        tangent = tangent - normal * glm::dot(normal, tangent);
+        if (glm::length(tangent) < 1e-6f) {
+            glm::vec3 up = std::abs(normal.y) < 0.999f
+                               ? glm::vec3(0.0f, 1.0f, 0.0f)
+                               : glm::vec3(1.0f, 0.0f, 0.0f);
+            tangent = glm::cross(up, normal);
+        }
+        tangent = glm::normalize(tangent);
+
+        glm::vec3 bitangent(0.0f, 0.0f, 1.0f);
+        if (mesh->mBitangents) {
+            bitangent = linearTransform * glm::vec3(mesh->mBitangents[i].x,
+                                                    mesh->mBitangents[i].y,
+                                                    mesh->mBitangents[i].z);
+        } else {
+            bitangent = glm::cross(normal, tangent);
+        }
+        bitangent = bitangent - normal * glm::dot(normal, bitangent);
+        if (glm::length(bitangent) < 1e-6f ||
+            glm::length(glm::cross(tangent, bitangent)) < 1e-6f) {
+            bitangent = glm::cross(normal, tangent);
+        }
+        const glm::vec3 orthogonalBitangent = glm::cross(normal, tangent);
+        bitangent = glm::dot(orthogonalBitangent, bitangent) < 0.0f
+                        ? -orthogonalBitangent
+                        : orthogonalBitangent;
+
+        vertex.tangent = Normal3d::fromGlm(tangent);
+        vertex.bitangent = Normal3d::fromGlm(bitangent);
+
+        // ---------- Texture Coordinates ----------
+        if (usesGltfTextureCoordinates) {
+            const glm::vec2 colorUv = colorCoordinates.at(*mesh, i);
+            vertex.textureCoordinate = {colorUv.x, colorUv.y};
+            vertex.normalAndPbrUvOffset = {
+                normalCoordinates.at(*mesh, i) - colorUv,
+                pbrCoordinates.at(*mesh, i) - colorUv};
+            vertex.aoUvOffset = aoCoordinates.at(*mesh, i) - colorUv;
+        } else if (mesh->mTextureCoords[0]) {
+            glm::vec2 uv = glm::vec2(mesh->mTextureCoords[0][i].x,
+                                     mesh->mTextureCoords[0][i].y);
+            if (glm::all(glm::isnan(uv)) || glm::any(glm::isinf(uv)))
+                uv = glm::vec2(0.0f, 0.0f);
+            vertex.textureCoordinate = TextureCoordinate{uv.x, uv.y};
+        } else {
+            vertex.textureCoordinate = TextureCoordinate{0.0f, 0.0f};
+        }
+
+        // ---------- Vertex Color ----------
+        if (mesh->mColors[0]) {
+            glm::vec4 col =
+                glm::vec4(mesh->mColors[0][i].r, mesh->mColors[0][i].g,
+                          mesh->mColors[0][i].b, mesh->mColors[0][i].a);
+            if (glm::all(glm::isnan(col)) || glm::any(glm::isinf(col)))
+                col = glm::vec4(1.0f);
+            vertex.color = Color{col.r, col.g, col.b, col.a};
+        } else {
+            vertex.color = Color{1.0f, 1.0f, 1.0f, 1.0f};
+        }
+
+        vertices[i] = vertex;
+    };
+    if (parallelVertices) {
+        atlas::detail::Workers::shared().parallelFor(vertices.size(), 8192,
+                                                    convertVertex);
+    } else {
+        for (size_t i = 0; i < vertices.size(); ++i)
+            convertVertex(i);
+    }
+
+    if (needsNormalTangents)
+        updateModelTangents(vertices, indices);
+
+    return prepared;
+}
+
 } // namespace
 
 void Model::fromResource(const Resource &resource, bool loadAnimations) {
@@ -1045,15 +1288,12 @@ void Model::loadModel(
         return;
     }
     directory = resource.path.parent_path().string();
-    importProgress = progress;
-    importedMeshCount = 0;
-    totalMeshCount = scene->mNumMeshes;
     if (progress)
         progress(0.88f, "Loading meshes and materials");
     // Texture cache to avoid loading the same texture multiple times
     std::unordered_map<std::string, Texture> textureCache;
 
-    preloadMaterialTextures(scene, textureCache);
+    preloadMaterialTextures(scene, textureCache, progress);
 
     loadAnimations = loadAnimations &&
                      (!embeddedAnimationsOnly || scene->HasAnimations());
@@ -1072,16 +1312,53 @@ void Model::loadModel(
         }
     }
 
+    std::vector<ModelMeshInput> meshes;
     atlas::animation::NodeIndex nextNode = 0;
-    processNode(scene->mRootNode, scene, glm::mat4(1.0f),
-                loadAnimations ? &imported.nodeByName : nullptr, nextNode, textureCache);
-
-    for (const auto &object : objects)
-        static_cast<ModelMesh &>(*object).updateSkin(animator.getGlobalPose());
+    collectModelMeshes(*scene->mRootNode, *scene, glm::mat4(1.0f), nextNode,
+                       meshes);
+    const auto reportMeshes = [&](size_t completed) {
+        if (progress) {
+            const float fraction = static_cast<float>(completed) / meshes.size();
+            progress(0.96f + 0.03f * fraction, "Converting model meshes");
+        }
+    };
+    const auto *nodes = loadAnimations ? &imported.nodeByName : nullptr;
+    const bool usesGltf = usesGltfTextureCoordinates;
+    const auto consumeMesh = [&](size_t index,
+                                 std::optional<PreparedModelMesh> prepared) {
+        if (prepared) {
+            auto object = std::make_shared<ModelMesh>();
+            object->vertices = std::move(prepared->vertices);
+            object->indices = std::move(prepared->indices);
+            object->skin = std::move(prepared->skin);
+            object->inverseMeshTransform = prepared->inverseMeshTransform;
+            finishMesh(*object, *meshes[index].mesh, *scene, textureCache);
+            object->updateSkin(animator.getGlobalPose());
+            objects.push_back(std::move(object));
+        } else {
+            atlas_warning("Skipping mesh without valid triangles: " +
+                          std::string(meshes[index].mesh->mName.C_Str()));
+        }
+        reportMeshes(index + 1);
+    };
+    if (meshes.size() == 1) {
+        consumeMesh(0, prepareModelMesh(meshes.front(), *scene, nodes,
+                                        usesGltf, true));
+    } else {
+        auto &workers = atlas::detail::Workers::shared();
+        workers.process(
+            meshes.size(), workers.size(),
+            [&](size_t index) {
+                return prepareModelMesh(meshes[index], *scene, nodes, usesGltf);
+            },
+            [&](size_t index, std::future<std::optional<PreparedModelMesh>> ready) {
+                consumeMesh(index, ready.get());
+            },
+            progress ? std::function<void(size_t)>(reportMeshes) : nullptr);
+    }
 
     if (progress)
         progress(1.0f, "Finishing import");
-    importProgress = {};
 
     atlas_log("Model loaded successfully: " + resource.name + " (" +
               std::to_string(objects.size()) + " objects, " +
@@ -1115,7 +1392,8 @@ void Model::loadModel(
 
 void Model::preloadMaterialTextures(
     const aiScene *scene,
-    std::unordered_map<std::string, Texture> &textureCache) {
+    std::unordered_map<std::string, Texture> &textureCache,
+    const std::function<void(float, const std::string &)> &progress) {
     std::vector<ModelTextureJob> jobs;
     std::unordered_set<std::string> scheduled;
 
@@ -1130,66 +1408,22 @@ void Model::preloadMaterialTextures(
             }
             const std::string filename = path.C_Str();
             const std::string fullPath = directory + "/" + filename;
-            std::vector<unsigned char> sourceBytes;
-            int sourceWidth = 0;
-            int sourceHeight = 0;
-            if (const aiTexture *embedded =
-                    scene->GetEmbeddedTexture(filename.c_str());
-                embedded != nullptr) {
-                const auto *bytes =
-                    reinterpret_cast<const unsigned char *>(embedded->pcData);
-                if (embedded->mHeight == 0) {
-                    sourceBytes.assign(bytes, bytes + embedded->mWidth);
-                } else {
-                    sourceWidth = static_cast<int>(embedded->mWidth);
-                    sourceHeight = static_cast<int>(embedded->mHeight);
-                    sourceBytes.resize(static_cast<std::size_t>(sourceWidth) *
-                                       sourceHeight * 4);
-                    for (std::size_t pixel = 0;
-                         pixel <
-                         static_cast<std::size_t>(sourceWidth) * sourceHeight;
-                         ++pixel) {
-                        sourceBytes[pixel * 4] = embedded->pcData[pixel].r;
-                        sourceBytes[pixel * 4 + 1] = embedded->pcData[pixel].g;
-                        sourceBytes[pixel * 4 + 2] = embedded->pcData[pixel].b;
-                        sourceBytes[pixel * 4 + 3] = embedded->pcData[pixel].a;
-                    }
-                }
-            }
             std::string aoPath;
-            std::vector<unsigned char> aoBytes;
-            int aoWidth = 0;
-            int aoHeight = 0;
+            aiString aoTexturePath;
             std::string cacheKey = fullPath + "|" + typeName;
             if (textureType == TextureType::PBRPack &&
-                !usesGltfTextureCoordinates) {
-                aiString aoTexturePath;
-                if (material->GetTexture(aiTextureType_AMBIENT_OCCLUSION, 0,
-                                         &aoTexturePath) == AI_SUCCESS) {
-                    aoPath =
-                        directory + "/" + std::string(aoTexturePath.C_Str());
-                    if (const aiTexture *embedded =
-                            scene->GetEmbeddedTexture(aoTexturePath.C_Str());
-                        embedded != nullptr) {
-                        const auto *bytes =
-                            reinterpret_cast<const unsigned char *>(
-                                embedded->pcData);
-                        if (embedded->mHeight == 0) {
-                            aoBytes.assign(bytes, bytes + embedded->mWidth);
-                        } else {
-                            aoWidth = static_cast<int>(embedded->mWidth);
-                            aoHeight = static_cast<int>(embedded->mHeight);
-                            aoBytes.resize(static_cast<std::size_t>(aoWidth) *
-                                           aoHeight * 4);
-                            std::memcpy(aoBytes.data(), bytes, aoBytes.size());
-                        }
-                    }
-                    cacheKey += "|" + std::string(aoTexturePath.C_Str());
-                }
+                !usesGltfTextureCoordinates &&
+                material->GetTexture(aiTextureType_AMBIENT_OCCLUSION, 0,
+                                     &aoTexturePath) == AI_SUCCESS) {
+                aoPath = directory + "/" + aoTexturePath.C_Str();
+                cacheKey += "|" + std::string(aoTexturePath.C_Str());
             }
-            if (!scheduled.insert(cacheKey).second) {
+            if (!scheduled.insert(cacheKey).second)
                 continue;
-            }
+
+            const auto *ao = aoPath.empty()
+                                 ? nullptr
+                                 : scene->GetEmbeddedTexture(aoTexturePath.C_Str());
             jobs.push_back(
                 ModelTextureJob{.cacheKey = std::move(cacheKey),
                                 .fullPath = fullPath,
@@ -1199,12 +1433,8 @@ void Model::preloadMaterialTextures(
                                 .resourceType = typeName == "texture_specular"
                                                     ? ResourceType::SpecularMap
                                                     : ResourceType::Image,
-                                .sourceBytes = std::move(sourceBytes),
-                                .aoBytes = std::move(aoBytes),
-                                .sourceWidth = sourceWidth,
-                                .sourceHeight = sourceHeight,
-                                .aoWidth = aoWidth,
-                                .aoHeight = aoHeight});
+                                .source = scene->GetEmbeddedTexture(filename.c_str()),
+                                .ambientOcclusion = ao});
         }
     };
 
@@ -1257,288 +1487,38 @@ void Model::preloadMaterialTextures(
                       TextureType::Opacity);
     }
 
-    const size_t workerCount =
-        std::clamp<size_t>(std::thread::hardware_concurrency(), 2, 6);
     if (jobs.size() >= 48) {
-        for (auto &job : jobs) {
+        for (auto &job : jobs)
             job.maximumDimension = 2048;
-        }
     }
-    for (size_t batchStart = 0; batchStart < jobs.size();
-         batchStart += workerCount) {
-        const size_t batchEnd = std::min(jobs.size(), batchStart + workerCount);
-        std::vector<std::future<DecodedModelTexture>> futures;
-        futures.reserve(batchEnd - batchStart);
-        for (size_t index = batchStart; index < batchEnd; ++index) {
-            futures.push_back(
-                std::async(std::launch::async, [job = jobs[index]] {
-                    return decodeModelTexture(job);
-                }));
-        }
-        for (size_t index = batchStart; index < batchEnd; ++index) {
-            try {
-                while (futures[index - batchStart].wait_for(
-                           std::chrono::milliseconds(16)) !=
-                       std::future_status::ready) {
-                    if (importProgress && !jobs.empty()) {
-                        const float completed =
-                            static_cast<float>(index) / jobs.size();
-                        importProgress(0.88f + completed * 0.08f,
-                                       "Loading model textures");
-                    }
-                }
-                DecodedModelTexture decoded = futures[index - batchStart].get();
-                textureCache[jobs[index].cacheKey] =
-                    uploadModelTexture(jobs[index], std::move(decoded));
-            } catch (const std::exception &error) {
-                atlas_warning("Failed to preload texture '" +
-                              jobs[index].filename + "': " + error.what());
-            }
-            if (importProgress && !jobs.empty()) {
-                const float completed =
-                    static_cast<float>(index + 1) / jobs.size();
-                importProgress(0.88f + completed * 0.08f,
-                               "Loading model textures");
-            }
-        }
-    }
-}
-
-void Model::processNode(
-    aiNode *node, const aiScene *scene, glm::mat4 parentTransform,
-    const std::unordered_map<std::string, atlas::animation::NodeIndex> *nodes,
-    atlas::animation::NodeIndex &nextNode,
-    std::unordered_map<std::string, Texture> &textureCache) {
-    glm::mat4 nodeTransform =
-        parentTransform * assimpToGlmMatrix(node->mTransformation);
-
-    const auto nodeIndex = nextNode++;
-    for (unsigned int i = 0; i < node->mNumMeshes; i++) {
-        aiMesh *mesh = scene->mMeshes[node->mMeshes[i]];
-        ImportedSkin importedSkin;
-        if (nodes) {
-            importedSkin = importSkin(mesh, *nodes);
-            const auto rigidJoint = static_cast<unsigned int>(importedSkin.skin.joints.size());
-            bool usesRigidJoint = false;
-            for (auto &vertex : importedSkin.vertices) {
-                if (vertex.weights.x == 0.0f) {
-                    vertex.joints.x = rigidJoint;
-                    vertex.weights.x = 1.0f;
-                    usesRigidJoint = true;
-                }
-            }
-            if (usesRigidJoint)
-                importedSkin.skin.joints.push_back({nodeIndex, glm::mat4(1.0f)});
-            if (importedSkin.skin.joints.size() > ModelMesh::MaxJoints)
-                throw std::runtime_error("Model mesh exceeds the 256 joint palette limit");
-        }
-        auto object = processMesh(mesh, scene, nodeTransform,
-                                  std::move(importedSkin.skin),
-                                  importedSkin.vertices, textureCache);
-        if (object)
-            objects.push_back(std::make_shared<ModelMesh>(std::move(*object)));
-        importedMeshCount++;
-        if (importProgress && totalMeshCount > 0) {
-            const float completed = static_cast<float>(importedMeshCount) /
-                                    static_cast<float>(totalMeshCount);
-            importProgress(0.96f + completed * 0.03f,
-                           "Loading meshes and materials");
-        }
-    }
-
-    for (unsigned int i = 0; i < node->mNumChildren; i++) {
-        processNode(node->mChildren[i], scene, nodeTransform, nodes, nextNode, textureCache);
-    }
-}
-
-std::optional<ModelMesh>
-Model::processMesh(aiMesh *mesh, const aiScene *scene,
-                   const glm::mat4 &transform, Skin skin,
-                   const std::vector<VertexSkinData> &vertexSkin,
-                   std::unordered_map<std::string, Texture> &textureCache) {
-    ModelMesh object;
-    object.skin = std::move(skin);
-    const glm::mat3 linearTransform(transform);
-    const float determinant = glm::determinant(linearTransform);
-    if (!object.skin.joints.empty()) {
-        if (determinant == 0.0f || !std::isfinite(determinant))
-            throw std::runtime_error("Animated mesh has a singular bind transform");
-        object.inverseMeshTransform = glm::inverse(transform);
-    }
-    const bool reflected = determinant < 0.0f;
-    const glm::mat3 normalTransform =
-        determinant != 0.0f && std::isfinite(determinant)
-            ? glm::transpose(glm::inverse(linearTransform))
-            : glm::mat3(0.0f);
-
-    std::vector<unsigned int> indices;
-    indices.reserve(static_cast<size_t>(mesh->mNumFaces) * 3);
-    for (unsigned int i = 0; i < mesh->mNumFaces; ++i) {
-        const auto &face = mesh->mFaces[i];
-        if (face.mNumIndices != 3)
-            continue;
-        const unsigned int a = face.mIndices[0];
-        const unsigned int b = face.mIndices[1];
-        const unsigned int c = face.mIndices[2];
-        if (a >= mesh->mNumVertices || b >= mesh->mNumVertices ||
-            c >= mesh->mNumVertices)
-            continue;
-        indices.push_back(a);
-        indices.push_back(reflected ? c : b);
-        indices.push_back(reflected ? b : c);
-    }
-    if (indices.empty()) {
-        atlas_warning("Skipping mesh without valid triangles: " +
-                      std::string(mesh->mName.C_Str()));
-        return std::nullopt;
-    }
-
-    std::vector<CoreVertex> vertices;
-
-    GltfTextureCoordinates colorCoordinates;
-    GltfTextureCoordinates normalCoordinates;
-    GltfTextureCoordinates pbrCoordinates;
-    GltfTextureCoordinates aoCoordinates;
-    bool needsNormalTangents = false;
-    if (usesGltfTextureCoordinates &&
-        mesh->mMaterialIndex < scene->mNumMaterials) {
-        const auto &material = *scene->mMaterials[mesh->mMaterialIndex];
-        const auto colorType = material.GetTextureCount(aiTextureType_BASE_COLOR)
-                                   ? aiTextureType_BASE_COLOR
-                                   : aiTextureType_DIFFUSE;
-        colorCoordinates = gltfTextureCoordinates(material, colorType);
-        normalCoordinates =
-            gltfTextureCoordinates(material, aiTextureType_NORMALS);
-        needsNormalTangents =
-            material.GetTextureCount(aiTextureType_NORMALS) > 0 &&
-            (normalCoordinates.channel != 0 || normalCoordinates.sine != 0.0f ||
-             normalCoordinates.scale.x * normalCoordinates.cosine < 0.0f ||
-             normalCoordinates.scale.y * normalCoordinates.cosine < 0.0f);
-        pbrCoordinates = gltfTextureCoordinates(
-            material, aiTextureType_GLTF_METALLIC_ROUGHNESS);
-        aoCoordinates = gltfTextureCoordinates(material, aiTextureType_LIGHTMAP);
-    }
-
-    vertices.reserve(mesh->mNumVertices);
-    const auto reportMeshProgress = [this](float fraction,
-                                           const std::string &status) {
-        if (importProgress && totalMeshCount > 0) {
-            const float completed =
-                (static_cast<float>(importedMeshCount) + fraction) /
-                static_cast<float>(totalMeshCount);
-            importProgress(0.96f + completed * 0.03f, status);
-        }
+    const auto reportTextures = [&](size_t completed) {
+        if (progress)
+            progress(0.88f + 0.08f * static_cast<float>(completed) / jobs.size(),
+                     "Loading model textures");
     };
-
-    for (unsigned int i = 0; i < mesh->mNumVertices; i++) {
-        if (i % 16384 == 0)
-            reportMeshProgress(0.7f * static_cast<float>(i) /
-                                   mesh->mNumVertices,
-                               "Converting model vertices");
-        glm::vec4 pos =
-            transform * glm::vec4(mesh->mVertices[i].x, mesh->mVertices[i].y,
-                                  mesh->mVertices[i].z, 1.0f);
-
-        CoreVertex vertex;
-        if (!vertexSkin.empty()) {
-            vertex.joints = vertexSkin[i].joints;
-            vertex.weights = vertexSkin[i].weights;
-        }
-        vertex.position = Position3d::fromGlm(glm::vec3(pos));
-
-        // ---------- Normals ----------
-        if (mesh->mNormals) {
-            glm::vec3 normal = normalTransform * glm::vec3(mesh->mNormals[i].x,
-                                                           mesh->mNormals[i].y,
-                                                           mesh->mNormals[i].z);
-            if (glm::length(normal) < 1e-6f) {
-                normal = glm::vec3(0.0f, 1.0f, 0.0f);
-            } else {
-                normal = glm::normalize(normal);
+    auto &workers = atlas::detail::Workers::shared();
+    workers.process(
+        jobs.size(), std::min(workers.size(), size_t{6}),
+        [&](size_t index) { return decodeModelTexture(jobs[index]); },
+        [&](size_t index, std::future<DecodedModelTexture> ready) {
+            const auto &job = jobs[index];
+            try {
+                textureCache[job.cacheKey] = uploadModelTexture(job, ready.get());
+            } catch (const std::exception &error) {
+                atlas_warning("Failed to preload texture '" + job.filename +
+                              "': " + error.what());
             }
-            vertex.normal = Normal3d::fromGlm(normal);
-        } else {
-            vertex.normal = Normal3d::fromGlm(glm::vec3(0.0f, 1.0f, 0.0f));
-        }
+            reportTextures(index + 1);
+        },
+        progress ? std::function<void(size_t)>(reportTextures) : nullptr);
+}
 
-        // ---------- Tangents ----------
-        glm::vec3 normal = vertex.normal.toGlm();
-        glm::vec3 tangent(1.0f, 0.0f, 0.0f);
-        if (mesh->mTangents) {
-            tangent = linearTransform * glm::vec3(mesh->mTangents[i].x,
-                                                  mesh->mTangents[i].y,
-                                                  mesh->mTangents[i].z);
-        }
-        tangent = tangent - normal * glm::dot(normal, tangent);
-        if (glm::length(tangent) < 1e-6f) {
-            glm::vec3 up = std::abs(normal.y) < 0.999f
-                               ? glm::vec3(0.0f, 1.0f, 0.0f)
-                               : glm::vec3(1.0f, 0.0f, 0.0f);
-            tangent = glm::cross(up, normal);
-        }
-        tangent = glm::normalize(tangent);
-
-        glm::vec3 bitangent(0.0f, 0.0f, 1.0f);
-        if (mesh->mBitangents) {
-            bitangent = linearTransform * glm::vec3(mesh->mBitangents[i].x,
-                                                    mesh->mBitangents[i].y,
-                                                    mesh->mBitangents[i].z);
-        } else {
-            bitangent = glm::cross(normal, tangent);
-        }
-        bitangent = bitangent - normal * glm::dot(normal, bitangent);
-        if (glm::length(bitangent) < 1e-6f ||
-            glm::length(glm::cross(tangent, bitangent)) < 1e-6f) {
-            bitangent = glm::cross(normal, tangent);
-        }
-        const glm::vec3 orthogonalBitangent = glm::cross(normal, tangent);
-        bitangent = glm::dot(orthogonalBitangent, bitangent) < 0.0f
-                        ? -orthogonalBitangent
-                        : orthogonalBitangent;
-
-        vertex.tangent = Normal3d::fromGlm(tangent);
-        vertex.bitangent = Normal3d::fromGlm(bitangent);
-
-        // ---------- Texture Coordinates ----------
-        if (usesGltfTextureCoordinates) {
-            const glm::vec2 colorUv = colorCoordinates.at(*mesh, i);
-            vertex.textureCoordinate = {colorUv.x, colorUv.y};
-            vertex.normalAndPbrUvOffset = {
-                normalCoordinates.at(*mesh, i) - colorUv,
-                pbrCoordinates.at(*mesh, i) - colorUv};
-            vertex.aoUvOffset = aoCoordinates.at(*mesh, i) - colorUv;
-        } else if (mesh->mTextureCoords[0]) {
-            glm::vec2 uv = glm::vec2(mesh->mTextureCoords[0][i].x,
-                                     mesh->mTextureCoords[0][i].y);
-            if (glm::all(glm::isnan(uv)) || glm::any(glm::isinf(uv)))
-                uv = glm::vec2(0.0f, 0.0f);
-            vertex.textureCoordinate = TextureCoordinate{uv.x, uv.y};
-        } else {
-            vertex.textureCoordinate = TextureCoordinate{0.0f, 0.0f};
-        }
-
-        // ---------- Vertex Color ----------
-        if (mesh->mColors[0]) {
-            glm::vec4 col =
-                glm::vec4(mesh->mColors[0][i].r, mesh->mColors[0][i].g,
-                          mesh->mColors[0][i].b, mesh->mColors[0][i].a);
-            if (glm::all(glm::isnan(col)) || glm::any(glm::isinf(col)))
-                col = glm::vec4(1.0f);
-            vertex.color = Color{col.r, col.g, col.b, col.a};
-        } else {
-            vertex.color = Color{1.0f, 1.0f, 1.0f, 1.0f};
-        }
-
-        vertices.push_back(vertex);
-    }
-
-    if (needsNormalTangents)
-        updateModelTangents(vertices, indices);
-
-    reportMeshProgress(0.85f, "Preparing model materials");
+void Model::finishMesh(
+    ModelMesh &object, const aiMesh &mesh, const aiScene &scene,
+    std::unordered_map<std::string, Texture> &textureCache) {
     std::vector<Texture> textures;
-    if (mesh->mMaterialIndex >= 0) {
-        aiMaterial *material = scene->mMaterials[mesh->mMaterialIndex];
+    if (mesh.mMaterialIndex < scene.mNumMaterials) {
+        aiMaterial *material = scene.mMaterials[mesh.mMaterialIndex];
         importMaterialProperties(material, object);
 
         auto diffuseMaps =
@@ -1639,9 +1619,7 @@ Model::processMesh(aiMesh *mesh, const aiScene *scene,
         }
     }
 
-    object.attachVertices(vertices);
-    object.attachIndices(indices);
-    object.name = mesh->mName.length > 0 ? mesh->mName.C_Str() : "Mesh";
+    object.name = mesh.mName.length > 0 ? mesh.mName.C_Str() : "Mesh";
 
     ResourceEventInfo info;
     info.resourceType = DebugResourceType::Mesh;
@@ -1651,12 +1629,11 @@ Model::processMesh(aiMesh *mesh, const aiScene *scene,
         Window::mainWindow != nullptr && Window::mainWindow->device != nullptr
             ? Window::mainWindow->device->frameCount
             : 0;
-    info.sizeMb = static_cast<float>((vertices.size() * sizeof(CoreVertex)) +
-                                     (indices.size() * sizeof(unsigned int))) /
+    info.sizeMb = static_cast<float>((object.vertices.size() * sizeof(CoreVertex)) +
+                                     (object.indices.size() * sizeof(unsigned int))) /
                   (1024.0f * 1024.0f);
 
     info.send();
-    return object;
 }
 
 std::vector<Texture> Model::loadMaterialTextures(
