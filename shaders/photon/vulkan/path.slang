@@ -158,7 +158,6 @@ struct SceneData {
     uint pixelStride;
     float3 ambientColor;
     uint environmentEnabled;
-    uint accumulationFrameLimit;
     float fireflyClamp;
     uint numEmissiveTriangles;
     float bloomThreshold;
@@ -206,6 +205,7 @@ struct SurfaceHit {
     float distance;
     float3 position;
     float3 normal;
+    float3 geometricNormal;
     float2 uv;
     uint primitive;
     uint objectId;
@@ -380,6 +380,9 @@ float dispersionIor(float baseIor, float abbeNumber, uint channel) {
 
 float3 evaluateBRDF(SurfaceHit hit, float3 view, float3 light, float3 radiance,
                     float intensity) {
+    if (dot(hit.geometricNormal, light) <= 0.0) {
+        return 0.0;
+    }
     float3 normal = hit.normal;
     float3 albedo = saturate(hit.material.albedo.xyz);
     float roughness = clamp(hit.material.roughness, 0.045, 1.0);
@@ -727,12 +730,18 @@ SurfaceHit traceSurface(float3 origin, float3 direction) {
     hit.valid = true;
     hit.distance = query.CommittedRayT();
     hit.position = origin + direction * hit.distance;
-    hit.normal =
+    float3 shadingNormal =
         safeNormal(mul(localNormal, normalMatrix), float3(0.0, 1.0, 0.0));
-    hit.frontFace = dot(hit.normal, direction) <= 0.0;
-    if (!hit.frontFace) {
-        hit.normal = -hit.normal;
+    float3 geometricNormal = safeNormal(
+        cross(vertices[i1].position - vertices[i0].position,
+              vertices[i2].position - vertices[i0].position),
+        shadingNormal);
+    if (dot(geometricNormal, shadingNormal) < 0.0) {
+        geometricNormal = -geometricNormal;
     }
+    hit.frontFace = dot(geometricNormal, direction) <= 0.0;
+    hit.geometricNormal = hit.frontFace ? geometricNormal : -geometricNormal;
+    hit.normal = hit.frontFace ? shadingNormal : -shadingNormal;
     hit.uv = vertices[i0].uv * weights.x + vertices[i1].uv * weights.y +
              vertices[i2].uv * weights.z;
     hit.primitive = primitive;
@@ -777,11 +786,10 @@ SurfaceHit traceSurface(float3 origin, float3 direction) {
         if (hit.material.aoTextureIndex >= 0) {
             hit.material.ao *= aoSample.x;
         }
-        if (hit.material.opacityTextureIndex >= 0) {
+        if (hit.material.opacityTextureIndex >= 0 &&
+            hit.material.opacityTextureIndex != hit.material.albedoTextureIndex) {
             hit.material.albedo.w *=
-                sampleMaterialTexture(hit.material.opacityTextureIndex,
-                                      materialUv)
-                    .x;
+                sampleMaterialTexture(hit.material.opacityTextureIndex, materialUv).x;
         }
     }
     if ((sceneData.featureFlags & PHOTON_FEATURE_NORMAL_MAPS) != 0 &&
@@ -815,6 +823,10 @@ SurfaceHit traceSurface(float3 origin, float3 direction) {
             safeNormal(tangent * tangentNormal.x + bitangent * tangentNormal.y +
                            hit.normal * tangentNormal.z,
                        hit.normal);
+    }
+    if (dot(hit.normal, hit.geometricNormal) <= 0.0 ||
+        dot(hit.normal, direction) >= 0.0) {
+        hit.normal = hit.geometricNormal;
     }
     return hit;
 }
@@ -882,16 +894,28 @@ float3 environmentColor(float3 direction) {
     return sky;
 }
 
+float rayOffsetDistance(float3 position) {
+    float3 magnitude = abs(position);
+    return max(0.0002, max(magnitude.x, max(magnitude.y, magnitude.z)) * 0.000002);
+}
+
+float3 offsetRayOrigin(SurfaceHit hit, float3 direction) {
+    float side = dot(direction, hit.geometricNormal) >= 0.0 ? 1.0 : -1.0;
+    return hit.position + hit.geometricNormal * (rayOffsetDistance(hit.position) * side);
+}
+
 float3 directLighting(SurfaceHit hit, float3 view) {
     if ((sceneData.featureFlags & PHOTON_FEATURE_DIRECT_LIGHTING) == 0) {
         return 0.0;
     }
     float3 result = 0.0;
+    float bias = rayOffsetDistance(hit.position);
+    float3 shadowOrigin = hit.position + hit.geometricNormal * bias;
     if (sceneData.numDirectionalLights > 0) {
         float3 lightDirection =
             safeNormal(-dirLight.direction, float3(0.0, 1.0, 0.0));
         float3 visibility = lightVisibility(
-            hit.position + hit.normal * 0.002, lightDirection, 1.0e20);
+            shadowOrigin, lightDirection, 1.0e20);
         result += evaluateBRDF(hit, view, lightDirection, dirLight.color,
                                dirLight.intensity) *
                   visibility;
@@ -906,7 +930,7 @@ float3 directLighting(SurfaceHit hit, float3 view) {
         }
         float3 lightDirection = delta / distance;
         float3 visibility = lightVisibility(
-            hit.position + hit.normal * 0.002, lightDirection, distance - 0.004);
+            shadowOrigin, lightDirection, distance - 2.0 * bias);
         float range = max(pointLights[index].range, 1e-4);
         float rangeFade = 1.0 - smoothstep(range * 0.75, range, distance);
         float intensity =
@@ -933,7 +957,7 @@ float3 directLighting(SurfaceHit hit, float3 view) {
         float intensity =
             spotLights[index].intensity * cone * rangeFade / distanceSquared;
         float3 visibility = lightVisibility(
-            hit.position + hit.normal * 0.002, lightDirection, distance - 0.004);
+            shadowOrigin, lightDirection, distance - 2.0 * bias);
         result += evaluateBRDF(hit, view, lightDirection,
                                spotLights[index].color, intensity) *
                   visibility;
@@ -965,7 +989,7 @@ float3 directLighting(SurfaceHit hit, float3 view) {
         float intensity =
             light.intensity * lightCosine * area / distanceSquared;
         float3 visibility = lightVisibility(
-            hit.position + hit.normal * 0.002, lightDirection, distance - 0.004);
+            shadowOrigin, lightDirection, distance - 2.0 * bias);
         result +=
             evaluateBRDF(hit, view, lightDirection, light.color, intensity) *
             visibility;
@@ -1156,7 +1180,7 @@ float3 volumeRadiance(Material material, float3 origin, float3 direction,
 }
 
 float3 samplePath(float3 origin, float3 direction, inout uint state,
-                  out SurfaceHit primaryHit) {
+                  bool guideRay, out SurfaceHit primaryHit) {
     float3 radiance = 0.0;
     float3 throughput = 1.0;
     primaryHit = {};
@@ -1199,8 +1223,9 @@ float3 samplePath(float3 origin, float3 direction, inout uint state,
             insideMedium = findContainingMedium(origin, mediumObjectId, mediumMaterial);
             continue;
         }
+        float alpha = saturate(hit.material.albedo.w);
         if ((sceneData.featureFlags & PHOTON_FEATURE_ALPHA_TRANSPARENCY) != 0 &&
-            randomValue(state) > saturate(hit.material.albedo.w)) {
+            (guideRay ? alpha < 0.5 : randomValue(state) > alpha)) {
             if (bounce == 0) {
                 primaryTravel += hit.distance + 0.002;
             }
@@ -1210,6 +1235,9 @@ float3 samplePath(float3 origin, float3 direction, inout uint state,
         if (bounce == 0) {
             primaryHit = hit;
             primaryHit.distance += primaryTravel;
+            if (guideRay) {
+                break;
+            }
         }
         float3 albedo = max(hit.material.albedo.xyz, 0.0);
         if ((sceneData.featureFlags & PHOTON_FEATURE_EMISSIVE_LIGHTING) != 0) {
@@ -1261,7 +1289,7 @@ float3 samplePath(float3 origin, float3 direction, inout uint state,
                     dielectricSigmaA = 0.0;
                 }
             }
-            origin = hit.position + direction * 0.002;
+            origin = offsetRayOrigin(hit, direction);
             ++bounce;
             continue;
         }
@@ -1282,7 +1310,10 @@ float3 samplePath(float3 origin, float3 direction, inout uint state,
             throughput *= albedo / max(1.0 - specularProbability, 0.05);
         }
         throughput *= bounce == 0 ? 1.0 : sceneData.indirectStrength;
-        origin = hit.position + hit.normal * 0.002;
+        if (dot(direction, hit.geometricNormal) <= 0.0) {
+            break;
+        }
+        origin = offsetRayOrigin(hit, direction);
         if (bounce >= 2) {
             float survival =
                 saturate(max(throughput.x, max(throughput.y, throughput.z)));
@@ -1308,6 +1339,7 @@ computeMain(uint3 dispatchThreadID
     uint state =
         hashValue(gid.x + gid.y * width + sceneData.frameIndex * 1664525u);
     float3 color = 0.0;
+    float2 sampleMoments = 0.0;
     SurfaceHit primaryHit = {};
     float2 primaryUv = (float2(gid) + 0.5) / float2(width, height);
     float3 primaryDirection = float3(0.0, 0.0, 1.0);
@@ -1325,8 +1357,14 @@ computeMain(uint3 dispatchThreadID
         float3 direction =
             safeNormal(world.xyz / world.w - cam.camPos, float3(0.0, 0.0, 1.0));
         SurfaceHit sampleHit;
-        float3 radiance = samplePath(cam.camPos, direction, state, sampleHit);
+        float3 radiance =
+            samplePath(cam.camPos, direction, state, sampleIndex == 0, sampleHit);
         if (sampleIndex > 0) {
+            radiance = all(isfinite(radiance)) ? max(radiance, 0.0) : 0.0;
+            float brightness = luminance(radiance);
+            radiance *= min(1.0, sceneData.fireflyClamp / max(brightness, 1e-5));
+            float moment = min(luminance(radiance), 255.0);
+            sampleMoments += float2(moment, moment * moment);
             color += radiance;
         }
         if (sampleIndex == 0) {
@@ -1335,37 +1373,18 @@ computeMain(uint3 dispatchThreadID
             primaryDirection = direction;
         }
     }
-    color /= float(samples);
-    float4 previous = historyTex.Load(int3(gid, 0));
-    float previousWeight =
-        sceneData.frameIndex > 0
-            ? min(previous.w,
-                  float(clamp(sceneData.accumulationFrameLimit, 1u, 2048u) - 1u))
-            : 0.0;
-    float historyLength = min(previousWeight + 1.0,
-                              float(clamp(sceneData.accumulationFrameLimit, 1u, 2048u)));
-    float sampleWeight = sceneData.cinematicMode != 0 ? float(samples) : 1.0;
-    if (sceneData.cinematicMode != 0) {
-        previousWeight = sceneData.frameIndex > 0 ? float(sceneData.accumulatedSamples) : 0.0;
+    float totalWeight = float(sceneData.accumulatedSamples + samples);
+    float3 accumulated = color / float(samples);
+    float2 moments = sampleMoments / float(samples);
+    if (sceneData.accumulatedSamples > 0) {
+        float blend = float(samples) / totalWeight;
+        accumulated = lerp(historyTex.Load(int3(gid, 0)).xyz, accumulated, blend);
+        moments = lerp(historyMomentsTex.Load(int3(gid, 0)).xy, moments, blend);
     }
-    float3 accumulated = (previous.xyz * previousWeight + color * sampleWeight) /
-                         max(previousWeight + sampleWeight, 1.0);
-    float4 previousGuide = historyGuideTex.Load(int3(gid, 0));
     float objectId = primaryHit.valid ? float(primaryHit.objectId) : -1.0;
     float3 normal = primaryHit.valid ? primaryHit.normal : 0.0;
     float depth = primaryHit.valid ? primaryHit.distance : 0.0;
-    float2 encodedNormal = encodeNormal(normal);
-    float4 currentGuide = float4(encodedNormal, depth, objectId);
-    bool historyCompatible =
-        sceneData.frameIndex > 0 && previous.w > 0.0 &&
-        abs(previousGuide.z - depth) <= max(0.03, depth * 0.02) &&
-        distance(previousGuide.xy, encodedNormal) <= 0.08 &&
-        abs(previousGuide.w - objectId) <= 0.5;
-    if (!historyCompatible) {
-        previousWeight = 0.0;
-        historyLength = 1.0;
-        accumulated = color;
-    }
+    float4 currentGuide = float4(encodeNormal(normal), depth, objectId);
     float luminance = dot(accumulated, float3(0.2126, 0.7152, 0.0722));
     float bloom =
         max(luminance - sceneData.bloomThreshold, 0.0) / max(luminance, 1e-5);
@@ -1382,16 +1401,6 @@ computeMain(uint3 dispatchThreadID
         float2(previousNdc.x * 0.5 + 0.5, 0.5 - previousNdc.y * 0.5);
     bool previousUvValid = previousClip.w > 0.0 && all(previousUv >= 0.0) &&
                            all(previousUv <= 1.0);
-    float4 moments = historyMomentsTex.Load(int3(gid, 0));
-    if (previousWeight == 0.0) {
-        moments = 0.0;
-    }
-    float currentLuminance = clamp(dot(color, float3(0.2126, 0.7152, 0.0722)), 0.0, 255.0);
-    float mean = (moments.x * previousWeight + currentLuminance * sampleWeight) /
-                 max(previousWeight + sampleWeight, 1.0);
-    float meanSquared =
-        (moments.y * previousWeight + currentLuminance * currentLuminance * sampleWeight) /
-        max(previousWeight + sampleWeight, 1.0);
     uint stride = max(sceneData.pixelStride, 1u);
     for (uint y = 0; y < stride; ++y) {
         for (uint x = 0; x < stride; ++x) {
@@ -1401,10 +1410,10 @@ computeMain(uint3 dispatchThreadID
             }
             outTex[pixel] = float4(accumulated, 1.0);
             brightTex[pixel] = float4(accumulated * bloom, 1.0);
-            historyOutTex[pixel] = float4(accumulated, historyLength);
+            historyOutTex[pixel] = float4(accumulated, totalWeight);
             historyGuideOutTex[pixel] = currentGuide;
             historyMomentsOutTex[pixel] = float4(
-                mean, meanSquared, max(meanSquared - mean * mean, 0.0), depth);
+                moments, max(moments.y - moments.x * moments.x, 0.0), depth);
             albedoRoughnessTex[pixel] = float4(albedo, roughness);
             normalDepthTex[pixel] = float4(normal, depth);
             motionObjectTex[pixel] =

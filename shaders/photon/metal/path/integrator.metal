@@ -132,7 +132,8 @@ float3 sampleRadiance(
             if (!photonFeatureEnabled(sceneData,
                                       PHOTON_FEATURE_ALPHA_TRANSPARENCY))
                 alpha = 1.0f;
-            if (alpha >= 0.999 || rand(rng) < alpha) {
+            bool guideRay = sampleIndex == 0 && depth == 0;
+            if (guideRay ? alpha >= 0.5 : (alpha >= 0.999 || rand(rng) < alpha)) {
                 foundSurface = true;
                 break;
             }

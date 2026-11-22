@@ -15,16 +15,21 @@ void ModelMesh::updateSkin(const std::vector<glm::mat4> &globalPose) {
     }
 }
 
-glm::vec3 ModelMesh::posedPosition(const CoreVertex &vertex) const {
-    const glm::vec4 rest(vertex.position.toGlm(), 1.0f);
+glm::mat4 ModelMesh::posedTransform(const CoreVertex &vertex) const {
     if (jointMatrices.empty() || vertex.weights.x <= 0.0f)
-        return glm::vec3(rest);
-    glm::vec4 position(0.0f);
+        return glm::mat4(1.0f);
+
+    glm::mat4 transform(0.0f);
     for (int i = 0; i < 4; ++i) {
         if (vertex.weights[i] > 0.0f)
-            position += (jointMatrices[vertex.joints[i]] * rest) * vertex.weights[i];
+            transform += jointMatrices[vertex.joints[i]] * vertex.weights[i];
     }
-    return glm::vec3(position);
+    return transform;
+}
+
+glm::vec3 ModelMesh::posedPosition(const CoreVertex &vertex) const {
+    const glm::vec4 rest(vertex.position.toGlm(), 1.0f);
+    return glm::vec3(posedTransform(vertex) * rest);
 }
 
 void ModelMesh::bindSkin(opal::Pipeline &pipeline) const {

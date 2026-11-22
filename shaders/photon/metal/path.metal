@@ -64,6 +64,7 @@ kernel void main0(texture2d<float, access::write> outTex [[texture(0)]],
     isect.set_triangle_cull_mode(triangle_cull_mode::none);
 
     float3 color = float3(0.0);
+    float2 sampleMoments = float2(0.0);
     float3 primaryAlbedo = float3(0.0);
     float3 primaryNormal = float3(0.0);
     float3 primaryPosition = float3(0.0);
@@ -113,11 +114,12 @@ kernel void main0(texture2d<float, access::write> outTex [[texture(0)]],
             historyGuideTex, sampleAlbedo,
             sampleNormal, samplePosition, sampleDepth, sampleRoughness,
             sampleHitDistance, sampleObjectId);
-        if (!all(isfinite(sample))) {
-            sample = float3(0.0);
-        }
         if (s > 0) {
-            color += clampLuminance(sample, max(sceneData.fireflyClamp, 1.0));
+            sample = all(isfinite(sample)) ? max(sample, float3(0.0)) : float3(0.0);
+            sample = clampLuminance(sample, sceneData.fireflyClamp);
+            float moment = min(luminance(sample), 255.0);
+            sampleMoments += float2(moment, moment * moment);
+            color += sample;
         }
         if (s == 0) {
             primaryAlbedo = sampleAlbedo;
@@ -130,10 +132,6 @@ kernel void main0(texture2d<float, access::write> outTex [[texture(0)]],
         }
     }
 
-    color /= float(spp);
-    if (!all(isfinite(color))) {
-        color = float3(0.0);
-    }
 
     float objectIdValue = primaryObjectId == 0xFFFFFFFFu
                               ? -1.0
@@ -148,44 +146,15 @@ kernel void main0(texture2d<float, access::write> outTex [[texture(0)]],
     bool previousUvValid = previousClip.w > 0.0 &&
                            all(previousUv >= float2(0.0)) &&
                            all(previousUv <= float2(1.0));
-    uint2 previousPixel = gid;
-    if (primaryObjectId != 0xFFFFFFFFu && previousUvValid) {
-        previousPixel = uint2(clamp(previousUv * float2(w, h), float2(0.0),
-                                    float2(w - 1, h - 1)));
+    float totalWeight = float(sceneData.accumulatedSamples + spp);
+    float3 accum = color / float(spp);
+    float2 moments = sampleMoments / float(spp);
+    if (sceneData.accumulatedSamples > 0) {
+        float blend = float(spp) / totalWeight;
+        accum = mix(historyTex.read(gid).xyz, accum, blend);
+        moments = mix(historyMomentsTex.read(gid).xy, moments, blend);
     }
-    float4 prevColor = historyTex.read(previousPixel);
-    float4 previousGuide = historyGuideTex.read(previousPixel);
-    float4 previousMoments = historyMomentsTex.read(previousPixel);
-    bool historyValid = sceneData.frameIndex > 0 && prevColor.w > 0.0 &&
-                        abs(previousGuide.z - primaryDepth) <
-                            max(0.02, primaryDepth * 0.01) &&
-                        distance(previousGuide.xy, encodedNormal) < 0.04 &&
-                        abs(previousGuide.w - objectIdValue) < 0.5;
-    if (!historyValid) {
-        prevColor = float4(0.0);
-        previousMoments = float4(0.0);
-    }
-    float historyLimit = clamp(float(sceneData.accumulationFrameLimit), 1.0, 2048.0);
-    float previousWeight =
-        historyValid ? min(prevColor.w, max(historyLimit - 1.0, 0.0)) : 0.0;
-    float newHistoryLength = min(previousWeight + 1.0, historyLimit);
-    float sampleWeight = sceneData.cinematicMode != 0 ? float(spp) : 1.0;
-    if (sceneData.cinematicMode != 0) {
-        previousWeight = historyValid ? float(sceneData.accumulatedSamples) : 0.0;
-    }
-    float accumulationDenominator = max(previousWeight + sampleWeight, 1.0);
-    float3 accum =
-        (prevColor.xyz * previousWeight + color * sampleWeight) / accumulationDenominator;
-    float moment = clamp(luminance(color), 0.0, 255.0);
-    float accumulatedMoment =
-        (previousMoments.x * previousWeight + moment * sampleWeight) /
-        accumulationDenominator;
-    float accumulatedMomentSquared =
-        (previousMoments.y * previousWeight + moment * moment * sampleWeight) /
-        accumulationDenominator;
-    float variance = max(accumulatedMomentSquared -
-                             accumulatedMoment * accumulatedMoment,
-                         0.0);
+    float variance = max(moments.y - moments.x * moments.x, 0.0);
 
     constexpr float bloomKnee = 0.35;
 
@@ -221,14 +190,14 @@ kernel void main0(texture2d<float, access::write> outTex [[texture(0)]],
             if (pixel.x >= w || pixel.y >= h) {
                 continue;
             }
-            historyOutTex.write(float4(accum, newHistoryLength), pixel);
+            historyOutTex.write(float4(accum, totalWeight), pixel);
             historyGuideOutTex.write(currentGuide, pixel);
             albedoRoughnessTex.write(float4(primaryAlbedo, primaryRoughness),
                                      pixel);
             normalDepthTex.write(float4(primaryNormal, primaryDepth), pixel);
             motionObjectTex.write(float4(motion, objectIdValue, 1.0), pixel);
             historyMomentsOutTex.write(
-                float4(accumulatedMoment, accumulatedMomentSquared, variance,
+                float4(moments, variance,
                        primaryHitDistance),
                 pixel);
             directReservoirSampleOutTex.write(packedDirectSample, pixel);

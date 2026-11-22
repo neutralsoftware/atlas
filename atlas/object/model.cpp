@@ -1332,10 +1332,11 @@ void Model::processNode(
             if (importedSkin.skin.joints.size() > ModelMesh::MaxJoints)
                 throw std::runtime_error("Model mesh exceeds the 256 joint palette limit");
         }
-        auto obj = std::make_shared<ModelMesh>(processMesh(
-            mesh, scene, nodeTransform, std::move(importedSkin.skin),
-            importedSkin.vertices, textureCache));
-        this->objects.push_back(obj);
+        auto object = processMesh(mesh, scene, nodeTransform,
+                                  std::move(importedSkin.skin),
+                                  importedSkin.vertices, textureCache);
+        if (object)
+            objects.push_back(std::make_shared<ModelMesh>(std::move(*object)));
         importedMeshCount++;
         if (importProgress && totalMeshCount > 0) {
             const float completed = static_cast<float>(importedMeshCount) /
@@ -1350,23 +1351,49 @@ void Model::processNode(
     }
 }
 
-ModelMesh
+std::optional<ModelMesh>
 Model::processMesh(aiMesh *mesh, const aiScene *scene,
                    const glm::mat4 &transform, Skin skin,
                    const std::vector<VertexSkinData> &vertexSkin,
                    std::unordered_map<std::string, Texture> &textureCache) {
     ModelMesh object;
     object.skin = std::move(skin);
+    const glm::mat3 linearTransform(transform);
+    const float determinant = glm::determinant(linearTransform);
     if (!object.skin.joints.empty()) {
-        if (glm::determinant(glm::mat3(transform)) == 0.0f)
+        if (determinant == 0.0f || !std::isfinite(determinant))
             throw std::runtime_error("Animated mesh has a singular bind transform");
         object.inverseMeshTransform = glm::inverse(transform);
     }
-    std::vector<CoreVertex> vertices;
-    std::vector<unsigned int> indices;
-    const glm::mat3 linearTransform = glm::mat3(transform);
+    const bool reflected = determinant < 0.0f;
     const glm::mat3 normalTransform =
-        glm::transpose(glm::inverse(linearTransform));
+        determinant != 0.0f && std::isfinite(determinant)
+            ? glm::transpose(glm::inverse(linearTransform))
+            : glm::mat3(0.0f);
+
+    std::vector<unsigned int> indices;
+    indices.reserve(static_cast<size_t>(mesh->mNumFaces) * 3);
+    for (unsigned int i = 0; i < mesh->mNumFaces; ++i) {
+        const auto &face = mesh->mFaces[i];
+        if (face.mNumIndices != 3)
+            continue;
+        const unsigned int a = face.mIndices[0];
+        const unsigned int b = face.mIndices[1];
+        const unsigned int c = face.mIndices[2];
+        if (a >= mesh->mNumVertices || b >= mesh->mNumVertices ||
+            c >= mesh->mNumVertices)
+            continue;
+        indices.push_back(a);
+        indices.push_back(reflected ? c : b);
+        indices.push_back(reflected ? b : c);
+    }
+    if (indices.empty()) {
+        atlas_warning("Skipping mesh without valid triangles: " +
+                      std::string(mesh->mName.C_Str()));
+        return std::nullopt;
+    }
+
+    std::vector<CoreVertex> vertices;
 
     GltfTextureCoordinates colorCoordinates;
     GltfTextureCoordinates normalCoordinates;
@@ -1505,27 +1532,7 @@ Model::processMesh(aiMesh *mesh, const aiScene *scene,
         vertices.push_back(vertex);
     }
 
-    // ---------- Indices ----------
-    // Pre-calculate total indices for reservation
-    size_t totalIndices = 0;
-    for (unsigned int i = 0; i < mesh->mNumFaces; i++) {
-        totalIndices += mesh->mFaces[i].mNumIndices;
-        if (i % 16384 == 0)
-            reportMeshProgress(0.7f, "Preparing model indices");
-    }
-    indices.reserve(totalIndices);
-
-    for (unsigned int i = 0; i < mesh->mNumFaces; i++) {
-        if (i % 16384 == 0)
-            reportMeshProgress(0.7f + 0.15f * static_cast<float>(i) /
-                                          mesh->mNumFaces,
-                               "Converting model indices");
-        const aiFace &face = mesh->mFaces[i];
-        for (unsigned int j = 0; j < face.mNumIndices; j++)
-            indices.push_back(face.mIndices[j]);
-    }
-
-    if (needsNormalTangents && mesh->mPrimitiveTypes == aiPrimitiveType_TRIANGLE)
+    if (needsNormalTangents)
         updateModelTangents(vertices, indices);
 
     reportMeshProgress(0.85f, "Preparing model materials");

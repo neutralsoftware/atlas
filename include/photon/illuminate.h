@@ -204,6 +204,11 @@ class PathTracing {
     float cachedAmbientIntensity = -1.0f;
     int cachedDirectionalLightCount = -1;
     uint64_t cachedSkyboxTextureId = 0;
+    std::weak_ptr<opal::Texture> cachedOutput;
+    std::weak_ptr<opal::Texture> cachedBrightOutput;
+    float cachedBloomThreshold = -1.0f;
+    float cachedFireflyClamp = -1.0f;
+    float cachedIndirectStrength = -1.0f;
     glm::vec3 cachedAtmosphereSunDirection = glm::vec3(0.0f);
     glm::vec3 cachedAtmosphereSunColor = glm::vec3(0.0f);
     float cachedAtmosphereSunIntensity = -1.0f;

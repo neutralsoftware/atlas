@@ -83,7 +83,7 @@ bool mat4ApproximatelyEqual(const glm::mat4 &a, const glm::mat4 &b,
     return true;
 }
 
-uint64_t pathTracingObjectStateHash(const CoreObject *object,
+uint64_t pathTracingObjectStateHash(CoreObject *object,
                                     const glm::mat4 &model) {
     uint64_t hash = 1469598103934665603ULL;
     auto append = [&hash](const void *data, size_t size) {
@@ -137,6 +137,12 @@ uint64_t pathTracingObjectStateHash(const CoreObject *object,
     append(&material.subsurfaceColor, sizeof(material.subsurfaceColor));
     append(&material.subsurfaceRadius, sizeof(material.subsurfaceRadius));
     append(&model, sizeof(model));
+    const auto id = object->getId();
+    append(&id, sizeof(id));
+    if (const auto *mesh = dynamic_cast<const ModelMesh *>(object)) {
+        const auto &joints = mesh->getJointMatrices();
+        append(joints.data(), joints.size() * sizeof(glm::mat4));
+    }
     const size_t vertexCount = object->vertices.size();
     const size_t indexCount = object->indices.size();
     append(&vertexCount, sizeof(vertexCount));
@@ -329,7 +335,7 @@ void photon::PathTracing::init() {
 
     for (auto &texture : pathTracingHistoryTextures) {
         texture = std::make_shared<Texture>(Texture::create(
-            outputWidth, outputHeight, opal::TextureFormat::Rgba16F,
+            outputWidth, outputHeight, opal::TextureFormat::Rgba32F,
             opal::TextureDataFormat::Rgba, TextureType::Color));
     }
     for (auto &texture : pathTracingHistoryGuides) {
@@ -339,7 +345,7 @@ void photon::PathTracing::init() {
     }
     for (auto &texture : pathTracingHistoryMoments) {
         texture = std::make_shared<Texture>(Texture::create(
-            outputWidth, outputHeight, opal::TextureFormat::Rgba16F,
+            outputWidth, outputHeight, opal::TextureFormat::Rgba32F,
             opal::TextureDataFormat::Rgba, TextureType::Color));
     }
     for (auto &texture : directReservoirSamples) {
@@ -381,7 +387,7 @@ void photon::PathTracing::resizeOutput(int width, int height) {
     outputHeight = newHeight;
     for (auto &texture : pathTracingHistoryTextures) {
         texture = std::make_shared<Texture>(Texture::create(
-            outputWidth, outputHeight, opal::TextureFormat::Rgba16F,
+            outputWidth, outputHeight, opal::TextureFormat::Rgba32F,
             opal::TextureDataFormat::Rgba, TextureType::Color));
     }
     for (auto &texture : pathTracingHistoryGuides) {
@@ -391,7 +397,7 @@ void photon::PathTracing::resizeOutput(int width, int height) {
     }
     for (auto &texture : pathTracingHistoryMoments) {
         texture = std::make_shared<Texture>(Texture::create(
-            outputWidth, outputHeight, opal::TextureFormat::Rgba16F,
+            outputWidth, outputHeight, opal::TextureFormat::Rgba32F,
             opal::TextureDataFormat::Rgba, TextureType::Color));
     }
     for (auto &texture : directReservoirSamples) {
@@ -579,7 +585,7 @@ bool photon::PathTracing::buildAccelerationStructure(
     }
     std::vector<uint64_t> sceneObjectStateHashes;
     sceneObjectStateHashes.reserve(pathTracingObjects.size());
-    for (const auto *object : pathTracingObjects) {
+    for (auto *object : pathTracingObjects) {
         sceneObjectStateHashes.push_back(
             pathTracingObjectStateHash(object, object->model));
     }
@@ -613,7 +619,7 @@ bool photon::PathTracing::buildAccelerationStructure(
         cachedObjects = traceableObjects;
         cachedObjectStateHashes.clear();
         cachedObjectStateHashes.reserve(traceableObjects.size());
-        for (const auto *object : traceableObjects) {
+        for (auto *object : traceableObjects) {
             cachedObjectStateHashes.push_back(
                 pathTracingObjectStateHash(object, object->model));
         }
@@ -744,9 +750,25 @@ bool photon::PathTracing::buildAccelerationStructure(
             const uint32_t accelerationVertexOffset =
                 static_cast<uint32_t>(accelerationPositions.size() / 3);
 
+            const auto *mesh = dynamic_cast<const ModelMesh *>(object);
+            const bool skinned =
+                mesh != nullptr && !mesh->getJointMatrices().empty();
             for (const auto &v : objectVertices) {
-                glm::vec4 worldPosition =
-                    object->model * glm::vec4(v.position.toGlm(), 1.0f);
+                glm::vec4 localPosition(v.position.toGlm(), 1.0f);
+                glm::vec3 normal = v.normal.toGlm();
+                glm::vec3 tangent = v.tangent.toGlm();
+                glm::vec3 bitangent = v.bitangent.toGlm();
+                if (skinned) {
+                    const glm::mat4 pose = mesh->posedTransform(v);
+                    const glm::mat3 linear(pose);
+                    localPosition = pose * localPosition;
+                    tangent = linear * tangent;
+                    bitangent = linear * bitangent;
+                    const float determinant = glm::determinant(linear);
+                    if (std::abs(determinant) > 1e-8f)
+                        normal = glm::transpose(glm::inverse(linear)) * normal;
+                }
+                const glm::vec4 worldPosition = object->model * localPosition;
                 sceneMinimum = glm::min(sceneMinimum, glm::vec3(worldPosition));
                 sceneMaximum = glm::max(sceneMaximum, glm::vec3(worldPosition));
                 if (object->material.roughness < 0.25f &&
@@ -766,17 +788,17 @@ bool photon::PathTracing::buildAccelerationStructure(
                 vd.position[0] = worldPosition.x;
                 vd.position[1] = worldPosition.y;
                 vd.position[2] = worldPosition.z;
-                vd.normal[0] = v.normal.x;
-                vd.normal[1] = v.normal.y;
-                vd.normal[2] = v.normal.z;
+                vd.normal[0] = normal.x;
+                vd.normal[1] = normal.y;
+                vd.normal[2] = normal.z;
                 vd.uv[0] = v.textureCoordinate[0];
                 vd.uv[1] = v.textureCoordinate[1];
-                vd.tangent[0] = v.tangent.x;
-                vd.tangent[1] = v.tangent.y;
-                vd.tangent[2] = v.tangent.z;
-                vd.bitangent[0] = v.bitangent.x;
-                vd.bitangent[1] = v.bitangent.y;
-                vd.bitangent[2] = v.bitangent.z;
+                vd.tangent[0] = tangent.x;
+                vd.tangent[1] = tangent.y;
+                vd.tangent[2] = tangent.z;
+                vd.bitangent[0] = bitangent.x;
+                vd.bitangent[1] = bitangent.y;
+                vd.bitangent[2] = bitangent.z;
                 std::memcpy(vd.normalAndPbrUvOffset,
                             glm::value_ptr(v.normalAndPbrUvOffset),
                             sizeof(vd.normalAndPbrUvOffset));
@@ -1161,7 +1183,7 @@ bool photon::PathTracing::createLightBuffers() {
         float outerCos;
 
         float range;
-        alignas(kPathTracerVectorAlignment) float _pad0[3];
+        float _pad0[kPathTracerVectorAlignment == 16 ? 7 : 3];
     };
 
     struct alignas(kPathTracerVectorAlignment) AreaLightData {
@@ -1177,7 +1199,7 @@ bool photon::PathTracing::createLightBuffers() {
         float color[3];
         float twoSided;
         float emissionCos;
-        alignas(kPathTracerVectorAlignment) float _pad[3];
+        float _pad[kPathTracerVectorAlignment == 16 ? 7 : 3];
     };
 
     static_assert(sizeof(PointLightData) == 32);
@@ -1324,6 +1346,13 @@ bool photon::PathTracing::render(
     if (Window::mainWindow == nullptr ||
         Window::mainWindow->getCamera() == nullptr) {
         return fail("The active window or camera is unavailable");
+    }
+
+    if (cachedOutput.lock() != output ||
+        cachedBrightOutput.lock() != brightOutput) {
+        resetAccumulation();
+        cachedOutput = output;
+        cachedBrightOutput = brightOutput;
     }
 
     auto view = Window::mainWindow->getCamera()->calculateViewMatrix();
@@ -1644,18 +1673,37 @@ bool photon::PathTracing::render(
     cachedCloudLighting = cloudLighting;
     cachedCloudsEnabled = cloudsEnabled;
 
+    const float bloomThreshold =
+        scene != nullptr
+            ? std::max(scene->getEnvironment().lightBloom.threshold, 0.0f)
+            : 1.0f;
+    const float sampleClamp = std::max(fireflyClamp, 1.0f);
+    if (cachedBloomThreshold != bloomThreshold ||
+        cachedFireflyClamp != sampleClamp ||
+        cachedIndirectStrength != indirectStrength) {
+        frameIndex = 0;
+        cachedBloomThreshold = bloomThreshold;
+        cachedFireflyClamp = sampleClamp;
+        cachedIndirectStrength = indirectStrength;
+    }
     if (frameIndex == 0) {
         accumulatedSamples = 0;
     }
-    if (cinematicMode && accumulatedSamples >= raysPerPixel) {
+
+    const int samplesPerFrame = std::max(raysPerPixel, 1);
+    const int sampleBudget = cinematicMode
+                                 ? samplesPerFrame
+                                 : std::max(accumulationFrames, 1) * samplesPerFrame;
+    if (!interactive && accumulatedSamples >= sampleBudget) {
         return true;
     }
     const int refinementFrame = std::max(frameIndex, 0);
     const int pixelStride = 1;
-    const int effectiveSamples = cinematicMode
-        ? std::min(8, raysPerPixel - accumulatedSamples)
-        : std::max(std::max(raysPerPixel, 1),
-                   (interactive || frameIndex == 0) ? std::clamp(minimumMotionSamples, 1, 64) : 1);
+    const int effectiveSamples =
+        interactive ? std::max(samplesPerFrame,
+                               std::clamp(minimumMotionSamples, 1, 64))
+                    : std::min(cinematicMode ? 8 : samplesPerFrame,
+                               sampleBudget - accumulatedSamples);
     const int effectiveBounces = this->maxBounces;
     pathTracingPipeline->setUniform1i("sceneData.cinematicMode", cinematicMode ? 1 : 0);
     pathTracingPipeline->setUniform1i("sceneData.accumulatedSamples", accumulatedSamples);
@@ -1665,12 +1713,8 @@ bool photon::PathTracing::render(
                                       effectiveSamples);
     pathTracingPipeline->setUniform1i("sceneData.maxBounces", effectiveBounces);
     pathTracingPipeline->setUniform1i("sceneData.pixelStride", pixelStride);
-    pathTracingPipeline->setUniform1i("sceneData.accumulationFrameLimit",
-                                      accumulationFrames);
-    pathTracingPipeline->setUniform1f("sceneData.fireflyClamp", cinematicMode ? 1e20f : fireflyClamp);
-    pathTracingPipeline->setUniform1f(
-        "sceneData.bloomThreshold",
-        std::max(scene->getEnvironment().lightBloom.threshold, 0.0f));
+    pathTracingPipeline->setUniform1f("sceneData.fireflyClamp", sampleClamp);
+    pathTracingPipeline->setUniform1f("sceneData.bloomThreshold", bloomThreshold);
     pathTracingPipeline->setUniform1i(
         "sceneData.numEmissiveTriangles",
         (featureFlags & EmissiveLighting) != 0 ? emissiveTriangleCount : 0);
@@ -1841,8 +1885,7 @@ bool photon::PathTracing::render(
     if (denoisingEnabled && pathDenoisePipeline != nullptr &&
         denoiseTextures[0] != nullptr && denoiseTextures[1] != nullptr) {
         const std::array<int, 3> denoiseSteps = {1, 2, 4};
-        const size_t denoisePassCount =
-            interactive ? 2 : (refinementFrame < 16 ? 3 : 2);
+        const size_t denoisePassCount = interactive ? 2 : denoiseSteps.size();
         for (size_t pass = 0; pass < denoisePassCount; ++pass) {
             const auto &input =
                 pass == 0 ? output : denoiseTextures[(pass - 1) % 2]->texture;
@@ -1869,16 +1912,14 @@ bool photon::PathTracing::render(
             pathDenoisePipeline->setUniform1i("parameters.stepWidth",
                                               denoiseSteps[pass]);
             pathDenoisePipeline->setUniform1f(
-                "parameters.bloomThreshold",
-                std::max(scene->getEnvironment().lightBloom.threshold, 0.0f));
+                "parameters.bloomThreshold", bloomThreshold);
             commandBuffer->dispatch(outputWidth, outputHeight, 1);
             commandBuffer->computeBarrier();
         }
     }
 
     previousViewProj = viewProj;
-    if (cinematicMode)
-        accumulatedSamples += effectiveSamples;
+    accumulatedSamples += effectiveSamples;
     frameIndex++;
     lastError.clear();
     return true;
