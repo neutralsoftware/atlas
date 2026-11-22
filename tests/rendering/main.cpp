@@ -38,7 +38,7 @@ class MainScene : public Scene {
     bool fall = false;
     int giDebugMode = 0;
 
-    bool night = true;
+    bool night = false;
 
   public:
     void update(Window &window) override {
@@ -97,7 +97,7 @@ class MainScene : public Scene {
         atmosphere.enable();
         atmosphere.cycle = false;
         if (night) {
-            atmosphere.setTime(0.0);
+            atmosphere.setTime(1.0);
         } else {
             atmosphere.setTime(13.0);
         }
@@ -126,7 +126,7 @@ class MainScene : public Scene {
         light = DirectionalLight();
         light.direction = {-0.5f, -1.0f, -0.2f};
         if (!night) {
-            light.intensity = 100.5f;
+            light.intensity = 200.5f;
             light.color = Color(1.0f, 0.88f, 0.72f);
         } else {
             light.intensity = 0.5f;
@@ -193,7 +193,7 @@ class MainScene : public Scene {
             return;
         }
         window.enablePathTracing();
-        window.configurePathTracing(2048, 32, false, 1,
+        window.configurePathTracing(4096, 32, true, 1,
                                     photon::AllPathTracingFeatures, true);
 
         if (!window.usePathTracing || !window.pathTracer) {
