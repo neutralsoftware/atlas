@@ -38,6 +38,7 @@
 #include <fstream>
 #include <future>
 #include <iostream>
+#include <limits>
 #include <memory>
 #include <mutex>
 #include <optional>
@@ -953,6 +954,8 @@ struct PreparedModelMesh {
     glm::mat4 inverseMeshTransform{1.0f};
     std::vector<CoreVertex> vertices;
     std::vector<Index> indices;
+    glm::vec3 minimum{std::numeric_limits<float>::infinity()};
+    glm::vec3 maximum{-std::numeric_limits<float>::infinity()};
 };
 
 void collectModelMeshes(const aiNode &node, const aiScene &scene,
@@ -1159,6 +1162,19 @@ std::optional<PreparedModelMesh> prepareModelMesh(
 
     if (needsNormalTangents)
         updateModelTangents(vertices, indices);
+    if (prepared.skin.joints.empty()) {
+        for (const auto &vertex : vertices) {
+            const auto position = vertex.position.toGlm();
+            if (!std::isfinite(position.x) || !std::isfinite(position.y) ||
+                !std::isfinite(position.z)) {
+                prepared.minimum = glm::vec3(-std::numeric_limits<float>::infinity());
+                prepared.maximum = glm::vec3(std::numeric_limits<float>::infinity());
+                break;
+            }
+            prepared.minimum = glm::min(prepared.minimum, position);
+            prepared.maximum = glm::max(prepared.maximum, position);
+        }
+    }
 
     return prepared;
 }
@@ -1329,6 +1345,11 @@ void Model::loadModel(
             auto object = std::make_shared<ModelMesh>();
             object->vertices = std::move(prepared->vertices);
             object->indices = std::move(prepared->indices);
+            if (prepared->skin.joints.empty() &&
+                std::isfinite(prepared->minimum.x) && std::isfinite(prepared->maximum.x)) {
+                object->importedRenderBounds = CoreObject::RenderBounds{
+                    prepared->minimum, prepared->maximum};
+            }
             object->skin = std::move(prepared->skin);
             object->inverseMeshTransform = prepared->inverseMeshTransform;
             finishMesh(*object, *meshes[index].mesh, *scene, textureCache);

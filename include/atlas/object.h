@@ -629,6 +629,16 @@ class CoreObject : public GameObject {
     bool hasPhysics = false;
 
     friend class Window;
+    friend class Model;
+    struct RenderBounds {
+        glm::vec3 minimum;
+        glm::vec3 maximum;
+    };
+    std::optional<RenderBounds> importedRenderBounds;
+    bool intersectsRenderFrustum(const glm::mat4 &clipFromWorld) const;
+    void renderUsingProgram(float dt,
+                            std::shared_ptr<opal::CommandBuffer> commandBuffer,
+                            bool updatePipeline, const ShaderProgram &program);
     friend class RenderTarget;
     friend class Skybox;
     friend class photon::PathTracing;
